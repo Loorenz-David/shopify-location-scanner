@@ -3,8 +3,9 @@ import { useEffect } from "react";
 import { scannerActions } from "../actions/scanner.actions";
 import { type ScannerPageContextValue } from "../context/scanner-page-context";
 import { ScannerPageProvider } from "../context/scanner-page.context";
+import type { ScannerEngineFlowResult } from "../types/scanner-engine.types";
 import { useScannerLinkFlow } from "../flows/use-scanner-link.flow";
-import { useScannerQrcodeFlow } from "../flows/use-scanner-qrcode.flow";
+import { useScannerZxingFlow } from "../flows/use-scanner-zxing.flow";
 import { useLocationOptionsStore } from "../stores/location-options.store";
 import { useScannerStore } from "../stores/scanner.store";
 
@@ -15,6 +16,18 @@ interface ScannerFeatureProviderProps {
 export function ScannerFeatureProvider({
   children,
 }: ScannerFeatureProviderProps) {
+  return <ScannerZxingProviderContent>{children}</ScannerZxingProviderContent>;
+}
+
+interface ScannerEngineProviderContentProps {
+  children: React.ReactNode;
+  flowResult: ScannerEngineFlowResult;
+}
+
+function ScannerEngineProviderContent({
+  children,
+  flowResult,
+}: ScannerEngineProviderContentProps) {
   const scannerStep = useScannerStore((state) => state.scannerStep);
   const selectedLensId = useScannerStore((state) => state.selectedLensId);
   const {
@@ -25,7 +38,7 @@ export function ScannerFeatureProvider({
     decodedText,
     clearDecodedScan,
     resetScannerVisualCycle,
-  } = useScannerQrcodeFlow(scannerStep, selectedLensId);
+  } = flowResult;
   const selectedItem = useScannerStore((state) => state.selectedItem);
   const selectedLocation = useScannerStore((state) => state.selectedLocation);
   const frozenFrameAt = useScannerStore((state) => state.frozenFrameAt);
@@ -95,5 +108,19 @@ export function ScannerFeatureProvider({
 
   return (
     <ScannerPageProvider value={contextValue}>{children}</ScannerPageProvider>
+  );
+}
+
+function ScannerZxingProviderContent({
+  children,
+}: ScannerFeatureProviderProps) {
+  const scannerStep = useScannerStore((state) => state.scannerStep);
+  const selectedLensId = useScannerStore((state) => state.selectedLensId);
+  const flowResult = useScannerZxingFlow(scannerStep, selectedLensId);
+
+  return (
+    <ScannerEngineProviderContent flowResult={flowResult}>
+      {children}
+    </ScannerEngineProviderContent>
   );
 }

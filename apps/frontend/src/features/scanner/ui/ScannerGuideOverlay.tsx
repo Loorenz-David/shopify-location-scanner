@@ -1,11 +1,17 @@
 import { motion } from "framer-motion";
 
+import {
+  SCANNER_GUIDE_MAX_SIZE_PX,
+  SCANNER_GUIDE_MIN_SIZE_PX,
+  SCANNER_GUIDE_OFFSET_TOP_PX,
+  SCANNER_GUIDE_VIEWPORT_SIZE_RATIO,
+} from "../domain/scanner-guide.domain";
+
 interface ScannerGuideOverlayProps {
   isFrozen: boolean;
 }
 
 export function ScannerGuideOverlay({ isFrozen }: ScannerGuideOverlayProps) {
-  const guideOffsetTopPx = -100;
   const frameClass = isFrozen ? "border-emerald-300/60" : "border-sky-100/35";
   const cornerClass = isFrozen ? "border-emerald-300" : "border-sky-200";
   const pulseTransition = {
@@ -17,10 +23,18 @@ export function ScannerGuideOverlay({ isFrozen }: ScannerGuideOverlayProps) {
   return (
     <div
       className="pointer-events-none absolute inset-0 z-20 grid place-items-center px-6"
-      style={{ transform: `translateY(${guideOffsetTopPx}px)` }}
+      style={{ transform: `translateY(${SCANNER_GUIDE_OFFSET_TOP_PX}px)` }}
     >
       <motion.div
-        className="relative h-[min(62svh,62vw)] w-[min(62svh,62vw)] max-h-[420px] max-w-[420px] min-h-[220px] min-w-[220px]"
+        className="relative"
+        style={{
+          width: `min(${SCANNER_GUIDE_VIEWPORT_SIZE_RATIO * 100}svh, ${SCANNER_GUIDE_VIEWPORT_SIZE_RATIO * 100}vw)`,
+          height: `min(${SCANNER_GUIDE_VIEWPORT_SIZE_RATIO * 100}svh, ${SCANNER_GUIDE_VIEWPORT_SIZE_RATIO * 100}vw)`,
+          minWidth: `${SCANNER_GUIDE_MIN_SIZE_PX}px`,
+          minHeight: `${SCANNER_GUIDE_MIN_SIZE_PX}px`,
+          maxWidth: `${SCANNER_GUIDE_MAX_SIZE_PX}px`,
+          maxHeight: `${SCANNER_GUIDE_MAX_SIZE_PX}px`,
+        }}
         animate={{ scale: isFrozen ? [1, 1.065, 1] : 1 }}
         transition={pulseTransition}
       >

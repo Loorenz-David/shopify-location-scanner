@@ -6,6 +6,7 @@ import type {
   ItemScanHistoryEvent,
   ItemScanHistoryItem,
 } from "../types/item-scan-history.types";
+import { normalizeShopifyImageUrl } from "../../shopify/domain/shopify-image.domain";
 
 const shortDateTimeFormatter = new Intl.DateTimeFormat(undefined, {
   month: "short",
@@ -54,7 +55,7 @@ export function normalizeItemScanHistoryItem(
     id: item.id,
     skuLabel: buildSkuLabel(item.itemSku, item.productId),
     title: item.itemTitle,
-    imageUrl: normalizeImageUrl(item.itemImageUrl),
+    imageUrl: normalizeShopifyImageUrl(item.itemImageUrl),
     productId: item.productId,
     itemType: item.itemType,
     lastModifiedAt: item.lastModifiedAt,
@@ -102,11 +103,6 @@ export function buildSkuLabel(
   }
 
   return "Unknown item";
-}
-
-export function normalizeImageUrl(value: string | null): string | null {
-  const trimmedValue = value?.trim();
-  return trimmedValue ? trimmedValue : null;
 }
 
 function compareNewestFirst(

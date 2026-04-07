@@ -1,4 +1,5 @@
 import { queryShopifyItemsBySkuApi } from "../../shopify/api/query-items-by-sku.api";
+import { normalizeShopifyImageUrl } from "../../shopify/domain/shopify-image.domain";
 import type { ScannerItem } from "../types/scanner.types";
 
 export async function searchItemsBySkuApi(
@@ -16,7 +17,11 @@ export async function searchItemsBySkuApi(
       idType: "product_id",
       itemId: item.productId,
       sku: item.sku,
-      imageUrl: item.imageUrl,
+      imageUrl:
+        normalizeShopifyImageUrl(item.imageUrl, {
+          width: 120,
+          height: 120,
+        }) ?? undefined,
       title: item.title,
       currentPosition: undefined,
     }));

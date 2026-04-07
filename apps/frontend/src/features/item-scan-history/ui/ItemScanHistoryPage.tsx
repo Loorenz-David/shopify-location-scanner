@@ -1,3 +1,4 @@
+import { useRef } from "react";
 import { itemScanHistoryActions } from "../actions/item-scan-history.actions";
 import { useItemScanHistoryFlow } from "../flows/use-item-scan-history.flow";
 import {
@@ -10,10 +11,12 @@ import {
   useItemScanHistoryStore,
 } from "../stores/item-scan-history.store";
 import { ItemScanHistoryHeader } from "./ItemScanHistoryHeader";
+import { ItemScanHistoryLoadingCards } from "./ItemScanHistoryLoadingCards";
 import { ItemScanHistoryList } from "./ItemScanHistoryList";
 
 export function ItemScanHistoryPage() {
   useItemScanHistoryFlow();
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   const query = useItemScanHistoryStore(selectItemScanHistoryQuery);
   const items = useItemScanHistoryStore(selectItemScanHistoryItems);
@@ -33,14 +36,11 @@ export function ItemScanHistoryPage() {
         onChangeQuery={itemScanHistoryActions.setQuery}
       />
 
-      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-1">
-        {isLoading && !hasLoaded ? (
-          <div className="flex flex-col gap-4">
-            <div className="h-28 animate-pulse rounded-[28px] bg-white/70" />
-            <div className="h-28 animate-pulse rounded-[28px] bg-white/60" />
-            <div className="h-28 animate-pulse rounded-[28px] bg-white/50" />
-          </div>
-        ) : null}
+      <div
+        ref={scrollContainerRef}
+        className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-1"
+      >
+        {isLoading && !hasLoaded ? <ItemScanHistoryLoadingCards /> : null}
 
         {!isLoading && hasLoaded && items.length === 0 ? (
           <div className="rounded-[28px] border border-slate-900/10 bg-white/75 px-5 py-6 text-center shadow-[0_16px_36px_rgba(15,23,42,0.08)]">
@@ -65,6 +65,7 @@ export function ItemScanHistoryPage() {
             <ItemScanHistoryList
               items={items}
               expandedItemIds={expandedItemIds}
+              scrollContainerRef={scrollContainerRef}
             />
           </div>
         ) : null}

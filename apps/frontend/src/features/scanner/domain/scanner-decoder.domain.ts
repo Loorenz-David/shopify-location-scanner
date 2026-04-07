@@ -84,6 +84,13 @@ function inferSupportedItemIdentifier(value: string): ItemIdentifier | null {
   return null;
 }
 
+export function toScannerItemDisplayValue(value: string): string {
+  const normalizedValue = normalizeScannedValue(value);
+  const identifier = inferSupportedItemIdentifier(normalizedValue);
+
+  return identifier?.itemId ?? normalizedValue;
+}
+
 export function buildItemFromScannedValue(value: string): ScannerItem {
   const normalizedValue = normalizeScannedValue(value);
   const identifier = inferSupportedItemIdentifier(normalizedValue);

@@ -24,7 +24,12 @@ export function ItemScanHistoryCard({
           <img
             src={item.imageUrl}
             alt={item.title}
-            className="h-16 w-16 rounded-2xl object-cover"
+            width={64}
+            height={64}
+            loading="lazy"
+            decoding="async"
+            fetchPriority="low"
+            className="h-16 w-16 shrink-0 rounded-2xl bg-slate-100 object-cover"
           />
         ) : (
           <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-200 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">

@@ -10,10 +10,8 @@ import {
   selectScannerOnScanAsk,
   useScannerStore,
 } from "../../scanner/stores/scanner.store";
-import {
-  SettingsPageProvider,
-  type SettingsPageContextValue,
-} from "../context/settings-page.context";
+import { SettingsPageProvider } from "../context/settings-page.context";
+import type { SettingsPageContextValue } from "../context/settings-page-context";
 import { useSettingsProfileFlow } from "../flows/use-settings-profile.flow";
 import {
   selectSettingsProfile,

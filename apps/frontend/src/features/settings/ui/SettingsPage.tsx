@@ -2,7 +2,7 @@ import {
   formatBootstrapSyncLabel,
   settingsOptionSubscriptions,
 } from "../domain/settings-options.domain";
-import { useSettingsPageContext } from "../context/settings-page.context";
+import { useSettingsPageContext } from "../context/settings-page-context";
 import { SettingsOptionRow } from "./SettingsOptionRow";
 import { SettingsProfileCard } from "./SettingsProfileCard";
 

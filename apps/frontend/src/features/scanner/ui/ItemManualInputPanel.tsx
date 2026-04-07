@@ -1,5 +1,7 @@
+import { useEffect, useRef } from "react";
 import { CloseIcon } from "../../../assets/icons";
 import { SearchBar } from "../../../share/searchbar";
+import { useSlidingOverlayReady } from "../../home/ui/sliding-overlay-ready.context";
 import type { ScannerItem } from "../types/scanner.types";
 
 interface ItemManualInputPanelProps {
@@ -19,7 +21,15 @@ export function ItemManualInputPanel({
   onQueryChange,
   onSelectItem,
 }: ItemManualInputPanelProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isOverlayReady = useSlidingOverlayReady();
   const loadingPlaceholders = Array.from({ length: 4 }, (_, index) => index);
+
+  useEffect(() => {
+    if (isOverlayReady) {
+      inputRef.current?.focus({ preventScroll: true });
+    }
+  }, [isOverlayReady]);
 
   return (
     <section
@@ -28,10 +38,10 @@ export function ItemManualInputPanel({
     >
       <header className="flex items-center gap-2 border-b border-slate-900/15 px-4 py-4">
         <SearchBar
+          ref={inputRef}
           id="item-search-input"
           wrapperClassName="h-11 flex-1 rounded-xl border border-slate-800/20 bg-white px-3"
           value={query}
-          autoFocus
           onChange={(event) => onQueryChange(event.target.value)}
           placeholder="Search by SKU or barcode"
           aria-label="Search by SKU or barcode"
@@ -80,7 +90,12 @@ export function ItemManualInputPanel({
                   <img
                     src={item.imageUrl}
                     alt=""
-                    className="h-10 w-10 rounded-lg object-cover"
+                    width={40}
+                    height={40}
+                    loading="lazy"
+                    decoding="async"
+                    fetchPriority="low"
+                    className="h-10 w-10 shrink-0 rounded-lg bg-slate-100 object-cover"
                   />
                   <span className="flex flex-col gap-0.5 text-sky-900">
                     <strong>{item.sku}</strong>

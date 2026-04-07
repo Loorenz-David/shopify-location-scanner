@@ -1,5 +1,7 @@
+import { useEffect, useRef } from "react";
 import { CloseIcon } from "../../../assets/icons";
 import { SearchBar } from "../../../share/searchbar";
+import { useSlidingOverlayReady } from "../../home/ui/sliding-overlay-ready.context";
 import type { ScannerLocation } from "../types/scanner.types";
 
 interface LocationManualInputPanelProps {
@@ -19,6 +21,15 @@ export function LocationManualInputPanel({
   onQueryChange,
   onSelectLocation,
 }: LocationManualInputPanelProps) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const isOverlayReady = useSlidingOverlayReady();
+
+  useEffect(() => {
+    if (isOverlayReady) {
+      inputRef.current?.focus({ preventScroll: true });
+    }
+  }, [isOverlayReady]);
+
   return (
     <section
       className="flex h-full min-h-0 flex-col bg-slate-50"
@@ -26,10 +37,10 @@ export function LocationManualInputPanel({
     >
       <header className="flex items-center gap-2 border-b border-slate-900/15 px-4 py-4">
         <SearchBar
+          ref={inputRef}
           id="location-search-input"
           wrapperClassName="h-11 flex-1 rounded-xl border border-slate-800/20 bg-white px-3"
           value={query}
-          autoFocus
           onChange={(event) => onQueryChange(event.target.value)}
           placeholder="Search location"
           aria-label="Search location"
