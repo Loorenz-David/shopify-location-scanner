@@ -1,0 +1,92 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  admin
+  worker
+}
+
+model Shop {
+  id            String        @id @default(cuid())
+  shopDomain    String        @unique
+  accessToken   String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  users         User[]
+  scanHistories ScanHistory[]
+}
+
+model User {
+  id            String        @id @default(cuid())
+  username      String        @unique
+  passwordHash  String
+  role          UserRole      @default(worker)
+  shopId        String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  shop          Shop?         @relation(fields: [shopId], references: [id], onDelete: SetNull)
+  refreshTokens RefreshToken[]
+  scanHistories ScanHistory[]
+
+  @@index([shopId])
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  createdAt DateTime @default(now())
+  revokedAt DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model ScanHistory {
+  id               String   @id @default(cuid())
+  shopId           String
+  userId           String?
+  username         String
+  productId        String
+  itemSku          String?
+  itemImageUrl     String?
+  itemType         String
+  itemTitle        String
+  lastModifiedAt   DateTime @default(now())
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  events           ScanHistoryEvent[]
+
+  shop Shop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([shopId, productId])
+  @@index([shopId, lastModifiedAt])
+  @@index([userId, lastModifiedAt])
+  @@index([shopId, username])
+  @@index([shopId, itemSku])
+  @@index([shopId, itemType])
+  @@index([shopId, itemTitle])
+}
+
+model ScanHistoryEvent {
+  id            String   @id @default(cuid())
+  scanHistoryId String
+  username      String   @default("unknown")
+  location      String
+  happenedAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  scanHistory ScanHistory @relation(fields: [scanHistoryId], references: [id], onDelete: Cascade)
+
+  @@index([scanHistoryId, happenedAt])
+  @@index([username])
+  @@index([location])
+}
