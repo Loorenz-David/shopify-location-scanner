@@ -202,6 +202,11 @@ function isDecodedResultInsideGuideRegion(
   });
 }
 
+type ScannerDecodeResult = {
+  getText: () => string;
+  getResultPoints: () => Array<{ getX: () => number; getY: () => number }>;
+};
+
 function triggerScanHapticFeedback(): void {
   if (typeof navigator === "undefined" || !navigator.vibrate) {
     return;
@@ -460,7 +465,7 @@ export function useScannerZxingFlow(
         const controls = await reader.decodeFromVideoDevice(
           cameraId ?? undefined,
           videoElement,
-          (result) => {
+          (result: ScannerDecodeResult | null | undefined) => {
             if (isDisposed) {
               return;
             }
