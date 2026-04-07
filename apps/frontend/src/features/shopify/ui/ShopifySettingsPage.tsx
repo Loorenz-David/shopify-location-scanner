@@ -87,7 +87,7 @@ export function ShopifySettingsPage() {
           <label className="flex flex-col gap-1 text-sm font-semibold text-slate-800">
             Shopify domain
             <input
-              className="app-searchbar-surface h-11 rounded-xl px-3 text-sm"
+              className="app-searchbar-surface app-searchbar-input h-11 rounded-xl px-3"
               value={storeInput}
               onChange={(event) => setStoreInput(event.target.value)}
               placeholder="example-store or example-store.myshopify.com"

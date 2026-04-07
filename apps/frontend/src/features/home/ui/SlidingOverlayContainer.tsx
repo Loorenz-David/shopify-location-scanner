@@ -25,7 +25,9 @@ export function SlidingOverlayContainer({
           exit={{ y: "100%" }}
           transition={{ duration: 0.25, ease: "easeOut" }}
         >
-          <div className="h-full">{children}</div>
+          <div className="flex h-svh min-h-0 flex-col overflow-hidden">
+            {children}
+          </div>
         </motion.section>
       ) : null}
     </AnimatePresence>

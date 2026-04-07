@@ -25,7 +25,7 @@ export function FullFeatureOverlayContainer({
           exit={{ x: "100%" }}
           transition={{ duration: 0.28, ease: "easeOut" }}
         >
-          <div className="min-h-svh">
+          <div className="h-svh">
             <ActiveFeatureComponent />
           </div>
         </motion.section>

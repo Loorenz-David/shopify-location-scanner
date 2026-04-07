@@ -26,7 +26,7 @@ export function SearchBar({
       />
       <input
         type={type}
-        className={`h-full w-full border-0 bg-transparent p-0 text-sm text-slate-900 outline-none ${inputClassName ?? ""}`.trim()}
+        className={`app-searchbar-input h-full w-full border-0 bg-transparent p-0 text-slate-900 outline-none ${inputClassName ?? ""}`.trim()}
         {...inputProps}
       />
     </label>

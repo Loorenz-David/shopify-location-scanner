@@ -21,7 +21,7 @@ export function LocationManualInputPanel({
 }: LocationManualInputPanelProps) {
   return (
     <section
-      className="flex h-full flex-col bg-slate-50"
+      className="flex h-full min-h-0 flex-col bg-slate-50"
       aria-label="Manual location input"
     >
       <header className="flex items-center gap-2 border-b border-slate-900/15 px-4 py-4">
@@ -44,7 +44,7 @@ export function LocationManualInputPanel({
         </button>
       </header>
 
-      <div className="flex-1 overflow-auto px-4 pb-6 pt-4">
+      <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain px-4 pb-6 pt-4">
         {isLoading ? (
           <p className="m-0 pb-3 text-slate-500">Searching locations...</p>
         ) : null}
