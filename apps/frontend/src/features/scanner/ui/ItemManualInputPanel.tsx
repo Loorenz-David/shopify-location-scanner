@@ -33,8 +33,8 @@ export function ItemManualInputPanel({
           value={query}
           autoFocus
           onChange={(event) => onQueryChange(event.target.value)}
-          placeholder="Search by SKU"
-          aria-label="Search by SKU"
+          placeholder="Search by SKU or barcode"
+          aria-label="Search by SKU or barcode"
         />
         <button
           type="button"

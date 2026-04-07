@@ -5,13 +5,20 @@ import { bootstrapActions } from "./features/bootstrap/actions/bootstrap.actions
 import type { AuthUserDto } from "./features/auth/types/auth.dto";
 import { AuthPage } from "./features/auth/ui/AuthPage";
 import { HomeFeature } from "./features/home/HomeFeature";
+import { usePwaFlow } from "./features/pwa/flows/use-pwa.flow";
+import { usePwaStore } from "./features/pwa/stores/pwa.store";
+import { PwaUpdatePrompt } from "./features/pwa/ui/PwaUpdatePrompt";
 
 function App() {
+  usePwaFlow();
+
   const [isSessionCheckPending, setIsSessionCheckPending] = useState(true);
   const [authenticatedUser, setAuthenticatedUser] =
     useState<AuthUserDto | null>(null);
   const [isAuthSubmitPending, setIsAuthSubmitPending] = useState(false);
   const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null);
+  const isPwaUpdateVisible = usePwaStore((state) => state.updateAvailable);
+  const isApplyingPwaUpdate = usePwaStore((state) => state.isApplyingUpdate);
 
   useEffect(() => {
     let isDisposed = false;
@@ -89,26 +96,46 @@ function App() {
 
   if (isSessionCheckPending) {
     return (
-      <main className="grid min-h-svh place-items-center bg-[radial-gradient(circle_at_10%_10%,rgba(20,176,142,0.22),transparent_40%),radial-gradient(circle_at_80%_20%,rgba(242,157,68,0.22),transparent_35%),linear-gradient(180deg,#f5fbf8_0%,#edf3ff_55%,#eef2f5_100%)]">
-        <p className="m-0 text-sm font-semibold text-slate-700">
-          Loading session...
-        </p>
-      </main>
+      <>
+        <main className="grid min-h-svh place-items-center bg-[radial-gradient(circle_at_10%_10%,rgba(20,176,142,0.22),transparent_40%),radial-gradient(circle_at_80%_20%,rgba(242,157,68,0.22),transparent_35%),linear-gradient(180deg,#f5fbf8_0%,#edf3ff_55%,#eef2f5_100%)]">
+          <p className="m-0 text-sm font-semibold text-slate-700">
+            Loading session...
+          </p>
+        </main>
+        <PwaUpdatePrompt
+          isVisible={isPwaUpdateVisible}
+          isApplyingUpdate={isApplyingPwaUpdate}
+        />
+      </>
     );
   }
 
   if (!authenticatedUser) {
     return (
-      <AuthPage
-        isLoading={isAuthSubmitPending}
-        errorMessage={authErrorMessage}
-        onLogin={handleLogin}
-        onRegister={handleRegister}
-      />
+      <>
+        <AuthPage
+          isLoading={isAuthSubmitPending}
+          errorMessage={authErrorMessage}
+          onLogin={handleLogin}
+          onRegister={handleRegister}
+        />
+        <PwaUpdatePrompt
+          isVisible={isPwaUpdateVisible}
+          isApplyingUpdate={isApplyingPwaUpdate}
+        />
+      </>
     );
   }
 
-  return <HomeFeature onLogout={handleLogout} />;
+  return (
+    <>
+      <HomeFeature onLogout={handleLogout} />
+      <PwaUpdatePrompt
+        isVisible={isPwaUpdateVisible}
+        isApplyingUpdate={isApplyingPwaUpdate}
+      />
+    </>
+  );
 }
 
 export default App;

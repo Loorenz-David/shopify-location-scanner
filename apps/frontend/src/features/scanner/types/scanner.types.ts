@@ -1,6 +1,6 @@
 export type ScannerStep = "item" | "location";
 
-export type ScannerItemIdType = "product_id" | "handle" | "sku";
+export type ScannerItemIdType = "product_id" | "handle" | "sku" | "barcode";
 
 export interface ScannerItem {
   id: string;

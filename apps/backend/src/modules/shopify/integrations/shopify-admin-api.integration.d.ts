@@ -21,6 +21,11 @@ export declare const shopifyAdminApi: {
         accessToken: string;
         sku: string;
     }): Promise<string | null>;
+    resolveProductIdByBarcode(input: {
+        shopDomain: string;
+        accessToken: string;
+        barcode: string;
+    }): Promise<string | null>;
     searchProductsBySku(input: {
         shopDomain: string;
         accessToken: string;

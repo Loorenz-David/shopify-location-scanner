@@ -10,6 +10,7 @@ export type ProductLocationData = {
   id: string;
   title: string;
   sku: string | null;
+  barcode: string | null;
   imageUrl: string | null;
   location: string | null;
   updatedAt: string;

@@ -13,7 +13,7 @@ export function ItemScanHistorySearchInput({
     <SearchBar
       value={value}
       onChange={(event) => onChange(event.target.value)}
-      placeholder="Search by SKU, product, user, or location"
+      placeholder="Search by SKU, barcode, product, user, or location"
       aria-label="Search item scan history"
     />
   );

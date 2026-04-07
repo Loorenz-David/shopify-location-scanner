@@ -5,7 +5,7 @@ export declare const updateItemLocationCommand: (input: {
     userId: string;
     resolvedProductId: string;
     originalItemId: string;
-    idType: "product_id" | "handle" | "sku";
+    idType: "product_id" | "handle" | "sku" | "barcode";
     payload: UpdateItemLocationInput;
 }) => Promise<{
     product: ShopifyProductLocationDto & {

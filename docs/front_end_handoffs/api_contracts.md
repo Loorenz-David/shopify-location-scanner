@@ -485,6 +485,7 @@ Response `200`:
   "product": {
     "id": "gid://shopify/Product/1234567890",
     "title": "Product title",
+    "barcode": "9781234567890 | null",
     "location": "Rack A",
     "updatedAt": "2026-04-06T18:00:00Z"
   }
@@ -529,6 +530,7 @@ Response `200`:
   "product": {
     "id": "gid://shopify/Product/1234567890",
     "title": "Product title",
+    "barcode": "9781234567890 | null",
     "location": "Rack A",
     "previousLocation": "Rack B",
     "updatedAt": "2026-04-06T18:00:00Z"
@@ -540,8 +542,9 @@ Response `200`:
     "username": "string",
     "productId": "gid://shopify/Product/1234567890",
     "itemSku": "CH5-230226 | null",
+    "itemBarcode": "9781234567890 | null",
     "itemImageUrl": "https://cdn.shopify.com/... | null",
-    "itemType": "product_id | handle | sku",
+    "itemType": "product_id | handle | sku | barcode",
     "itemTitle": "Product title",
     "lastModifiedAt": "2026-04-06T21:26:00.000Z",
     "events": [
@@ -588,7 +591,7 @@ Request body:
 
 ```json
 {
-  "idType": "product_id | handle | sku",
+  "idType": "product_id | handle | sku | barcode",
   "itemId": "string",
   "location": "Rack A"
 }
@@ -618,6 +621,7 @@ Resolution behavior:
 - `product_id`: uses itemId directly (numeric IDs are normalized to Product GID)
 - `handle`: resolves product by Shopify handle, then updates
 - `sku`: resolves first matching product by SKU, then updates
+- `barcode`: resolves first matching product by barcode, then updates
 - If request body uses `items`, response always uses batch shape (`results` + `summary`), even when `items.length` is `1`.
 
 Response `200`:
@@ -627,6 +631,7 @@ Response `200`:
   "product": {
     "id": "gid://shopify/Product/1234567890",
     "title": "Product title",
+    "barcode": "9781234567890 | null",
     "location": "Rack A",
     "previousLocation": "Rack B",
     "updatedAt": "2026-04-06T18:00:00Z"
@@ -638,8 +643,9 @@ Response `200`:
     "username": "string",
     "productId": "gid://shopify/Product/1234567890",
     "itemSku": "CH5-230226 | null",
+    "itemBarcode": "9781234567890 | null",
     "itemImageUrl": "https://cdn.shopify.com/... | null",
-    "itemType": "product_id | handle | sku",
+    "itemType": "product_id | handle | sku | barcode",
     "itemTitle": "Product title",
     "lastModifiedAt": "2026-04-06T21:26:00.000Z",
     "events": [
@@ -668,6 +674,7 @@ Batch response `200`:
       "product": {
         "id": "gid://shopify/Product/1234567890",
         "title": "Product title",
+        "barcode": "9781234567890 | null",
         "location": "Rack A",
         "previousLocation": "Rack B",
         "updatedAt": "2026-04-06T18:00:00Z"
@@ -676,8 +683,9 @@ Batch response `200`:
         "id": "string",
         "productId": "gid://shopify/Product/1234567890",
         "itemSku": "CH5-230226 | null",
+        "itemBarcode": "9781234567890 | null",
         "itemImageUrl": "https://cdn.shopify.com/... | null",
-        "itemType": "product_id | handle | sku",
+        "itemType": "product_id | handle | sku | barcode",
         "itemTitle": "Product title",
         "lastModifiedAt": "2026-04-06T21:26:00.000Z",
         "events": [
@@ -769,7 +777,8 @@ Response `200`:
       "productId": "gid://shopify/Product/1234567890",
       "title": "Product title",
       "imageUrl": "https://cdn.shopify.com/...",
-      "sku": "CH5-230226"
+      "sku": "CH5-230226",
+      "barcode": "9781234567890 | null"
     }
   ],
   "count": 1
@@ -794,8 +803,8 @@ Frontend request shape:
 Notes:
 
 - Returns first 10 matching items.
-- `sku` uses case-insensitive prefix match (`value%`).
-- Each item includes product title, product image, SKU, and product ID.
+- `sku` query value uses case-insensitive contains match (`%value%`) against both SKU and barcode.
+- Each item includes product title, product image, SKU, barcode, and product ID.
 
 ### Query Metafield Options
 
@@ -1075,8 +1084,9 @@ Response `200`:
         "username": "string",
         "productId": "gid://shopify/Product/1234567890",
         "itemSku": "CH5-230226 | null",
+        "itemBarcode": "9781234567890 | null",
         "itemImageUrl": "https://cdn.shopify.com/... | null",
-        "itemType": "product_id | handle | sku",
+        "itemType": "product_id | handle | sku | barcode",
         "itemTitle": "Sample product",
         "lastModifiedAt": "2026-04-06T21:26:00.000Z",
         "events": [
@@ -1100,7 +1110,7 @@ Response `200`:
 Behavior:
 
 - Sorted by `lastModifiedAt` descending (newest first).
-- `q` filters scan history by prefix match (`value%`) in: `username`, `productId`, `itemSku`, `itemType`, `itemTitle`, event `username`, and event `location` values.
+- `q` filters scan history by prefix match (`value%`) in: `username`, `productId`, `itemSku`, `itemBarcode`, `itemType`, `itemTitle`, event `username`, and event `location` values.
 - `q` is shop-scoped and only searches records belonging to the authenticated user's linked shop.
 - On each successful item location update, backend appends a new event object with `location` and `happenedAt`.
 - If the product does not yet have a history row, backend creates one automatically.

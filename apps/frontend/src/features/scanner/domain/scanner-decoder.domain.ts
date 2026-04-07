@@ -9,6 +9,13 @@ function normalizeScannedValue(value: string): string {
   return value.trim();
 }
 
+interface ItemIdentifier {
+  idType: ScannerItemIdType;
+  itemId: string;
+}
+
+type ItemIdentifierExtractor = (value: string) => ItemIdentifier | null;
+
 function extractHandleFromProductUrl(value: string): string | null {
   const fallbackMatch = value.match(/\/products\/([^/?#]+)/i);
   if (fallbackMatch?.[1]) {
@@ -35,34 +42,61 @@ function extractHandleFromProductUrl(value: string): string | null {
   return null;
 }
 
-function inferItemIdentifier(value: string): {
-  idType: ScannerItemIdType;
-  itemId: string;
-} {
+const extractShopifyHandleIdentifier: ItemIdentifierExtractor = (value) => {
   const handleFromUrl = extractHandleFromProductUrl(value);
-  if (handleFromUrl) {
-    return {
-      idType: "handle",
-      itemId: handleFromUrl,
-    };
-  }
-
-  if (/^\d+$/.test(value) || value.startsWith("gid://shopify/Product/")) {
-    return {
-      idType: "product_id",
-      itemId: value,
-    };
+  if (!handleFromUrl) {
+    return null;
   }
 
   return {
-    idType: "sku",
-    itemId: value,
+    idType: "handle",
+    itemId: handleFromUrl,
   };
+};
+
+const extractArticleNumberIdentifier: ItemIdentifierExtractor = (value) => {
+  const articleNumberMatch = value.match(/^ART\s*:\s*(.+)$/i);
+  const articleNumber = articleNumberMatch?.[1]?.trim();
+
+  if (!articleNumber) {
+    return null;
+  }
+
+  return {
+    idType: "barcode",
+    itemId: articleNumber,
+  };
+};
+
+const itemIdentifierExtractors: ItemIdentifierExtractor[] = [
+  extractShopifyHandleIdentifier,
+  extractArticleNumberIdentifier,
+];
+
+function inferSupportedItemIdentifier(value: string): ItemIdentifier | null {
+  for (const extractor of itemIdentifierExtractors) {
+    const result = extractor(value);
+    if (result) {
+      return result;
+    }
+  }
+
+  return null;
 }
 
 export function buildItemFromScannedValue(value: string): ScannerItem {
   const normalizedValue = normalizeScannedValue(value);
-  const identifier = inferItemIdentifier(normalizedValue);
+  const identifier = inferSupportedItemIdentifier(normalizedValue);
+
+  if (!identifier) {
+    return {
+      id: normalizedValue,
+      idType: "sku",
+      itemId: normalizedValue,
+      sku: normalizedValue,
+      title: normalizedValue,
+    };
+  }
 
   return {
     id: normalizedValue,
@@ -92,5 +126,9 @@ export function canApplyScannedValue(
     return false;
   }
 
-  return step === "item" || step === "location";
+  if (step === "location") {
+    return true;
+  }
+
+  return inferSupportedItemIdentifier(normalizedValue) !== null;
 }
