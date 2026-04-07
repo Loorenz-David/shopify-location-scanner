@@ -1,0 +1,90 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&display=swap");
+@import "tailwindcss";
+
+@keyframes scanner-skeleton-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+@layer base {
+  :root {
+    font-family: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+    font-synthesis: none;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply m-0 min-h-svh bg-slate-100 text-slate-800;
+  }
+
+  #root {
+    @apply min-h-svh;
+  }
+
+  #scanner-qr-reader [id^="qr-shaded-region"] {
+    display: none !important;
+  }
+
+  #scanner-qr-reader {
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 100% !important;
+    min-height: 100% !important;
+    background: transparent !important;
+    border: 0 !important;
+  }
+
+  #scanner-qr-reader__scan_region {
+    width: 100% !important;
+    height: 100% !important;
+    min-width: 100% !important;
+    min-height: 100% !important;
+  }
+
+  #scanner-qr-reader__scan_region video {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+  }
+}
+
+@layer components {
+  .auth-modern-font {
+    font-family:
+      "Plus Jakarta Sans", "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+  }
+
+  .app-searchbar-surface {
+    @apply h-14 w-full rounded-[28px] border border-green-700/40 bg-white/65 px-4 text-sm text-slate-900 shadow-[0_18px_40px_rgba(15,23,42,0.08)] backdrop-blur-md outline-none transition;
+  }
+
+  .app-searchbar-surface:focus {
+    @apply border-emerald-400 bg-white/85 ring-4 ring-emerald-200/70;
+  }
+
+  .scanner-skeleton-surface {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .scanner-skeleton-surface::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    transform: translateX(-100%);
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.65) 50%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    animation: scanner-skeleton-shimmer 1.1s linear infinite;
+  }
+}

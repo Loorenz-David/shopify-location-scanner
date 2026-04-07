@@ -1,0 +1,1 @@
+# shopify-location-scanner
