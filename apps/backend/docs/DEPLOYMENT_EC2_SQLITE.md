@@ -45,7 +45,7 @@ Important values:
 
 Shopify callback URL must exactly be:
 
-- `https://api.your-domain.com/shopify/oauth/callback`
+- `https://api.your-domain.com/api/shopify/oauth/callback`
 
 ## 3) Deploy
 
