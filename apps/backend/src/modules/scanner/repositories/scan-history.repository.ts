@@ -4,7 +4,6 @@ import type {
   ScanHistoryPage,
   ScanHistoryRecord,
 } from "../domain/scan-history.js";
-import type { Prisma } from "@prisma/client";
 
 const toDomain = (record: {
   id: string;
@@ -52,7 +51,7 @@ export const scanHistoryRepository = {
   ): Promise<ScanHistoryRecord> {
     const happenedAt = input.happenedAt ?? new Date();
 
-    const history = await prisma.$transaction(async (tx) => {
+    const history = await prisma.$transaction(async (tx: any) => {
       const existing = await tx.scanHistory.findUnique({
         where: {
           shopId_productId: {
@@ -138,7 +137,7 @@ export const scanHistoryRepository = {
     const skip = (input.page - 1) * input.pageSize;
     const trimmedQuery = input.q?.trim();
 
-    const where: Prisma.ScanHistoryWhereInput = trimmedQuery
+    const where = trimmedQuery
       ? {
           shopId: input.shopId,
           OR: [
