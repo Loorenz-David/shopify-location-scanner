@@ -172,3 +172,4 @@ model LocationCategoryStatsDaily {
   @@id([date, location, itemCategory])
   @@map("location_category_stats_daily")
 }
+
