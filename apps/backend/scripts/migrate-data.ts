@@ -46,14 +46,32 @@ async function main() {
     "User",
     () => oldDb.user.findMany(),
     (row) =>
-      newDb.user.create({
-        data: row,
+      newDb.user.upsert({
+        where: { username: row.username },
+        update: {},
+        create: row,
       }),
   );
 
   await migrateTable(
     "ScanHistory",
-    () => oldDb.scanHistory.findMany(),
+    () =>
+      oldDb.$queryRawUnsafe<any[]>(`
+    SELECT 
+      id,
+      shopId,
+      userId,
+      username,
+      productId,
+      itemSku,
+      itemImageUrl,
+      itemType,
+      itemTitle,
+      lastModifiedAt,
+      createdAt,
+      updatedAt
+    FROM ScanHistory
+  `),
     (row) =>
       newDb.scanHistory.create({
         data: {
