@@ -76,7 +76,6 @@ async function main() {
       newDb.scanHistory.create({
         data: {
           ...row,
-          itemBarcode: null, // handle new field
         },
       }),
   );
