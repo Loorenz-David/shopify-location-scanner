@@ -5,7 +5,6 @@ export declare const AppendScanLocationHistorySchema: z.ZodObject<{
     username: z.ZodString;
     productId: z.ZodString;
     itemSku: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    itemBarcode: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     itemImageUrl: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     itemType: z.ZodString;
     itemTitle: z.ZodString;

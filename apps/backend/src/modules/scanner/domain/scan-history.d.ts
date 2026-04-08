@@ -10,7 +10,6 @@ export type ScanHistoryRecord = {
     username: string;
     productId: string;
     itemSku: string | null;
-    itemBarcode: string | null;
     itemImageUrl: string | null;
     itemType: string;
     itemTitle: string;

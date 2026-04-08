@@ -70,7 +70,6 @@ export const shopifyAdminApi = {
             edges {
               node {
                 sku
-                barcode
               }
             }
           }
@@ -93,7 +92,6 @@ export const shopifyAdminApi = {
             id: data.product.id,
             title: data.product.title,
             sku: data.product.variants.edges[0]?.node.sku ?? null,
-            barcode: data.product.variants.edges[0]?.node.barcode ?? null,
             imageUrl: data.product.featuredImage?.url ?? null,
             updatedAt: data.product.updatedAt,
             location: data.product.itemLocation?.value ?? null,
@@ -117,34 +115,6 @@ export const shopifyAdminApi = {
         });
         return results[0]?.productId ?? null;
     },
-    async resolveProductIdByBarcode(input) {
-        const normalizedBarcode = input.barcode.trim().toLowerCase();
-        const data = await shopifyGraphql(input.shopDomain, input.accessToken, `#graphql
-      query ResolveProductByBarcode($query: String!, $first: Int!) {
-        products(first: $first, query: $query) {
-          edges {
-            node {
-              id
-              variants(first: 20) {
-                edges {
-                  node {
-                    barcode
-                  }
-                }
-              }
-            }
-          }
-        }
-      }`, {
-            first: 20,
-            query: `barcode:${input.barcode.trim()}*`,
-        });
-        const matched = data.products.edges.find((edge) => edge.node.variants.edges.some((variantEdge) => {
-            const variantBarcode = variantEdge.node.barcode?.trim().toLowerCase() ?? "";
-            return variantBarcode === normalizedBarcode;
-        }));
-        return matched?.node.id ?? null;
-    },
     async searchProductsBySku(input) {
         const limit = input.limit ?? 10;
         const normalizedInputSku = input.sku.trim().toLowerCase();
@@ -162,7 +132,6 @@ export const shopifyAdminApi = {
                 edges {
                   node {
                     sku
-                    barcode
                   }
                 }
               }
@@ -171,15 +140,13 @@ export const shopifyAdminApi = {
         }
       }`, {
             first: limit,
-            query: `sku:*${input.sku.trim()}* OR barcode:*${input.sku.trim()}*`,
+            query: `sku:${input.sku.trim()}*`,
         });
         return data.products.edges
             .map((edge) => {
             const matchedVariant = edge.node.variants.edges.find((variantEdge) => {
                 const variantSku = variantEdge.node.sku?.trim().toLowerCase() ?? "";
-                const variantBarcode = variantEdge.node.barcode?.trim().toLowerCase() ?? "";
-                return (variantSku.includes(normalizedInputSku) ||
-                    variantBarcode.includes(normalizedInputSku));
+                return variantSku.startsWith(normalizedInputSku);
             });
             if (!matchedVariant?.node.sku) {
                 return null;
@@ -189,7 +156,6 @@ export const shopifyAdminApi = {
                 title: edge.node.title,
                 imageUrl: edge.node.featuredImage?.url ?? null,
                 sku: matchedVariant.node.sku,
-                barcode: matchedVariant.node.barcode,
             };
         })
             .filter((item) => item !== null)

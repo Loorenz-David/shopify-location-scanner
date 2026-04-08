@@ -35,12 +35,7 @@ export const UpdateItemLocationInputSchema = z.object({
   location: z.string().trim().min(1).max(120),
 });
 
-export const ResolveItemIdTypeSchema = z.enum([
-  "product_id",
-  "handle",
-  "sku",
-  "barcode",
-]);
+export const ResolveItemIdTypeSchema = z.enum(["product_id", "handle", "sku"]);
 
 export const UpdateItemLocationByIdentifierSchema = z.object({
   idType: ResolveItemIdTypeSchema,
@@ -94,7 +89,6 @@ export type RemoveMetafieldOptionParams = z.infer<
 export type ShopifyProductLocationDto = {
   id: string;
   title: string;
-  barcode: string | null;
   location: string | null;
   updatedAt: string;
 };
@@ -104,7 +98,6 @@ export type ShopifySkuSearchItemDto = {
   title: string;
   imageUrl: string | null;
   sku: string;
-  barcode: string | null;
 };
 
 export type ShopifyMetafieldOptionDto = {

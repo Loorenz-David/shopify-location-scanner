@@ -34,7 +34,7 @@ export const createInstallUrlCommand = async (
   }
 
   const state = shopifyOauthStateService.sign(userId);
-  const redirectUri = `${env.SHOPIFY_APP_URL}/api/shopify/oauth/callback`;
+  const redirectUri = `${env.SHOPIFY_APP_URL}/shopify/oauth/callback`;
   const scopes = env.SHOPIFY_SCOPES;
 
   const authorizationUrl = new URL(

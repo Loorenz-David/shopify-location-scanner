@@ -24,17 +24,6 @@ export const resolveProductIdCommand = async (input) => {
         }
         return resolved;
     }
-    if (input.idType === "barcode") {
-        const resolved = await shopifyAdminApi.resolveProductIdByBarcode({
-            shopDomain: input.shopDomain,
-            accessToken: input.accessToken,
-            barcode: input.itemId,
-        });
-        if (!resolved) {
-            throw new NotFoundError("No product found for the given barcode");
-        }
-        return resolved;
-    }
     const resolved = await shopifyAdminApi.resolveProductIdBySku({
         shopDomain: input.shopDomain,
         accessToken: input.accessToken,

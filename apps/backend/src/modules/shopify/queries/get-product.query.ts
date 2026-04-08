@@ -33,7 +33,6 @@ export const getProductQuery = async (input: {
   return {
     id: product.id,
     title: product.title,
-    barcode: product.barcode,
     location: product.location,
     updatedAt: product.updatedAt,
   };

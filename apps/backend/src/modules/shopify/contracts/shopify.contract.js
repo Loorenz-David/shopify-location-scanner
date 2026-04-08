@@ -31,12 +31,7 @@ export const ShopifyCallbackQuerySchema = z.object({
 export const UpdateItemLocationInputSchema = z.object({
     location: z.string().trim().min(1).max(120),
 });
-export const ResolveItemIdTypeSchema = z.enum([
-    "product_id",
-    "handle",
-    "sku",
-    "barcode",
-]);
+export const ResolveItemIdTypeSchema = z.enum(["product_id", "handle", "sku"]);
 export const UpdateItemLocationByIdentifierSchema = z.object({
     idType: ResolveItemIdTypeSchema,
     itemId: z.string().trim().min(1),

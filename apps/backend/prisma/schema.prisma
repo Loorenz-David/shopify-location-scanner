@@ -56,7 +56,6 @@ model ScanHistory {
   username         String
   productId        String
   itemSku          String?
-  itemBarcode      String?
   itemImageUrl     String?
   itemType         String
   itemTitle        String
@@ -73,7 +72,6 @@ model ScanHistory {
   @@index([userId, lastModifiedAt])
   @@index([shopId, username])
   @@index([shopId, itemSku])
-  @@index([shopId, itemBarcode])
   @@index([shopId, itemType])
   @@index([shopId, itemTitle])
 }

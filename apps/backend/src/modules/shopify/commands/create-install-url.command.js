@@ -19,7 +19,7 @@ export const createInstallUrlCommand = async (input, userId) => {
         throw new ConflictError("A different Shopify store is already linked. Relink is required by an admin.");
     }
     const state = shopifyOauthStateService.sign(userId);
-    const redirectUri = `${env.SHOPIFY_APP_URL}/api/shopify/oauth/callback`;
+    const redirectUri = `${env.SHOPIFY_APP_URL}/shopify/oauth/callback`;
     const scopes = env.SHOPIFY_SCOPES;
     const authorizationUrl = new URL(`https://${shopDomain}/admin/oauth/authorize`);
     authorizationUrl.searchParams.set("client_id", env.SHOPIFY_API_KEY);

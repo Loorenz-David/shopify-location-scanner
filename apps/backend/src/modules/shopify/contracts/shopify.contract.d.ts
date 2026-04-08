@@ -17,14 +17,12 @@ export declare const ResolveItemIdTypeSchema: z.ZodEnum<{
     product_id: "product_id";
     handle: "handle";
     sku: "sku";
-    barcode: "barcode";
 }>;
 export declare const UpdateItemLocationByIdentifierSchema: z.ZodObject<{
     idType: z.ZodEnum<{
         product_id: "product_id";
         handle: "handle";
         sku: "sku";
-        barcode: "barcode";
     }>;
     itemId: z.ZodString;
     location: z.ZodString;
@@ -35,7 +33,6 @@ export declare const UpdateItemLocationByIdentifierBatchSchema: z.ZodObject<{
             product_id: "product_id";
             handle: "handle";
             sku: "sku";
-            barcode: "barcode";
         }>;
         itemId: z.ZodString;
         location: z.ZodString;
@@ -66,7 +63,6 @@ export type RemoveMetafieldOptionParams = z.infer<typeof RemoveMetafieldOptionPa
 export type ShopifyProductLocationDto = {
     id: string;
     title: string;
-    barcode: string | null;
     location: string | null;
     updatedAt: string;
 };
@@ -75,7 +71,6 @@ export type ShopifySkuSearchItemDto = {
     title: string;
     imageUrl: string | null;
     sku: string;
-    barcode: string | null;
 };
 export type ShopifyMetafieldOptionDto = {
     label: string;
