@@ -52,17 +52,20 @@ async function main() {
       `,
         oldDb.scanHistoryEvent.findMany(),
     ]);
+    const typedShops = shops;
+    const typedUsers = users;
+    const typedRefreshTokens = refreshTokens;
+    const typedScanHistoryEvents = scanHistoryEvents;
     console.log("[migrate] Source counts");
-    console.log(`[migrate] Shop: ${shops.length}`);
-    console.log(`[migrate] User: ${users.length}`);
-    console.log(`[migrate] RefreshToken: ${refreshTokens.length}`);
+    console.log(`[migrate] Shop: ${typedShops.length}`);
+    console.log(`[migrate] User: ${typedUsers.length}`);
+    console.log(`[migrate] RefreshToken: ${typedRefreshTokens.length}`);
     console.log(`[migrate] ScanHistory: ${scanHistoryRows.length}`);
-    console.log(`[migrate] ScanHistoryEvent: ${scanHistoryEvents.length}`);
-    const shopIds = new Set(shops.map((row) => row.id));
-    const userIds = new Set(users.map((row) => row.id));
-    const scanHistoryIds = new Set(scanHistoryRows.map((row) => row.id));
+    console.log(`[migrate] ScanHistoryEvent: ${typedScanHistoryEvents.length}`);
+    const shopIds = new Set(typedShops.map((row) => row.id));
+    const userIds = new Set(typedUsers.map((row) => row.id));
     let usersWithoutShop = 0;
-    const normalizedUsers = users.map((row) => {
+    const normalizedUsers = typedUsers.map((row) => {
         if (row.shopId && !shopIds.has(row.shopId)) {
             usersWithoutShop += 1;
             return { ...row, shopId: null };
@@ -83,10 +86,10 @@ async function main() {
     }));
     const skippedScanHistory = scanHistoryRows.length - normalizedScanHistory.length;
     const validScanHistoryIds = new Set(normalizedScanHistory.map((row) => row.id));
-    const normalizedRefreshTokens = refreshTokens.filter((row) => userIds.has(row.userId));
-    const skippedRefreshTokens = refreshTokens.length - normalizedRefreshTokens.length;
-    const normalizedScanHistoryEvents = scanHistoryEvents.filter((row) => validScanHistoryIds.has(row.scanHistoryId));
-    const skippedScanHistoryEvents = scanHistoryEvents.length - normalizedScanHistoryEvents.length;
+    const normalizedRefreshTokens = typedRefreshTokens.filter((row) => userIds.has(row.userId));
+    const skippedRefreshTokens = typedRefreshTokens.length - normalizedRefreshTokens.length;
+    const normalizedScanHistoryEvents = typedScanHistoryEvents.filter((row) => validScanHistoryIds.has(row.scanHistoryId));
+    const skippedScanHistoryEvents = typedScanHistoryEvents.length - normalizedScanHistoryEvents.length;
     if (usersWithoutShop > 0) {
         console.warn(`[migrate] User: normalized ${usersWithoutShop} row(s) with missing shopId to null`);
     }
@@ -106,7 +109,7 @@ async function main() {
         await tx.refreshToken.deleteMany();
         await tx.user.deleteMany();
         await tx.shop.deleteMany();
-        await createManyInChunks("Shop", shops, async (chunk) => {
+        await createManyInChunks("Shop", typedShops, async (chunk) => {
             await tx.shop.createMany({ data: chunk });
         });
         await createManyInChunks("User", normalizedUsers, async (chunk) => {
@@ -121,7 +124,7 @@ async function main() {
         await createManyInChunks("ScanHistoryEvent", normalizedScanHistoryEvents, async (chunk) => {
             await tx.scanHistoryEvent.createMany({ data: chunk });
         });
-        const [shopCount, userCount, refreshTokenCount, scanHistoryCount, scanEventCount] = await Promise.all([
+        const [shopCount, userCount, refreshTokenCount, scanHistoryCount, scanEventCount,] = await Promise.all([
             tx.shop.count(),
             tx.user.count(),
             tx.refreshToken.count(),
@@ -130,7 +133,7 @@ async function main() {
         ]);
         const mismatches = [];
         if (shopCount !== shops.length) {
-            mismatches.push(`Shop expected ${shops.length}, got ${shopCount}`);
+            mismatches.push(`Shop expected ${typedShops.length}, got ${shopCount}`);
         }
         if (userCount !== normalizedUsers.length) {
             mismatches.push(`User expected ${normalizedUsers.length}, got ${userCount}`);

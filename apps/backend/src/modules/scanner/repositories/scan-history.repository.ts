@@ -4,6 +4,7 @@ import type {
   ScanHistoryPage,
   ScanHistoryRecord,
 } from "../domain/scan-history.js";
+import type { Prisma } from "@prisma/client";
 
 const toDomain = (record: {
   id: string;
@@ -12,6 +13,7 @@ const toDomain = (record: {
   username: string;
   productId: string;
   itemSku: string | null;
+  itemBarcode: string | null;
   itemImageUrl: string | null;
   itemType: string;
   itemTitle: string;
@@ -31,6 +33,7 @@ const toDomain = (record: {
     username: record.username,
     productId: record.productId,
     itemSku: record.itemSku,
+    itemBarcode: record.itemBarcode,
     itemImageUrl: record.itemImageUrl,
     itemType: record.itemType,
     itemTitle: record.itemTitle,
@@ -51,7 +54,7 @@ export const scanHistoryRepository = {
   ): Promise<ScanHistoryRecord> {
     const happenedAt = input.happenedAt ?? new Date();
 
-    const history = await prisma.$transaction(async (tx: any) => {
+    const history = await prisma.$transaction(async (tx) => {
       const existing = await tx.scanHistory.findUnique({
         where: {
           shopId_productId: {
@@ -69,6 +72,7 @@ export const scanHistoryRepository = {
             username: input.username,
             productId: input.productId,
             itemSku: input.itemSku ?? null,
+            itemBarcode: input.itemBarcode ?? null,
             itemImageUrl: input.itemImageUrl ?? null,
             itemType: input.itemType,
             itemTitle: input.itemTitle,
@@ -97,6 +101,7 @@ export const scanHistoryRepository = {
           userId: input.userId ?? null,
           username: input.username,
           itemSku: input.itemSku ?? null,
+          itemBarcode: input.itemBarcode ?? null,
           itemImageUrl: input.itemImageUrl ?? null,
           itemType: input.itemType,
           itemTitle: input.itemTitle,
@@ -137,13 +142,14 @@ export const scanHistoryRepository = {
     const skip = (input.page - 1) * input.pageSize;
     const trimmedQuery = input.q?.trim();
 
-    const where = trimmedQuery
+    const where: Prisma.ScanHistoryWhereInput = trimmedQuery
       ? {
           shopId: input.shopId,
           OR: [
             { username: { startsWith: trimmedQuery } },
             { productId: { startsWith: trimmedQuery } },
             { itemSku: { startsWith: trimmedQuery } },
+            { itemBarcode: { startsWith: trimmedQuery } },
             { itemType: { startsWith: trimmedQuery } },
             { itemTitle: { startsWith: trimmedQuery } },
             {

@@ -51,7 +51,7 @@ export const handleOauthCallbackCommand = async (input: {
   const accessToken = await shopifyAdminApi.exchangeCodeForAccessToken({
     shopDomain: input.query.shop,
     code: input.query.code,
-    redirectUri: `${env.SHOPIFY_APP_URL}/shopify/oauth/callback`,
+    redirectUri: `${env.SHOPIFY_APP_URL}/api/shopify/oauth/callback`,
   });
 
   if (!accessToken) {

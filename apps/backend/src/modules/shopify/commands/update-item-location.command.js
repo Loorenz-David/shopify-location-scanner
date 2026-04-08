@@ -33,6 +33,7 @@ export const updateItemLocationCommand = async (input) => {
         username: user?.username ?? "unknown",
         productId: input.resolvedProductId,
         itemSku: input.idType === "sku" ? input.originalItemId : after.sku,
+        itemBarcode: input.idType === "barcode" ? input.originalItemId : after.barcode,
         itemImageUrl: after.imageUrl,
         itemType: input.idType,
         itemTitle: after.title,
@@ -42,6 +43,7 @@ export const updateItemLocationCommand = async (input) => {
         product: {
             id: after.id,
             title: after.title,
+            barcode: after.barcode,
             location: after.location,
             previousLocation: before.location,
             updatedAt: after.updatedAt,
