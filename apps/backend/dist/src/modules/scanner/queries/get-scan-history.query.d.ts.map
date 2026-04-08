@@ -1,0 +1,1 @@
+{"version":3,"file":"get-scan-history.query.d.ts","sourceRoot":"","sources":["../../../../../src/modules/scanner/queries/get-scan-history.query.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,eAAe,EAAE,MAAM,2BAA2B,CAAC;AAKjE,eAAO,MAAM,mBAAmB,GAAU,OAAO;IAC/C,MAAM,EAAE,MAAM,CAAC;IACf,IAAI,EAAE,MAAM,CAAC;IACb,CAAC,CAAC,EAAE,MAAM,CAAC;CACZ,KAAG,OAAO,CAAC,eAAe,CAO1B,CAAC"}

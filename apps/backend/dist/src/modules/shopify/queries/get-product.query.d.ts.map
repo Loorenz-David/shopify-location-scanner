@@ -1,0 +1,1 @@
+{"version":3,"file":"get-product.query.d.ts","sourceRoot":"","sources":["../../../../../src/modules/shopify/queries/get-product.query.ts"],"names":[],"mappings":"AACA,OAAO,KAAK,EAAE,yBAAyB,EAAE,MAAM,kCAAkC,CAAC;AAgBlF,eAAO,MAAM,eAAe,GAAU,OAAO;IAC3C,MAAM,EAAE,MAAM,CAAC;IACf,SAAS,EAAE,MAAM,CAAC;CACnB,KAAG,OAAO,CAAC,yBAAyB,CAmBpC,CAAC"}
