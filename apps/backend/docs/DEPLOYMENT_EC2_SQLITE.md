@@ -58,9 +58,10 @@ npm run deploy:ec2
 This script:
 
 1. installs dependencies,
-2. builds backend,
-3. runs `prisma migrate deploy`,
-4. restarts service.
+2. runs `prisma generate`,
+3. builds backend,
+4. runs `prisma migrate deploy`,
+5. restarts service.
 
 ## 4) systemd Service
 
