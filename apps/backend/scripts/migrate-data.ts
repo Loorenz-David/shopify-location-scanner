@@ -32,16 +32,19 @@ async function migrateTable<T>(
 }
 
 async function main() {
-  // ORDER MATTERS (relations)
+  // 1. SHOP (fix unique constraint)
   await migrateTable(
     "Shop",
     () => oldDb.shop.findMany(),
     (row) =>
-      newDb.shop.create({
-        data: row,
+      newDb.shop.upsert({
+        where: { shopDomain: row.shopDomain },
+        update: {},
+        create: row,
       }),
   );
 
+  // 2. USER (already correct)
   await migrateTable(
     "User",
     () => oldDb.user.findMany(),
@@ -53,33 +56,43 @@ async function main() {
       }),
   );
 
+  // 3. SCAN HISTORY (CRITICAL FIX)
   await migrateTable(
     "ScanHistory",
     () =>
       oldDb.$queryRawUnsafe<any[]>(`
-    SELECT 
-      id,
-      shopId,
-      userId,
-      username,
-      productId,
-      itemSku,
-      itemImageUrl,
-      itemType,
-      itemTitle,
-      lastModifiedAt,
-      createdAt,
-      updatedAt
-    FROM ScanHistory
-  `),
+        SELECT 
+          id,
+          shopId,
+          userId,
+          username,
+          productId,
+          itemSku,
+          itemImageUrl,
+          itemType,
+          itemTitle,
+          lastModifiedAt,
+          createdAt,
+          updatedAt
+        FROM ScanHistory
+      `),
     (row) =>
-      newDb.scanHistory.create({
-        data: {
+      newDb.scanHistory.upsert({
+        where: {
+          shopId_productId: {
+            shopId: row.shopId,
+            productId: row.productId,
+          },
+        },
+        update: {},
+        create: {
           ...row,
+          itemBarcode: null, // safe fallback
         },
       }),
   );
 
+  // 4. SCAN HISTORY EVENTS
   await migrateTable(
     "ScanHistoryEvent",
     () => oldDb.scanHistoryEvent.findMany(),
