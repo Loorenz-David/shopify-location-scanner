@@ -4,7 +4,13 @@ export const AppendScanLocationHistorySchema = z.object({
   shopId: z.string().min(1),
   userId: z.string().min(1).nullable().optional(),
   username: z.string().trim().min(1).max(80),
+  eventType: z
+    .enum(["location_update", "unknown_position", "sold_terminal"])
+    .optional(),
+  currentPrice: z.string().trim().min(1).max(80).nullable().optional(),
+  volume: z.number().positive().nullable().optional(),
   productId: z.string().trim().min(1),
+  itemCategory: z.string().trim().min(1).max(120).nullable().optional(),
   itemSku: z.string().trim().min(1).max(120).nullable().optional(),
   itemBarcode: z.string().trim().min(1).max(120).nullable().optional(),
   itemImageUrl: z.string().url().nullable().optional(),

@@ -3,6 +3,7 @@ import { itemScanHistoryActions } from "../actions/item-scan-history.actions";
 import {
   useItemScanHistoryFlow,
   useItemScanHistoryLoadingVisibilityFlow,
+  useItemScanHistoryPullRefreshFlow,
 } from "../flows/use-item-scan-history.flow";
 import {
   selectItemScanHistoryErrorMessage,
@@ -16,6 +17,7 @@ import {
 import { ItemScanHistoryHeader } from "./ItemScanHistoryHeader";
 import { ItemScanHistoryLoadingCards } from "./ItemScanHistoryLoadingCards";
 import { ItemScanHistoryList } from "./ItemScanHistoryList";
+import { ItemScanHistoryPullRefreshIndicator } from "./ItemScanHistoryPullRefreshIndicator";
 
 export function ItemScanHistoryPage() {
   useItemScanHistoryFlow();
@@ -32,6 +34,9 @@ export function ItemScanHistoryPage() {
   const expandedItemIds = useItemScanHistoryStore(
     selectItemScanHistoryExpandedItemIds,
   );
+  const pullRefresh = useItemScanHistoryPullRefreshFlow({
+    scrollContainerRef,
+  });
 
   return (
     <section className="mx-auto flex h-[calc(100svh-7.5rem)] min-h-0 w-full max-w-[720px] flex-col gap-5">
@@ -44,7 +49,21 @@ export function ItemScanHistoryPage() {
         ref={scrollContainerRef}
         className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-1"
       >
-        {isLoadingVisible && !hasLoaded ? <ItemScanHistoryLoadingCards /> : null}
+        <ItemScanHistoryPullRefreshIndicator
+          pullDistance={pullRefresh.pullDistance}
+          isArmed={pullRefresh.isArmed}
+          isRefreshing={pullRefresh.isRefreshing && hasLoaded}
+        />
+
+        <div
+          className="transition-transform duration-150"
+          style={{
+            transform: `translateY(${pullRefresh.pullDistance}px)`,
+          }}
+        >
+        {isLoadingVisible && !hasLoaded ? (
+          <ItemScanHistoryLoadingCards />
+        ) : null}
 
         {!isLoading && hasLoaded && items.length === 0 ? (
           <div className="rounded-[28px] border border-slate-900/10 bg-white/75 px-5 py-6 text-center shadow-[0_16px_36px_rgba(15,23,42,0.08)]">
@@ -73,6 +92,7 @@ export function ItemScanHistoryPage() {
             />
           </div>
         ) : null}
+        </div>
       </div>
     </section>
   );

@@ -47,6 +47,7 @@ app.use(
   }),
 );
 app.use(requestContextMiddleware);
+app.use("/shopify/webhooks", express.raw({ type: "application/json" }));
 app.use(express.json());
 
 app.get("/health", (_req, res) => {

@@ -8,6 +8,13 @@ declare global {
         role: "admin" | "worker";
         shopId: string | null;
       };
+      webhookContext?: {
+        shopId: string;
+        shopDomain: string;
+        topic: string;
+        webhookId: string;
+        rawBody: string;
+      };
     }
   }
 }

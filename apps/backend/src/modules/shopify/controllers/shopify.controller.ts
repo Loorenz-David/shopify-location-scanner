@@ -4,7 +4,9 @@ import {
   InstallShopInputSchema,
   QueryBySkuSchema,
   RemoveMetafieldOptionParamsSchema,
+  ShopifyProductsUpdateWebhookPayloadSchema,
   SetMetafieldOptionsInputSchema,
+  ShopifyOrdersPaidWebhookPayloadSchema,
   ShopifyCallbackQuerySchema,
   UpdateItemLocationByIdentifierBatchSchema,
   UpdateItemLocationByIdentifierSchema,
@@ -29,6 +31,8 @@ import { removeMetafieldOptionCommand } from "../commands/remove-metafield-optio
 import { AppError } from "../../../shared/errors/app-error.js";
 import { logger } from "../../../shared/logging/logger.js";
 import { appendMetafieldOptionsCommand } from "../commands/append-metafield-options.command.js";
+import { handleOrdersPaidWebhookCommand } from "../commands/handle-orders-paid-webhook.command.js";
+import { handleProductsUpdateWebhookCommand } from "../commands/handle-products-update-webhook.command.js";
 
 const extractCallbackParams = (req: Request): Record<string, string> => {
   const url = new URL(req.originalUrl, "http://localhost");
@@ -41,6 +45,62 @@ const extractCallbackParams = (req: Request): Record<string, string> => {
 };
 
 export const shopifyController = {
+  handleProductsUpdateWebhook: async (
+    req: Request,
+    res: Response,
+  ): Promise<void> => {
+    const context = req.webhookContext;
+    if (!context) {
+      throw new ValidationError("Webhook context missing");
+    }
+
+    let parsedBody: unknown;
+    try {
+      parsedBody = JSON.parse(context.rawBody);
+    } catch {
+      throw new ValidationError("Invalid webhook JSON payload");
+    }
+
+    const payload = ShopifyProductsUpdateWebhookPayloadSchema.parse(parsedBody);
+    const result = await handleProductsUpdateWebhookCommand({
+      shopId: context.shopId,
+      shopDomain: context.shopDomain,
+      topic: context.topic,
+      webhookId: context.webhookId,
+      payload,
+    });
+
+    res.status(200).json({ ok: true, ...result });
+  },
+
+  handleOrdersPaidWebhook: async (
+    req: Request,
+    res: Response,
+  ): Promise<void> => {
+    const context = req.webhookContext;
+    if (!context) {
+      throw new ValidationError("Webhook context missing");
+    }
+
+    let parsedBody: unknown;
+    try {
+      parsedBody = JSON.parse(context.rawBody);
+    } catch {
+      throw new ValidationError("Invalid webhook JSON payload");
+    }
+
+    const payload = ShopifyOrdersPaidWebhookPayloadSchema.parse(parsedBody);
+    const result = await handleOrdersPaidWebhookCommand({
+      shopId: context.shopId,
+      shopDomain: context.shopDomain,
+      topic: context.topic,
+      webhookId: context.webhookId,
+      payload,
+    });
+
+    res.status(200).json({ ok: true, ...result });
+  },
+
   getLinkedShop: async (req: Request, res: Response): Promise<void> => {
     const shop = await getLinkedShopQuery({
       shopId: req.authUser.shopId as string,
@@ -121,6 +181,15 @@ export const shopifyController = {
       : [UpdateItemLocationByIdentifierSchema.parse(req.body)];
     const shopId = req.authUser.shopId as string;
 
+    logger.info("Shopify item location update batch started", {
+      requestId: req.requestId,
+      route: "/shopify/items/location/by-identifier",
+      shopId,
+      userId: req.authUser.userId,
+      batchSize: items.length,
+      inputValidatedAsBatch: parsed.success,
+    });
+
     const shop = await shopRepository.findById(shopId);
     if (!shop || !shop.accessToken) {
       throw new NotFoundError("Linked Shopify store not found");
@@ -130,11 +199,30 @@ export const shopifyController = {
     const results = await Promise.all(
       items.map(async (input, index) => {
         try {
+          logger.info("Shopify item location update attempt started", {
+            requestId: req.requestId,
+            shopId,
+            userId: req.authUser.userId,
+            index,
+            idType: input.idType,
+            itemId: input.itemId,
+            requestedLocation: input.location,
+          });
+
           const resolvedProductId = await resolveProductIdCommand({
             idType: input.idType,
             itemId: input.itemId,
             shopDomain: shop.shopDomain,
             accessToken,
+          });
+
+          logger.info("Shopify item identifier resolved", {
+            requestId: req.requestId,
+            shopId,
+            index,
+            idType: input.idType,
+            itemId: input.itemId,
+            resolvedProductId,
           });
 
           const result = await updateItemLocationCommand({
@@ -148,6 +236,18 @@ export const shopifyController = {
             },
           });
 
+          logger.info("Shopify item location update attempt succeeded", {
+            requestId: req.requestId,
+            shopId,
+            index,
+            idType: input.idType,
+            itemId: input.itemId,
+            resolvedProductId,
+            previousLocation: result.product.previousLocation,
+            resultingLocation: result.product.location,
+            historyItemId: result.historyItem.id,
+          });
+
           return {
             index,
             idType: input.idType,
@@ -158,6 +258,18 @@ export const shopifyController = {
           };
         } catch (error) {
           const appError = error instanceof AppError ? error : null;
+
+          logger.warn("Shopify item location update attempt failed", {
+            requestId: req.requestId,
+            shopId,
+            userId: req.authUser.userId,
+            index,
+            idType: input.idType,
+            itemId: input.itemId,
+            requestedLocation: input.location,
+            errorCode: appError?.code ?? "INTERNAL_ERROR",
+            errorMessage: appError?.message ?? "Unexpected error",
+          });
 
           return {
             index,
@@ -174,6 +286,16 @@ export const shopifyController = {
     );
 
     const successCount = results.filter((result) => result.ok).length;
+
+    logger.info("Shopify item location update batch completed", {
+      requestId: req.requestId,
+      route: "/shopify/items/location/by-identifier",
+      shopId,
+      userId: req.authUser.userId,
+      total: results.length,
+      succeeded: successCount,
+      failed: results.length - successCount,
+    });
 
     if (
       !parsed.success &&

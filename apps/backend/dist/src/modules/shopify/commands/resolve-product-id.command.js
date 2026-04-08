@@ -1,4 +1,5 @@
 import { NotFoundError } from "../../../shared/errors/http-errors.js";
+import { logger } from "../../../shared/logging/logger.js";
 import { shopifyAdminApi } from "../integrations/shopify-admin-api.integration.js";
 const normalizeProductId = (productId) => {
     if (productId.startsWith("gid://shopify/Product/")) {
@@ -10,8 +11,20 @@ const normalizeProductId = (productId) => {
     return productId;
 };
 export const resolveProductIdCommand = async (input) => {
+    logger.info("Resolve product id started", {
+        idType: input.idType,
+        itemId: input.itemId,
+        shopDomain: input.shopDomain,
+    });
     if (input.idType === "product_id") {
-        return normalizeProductId(input.itemId);
+        const resolved = normalizeProductId(input.itemId);
+        logger.info("Resolve product id succeeded", {
+            idType: input.idType,
+            itemId: input.itemId,
+            resolvedProductId: resolved,
+            strategy: "normalized_product_id",
+        });
+        return resolved;
     }
     if (input.idType === "handle") {
         const resolved = await shopifyAdminApi.resolveProductIdByHandle({
@@ -20,8 +33,20 @@ export const resolveProductIdCommand = async (input) => {
             handle: input.itemId,
         });
         if (!resolved) {
+            logger.warn("Resolve product id failed", {
+                idType: input.idType,
+                itemId: input.itemId,
+                strategy: "handle_lookup",
+                reason: "no_match",
+            });
             throw new NotFoundError("No product found for the given handle");
         }
+        logger.info("Resolve product id succeeded", {
+            idType: input.idType,
+            itemId: input.itemId,
+            resolvedProductId: resolved,
+            strategy: "handle_lookup",
+        });
         return resolved;
     }
     if (input.idType === "barcode") {
@@ -31,8 +56,20 @@ export const resolveProductIdCommand = async (input) => {
             barcode: input.itemId,
         });
         if (!resolved) {
+            logger.warn("Resolve product id failed", {
+                idType: input.idType,
+                itemId: input.itemId,
+                strategy: "barcode_lookup",
+                reason: "no_match",
+            });
             throw new NotFoundError("No product found for the given barcode");
         }
+        logger.info("Resolve product id succeeded", {
+            idType: input.idType,
+            itemId: input.itemId,
+            resolvedProductId: resolved,
+            strategy: "barcode_lookup",
+        });
         return resolved;
     }
     const resolved = await shopifyAdminApi.resolveProductIdBySku({
@@ -41,8 +78,20 @@ export const resolveProductIdCommand = async (input) => {
         sku: input.itemId,
     });
     if (!resolved) {
+        logger.warn("Resolve product id failed", {
+            idType: input.idType,
+            itemId: input.itemId,
+            strategy: "sku_lookup",
+            reason: "no_match",
+        });
         throw new NotFoundError("No product found for the given sku");
     }
+    logger.info("Resolve product id succeeded", {
+        idType: input.idType,
+        itemId: input.itemId,
+        resolvedProductId: resolved,
+        strategy: "sku_lookup",
+    });
     return resolved;
 };
 //# sourceMappingURL=resolve-product-id.command.js.map

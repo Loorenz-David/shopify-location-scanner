@@ -12,6 +12,17 @@ enum UserRole {
   worker
 }
 
+enum ScanHistoryEventType {
+  location_update
+  unknown_position
+  sold_terminal
+}
+
+enum ScanHistoryPriceTerminalType {
+  unknown_position
+  sold_terminal
+}
+
 model Shop {
   id            String        @id @default(cuid())
   shopDomain    String        @unique
@@ -20,6 +31,7 @@ model Shop {
   updatedAt     DateTime      @updatedAt
   users         User[]
   scanHistories ScanHistory[]
+  webhookDeliveries ShopifyWebhookDelivery[]
 }
 
 model User {
@@ -64,6 +76,7 @@ model ScanHistory {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
   events           ScanHistoryEvent[]
+  priceHistory     ScanHistoryPrice[]
 
   shop Shop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
@@ -82,6 +95,9 @@ model ScanHistoryEvent {
   id            String   @id @default(cuid())
   scanHistoryId String
   username      String   @default("unknown")
+  eventType     ScanHistoryEventType @default(location_update)
+  orderId       String?
+  orderGroupId  String?
   location      String
   happenedAt    DateTime @default(now())
   createdAt     DateTime @default(now())
@@ -89,6 +105,55 @@ model ScanHistoryEvent {
   scanHistory ScanHistory @relation(fields: [scanHistoryId], references: [id], onDelete: Cascade)
 
   @@index([scanHistoryId, happenedAt])
+  @@index([scanHistoryId, eventType, happenedAt])
+  @@index([scanHistoryId, orderGroupId, happenedAt])
+  @@index([eventType, happenedAt])
+  @@index([orderGroupId, happenedAt])
   @@index([username])
   @@index([location])
+}
+
+model ScanHistoryPrice {
+  id            String   @id @default(cuid())
+  scanHistoryId String
+  price         String?
+  terminalType  ScanHistoryPriceTerminalType?
+  orderId       String?
+  orderGroupId  String?
+  happenedAt    DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  scanHistory ScanHistory @relation(fields: [scanHistoryId], references: [id], onDelete: Cascade)
+
+  @@index([scanHistoryId, happenedAt])
+  @@index([scanHistoryId, terminalType, happenedAt])
+  @@index([scanHistoryId, orderGroupId, happenedAt])
+  @@index([terminalType, happenedAt])
+  @@index([orderGroupId, happenedAt])
+}
+
+model ShopifyWebhookDelivery {
+  id         String   @id @default(cuid())
+  shopId     String
+  topic      String
+  webhookId  String
+  orderId    String?
+  createdAt  DateTime @default(now())
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, topic, webhookId])
+  @@index([shopId, createdAt])
+  @@index([topic, createdAt])
+}
+
+model LocationStatsDaily {
+  date                   DateTime
+  location               String
+  itemsSold              Int     @default(0) @map("items_sold")
+  itemsReceived          Int     @default(0) @map("items_received")
+  totalTimeToSellSeconds Float   @default(0) @map("total_time_to_sell_seconds")
+
+  @@id([date, location])
+  @@map("location_stats_daily")
 }

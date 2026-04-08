@@ -1,6 +1,24 @@
+export type ScanHistoryEventType =
+  | "location_update"
+  | "unknown_position"
+  | "sold_terminal";
+
+export type ScanHistoryPriceTerminalType = "unknown_position" | "sold_terminal";
+
 export type ScanHistoryEvent = {
   username: string;
+  eventType: ScanHistoryEventType;
+  orderId: string | null;
+  orderGroupId: string | null;
   location: string;
+  happenedAt: Date;
+};
+
+export type ScanHistoryPricePoint = {
+  price: string | null;
+  terminalType: ScanHistoryPriceTerminalType | null;
+  orderId: string | null;
+  orderGroupId: string | null;
   happenedAt: Date;
 };
 
@@ -17,6 +35,7 @@ export type ScanHistoryRecord = {
   itemTitle: string;
   lastModifiedAt: Date;
   events: ScanHistoryEvent[];
+  priceHistory: ScanHistoryPricePoint[];
   createdAt: Date;
   updatedAt: Date;
 };

@@ -1,4 +1,4 @@
-import { createHmac } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 import { env } from "../../../config/env.js";
 
 export const verifyShopifyCallbackHmac = (
@@ -16,4 +16,22 @@ export const verifyShopifyCallbackHmac = (
     .digest("hex");
 
   return digest === hmac;
+};
+
+export const verifyShopifyWebhookHmac = (input: {
+  rawBody: string;
+  hmacBase64: string;
+}): boolean => {
+  const digestBase64 = createHmac("sha256", env.SHOPIFY_API_SECRET)
+    .update(input.rawBody, "utf8")
+    .digest("base64");
+
+  const expected = Buffer.from(digestBase64, "utf8");
+  const provided = Buffer.from(input.hmacBase64, "utf8");
+
+  if (expected.length !== provided.length) {
+    return false;
+  }
+
+  return timingSafeEqual(expected, provided);
 };

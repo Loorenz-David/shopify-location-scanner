@@ -3,7 +3,15 @@ export declare const AppendScanLocationHistorySchema: z.ZodObject<{
     shopId: z.ZodString;
     userId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     username: z.ZodString;
+    eventType: z.ZodOptional<z.ZodEnum<{
+        location_update: "location_update";
+        unknown_position: "unknown_position";
+        sold_terminal: "sold_terminal";
+    }>>;
+    currentPrice: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    volume: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
     productId: z.ZodString;
+    itemCategory: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     itemSku: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     itemBarcode: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     itemImageUrl: z.ZodOptional<z.ZodNullable<z.ZodString>>;

@@ -33,6 +33,11 @@ export const shopRepository = {
     return record ? toDomain(record) : null;
   },
 
+  async findByDomain(shopDomain: string): Promise<LinkedShop | null> {
+    const record = await prisma.shop.findUnique({ where: { shopDomain } });
+    return record ? toDomain(record) : null;
+  },
+
   async upsertByDomain(input: {
     shopDomain: string;
     accessToken: string;

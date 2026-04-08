@@ -1,5 +1,6 @@
 import { env } from "../../../config/env.js";
 import { AppError } from "../../../shared/errors/app-error.js";
+import { logger } from "../../../shared/logging/logger.js";
 const shopifyGraphql = async (shopDomain, accessToken, query, variables) => {
     const response = await fetch(`https://${shopDomain}/admin/api/${env.SHOPIFY_API_VERSION}/graphql.json`, {
         method: "POST",
@@ -25,6 +26,29 @@ const shopifyGraphql = async (shopDomain, accessToken, query, variables) => {
         });
     }
     return payload.data;
+};
+const parseDimensionCm = (value) => {
+    if (!value) {
+        return null;
+    }
+    const match = value.match(/-?\d+(?:[\.,]\d+)?/);
+    if (!match) {
+        return null;
+    }
+    const parsed = Number.parseFloat(match[0].replace(/,/g, "."));
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+        return null;
+    }
+    return parsed;
+};
+const computeVolume = (input) => {
+    const height = parseDimensionCm(input.height);
+    const width = parseDimensionCm(input.width);
+    const depth = parseDimensionCm(input.depth);
+    if (height === null || width === null || depth === null) {
+        return null;
+    }
+    return height * width * depth;
 };
 export const shopifyAdminApi = {
     async exchangeCodeForAccessToken(input) {
@@ -58,10 +82,21 @@ export const shopifyAdminApi = {
     },
     async getProductWithLocation(input) {
         const data = await shopifyGraphql(input.shopDomain, input.accessToken, `#graphql
-      query GetProduct($id: ID!, $namespace: String!, $key: String!) {
+      query GetProduct(
+        $id: ID!
+        $namespace: String!
+        $locationKey: String!
+        $heightKey: String!
+        $heightKeyAlt: String!
+        $widthKey: String!
+        $widthKeyAlt: String!
+        $depthKey: String!
+        $depthKeyAlt: String!
+      ) {
         product(id: $id) {
           id
           title
+          productType
           updatedAt
           featuredImage {
             url
@@ -71,17 +106,42 @@ export const shopifyAdminApi = {
               node {
                 sku
                 barcode
+                price
               }
             }
           }
-          itemLocation: metafield(namespace: $namespace, key: $key) {
+          itemLocation: metafield(namespace: $namespace, key: $locationKey) {
+            value
+          }
+          itemHeight: metafield(namespace: $namespace, key: $heightKey) {
+            value
+          }
+          itemHeightAlt: metafield(namespace: $namespace, key: $heightKeyAlt) {
+            value
+          }
+          itemWidth: metafield(namespace: $namespace, key: $widthKey) {
+            value
+          }
+          itemWidthAlt: metafield(namespace: $namespace, key: $widthKeyAlt) {
+            value
+          }
+          itemDepth: metafield(namespace: $namespace, key: $depthKey) {
+            value
+          }
+          itemDepthAlt: metafield(namespace: $namespace, key: $depthKeyAlt) {
             value
           }
         }
       }`, {
             id: input.productId,
             namespace: env.SHOPIFY_METAFIELD_NAMESPACE,
-            key: env.SHOPIFY_METAFIELD_KEY,
+            locationKey: env.SHOPIFY_METAFIELD_KEY,
+            heightKey: "height",
+            heightKeyAlt: "Height",
+            widthKey: "width",
+            widthKeyAlt: "Width",
+            depthKey: "depth",
+            depthKeyAlt: "Depth",
         });
         if (!data.product) {
             throw new AppError("Shopify product not found", {
@@ -92,8 +152,15 @@ export const shopifyAdminApi = {
         return {
             id: data.product.id,
             title: data.product.title,
+            itemCategory: data.product.productType?.trim() || null,
             sku: data.product.variants.edges[0]?.node.sku ?? null,
             barcode: data.product.variants.edges[0]?.node.barcode ?? null,
+            price: data.product.variants.edges[0]?.node.price ?? null,
+            volume: computeVolume({
+                height: data.product.itemHeight?.value ?? data.product.itemHeightAlt?.value ?? null,
+                width: data.product.itemWidth?.value ?? data.product.itemWidthAlt?.value ?? null,
+                depth: data.product.itemDepth?.value ?? data.product.itemDepthAlt?.value ?? null,
+            }),
             imageUrl: data.product.featuredImage?.url ?? null,
             updatedAt: data.product.updatedAt,
             location: data.product.itemLocation?.value ?? null,
@@ -330,6 +397,13 @@ export const shopifyAdminApi = {
         });
     },
     async updateProductLocation(input) {
+        logger.info("Shopify GraphQL updateProductLocation request", {
+            shopDomain: input.shopDomain,
+            productId: input.productId,
+            namespace: env.SHOPIFY_METAFIELD_NAMESPACE,
+            key: env.SHOPIFY_METAFIELD_KEY,
+            location: input.location,
+        });
         const data = await shopifyGraphql(input.shopDomain, input.accessToken, `#graphql
       mutation UpdateProductLocation($input: ProductInput!) {
         productUpdate(input: $input) {
@@ -353,12 +427,24 @@ export const shopifyAdminApi = {
         });
         const firstError = data.productUpdate.userErrors[0];
         if (firstError) {
+            logger.warn("Shopify GraphQL updateProductLocation returned user error", {
+                shopDomain: input.shopDomain,
+                productId: input.productId,
+                location: input.location,
+                field: firstError.field,
+                message: firstError.message,
+            });
             throw new AppError(firstError.message, {
                 code: "VALIDATION_ERROR",
                 statusCode: 400,
                 details: { field: firstError.field },
             });
         }
+        logger.info("Shopify GraphQL updateProductLocation succeeded", {
+            shopDomain: input.shopDomain,
+            productId: input.productId,
+            location: input.location,
+        });
     },
 };
 //# sourceMappingURL=shopify-admin-api.integration.js.map

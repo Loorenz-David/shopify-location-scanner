@@ -57,4 +57,34 @@ export const AppendMetafieldOptionsInputSchema = z.object({
 export const RemoveMetafieldOptionParamsSchema = z.object({
     optionValue: z.string().trim().min(1).max(120),
 });
+const ShopifyOrderLineItemSchema = z.object({
+    id: z.union([z.number().int().positive(), z.string().trim().min(1)]),
+    product_id: z
+        .union([z.number().int().positive(), z.string().trim().min(1)])
+        .nullable()
+        .optional(),
+    sku: z.string().trim().nullable().optional(),
+    barcode: z.string().trim().nullable().optional(),
+    price: z.string().trim().nullable().optional(),
+    title: z.string().trim().min(1),
+    quantity: z.number().int().min(1).optional(),
+});
+export const ShopifyOrdersPaidWebhookPayloadSchema = z.object({
+    id: z.union([z.number().int().positive(), z.string().trim().min(1)]),
+    processed_at: z.string().trim().nullable().optional(),
+    created_at: z.string().trim().nullable().optional(),
+    updated_at: z.string().trim().nullable().optional(),
+    line_items: z.array(ShopifyOrderLineItemSchema),
+});
+const ShopifyProductUpdateVariantSchema = z.object({
+    id: z.union([z.number().int().positive(), z.string().trim().min(1)]),
+    price: z.string().trim().nullable().optional(),
+    sku: z.string().trim().nullable().optional(),
+    barcode: z.string().trim().nullable().optional(),
+});
+export const ShopifyProductsUpdateWebhookPayloadSchema = z.object({
+    id: z.union([z.number().int().positive(), z.string().trim().min(1)]),
+    updated_at: z.string().trim().nullable().optional(),
+    variants: z.array(ShopifyProductUpdateVariantSchema).optional(),
+});
 //# sourceMappingURL=shopify.contract.js.map

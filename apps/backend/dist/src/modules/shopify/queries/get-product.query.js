@@ -23,7 +23,10 @@ export const getProductQuery = async (input) => {
     return {
         id: product.id,
         title: product.title,
+        itemCategory: product.itemCategory,
         barcode: product.barcode,
+        price: product.price,
+        volume: product.volume,
         location: product.location,
         updatedAt: product.updatedAt,
     };

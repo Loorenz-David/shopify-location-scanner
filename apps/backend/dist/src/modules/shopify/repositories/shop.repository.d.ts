@@ -2,6 +2,7 @@ import type { LinkedShop } from "../domain/shopify-shop.js";
 export declare const shopRepository: {
     findAnyLinkedShop(): Promise<LinkedShop | null>;
     findById(id: string): Promise<LinkedShop | null>;
+    findByDomain(shopDomain: string): Promise<LinkedShop | null>;
     upsertByDomain(input: {
         shopDomain: string;
         accessToken: string;

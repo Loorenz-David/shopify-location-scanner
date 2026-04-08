@@ -19,6 +19,10 @@ export const shopRepository = {
         const record = await prisma.shop.findUnique({ where: { id } });
         return record ? toDomain(record) : null;
     },
+    async findByDomain(shopDomain) {
+        const record = await prisma.shop.findUnique({ where: { shopDomain } });
+        return record ? toDomain(record) : null;
+    },
     async upsertByDomain(input) {
         const record = await prisma.shop.upsert({
             where: { shopDomain: input.shopDomain },

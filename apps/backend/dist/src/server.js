@@ -35,6 +35,7 @@ app.use(cors({
     credentials: true,
 }));
 app.use(requestContextMiddleware);
+app.use("/shopify/webhooks", express.raw({ type: "application/json" }));
 app.use(express.json());
 app.get("/health", (_req, res) => {
     res.json({ ok: true, service: "backend" });

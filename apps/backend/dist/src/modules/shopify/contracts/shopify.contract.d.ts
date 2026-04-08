@@ -53,6 +53,31 @@ export declare const AppendMetafieldOptionsInputSchema: z.ZodObject<{
 export declare const RemoveMetafieldOptionParamsSchema: z.ZodObject<{
     optionValue: z.ZodString;
 }, z.core.$strip>;
+export declare const ShopifyOrdersPaidWebhookPayloadSchema: z.ZodObject<{
+    id: z.ZodUnion<readonly [z.ZodNumber, z.ZodString]>;
+    processed_at: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    created_at: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    updated_at: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    line_items: z.ZodArray<z.ZodObject<{
+        id: z.ZodUnion<readonly [z.ZodNumber, z.ZodString]>;
+        product_id: z.ZodOptional<z.ZodNullable<z.ZodUnion<readonly [z.ZodNumber, z.ZodString]>>>;
+        sku: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        barcode: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        price: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        title: z.ZodString;
+        quantity: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+export declare const ShopifyProductsUpdateWebhookPayloadSchema: z.ZodObject<{
+    id: z.ZodUnion<readonly [z.ZodNumber, z.ZodString]>;
+    updated_at: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    variants: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        id: z.ZodUnion<readonly [z.ZodNumber, z.ZodString]>;
+        price: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        sku: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        barcode: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    }, z.core.$strip>>>;
+}, z.core.$strip>;
 export type InstallShopInput = z.infer<typeof InstallShopInputSchema>;
 export type ShopifyCallbackQuery = z.infer<typeof ShopifyCallbackQuerySchema>;
 export type UpdateItemLocationInput = z.infer<typeof UpdateItemLocationInputSchema>;
@@ -63,10 +88,15 @@ export type QueryBySkuInput = z.infer<typeof QueryBySkuSchema>;
 export type SetMetafieldOptionsInput = z.infer<typeof SetMetafieldOptionsInputSchema>;
 export type AppendMetafieldOptionsInput = z.infer<typeof AppendMetafieldOptionsInputSchema>;
 export type RemoveMetafieldOptionParams = z.infer<typeof RemoveMetafieldOptionParamsSchema>;
+export type ShopifyOrdersPaidWebhookPayload = z.infer<typeof ShopifyOrdersPaidWebhookPayloadSchema>;
+export type ShopifyProductsUpdateWebhookPayload = z.infer<typeof ShopifyProductsUpdateWebhookPayloadSchema>;
 export type ShopifyProductLocationDto = {
     id: string;
     title: string;
+    itemCategory: string | null;
     barcode: string | null;
+    price: string | null;
+    volume: number | null;
     location: string | null;
     updatedAt: string;
 };
