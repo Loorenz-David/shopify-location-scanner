@@ -28,11 +28,13 @@ export type ScanHistoryRecord = {
   userId: string | null;
   username: string;
   productId: string;
+  itemCategory: string | null;
   itemSku: string | null;
   itemBarcode: string | null;
   itemImageUrl: string | null;
   itemType: string;
   itemTitle: string;
+  volume: number | null;
   lastModifiedAt: Date;
   events: ScanHistoryEvent[];
   priceHistory: ScanHistoryPricePoint[];

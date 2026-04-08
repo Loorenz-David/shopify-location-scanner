@@ -157,9 +157,15 @@ export const shopifyAdminApi = {
             barcode: data.product.variants.edges[0]?.node.barcode ?? null,
             price: data.product.variants.edges[0]?.node.price ?? null,
             volume: computeVolume({
-                height: data.product.itemHeight?.value ?? data.product.itemHeightAlt?.value ?? null,
-                width: data.product.itemWidth?.value ?? data.product.itemWidthAlt?.value ?? null,
-                depth: data.product.itemDepth?.value ?? data.product.itemDepthAlt?.value ?? null,
+                height: data.product.itemHeight?.value ??
+                    data.product.itemHeightAlt?.value ??
+                    null,
+                width: data.product.itemWidth?.value ??
+                    data.product.itemWidthAlt?.value ??
+                    null,
+                depth: data.product.itemDepth?.value ??
+                    data.product.itemDepthAlt?.value ??
+                    null,
             }),
             imageUrl: data.product.featuredImage?.url ?? null,
             updatedAt: data.product.updatedAt,

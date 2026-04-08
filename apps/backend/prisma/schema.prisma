@@ -67,11 +67,13 @@ model ScanHistory {
   userId           String?
   username         String
   productId        String
+  itemCategory     String?
   itemSku          String?
   itemBarcode      String?
   itemImageUrl     String?
   itemType         String
   itemTitle        String
+  volume           Float?
   lastModifiedAt   DateTime @default(now())
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -85,6 +87,7 @@ model ScanHistory {
   @@index([shopId, lastModifiedAt])
   @@index([userId, lastModifiedAt])
   @@index([shopId, username])
+  @@index([shopId, itemCategory])
   @@index([shopId, itemSku])
   @@index([shopId, itemBarcode])
   @@index([shopId, itemType])
@@ -153,7 +156,19 @@ model LocationStatsDaily {
   itemsSold              Int     @default(0) @map("items_sold")
   itemsReceived          Int     @default(0) @map("items_received")
   totalTimeToSellSeconds Float   @default(0) @map("total_time_to_sell_seconds")
+  totalValuation         Float   @default(0) @map("total_valuation")
 
   @@id([date, location])
   @@map("location_stats_daily")
+}
+
+model LocationCategoryStatsDaily {
+  date         DateTime
+  location     String
+  itemCategory String
+  itemsSold    Int   @default(0) @map("items_sold")
+  totalRevenue Float @default(0) @map("total_revenue")
+
+  @@id([date, location, itemCategory])
+  @@map("location_category_stats_daily")
 }
