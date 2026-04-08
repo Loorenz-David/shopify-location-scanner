@@ -1,6 +1,9 @@
 import { useRef } from "react";
 import { itemScanHistoryActions } from "../actions/item-scan-history.actions";
-import { useItemScanHistoryFlow } from "../flows/use-item-scan-history.flow";
+import {
+  useItemScanHistoryFlow,
+  useItemScanHistoryLoadingVisibilityFlow,
+} from "../flows/use-item-scan-history.flow";
 import {
   selectItemScanHistoryErrorMessage,
   selectItemScanHistoryExpandedItemIds,
@@ -21,6 +24,7 @@ export function ItemScanHistoryPage() {
   const query = useItemScanHistoryStore(selectItemScanHistoryQuery);
   const items = useItemScanHistoryStore(selectItemScanHistoryItems);
   const isLoading = useItemScanHistoryStore(selectItemScanHistoryIsLoading);
+  const isLoadingVisible = useItemScanHistoryLoadingVisibilityFlow(isLoading);
   const errorMessage = useItemScanHistoryStore(
     selectItemScanHistoryErrorMessage,
   );
@@ -40,7 +44,7 @@ export function ItemScanHistoryPage() {
         ref={scrollContainerRef}
         className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-1"
       >
-        {isLoading && !hasLoaded ? <ItemScanHistoryLoadingCards /> : null}
+        {isLoadingVisible && !hasLoaded ? <ItemScanHistoryLoadingCards /> : null}
 
         {!isLoading && hasLoaded && items.length === 0 ? (
           <div className="rounded-[28px] border border-slate-900/10 bg-white/75 px-5 py-6 text-center shadow-[0_16px_36px_rgba(15,23,42,0.08)]">
@@ -57,7 +61,7 @@ export function ItemScanHistoryPage() {
 
         {items.length > 0 ? (
           <div className="flex flex-col gap-3">
-            {isLoading ? (
+            {isLoadingVisible ? (
               <p className="m-0 text-sm font-medium text-slate-500">
                 Refreshing history...
               </p>

@@ -1,9 +1,10 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { itemScanHistoryActions } from "../actions/item-scan-history.actions";
 import { useItemScanHistoryStore } from "../stores/item-scan-history.store";
 
 const SEARCH_DEBOUNCE_MS = 250;
+const LOADING_VISIBILITY_DELAY_MS = 180;
 
 export function useItemScanHistoryFlow(): void {
   const hasLoaded = useItemScanHistoryStore((state) => state.hasLoaded);
@@ -35,4 +36,27 @@ export function useItemScanHistoryFlow(): void {
       window.clearTimeout(timeoutId);
     };
   }, [hasLoaded, query]);
+}
+
+export function useItemScanHistoryLoadingVisibilityFlow(
+  isLoading: boolean,
+): boolean {
+  const [isLoadingVisible, setIsLoadingVisible] = useState(false);
+
+  useEffect(() => {
+    if (!isLoading) {
+      setIsLoadingVisible(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setIsLoadingVisible(true);
+    }, LOADING_VISIBILITY_DELAY_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isLoading]);
+
+  return isLoadingVisible;
 }
