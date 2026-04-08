@@ -9,6 +9,10 @@ PROJECT_DIR="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "$PROJECT_DIR"
 
 echo "[deploy] Installing dependencies"
+
+echo "[deploy] Stopping service: ${SERVICE_NAME}"
+pm2 stop "${SERVICE_NAME}" || true
+
 npm ci
 
 echo "[deploy] Generating Prisma client"
