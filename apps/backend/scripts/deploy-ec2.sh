@@ -25,8 +25,8 @@ echo "[deploy] Applying Prisma migrations"
 npm run prisma:migrate:deploy
 
 echo "[deploy] Restarting service: ${SERVICE_NAME}"
-pm2 restart "${SERVICE_NAME}" --update-env || pm2 start npm --name "${SERVICE_NAME}" --cwd "${PROJECT_DIR}" -- start
+pm2 delete "${SERVICE_NAME}" || true
+pm2 start dist/src/server.js --name "${SERVICE_NAME}" --cwd "${PROJECT_DIR}"
 pm2 save
-
 
 echo "[deploy] Done"
