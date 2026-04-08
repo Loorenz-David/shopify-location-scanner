@@ -96,10 +96,22 @@ async function main() {
   await migrateTable(
     "ScanHistoryEvent",
     () => oldDb.scanHistoryEvent.findMany(),
-    (row) =>
-      newDb.scanHistoryEvent.create({
+    async (row) => {
+      const exists = await newDb.scanHistory.findUnique({
+        where: { id: row.scanHistoryId },
+      });
+
+      if (!exists) {
+        console.warn(
+          `[migrate][ScanHistoryEvent] skipping missing scanHistoryId ${row.scanHistoryId}`,
+        );
+        return;
+      }
+
+      await newDb.scanHistoryEvent.create({
         data: row,
-      }),
+      });
+    },
   );
 
   console.log("[migrate] done");
