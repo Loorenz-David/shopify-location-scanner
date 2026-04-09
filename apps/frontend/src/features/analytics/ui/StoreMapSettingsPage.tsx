@@ -35,9 +35,13 @@ export function StoreMapSettingsPage() {
   const stageHeight = useFloorMapStore(selectFloorMapStageHeight);
   const setEditorMode = useFloorMapStore((state) => state.setEditorMode);
   const canUndoShapeEdit = useShapeEditHistoryStore(selectShapeEditCanUndo);
-  const pushShapeSnapshot = useShapeEditHistoryStore((state) => state.pushSnapshot);
+  const pushShapeSnapshot = useShapeEditHistoryStore(
+    (state) => state.pushSnapshot,
+  );
   const undoShapeEdit = useShapeEditHistoryStore((state) => state.undo);
-  const resetShapeEditHistory = useShapeEditHistoryStore((state) => state.reset);
+  const resetShapeEditHistory = useShapeEditHistoryStore(
+    (state) => state.reset,
+  );
   const [selectedZone, setSelectedZone] = useState<StoreZone | null>(null);
   const [activeZoneEditorMode, setActiveZoneEditorMode] = useState<
     "menu" | "rename" | "shape" | null
@@ -56,7 +60,10 @@ export function StoreMapSettingsPage() {
     handleTouchEnd,
     resetTouchTransform,
     consumeLastTouchTapIntent,
-  } = useMapTouchControlsFlow(isEditorMode && !isShapeHandleActive, viewportTransform);
+  } = useMapTouchControlsFlow(
+    isEditorMode && !isShapeHandleActive,
+    viewportTransform,
+  );
   const {
     moveZone,
     normalizeSortOrder,
@@ -119,7 +126,7 @@ export function StoreMapSettingsPage() {
   useEffect(() => {
     setLabelDraft(selectedZone?.label ?? "");
     setActiveZoneEditorMode((current) =>
-      selectedZone ? current ?? "menu" : null,
+      selectedZone ? (current ?? "menu") : null,
     );
     setShapeDraft(selectedZone ? { ...selectedZone } : null);
   }, [selectedZone]);
@@ -137,6 +144,13 @@ export function StoreMapSettingsPage() {
   const isDraftZone = selectedZone?.id === "__draft-zone__";
   const editorZones =
     isDraftZone && selectedZone ? [...zones, selectedZone] : zones;
+  const hasPendingShapeChanges =
+    !!selectedZone &&
+    !!shapeDraft &&
+    (selectedZone.xPct !== shapeDraft.xPct ||
+      selectedZone.yPct !== shapeDraft.yPct ||
+      selectedZone.widthPct !== shapeDraft.widthPct ||
+      selectedZone.heightPct !== shapeDraft.heightPct);
 
   const beginCreateZone = () => {
     const defaultWidthPct = 18;
@@ -149,7 +163,10 @@ export function StoreMapSettingsPage() {
     const zoneWidthPx = pct(defaultWidthPct, stageWidth);
     const zoneHeightPx = pct(defaultHeightPct, stageHeight);
     const centerXPct = pxToPercent(centerWorldX - zoneWidthPx / 2, stageWidth);
-    const centerYPct = pxToPercent(centerWorldY - zoneHeightPx / 2, stageHeight);
+    const centerYPct = pxToPercent(
+      centerWorldY - zoneHeightPx / 2,
+      stageHeight,
+    );
 
     const draftZone: StoreZone = {
       id: "__draft-zone__",
@@ -197,8 +214,8 @@ export function StoreMapSettingsPage() {
 
       <div className="rounded-2xl border border-slate-900/10 bg-white/85 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
         <p className="m-0 text-sm font-medium text-slate-600">
-          The map below is a static preview. Tap edit to pan and zoom the map
-          in fullscreen. Zone creation and editing controls will be added next.
+          The map below is a static preview. Tap edit to pan and zoom the map in
+          fullscreen. Zone creation and editing controls will be added next.
         </p>
       </div>
 
@@ -206,7 +223,7 @@ export function StoreMapSettingsPage() {
         ref={isEditorMode ? undefined : containerRef}
         className="rounded-[24px] border border-slate-900/10 bg-slate-900/90 p-3 shadow-[0_16px_38px_rgba(15,23,42,0.16)]"
       >
-              <MapEditorStage
+        <MapEditorStage
           zones={zones}
           stageWidth={stageWidth}
           stageHeight={stageHeight}
@@ -280,24 +297,30 @@ export function StoreMapSettingsPage() {
               onShapeInteractionStart={pushShapeSnapshot}
             />
 
-            <div className="pointer-events-none absolute inset-x-0 top-0 z-20 p-4">
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  className="pointer-events-auto rounded-full border border-white/15 bg-white/90 px-4 py-2 text-sm font-semibold text-slate-800 shadow-[0_16px_36px_rgba(15,23,42,0.22)] backdrop-blur"
-                  onClick={() => setEditorMode(false)}
-                >
-                  Done
-                </button>
+            {!selectedZone && !activeZoneEditorMode ? (
+              <div className="pointer-events-none absolute inset-x-0 top-0 z-20 p-4">
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    className="pointer-events-auto rounded-full border border-white/15 bg-white/90 px-4 py-2 text-sm font-semibold text-slate-800 shadow-[0_16px_36px_rgba(15,23,42,0.22)] backdrop-blur"
+                    onClick={() => setEditorMode(false)}
+                  >
+                    Done
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : null}
 
             {!selectedZone && !activeZoneEditorMode ? (
               <div className="pointer-events-none absolute bottom-5 right-5 z-30">
-                <div className="relative h-36 w-36">
+                <div className="relative h-28 w-28">
                   <button
                     type="button"
-                    aria-label={isCreateMenuOpen ? "Close create actions" : "Open create actions"}
+                    aria-label={
+                      isCreateMenuOpen
+                        ? "Close create actions"
+                        : "Open create actions"
+                    }
                     className="pointer-events-auto absolute bottom-0 right-0 grid h-16 w-16 place-items-center rounded-full bg-white text-slate-900 shadow-[0_18px_40px_rgba(15,23,42,0.32)] transition-transform"
                     onClick={() => setIsCreateMenuOpen((current) => !current)}
                   >
@@ -313,16 +336,16 @@ export function StoreMapSettingsPage() {
                   <button
                     type="button"
                     aria-label="Create zone block"
-                    className={`pointer-events-auto absolute bottom-[4.9rem] right-[4.9rem] flex h-14 w-14 items-center justify-center rounded-full bg-white text-slate-900 shadow-[0_18px_40px_rgba(15,23,42,0.24)] transition-all duration-200 ${
+                    className={`pointer-events-auto absolute bottom-[4.2rem] right-[4.2rem] flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-900 shadow-[0_18px_40px_rgba(15,23,42,0.24)] transition-all duration-200 ${
                       isCreateMenuOpen
                         ? "translate-x-0 translate-y-0 opacity-100"
-                        : "translate-x-5 translate-y-5 opacity-0 pointer-events-none"
+                        : "translate-x-3 translate-y-3 opacity-0 pointer-events-none"
                     }`}
                     onClick={beginCreateZone}
                   >
-                    <span className="relative block h-7 w-7 rounded-md border-2 border-slate-700">
-                      <span className="absolute left-1/2 top-[3px] h-[17px] w-[2px] -translate-x-1/2 rounded-full bg-slate-700" />
-                      <span className="absolute left-[3px] top-1/2 h-[2px] w-[17px] -translate-y-1/2 rounded-full bg-slate-700" />
+                    <span className="relative block h-6 w-6 rounded-md border-2 border-slate-700">
+                      <span className="absolute left-1/2 top-[2px] h-[14px] w-[2px] -translate-x-1/2 rounded-full bg-slate-700" />
+                      <span className="absolute left-[2px] top-1/2 h-[2px] w-[14px] -translate-y-1/2 rounded-full bg-slate-700" />
                     </span>
                   </button>
                 </div>
@@ -331,18 +354,10 @@ export function StoreMapSettingsPage() {
 
             {selectedZone && activeZoneEditorMode === "rename" ? (
               <div className="pointer-events-none absolute inset-x-0 top-0 z-30 p-4 pt-16">
-                <div className="pointer-events-auto mx-auto flex max-w-[520px] items-center gap-2 rounded-2xl border border-white/15 bg-slate-950/88 px-3 py-3 shadow-[0_18px_40px_rgba(15,23,42,0.32)] backdrop-blur-md">
-                  <input
-                    type="text"
-                    value={labelDraft}
-                    onChange={(event) => setLabelDraft(event.target.value)}
-                    placeholder="Zone label"
-                    autoFocus
-                    className="h-10 min-w-0 flex-1 rounded-xl border border-white/10 bg-white/95 px-3 text-sm text-slate-900 outline-none"
-                  />
+                <div className="pointer-events-auto relative mx-auto max-w-[520px]">
                   <button
                     type="button"
-                    className="grid h-10 w-10 place-items-center rounded-full border border-white/15 bg-white/10 text-lg font-bold text-white"
+                    className="absolute -right-4 -top-2 z-10 grid h-10 w-10 -translate-y-1/3 place-items-center rounded-full border border-white/15 bg-slate-950/92 text-lg font-bold text-white shadow-[0_16px_36px_rgba(15,23,42,0.28)] backdrop-blur-md"
                     onClick={() => {
                       setLabelDraft(selectedZone.label);
                       if (isDraftZone) {
@@ -359,101 +374,69 @@ export function StoreMapSettingsPage() {
                   >
                     <CloseIcon className="h-4 w-4" aria-hidden="true" />
                   </button>
-                  <button
-                    type="button"
-                    className="grid h-10 w-10 place-items-center rounded-full bg-sky-500 text-lg font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={!labelDraft.trim()}
-                    onClick={async () => {
-                      if (isDraftZone) {
-                        const nextLabel = labelDraft.trim();
-                        setSelectedZone((current) =>
-                          current ? { ...current, label: nextLabel } : current,
-                        );
-                        setShapeDraft((current) =>
-                          current ? { ...current, label: nextLabel } : current,
-                        );
-                        setActiveZoneEditorMode("shape");
-                        return;
-                      }
+                  <div className="flex items-center gap-2 rounded-2xl border border-white/15 bg-slate-950/88 px-3 py-3 pr-4 shadow-[0_18px_40px_rgba(15,23,42,0.32)] backdrop-blur-md">
+                    <input
+                      type="text"
+                      value={labelDraft}
+                      onChange={(event) => setLabelDraft(event.target.value)}
+                      placeholder="Zone label"
+                      autoFocus
+                      className="h-10 min-w-0 flex-1 rounded-xl border border-white/10 bg-white/95 px-3 text-sm text-slate-900 outline-none"
+                    />
+                    <button
+                      type="button"
+                      className="grid h-10 w-10 place-items-center rounded-full bg-sky-500 text-lg font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={!labelDraft.trim()}
+                      onClick={async () => {
+                        if (isDraftZone) {
+                          const nextLabel = labelDraft.trim();
+                          setSelectedZone((current) =>
+                            current
+                              ? { ...current, label: nextLabel }
+                              : current,
+                          );
+                          setShapeDraft((current) =>
+                            current
+                              ? { ...current, label: nextLabel }
+                              : current,
+                          );
+                          setActiveZoneEditorMode("shape");
+                          return;
+                        }
 
-                      await saveZoneLabel(selectedZone, labelDraft);
-                      setSelectedZone((current) =>
-                        current ? { ...current, label: labelDraft.trim() } : current,
-                      );
-                      setActiveZoneEditorMode("menu");
-                    }}
-                    aria-label="Save zone label"
-                  >
-                    ✓
-                  </button>
+                        await saveZoneLabel(selectedZone, labelDraft);
+                        setSelectedZone((current) =>
+                          current
+                            ? { ...current, label: labelDraft.trim() }
+                            : current,
+                        );
+                        setActiveZoneEditorMode("menu");
+                      }}
+                      aria-label="Save zone label"
+                    >
+                      ✓
+                    </button>
+                  </div>
                 </div>
               </div>
             ) : null}
 
             {selectedZone && activeZoneEditorMode === "shape" ? (
               <div className="pointer-events-none absolute inset-x-0 top-0 z-30 p-4 pt-16">
-                <div className="pointer-events-auto mx-auto flex max-w-[520px] items-center gap-2 rounded-2xl border border-white/15 bg-slate-950/88 px-3 py-3 shadow-[0_18px_40px_rgba(15,23,42,0.32)] backdrop-blur-md">
-                  <div className="min-w-0 flex-1 text-white">
-                    <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-300">
-                      Edit shape
-                    </p>
-                    <div className="mt-1 flex flex-col gap-1 text-sm text-slate-100 [font-variant-numeric:tabular-nums]">
-                      <p className="m-0 flex items-center gap-3">
-                        <span className="inline-flex min-w-[6.5rem] items-center gap-1">
-                          <span className="text-slate-300">X</span>
-                          <span className="inline-block w-[4.5rem] text-right">
-                            {formatShapeMetric(shapeDraft?.xPct ?? selectedZone.xPct)}
-                          </span>
-                        </span>
-                        <span className="inline-flex min-w-[6.5rem] items-center gap-1">
-                          <span className="text-slate-300">Y</span>
-                          <span className="inline-block w-[4.5rem] text-right">
-                            {formatShapeMetric(shapeDraft?.yPct ?? selectedZone.yPct)}
-                          </span>
-                        </span>
-                      </p>
-                      <p className="m-0 flex items-center gap-3">
-                        <span className="inline-flex min-w-[6.5rem] items-center gap-1">
-                          <span className="text-slate-300">W</span>
-                          <span className="inline-block w-[4.5rem] text-right">
-                            {formatShapeMetric(
-                              shapeDraft?.widthPct ?? selectedZone.widthPct,
-                            )}
-                          </span>
-                        </span>
-                        <span className="inline-flex min-w-[6.5rem] items-center gap-1">
-                          <span className="text-slate-300">H</span>
-                          <span className="inline-block w-[4.5rem] text-right">
-                            {formatShapeMetric(
-                              shapeDraft?.heightPct ?? selectedZone.heightPct,
-                            )}
-                          </span>
-                        </span>
-                      </p>
-                    </div>
-                  </div>
+                <div className="pointer-events-auto relative mx-auto max-w-[320px]">
                   <button
                     type="button"
-                    className="grid h-10 w-10 place-items-center rounded-full border border-white/15 bg-white/10 text-white disabled:cursor-not-allowed disabled:opacity-35"
-                    disabled={!canUndoShapeEdit}
+                    className="absolute -right-2 -top-2 z-10 grid h-10 w-10 -translate-y-1/3 place-items-center rounded-full border border-white/15 bg-slate-950/92 text-lg font-bold text-white shadow-[0_16px_36px_rgba(15,23,42,0.28)] backdrop-blur-md"
                     onClick={() => {
-                      const previousShape = undoShapeEdit();
-                      if (!previousShape) {
+                      if (
+                        hasPendingShapeChanges &&
+                        !window.confirm(
+                          "Discard the current shape changes?",
+                        )
+                      ) {
                         return;
                       }
 
-                      setShapeDraft((current) =>
-                        current ? { ...current, ...previousShape } : previousShape,
-                      );
-                    }}
-                    aria-label="Undo previous shape change"
-                  >
-                    <BackArrowIcon className="h-4 w-4" aria-hidden="true" />
-                  </button>
-                  <button
-                    type="button"
-                    className="grid h-10 w-10 place-items-center rounded-full border border-white/15 bg-white/10 text-lg font-bold text-white"
-                    onClick={() => {
                       resetShapeEditHistory();
                       if (isDraftZone) {
                         setShapeDraft(selectedZone);
@@ -470,46 +453,113 @@ export function StoreMapSettingsPage() {
                   >
                     <CloseIcon className="h-4 w-4" aria-hidden="true" />
                   </button>
-                  <button
-                    type="button"
-                    className="grid h-10 w-10 place-items-center rounded-full bg-sky-500 text-lg font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-                    disabled={!shapeDraft}
-                    onClick={async () => {
-                      if (!selectedZone || !shapeDraft) {
-                        return;
-                      }
+                  <div className="flex items-start gap-2 rounded-2xl border border-white/15 bg-slate-950/88 px-3 py-3 pr-4 shadow-[0_18px_40px_rgba(15,23,42,0.32)] backdrop-blur-md">
+                    <div className="min-w-0 flex-1 text-white">
+                      <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-300">
+                        Edit shape
+                      </p>
+                      <div className="mt-1 flex flex-col gap-1 text-sm text-slate-100 [font-variant-numeric:tabular-nums]">
+                        <p className="m-0 flex items-center gap-2">
+                          <span className="inline-flex min-w-0 flex-1 items-center gap-1">
+                            <span className="text-slate-300">X</span>
+                            <span className="inline-block w-[3.6rem] text-right">
+                              {formatShapeMetric(
+                                shapeDraft?.xPct ?? selectedZone.xPct,
+                              )}
+                            </span>
+                          </span>
+                          <span className="inline-flex min-w-0 flex-1 items-center gap-1">
+                            <span className="text-slate-300">Y</span>
+                            <span className="inline-block w-[3.6rem] text-right">
+                              {formatShapeMetric(
+                                shapeDraft?.yPct ?? selectedZone.yPct,
+                              )}
+                            </span>
+                          </span>
+                        </p>
+                        <p className="m-0 flex items-center gap-2">
+                          <span className="inline-flex min-w-0 flex-1 items-center gap-1">
+                            <span className="text-slate-300">W</span>
+                            <span className="inline-block w-[3.6rem] text-right">
+                              {formatShapeMetric(
+                                shapeDraft?.widthPct ?? selectedZone.widthPct,
+                              )}
+                            </span>
+                          </span>
+                          <span className="inline-flex min-w-0 flex-1 items-center gap-1">
+                            <span className="text-slate-300">H</span>
+                            <span className="inline-block w-[3.6rem] text-right">
+                              {formatShapeMetric(
+                                shapeDraft?.heightPct ?? selectedZone.heightPct,
+                              )}
+                            </span>
+                          </span>
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid shrink-0 grid-cols-2 gap-2 self-center">
+                      <button
+                        type="button"
+                        className="grid h-10 w-10 place-items-center rounded-full border border-white/15 bg-white/10 text-white disabled:cursor-not-allowed disabled:opacity-35"
+                        disabled={!canUndoShapeEdit}
+                        onClick={() => {
+                          const previousShape = undoShapeEdit();
+                          if (!previousShape) {
+                            return;
+                          }
 
-                      if (isDraftZone) {
-                        await createZone({
-                          label: shapeDraft.label.trim() || "Zone",
-                          type: shapeDraft.type,
-                          xPct: shapeDraft.xPct,
-                          yPct: shapeDraft.yPct,
-                          widthPct: shapeDraft.widthPct,
-                          heightPct: shapeDraft.heightPct,
-                          sortOrder: zones.length,
-                        });
-                        resetShapeEditHistory();
-                        setShapeDraft(null);
-                        setSelectedZone(null);
-                        setActiveZoneEditorMode(null);
-                        return;
-                      }
+                          setShapeDraft((current) =>
+                            current
+                              ? { ...current, ...previousShape }
+                              : previousShape,
+                          );
+                        }}
+                        aria-label="Undo previous shape change"
+                      >
+                        <BackArrowIcon className="h-4 w-4" aria-hidden="true" />
+                      </button>
+                      <button
+                        type="button"
+                        className="grid h-10 w-10 place-items-center rounded-full bg-sky-500 text-lg font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={!shapeDraft}
+                        onClick={async () => {
+                          if (!selectedZone || !shapeDraft) {
+                            return;
+                          }
 
-                      await saveZoneShape(selectedZone, {
-                        xPct: shapeDraft.xPct,
-                        yPct: shapeDraft.yPct,
-                        widthPct: shapeDraft.widthPct,
-                        heightPct: shapeDraft.heightPct,
-                      });
-                      resetShapeEditHistory();
-                      setSelectedZone(null);
-                      setActiveZoneEditorMode(null);
-                    }}
-                    aria-label="Save zone shape"
-                  >
-                    ✓
-                  </button>
+                          if (isDraftZone) {
+                            await createZone({
+                              label: shapeDraft.label.trim() || "Zone",
+                              type: shapeDraft.type,
+                              xPct: shapeDraft.xPct,
+                              yPct: shapeDraft.yPct,
+                              widthPct: shapeDraft.widthPct,
+                              heightPct: shapeDraft.heightPct,
+                              sortOrder: zones.length,
+                            });
+                            resetShapeEditHistory();
+                            setShapeDraft(null);
+                            setSelectedZone(null);
+                            setActiveZoneEditorMode(null);
+                            return;
+                          }
+
+                          await saveZoneShape(selectedZone, {
+                            xPct: shapeDraft.xPct,
+                            yPct: shapeDraft.yPct,
+                            widthPct: shapeDraft.widthPct,
+                            heightPct: shapeDraft.heightPct,
+                          });
+                          resetShapeEditHistory();
+                          setSelectedZone(null);
+                          setActiveZoneEditorMode(null);
+                        }}
+                        aria-label="Save zone shape"
+                      >
+                        ✓
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : null}
@@ -560,13 +610,26 @@ export function StoreMapSettingsPage() {
                           },
                           disabled: false,
                         },
+                        {
+                          id: "delete-zone",
+                          label: "Delete zone block",
+                          onClick: async () => {
+                            await removeZoneById(selectedZone);
+                            setSelectedZone(null);
+                          },
+                          disabled: false,
+                        },
                       ].map((action) => (
                         <button
                           key={action.id}
                           type="button"
                           onClick={action.onClick}
                           disabled={action.disabled}
-                          className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-left text-sm font-semibold text-white transition-colors disabled:opacity-45"
+                          className={`rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition-colors disabled:opacity-45 ${
+                            action.id === "delete-zone"
+                              ? "border-rose-400/25 bg-rose-500/10 text-rose-100"
+                              : "border-white/15 bg-white/10 text-white"
+                          }`}
                         >
                           {action.label}
                         </button>
@@ -704,7 +767,9 @@ function buildEditorViewportTransform(
   return {
     scale,
     offsetX:
-      padding + (availableWidth - contentWidth * scale) / 2 - bounds.minX * scale,
+      padding +
+      (availableWidth - contentWidth * scale) / 2 -
+      bounds.minX * scale,
     offsetY:
       padding +
       (availableHeight - contentHeight * scale) / 2 -
@@ -795,7 +860,9 @@ function EditableZone({
             : undefined
         }
         onDblClick={
-          isInteractive && !shapeDraftMode ? () => void onRename(zone) : undefined
+          isInteractive && !shapeDraftMode
+            ? () => void onRename(zone)
+            : undefined
         }
         onClick={
           isInteractive && onSelectZone && !shapeDraftMode
@@ -857,7 +924,10 @@ function EditableZone({
                     height,
                   });
                   onShapeHandleActiveChange?.(true);
-                  if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+                  if (
+                    typeof navigator !== "undefined" &&
+                    "vibrate" in navigator
+                  ) {
                     navigator.vibrate(45);
                   }
                 }, 350);
@@ -884,7 +954,7 @@ function EditableZone({
                   const deltaY = Math.abs(touchY - dragState.startTouchY);
 
                   if (deltaX > 8 || deltaY > 8) {
-                  if (longPressTimeoutRef.current !== null) {
+                    if (longPressTimeoutRef.current !== null) {
                       window.clearTimeout(longPressTimeoutRef.current);
                       longPressTimeoutRef.current = null;
                     }
@@ -901,8 +971,14 @@ function EditableZone({
 
                 onShapeDraftChange?.({
                   ...zone,
-                  xPct: pxToPercent(dragState.startZoneXPx + deltaWorldX, stageWidth),
-                  yPct: pxToPercent(dragState.startZoneYPx + deltaWorldY, stageHeight),
+                  xPct: pxToPercent(
+                    dragState.startZoneXPx + deltaWorldX,
+                    stageWidth,
+                  ),
+                  yPct: pxToPercent(
+                    dragState.startZoneYPx + deltaWorldY,
+                    stageHeight,
+                  ),
                 });
               }
             : undefined
@@ -1062,8 +1138,14 @@ function ShapeHandles({
             let nextHeight = height;
 
             if (handle.key === "nw") {
-              const clampedX = Math.min(nextHandleCenterX, x + width - minSizePx);
-              const clampedY = Math.min(nextHandleCenterY, y + height - minSizePx);
+              const clampedX = Math.min(
+                nextHandleCenterX,
+                x + width - minSizePx,
+              );
+              const clampedY = Math.min(
+                nextHandleCenterY,
+                y + height - minSizePx,
+              );
               nextX = clampedX;
               nextY = clampedY;
               nextWidth = x + width - clampedX;
@@ -1072,14 +1154,20 @@ function ShapeHandles({
 
             if (handle.key === "ne") {
               const clampedX = Math.max(nextHandleCenterX, x + minSizePx);
-              const clampedY = Math.min(nextHandleCenterY, y + height - minSizePx);
+              const clampedY = Math.min(
+                nextHandleCenterY,
+                y + height - minSizePx,
+              );
               nextY = clampedY;
               nextWidth = clampedX - x;
               nextHeight = y + height - clampedY;
             }
 
             if (handle.key === "sw") {
-              const clampedX = Math.min(nextHandleCenterX, x + width - minSizePx);
+              const clampedX = Math.min(
+                nextHandleCenterX,
+                x + width - minSizePx,
+              );
               const clampedY = Math.max(nextHandleCenterY, y + minSizePx);
               nextX = clampedX;
               nextWidth = x + width - clampedX;
