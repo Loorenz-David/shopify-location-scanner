@@ -7,6 +7,8 @@ import CloseIcon from "./CloseIcon.svg?react";
 import BoldArrowIcon from "./BoldArrowIcon.svg?react";
 import SearchIcon from "./SearchIcon.svg?react";
 import FilterIcon from "./FilterIcon.svg?react";
+import AnalyticsIcon from "./AnalyticsIcon.svg?react";
+import ThickArrowIcon from "./ThickArrowIcon.svg?react";
 
 export {
   BackArrowIcon,
@@ -18,4 +20,6 @@ export {
   BoldArrowIcon,
   SearchIcon,
   FilterIcon,
+  AnalyticsIcon,
+  ThickArrowIcon,
 };

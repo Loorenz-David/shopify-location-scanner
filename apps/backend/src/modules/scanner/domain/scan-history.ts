@@ -8,11 +8,14 @@ export type ScanHistoryPriceTerminalType =
   | "sold_terminal"
   | "price_update";
 
+export type SalesChannel = "webshop" | "physical" | "imported" | "unknown";
+
 export type ScanHistoryEvent = {
   username: string;
   eventType: ScanHistoryEventType;
   orderId: string | null;
   orderGroupId: string | null;
+  salesChannel: SalesChannel | null;
   location: string;
   happenedAt: Date;
 };
@@ -42,6 +45,7 @@ export type ScanHistoryRecord = {
   itemDepth: number | null;
   volume: number | null;
   latestLocation: string | null;
+  lastSoldChannel: SalesChannel | null;
   lastModifiedAt: Date;
   events: ScanHistoryEvent[];
   priceHistory: ScanHistoryPricePoint[];

@@ -19,6 +19,12 @@ const FrontendScanHistoryFieldSchema = z.enum([
     "itemCategory",
 ]);
 const ScanHistoryStatusFilterSchema = z.enum(["active", "sold"]);
+const SalesChannelFilterSchema = z.enum([
+    "webshop",
+    "physical",
+    "imported",
+    "unknown",
+]);
 const OptionalBooleanQuerySchema = z.preprocess((value) => {
     if (value === undefined || value === null || value === "") {
         return undefined;
@@ -131,6 +137,7 @@ export const GetScanHistoryQuerySchema = z
     stringColumns: OptionalStringColumnsQuerySchema,
     sold: OptionalBooleanQuerySchema,
     inStore: OptionalBooleanQuerySchema,
+    salesChannel: SalesChannelFilterSchema.optional(),
     from: OptionalDateQuerySchema,
     to: OptionalDateQuerySchema,
 })
@@ -159,6 +166,7 @@ export const GetScanHistoryQuerySchema = z
         stringColumns,
         sold,
         inStore,
+        salesChannel: input.salesChannel,
         from: input.from,
         to: input.to,
     };

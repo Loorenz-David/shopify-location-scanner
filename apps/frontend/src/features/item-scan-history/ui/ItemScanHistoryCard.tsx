@@ -14,6 +14,9 @@ export function ItemScanHistoryCard({
   onToggle,
 }: ItemScanHistoryCardProps) {
   const isLatestSold = item.events[0]?.eventType === "sold_terminal";
+  const soldChannelBadge = item.lastSoldChannel
+    ? CHANNEL_BADGE[item.lastSoldChannel]
+    : null;
 
   return (
     <article className="relative overflow-hidden rounded-[28px] border border-slate-900/10 bg-white/85 shadow-[0_18px_45px_rgba(15,23,42,0.1)] backdrop-blur-md">
@@ -63,9 +66,18 @@ export function ItemScanHistoryCard({
               Latest
             </p>
             {isLatestSold ? (
-              <span className="inline-flex w-fit items-center rounded-full border border-rose-200 bg-rose-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.08em] text-rose-700">
-                Sold
-              </span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-flex w-fit items-center rounded-full border border-rose-200 bg-rose-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.08em] text-rose-700">
+                  Sold
+                </span>
+                {soldChannelBadge ? (
+                  <span
+                    className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-xs font-semibold ${soldChannelBadge.color}`}
+                  >
+                    {soldChannelBadge.label}
+                  </span>
+                ) : null}
+              </div>
             ) : (
               <p className="m-0 truncate text-sm font-semibold text-slate-900">
                 {item.latestLocationLabel}
@@ -89,3 +101,13 @@ export function ItemScanHistoryCard({
     </article>
   );
 }
+
+const CHANNEL_BADGE: Record<
+  NonNullable<ItemScanHistoryItem["lastSoldChannel"]>,
+  { label: string; color: string }
+> = {
+  physical: { label: "POS", color: "bg-green-100 text-green-700" },
+  webshop: { label: "Webshop", color: "bg-indigo-100 text-indigo-700" },
+  imported: { label: "Imported", color: "bg-amber-100 text-amber-700" },
+  unknown: { label: "?", color: "bg-slate-100 text-slate-500" },
+};

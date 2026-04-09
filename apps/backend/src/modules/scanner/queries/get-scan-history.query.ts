@@ -12,6 +12,7 @@ export const getScanHistoryQuery = async (input: {
   stringColumns?: ScanHistoryStringFilterColumn[];
   sold?: boolean;
   inStore?: boolean;
+  salesChannel?: "webshop" | "physical" | "imported" | "unknown";
   from?: Date;
   to?: Date;
 }): Promise<ScanHistoryPage> => {
@@ -26,6 +27,7 @@ export const getScanHistoryQuery = async (input: {
     ...(input.stringColumns ? { stringColumns: input.stringColumns } : {}),
     ...(typeof input.sold === "boolean" ? { sold: input.sold } : {}),
     ...(typeof input.inStore === "boolean" ? { inStore: input.inStore } : {}),
+    ...(input.salesChannel ? { salesChannel: input.salesChannel } : {}),
     ...(input.from ? { from: input.from } : {}),
     ...(input.to ? { to: input.to } : {}),
   });

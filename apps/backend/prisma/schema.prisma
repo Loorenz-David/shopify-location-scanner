@@ -24,6 +24,13 @@ enum ScanHistoryPriceTerminalType {
   price_update
 }
 
+enum SalesChannel {
+  webshop
+  physical
+  imported
+  unknown
+}
+
 model Shop {
   id            String        @id @default(cuid())
   shopDomain    String        @unique
@@ -32,6 +39,7 @@ model Shop {
   updatedAt     DateTime      @updatedAt
   users         User[]
   scanHistories ScanHistory[]
+  storeZones    StoreZone[]
   webhookDeliveries ShopifyWebhookDelivery[]
 }
 
@@ -80,6 +88,7 @@ model ScanHistory {
   volume           Float?
   latestLocation   String?
   isSold           Boolean  @default(false)
+  lastSoldChannel  SalesChannel?
   lastModifiedAt   DateTime @default(now())
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -100,6 +109,7 @@ model ScanHistory {
   @@index([shopId, itemTitle])
   @@index([shopId, latestLocation])
   @@index([shopId, isSold, lastModifiedAt])
+  @@index([shopId, lastSoldChannel, lastModifiedAt])
 }
 
 model ScanHistoryEvent {
@@ -109,6 +119,7 @@ model ScanHistoryEvent {
   eventType     ScanHistoryEventType @default(location_update)
   orderId       String?
   orderGroupId  String?
+  salesChannel  SalesChannel?
   location      String
   happenedAt    DateTime @default(now())
   createdAt     DateTime @default(now())
@@ -171,12 +182,44 @@ model LocationStatsDaily {
 }
 
 model LocationCategoryStatsDaily {
-  date         DateTime
-  location     String
-  itemCategory String
-  itemsSold    Int   @default(0) @map("items_sold")
-  totalRevenue Float @default(0) @map("total_revenue")
+  date                   DateTime
+  location               String
+  itemCategory           String
+  itemsSold              Int   @default(0) @map("items_sold")
+  totalRevenue           Float @default(0) @map("total_revenue")
+  totalTimeToSellSeconds Float @default(0) @map("total_time_to_sell_seconds")
 
   @@id([date, location, itemCategory])
   @@map("location_category_stats_daily")
+}
+
+model StoreZone {
+  id        String   @id @default(cuid())
+  shopId    String
+  label     String
+  type      String   @default("zone")
+  xPct      Float    @map("x_pct")
+  yPct      Float    @map("y_pct")
+  widthPct  Float    @map("width_pct")
+  heightPct Float    @map("height_pct")
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, sortOrder])
+  @@index([shopId, type])
+}
+
+model SalesChannelStatsDaily {
+  date         DateTime
+  shopId       String
+  salesChannel SalesChannel
+  itemsSold    Int   @default(0) @map("items_sold")
+  totalRevenue Float @default(0) @map("total_revenue")
+
+  @@id([date, shopId, salesChannel])
+  @@index([shopId, date])
+  @@map("sales_channel_stats_daily")
 }

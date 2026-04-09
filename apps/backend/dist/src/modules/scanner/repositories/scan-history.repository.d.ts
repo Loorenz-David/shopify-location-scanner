@@ -1,3 +1,4 @@
+import type { SalesChannel } from "../../../shared/sales-channel/classify-sales-channel.js";
 import type { AppendScanLocationHistoryInput, ScanHistoryStringFilterColumn } from "../contracts/scan-history.contract.js";
 import type { ScanHistoryPage, ScanHistoryRecord } from "../domain/scan-history.js";
 export declare const scanHistoryRepository: {
@@ -23,6 +24,7 @@ export declare const scanHistoryRepository: {
         unknownLocation: string;
         soldLocation: string;
         happenedAt?: Date;
+        salesChannel?: SalesChannel;
     }): Promise<ScanHistoryRecord>;
     appendPriceChangeIfHistoryExists(input: {
         shopId: string;
@@ -40,6 +42,7 @@ export declare const scanHistoryRepository: {
         stringColumns?: ScanHistoryStringFilterColumn[];
         sold?: boolean;
         inStore?: boolean;
+        salesChannel?: SalesChannel;
         from?: Date;
         to?: Date;
     }): Promise<ScanHistoryPage>;

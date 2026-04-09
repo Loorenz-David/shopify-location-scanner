@@ -2,6 +2,7 @@ import type {
   ScanHistoryEventType,
   ScanHistoryPriceTerminalType,
 } from "./item-scan-history.enums";
+import type { SalesChannel } from "../../analytics/types/analytics.types";
 
 export interface ItemScanHistoryEvent {
   id: string;
@@ -41,6 +42,7 @@ export interface ItemScanHistoryItem {
   lastModifiedLabel: string;
   latestLocationLabel: string;
   latestUsername: string;
+  lastSoldChannel: SalesChannel | null;
   events: ItemScanHistoryEvent[];
   priceHistory: ItemScanHistoryPriceHistory[];
 }

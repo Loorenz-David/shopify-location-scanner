@@ -13,6 +13,10 @@ export const settingsOptionSubscriptions: SettingsOptionSubscription[] = [
     id: "settings-users",
     label: "Users",
   },
+  {
+    id: "settings-store-map",
+    label: "Store map",
+  },
 ];
 
 export function getInitialsFromUsername(username: string): string {

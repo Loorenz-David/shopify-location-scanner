@@ -23,7 +23,6 @@ export {
   disconnectWsClient,
   onWsEvent,
 } from "../ws-client/ws-client";
-export { useWsEvent } from "../ws-client/use-ws-event";
 export type { WsInboundEvent, WsOutboundMessage } from "../ws-client/ws-events";
 export type {
   AccessTokenClaims,

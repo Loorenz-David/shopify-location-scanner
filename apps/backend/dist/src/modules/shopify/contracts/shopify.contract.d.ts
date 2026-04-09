@@ -58,6 +58,7 @@ export declare const ShopifyOrdersPaidWebhookPayloadSchema: z.ZodObject<{
     processed_at: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     created_at: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     updated_at: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    source_name: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     line_items: z.ZodArray<z.ZodObject<{
         id: z.ZodUnion<readonly [z.ZodNumber, z.ZodString]>;
         product_id: z.ZodOptional<z.ZodNullable<z.ZodUnion<readonly [z.ZodNumber, z.ZodString]>>>;

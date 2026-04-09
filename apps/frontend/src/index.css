@@ -97,4 +97,17 @@
     );
     animation: scanner-skeleton-shimmer 1.1s linear infinite;
   }
+
+  .analytics-chart-shell :where(.recharts-wrapper, .recharts-surface):focus,
+  .analytics-chart-shell :where(.recharts-wrapper, .recharts-surface):focus-visible,
+  .analytics-chart-shell :where(svg, [tabindex]):focus,
+  .analytics-chart-shell :where(svg, [tabindex]):focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  .analytics-chart-shell,
+  .analytics-chart-shell * {
+    -webkit-tap-highlight-color: transparent;
+  }
 }

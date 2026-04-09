@@ -27,6 +27,9 @@ npm install --save-dev @types/konva
 | `konva` | latest | 2D canvas engine |
 | `react-konva` | latest | React bindings for Konva |
 
+> **No `use-image` needed.** The map has no background image — zones are drawn
+> directly on the dark Konva canvas. The `use-image` package was removed from this plan.
+
 ---
 
 ## New Feature: `analytics`
@@ -155,13 +158,24 @@ export type SmartInsight = {
   message: string;
 };
 
+export type StoreZoneType = "zone" | "corridor";
+
 export type StoreZone = {
   id: string;
   label: string;
-  x: number;
-  y: number;
-  width: number;
-  height: number;
+  // "zone"     → stat-tracked shelving/display area. Heat-colored, tappable, shows panel.
+  // "corridor" → walkable space. Visual only: flat gray, no tap, no stats.
+  type: StoreZoneType;
+  // Percentages (0–100) of canvas dimensions as stored in the backend.
+  // Convert to pixels before passing to Konva:
+  //   xPx = zone.xPct * stageWidth / 100
+  //   yPx = zone.yPct * stageHeight / 100
+  //   widthPx = zone.widthPct * stageWidth / 100
+  //   heightPx = zone.heightPct * stageHeight / 100
+  xPct: number;
+  yPct: number;
+  widthPct: number;
+  heightPct: number;
   sortOrder: number;
 };
 
@@ -233,10 +247,12 @@ type AnalyticsStore = {
   zonesOverview: ZoneOverviewItem[];
   selectedZone: string | null;
   zoneDetail: ZoneDetail | null;
+  selectedCategory: string | null;   // drives CategoryStatsPanel
   categories: CategoryOverviewItem[];
   dimensions: DimensionsStats | null;
   velocity: VelocityPoint[];
   insights: SmartInsight[];
+  zoneComparisonMetric: "itemsSold" | "revenue"; // toggle on ZoneComparisonChart
 
   isLoadingOverview: boolean;
   isLoadingZoneDetail: boolean;
@@ -244,6 +260,8 @@ type AnalyticsStore = {
 
   setDateRange: (range: DateRange) => void;
   setSelectedZone: (location: string | null) => void;
+  setSelectedCategory: (category: string | null) => void;
+  setZoneComparisonMetric: (metric: "itemsSold" | "revenue") => void;
   setZonesOverview: (data: ZoneOverviewItem[]) => void;
   setZoneDetail: (data: ZoneDetail | null) => void;
   setCategories: (data: CategoryOverviewItem[]) => void;
@@ -270,17 +288,21 @@ export const useAnalyticsStore = create<AnalyticsStore>((set) => ({
   zonesOverview: [],
   selectedZone: null,
   zoneDetail: null,
+  selectedCategory: null,
   categories: [],
   dimensions: null,
   velocity: [],
   insights: [],
+  zoneComparisonMetric: "itemsSold",
 
   isLoadingOverview: false,
   isLoadingZoneDetail: false,
   isLoadingCategories: false,
 
-  setDateRange: (range) => set({ dateRange: range, selectedZone: null, zoneDetail: null }),
+  setDateRange: (range) => set({ dateRange: range, selectedZone: null, zoneDetail: null, selectedCategory: null }),
   setSelectedZone: (location) => set({ selectedZone: location, zoneDetail: null }),
+  setSelectedCategory: (category) => set({ selectedCategory: category }),
+  setZoneComparisonMetric: (metric) => set({ zoneComparisonMetric: metric }),
   setZonesOverview: (data) => set({ zonesOverview: data }),
   setZoneDetail: (data) => set({ zoneDetail: data }),
   setCategories: (data) => set({ categories: data }),
@@ -304,23 +326,20 @@ import { create } from "zustand";
 import type { StoreZone } from "../types/analytics.types";
 
 type FloorMapStore = {
-  zones: StoreZone[];
-  mapImageUrl: string | null;
+  zones: StoreZone[];       // coordinates in percentages, as returned by the API
   isEditorMode: boolean;
-  stageWidth: number;
-  stageHeight: number;
+  stageWidth: number;       // current pixel width of the Konva Stage
+  stageHeight: number;      // current pixel height of the Konva Stage
 
   setZones: (zones: StoreZone[]) => void;
   upsertZone: (zone: StoreZone) => void;
   removeZone: (id: string) => void;
-  setMapImageUrl: (url: string | null) => void;
   setEditorMode: (v: boolean) => void;
   setStageSize: (width: number, height: number) => void;
 };
 
 export const useFloorMapStore = create<FloorMapStore>((set) => ({
   zones: [],
-  mapImageUrl: null,
   isEditorMode: false,
   stageWidth: 800,
   stageHeight: 600,
@@ -333,7 +352,6 @@ export const useFloorMapStore = create<FloorMapStore>((set) => ({
         : [...s.zones, zone],
     })),
   removeZone: (id) => set((s) => ({ zones: s.zones.filter((z) => z.id !== id) })),
-  setMapImageUrl: (url) => set({ mapImageUrl: url }),
   setEditorMode: (v) => set({ isEditorMode: v }),
   setStageSize: (stageWidth, stageHeight) => set({ stageWidth, stageHeight }),
 }));
@@ -353,6 +371,9 @@ import { useAnalyticsStore } from "../stores/analytics.store";
 import { getZonesOverviewApi } from "../apis/get-zones-overview.api";
 import { getSmartInsightsApi } from "../apis/get-smart-insights.api";
 import { getSalesVelocityApi } from "../apis/get-sales-velocity.api";
+import { getCategoriesOverviewApi } from "../apis/get-categories-overview.api";
+import { getDimensionsStatsApi } from "../apis/get-dimensions-stats.api";
+import { useWsEvent } from "../../../core/ws-client/use-ws-event";
 
 export function useAnalyticsPageFlow() {
   const store = useAnalyticsStore();
@@ -361,14 +382,18 @@ export function useAnalyticsPageFlow() {
     const { from, to } = store.dateRange;
     store.setLoadingOverview(true);
     try {
-      const [overview, insights, velocity] = await Promise.all([
+      const [overview, insights, velocity, categories, dimensions] = await Promise.all([
         getZonesOverviewApi(from, to),
         getSmartInsightsApi(from, to),
         getSalesVelocityApi(from, to),
+        getCategoriesOverviewApi(from, to),
+        getDimensionsStatsApi(from, to),
       ]);
       store.setZonesOverview(overview);
       store.setInsights(insights);
       store.setVelocity(velocity);
+      store.setCategories(categories);
+      store.setDimensions(dimensions);
     } finally {
       store.setLoadingOverview(false);
     }
@@ -377,6 +402,11 @@ export function useAnalyticsPageFlow() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Re-fetch all overview data when any scan changes in real time.
+  // The analytics page shows aggregates, so any productId change can affect
+  // zone totals, category totals, velocity, and insights.
+  useWsEvent("scan_history_updated", load);
 
   return { store, reload: load };
 }
@@ -481,52 +511,78 @@ export function getZoneHeatColor(
 
 **File:** `src/features/analytics/components/floor-map/FloorMapCanvas.tsx`
 
+The map has no background image. The Konva `Stage` is the floor — zones are drawn
+directly on the canvas background. Coordinates stored in the DB are percentages (0–100);
+they are converted to pixels at render time using `stageWidth` and `stageHeight`.
+
 ```tsx
-import { useRef } from "react";
-import { Stage, Layer, Image as KonvaImage, Rect, Text, Group } from "react-konva";
-import useImage from "use-image"; // install: npm install use-image
+import { Stage, Layer, Rect, Text, Group } from "react-konva";
 import type { StoreZone, ZoneOverviewItem } from "../../types/analytics.types";
 import { getZoneHeatColor } from "./FloorMapHeatOverlay";
-
-// Install: npm install use-image @types/use-image
 
 type Props = {
   zones: StoreZone[];
   zonesOverview: ZoneOverviewItem[];
-  mapImageUrl: string | null;
   stageWidth: number;
   stageHeight: number;
   selectedZone: string | null;
   onZoneTap: (location: string) => void;
 };
 
+// Convert a percentage value to pixels given the axis dimension
+function pct(value: number, axisPx: number): number {
+  return (value / 100) * axisPx;
+}
+
 export function FloorMapCanvas({
   zones,
   zonesOverview,
-  mapImageUrl,
   stageWidth,
   stageHeight,
   selectedZone,
   onZoneTap,
 }: Props) {
-  const [mapImage] = useImage(mapImageUrl ?? "", "anonymous");
-
   return (
-    <Stage width={stageWidth} height={stageHeight}>
-      {/* Layer 1: background map image */}
-      <Layer>
-        {mapImage && (
-          <KonvaImage
-            image={mapImage}
-            width={stageWidth}
-            height={stageHeight}
-          />
-        )}
-      </Layer>
-
-      {/* Layer 2: zone overlays */}
+    <Stage
+      width={stageWidth}
+      height={stageHeight}
+      style={{ background: "#1e293b", borderRadius: 12 }} // dark slate canvas background
+    >
       <Layer>
         {zones.map((zone) => {
+          // Convert percentage coordinates to pixels
+          const x = pct(zone.xPct, stageWidth);
+          const y = pct(zone.yPct, stageHeight);
+          const w = pct(zone.widthPct, stageWidth);
+          const h = pct(zone.heightPct, stageHeight);
+
+          // ── Corridor: visual only, no interaction ──────────────────────────
+          if (zone.type === "corridor") {
+            return (
+              <Group key={zone.id}>
+                <Rect
+                  x={x}
+                  y={y}
+                  width={w}
+                  height={h}
+                  fill="#334155"      // slate-700 — subtle walkway color
+                  opacity={0.5}
+                  stroke="#475569"
+                  strokeWidth={1}
+                  cornerRadius={2}
+                />
+                <Text
+                  x={x + 4}
+                  y={y + 4}
+                  text={zone.label}
+                  fontSize={9}
+                  fill="#94a3b8"      // slate-400 — muted label
+                />
+              </Group>
+            );
+          }
+
+          // ── Zone: heat-colored, tappable, shows stats panel ────────────────
           const heatColor = getZoneHeatColor(zone.label, zonesOverview);
           const isSelected = selectedZone === zone.label;
           const overview = zonesOverview.find((z) => z.location === zone.label);
@@ -537,23 +593,22 @@ export function FloorMapCanvas({
               onClick={() => onZoneTap(zone.label)}
               onTap={() => onZoneTap(zone.label)}
             >
-              {/* Heat fill rect */}
               <Rect
-                x={zone.x}
-                y={zone.y}
-                width={zone.width}
-                height={zone.height}
+                x={x}
+                y={y}
+                width={w}
+                height={h}
                 fill={heatColor}
-                opacity={isSelected ? 0.7 : 0.45}
-                stroke={isSelected ? "#ffffff" : "transparent"}
-                strokeWidth={isSelected ? 2 : 0}
+                opacity={isSelected ? 0.85 : 0.55}
+                stroke={isSelected ? "#ffffff" : "#475569"}
+                strokeWidth={isSelected ? 2 : 1}
                 cornerRadius={4}
               />
 
               {/* Zone label */}
               <Text
-                x={zone.x + 6}
-                y={zone.y + 6}
+                x={x + 6}
+                y={y + 6}
                 text={zone.label}
                 fontSize={11}
                 fontStyle="bold"
@@ -566,8 +621,8 @@ export function FloorMapCanvas({
               {/* Sold count badge */}
               {overview && (
                 <Text
-                  x={zone.x + 6}
-                  y={zone.y + 20}
+                  x={x + 6}
+                  y={y + 20}
                   text={`${overview.itemsSold} sold`}
                   fontSize={10}
                   fill="#ffffff"
@@ -584,11 +639,6 @@ export function FloorMapCanvas({
   );
 }
 ```
-
-> **Note on `use-image`:** Install with `npm install use-image`. It handles async image
-> loading for Konva. If the user provides the map image as a local bundled asset, import
-> it directly as a URL (`import mapUrl from '../assets/store-map.png'`) and pass it as
-> `mapImageUrl`.
 
 ---
 
@@ -1034,10 +1084,14 @@ import { useFloorMapFlow } from "../flows/use-floor-map.flow";
 import { useAnalyticsStore } from "../stores/analytics.store";
 import { useFloorMapStore } from "../stores/floor-map.store";
 import { FloorMapCanvas } from "../components/floor-map/FloorMapCanvas";
+import { FloorMapLegend } from "../components/floor-map/FloorMapLegend";
 import { ZoneStatsPanel } from "../components/panels/ZoneStatsPanel";
+import { CategoryStatsPanel } from "../components/panels/CategoryStatsPanel";
 import { ZoneComparisonChart } from "../components/charts/ZoneComparisonChart";
-import { InsightList } from "../components/insights/InsightList";
 import { SalesTimelineChart } from "../components/charts/SalesTimelineChart";
+import { TimeToSellChart } from "../components/charts/TimeToSellChart";
+import { DimensionBucketChart } from "../components/charts/DimensionBucketChart";
+import { InsightList } from "../components/insights/InsightList";
 import { DateRangePicker } from "../components/shared/DateRangePicker";
 
 export function AnalyticsPage() {
@@ -1045,7 +1099,13 @@ export function AnalyticsPage() {
   const { store: analyticsStore } = useAnalyticsPageFlow();
   const floorMap = useFloorMapFlow(containerRef);
 
-  const { setSelectedZone, setDateRange } = useAnalyticsStore();
+  const {
+    setSelectedZone,
+    setSelectedCategory,
+    setDateRange,
+    setZoneComparisonMetric,
+    zoneComparisonMetric,
+  } = useAnalyticsStore();
 
   return (
     <div className="flex flex-col h-full overflow-y-auto bg-gray-50">
@@ -1066,11 +1126,10 @@ export function AnalyticsPage() {
       )}
 
       {/* Floor map */}
-      <div ref={containerRef} className="px-4 pb-3">
+      <div ref={containerRef} className="px-4 pb-1">
         <FloorMapCanvas
           zones={floorMap.zones}
           zonesOverview={analyticsStore.zonesOverview}
-          mapImageUrl={floorMap.mapImageUrl}
           stageWidth={floorMap.stageWidth}
           stageHeight={floorMap.stageHeight}
           selectedZone={analyticsStore.selectedZone}
@@ -1078,28 +1137,353 @@ export function AnalyticsPage() {
         />
       </div>
 
-      {/* Zone comparison */}
+      {/* Heat map legend */}
       <div className="px-4 pb-3">
-        <p className="text-xs font-semibold text-gray-500 mb-2">Zone ranking</p>
+        <FloorMapLegend />
+      </div>
+
+      {/* Zone comparison — with metric toggle */}
+      <div className="px-4 pb-3">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-xs font-semibold text-gray-500">Zone ranking</p>
+          <div className="flex gap-1">
+            {(["itemsSold", "revenue"] as const).map((m) => (
+              <button
+                key={m}
+                onClick={() => setZoneComparisonMetric(m)}
+                className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                  zoneComparisonMetric === m
+                    ? "bg-indigo-600 text-white border-indigo-600"
+                    : "text-gray-500 border-gray-200"
+                }`}
+              >
+                {m === "itemsSold" ? "Items" : "Revenue"}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="bg-white rounded-xl p-3 shadow-sm">
           <ZoneComparisonChart
             data={analyticsStore.zonesOverview}
-            metric="itemsSold"
+            metric={zoneComparisonMetric}
             onBarClick={setSelectedZone}
           />
         </div>
       </div>
 
       {/* Sales velocity */}
-      <div className="px-4 pb-6">
+      <div className="px-4 pb-3">
         <p className="text-xs font-semibold text-gray-500 mb-2">Sales over time</p>
         <div className="bg-white rounded-xl p-3 shadow-sm">
           <SalesTimelineChart data={analyticsStore.velocity} metric="itemsSold" />
         </div>
       </div>
 
+      {/* Categories — time to sell + tappable rows */}
+      <div className="px-4 pb-3">
+        <p className="text-xs font-semibold text-gray-500 mb-2">Categories</p>
+        <div className="bg-white rounded-xl p-3 shadow-sm">
+          <TimeToSellChart data={analyticsStore.categories} />
+          <div className="mt-3 flex flex-col divide-y divide-gray-100">
+            {analyticsStore.categories.map((cat) => (
+              <button
+                key={cat.category}
+                onClick={() => setSelectedCategory(cat.category)}
+                className="flex items-center justify-between py-2 text-left hover:bg-gray-50 px-1 rounded"
+              >
+                <span className="text-sm text-gray-800">{cat.category}</span>
+                <span className="text-xs text-gray-400">
+                  {cat.itemsSold} sold · best: {cat.bestLocation ?? "—"}
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Dimension insights */}
+      {analyticsStore.dimensions && (
+        <div className="px-4 pb-6">
+          <p className="text-xs font-semibold text-gray-500 mb-2">Dimension insights</p>
+          <div className="bg-white rounded-xl p-3 shadow-sm flex flex-col gap-4">
+            <DimensionBucketChart data={analyticsStore.dimensions.height} title="Height" />
+            <DimensionBucketChart data={analyticsStore.dimensions.width} title="Width" />
+            <DimensionBucketChart data={analyticsStore.dimensions.depth} title="Depth" />
+            <DimensionBucketChart data={analyticsStore.dimensions.volume} title="Volume" />
+          </div>
+        </div>
+      )}
+
       {/* Zone detail side panel */}
       <ZoneStatsPanel />
+
+      {/* Category deep-dive side panel */}
+      <CategoryStatsPanel />
+    </div>
+  );
+}
+```
+
+---
+
+## Step 13b — `CategoryByLocationChart`
+
+**File:** `src/features/analytics/components/charts/CategoryByLocationChart.tsx`
+
+Horizontal bar chart showing how a single category performs across all locations.
+Used inside `CategoryStatsPanel` to answer "Where should I place this category?"
+
+```tsx
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+} from "recharts";
+
+type Props = {
+  // Each row is one location with sold count for the selected category
+  data: Array<{ location: string; itemsSold: number; revenue: number }>;
+  metric: "itemsSold" | "revenue";
+};
+
+export function CategoryByLocationChart({ data, metric }: Props) {
+  const sorted = [...data].sort((a, b) => b[metric] - a[metric]);
+
+  return (
+    <ResponsiveContainer width="100%" height={Math.max(140, sorted.length * 36)}>
+      <BarChart
+        layout="vertical"
+        data={sorted}
+        margin={{ left: 8, right: 16, top: 4, bottom: 4 }}
+      >
+        <XAxis type="number" tick={{ fontSize: 11 }} />
+        <YAxis type="category" dataKey="location" tick={{ fontSize: 11 }} width={72} />
+        <Tooltip />
+        <Bar dataKey={metric} fill="#8b5cf6" radius={[0, 4, 4, 0]} />
+      </BarChart>
+    </ResponsiveContainer>
+  );
+}
+```
+
+---
+
+## Step 13c — `CategoryStatsPanel`
+
+**File:** `src/features/analytics/components/panels/CategoryStatsPanel.tsx`
+
+Slide-in panel that opens when the user taps a category row in the categories section.
+Answers: "Where does this category sell best?" and "How fast does it sell?"
+
+The data it needs — `CategoryOverviewItem[]` with per-location breakdown — comes from
+the existing `categories` array in the store plus the `ZoneDetail.categories` data
+already fetched. However, for the per-location breakdown we need a dedicated query.
+
+**Add one new API call:**
+
+`src/features/analytics/apis/get-category-by-location.api.ts`
+
+```typescript
+import { apiClient } from "../../../core/api-client";
+
+export type CategoryLocationRow = {
+  location: string;
+  itemsSold: number;
+  revenue: number;
+  avgTimeToSellSeconds: number | null;
+};
+
+export async function getCategoryByLocationApi(
+  category: string,
+  from: string,
+  to: string,
+): Promise<CategoryLocationRow[]> {
+  const encoded = encodeURIComponent(category);
+  const res = await apiClient.get<{ data: CategoryLocationRow[] }>(
+    `/stats/categories/${encoded}/locations?from=${from}&to=${to}`,
+    { requiresAuth: true },
+  );
+  return res.data;
+}
+```
+
+> **Backend note for Codex:** This requires a new endpoint
+> `GET /stats/categories/:category/locations` in the stats router. The query groups
+> `LocationCategoryStatsDaily` by `location` where `itemCategory = category`, summing
+> `itemsSold`, `totalRevenue`, `totalTimeToSellSeconds`. Follow the same pattern as
+> `getZoneDetail` in `stats.repository.ts`. Add to `stats.controller.ts` and
+> `stats.routes.ts`.
+
+**Add `categoryDetail` to the analytics store:**
+
+```typescript
+// Add to AnalyticsStore type:
+categoryDetail: CategoryLocationRow[] | null;
+isLoadingCategoryDetail: boolean;
+setCategoryDetail: (data: CategoryLocationRow[] | null) => void;
+setLoadingCategoryDetail: (v: boolean) => void;
+
+// Add to initial state:
+categoryDetail: null,
+isLoadingCategoryDetail: false,
+
+// Add setters:
+setCategoryDetail: (data) => set({ categoryDetail: data }),
+setLoadingCategoryDetail: (v) => set({ isLoadingCategoryDetail: v }),
+
+// Clear on date range change:
+setDateRange: (range) => set({ dateRange: range, selectedZone: null, zoneDetail: null, selectedCategory: null, categoryDetail: null }),
+// Clear on category change:
+setSelectedCategory: (category) => set({ selectedCategory: category, categoryDetail: null }),
+```
+
+**Add `use-category-detail.flow.ts`:**
+
+```typescript
+import { useEffect } from "react";
+import { useAnalyticsStore } from "../stores/analytics.store";
+import { getCategoryByLocationApi } from "../apis/get-category-by-location.api";
+
+export function useCategoryDetailFlow() {
+  const store = useAnalyticsStore();
+
+  useEffect(() => {
+    if (!store.selectedCategory) return;
+    const { from, to } = store.dateRange;
+    store.setLoadingCategoryDetail(true);
+
+    getCategoryByLocationApi(store.selectedCategory, from, to)
+      .then(store.setCategoryDetail)
+      .finally(() => store.setLoadingCategoryDetail(false));
+  }, [store.selectedCategory, store.dateRange]);
+}
+```
+
+**The panel component:**
+
+```tsx
+import { useCategoryDetailFlow } from "../../flows/use-category-detail.flow";
+import { useAnalyticsStore } from "../../stores/analytics.store";
+import { CategoryByLocationChart } from "../charts/CategoryByLocationChart";
+import { KpiRow } from "../shared/KpiRow";
+
+export function CategoryStatsPanel() {
+  useCategoryDetailFlow();
+
+  const {
+    selectedCategory,
+    categoryDetail,
+    isLoadingCategoryDetail,
+    categories,
+    setSelectedCategory,
+  } = useAnalyticsStore();
+
+  if (!selectedCategory) return null;
+
+  const overview = categories.find((c) => c.category === selectedCategory);
+
+  return (
+    <div className="fixed inset-y-0 right-0 w-full max-w-sm bg-white shadow-2xl z-50 flex flex-col overflow-y-auto">
+      {/* Header */}
+      <div className="flex items-center justify-between px-4 py-3 border-b">
+        <h2 className="text-base font-semibold text-gray-900">{selectedCategory}</h2>
+        <button
+          className="text-gray-400 hover:text-gray-600 text-xl"
+          onClick={() => setSelectedCategory(null)}
+        >
+          ✕
+        </button>
+      </div>
+
+      {isLoadingCategoryDetail ? (
+        <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">
+          Loading…
+        </div>
+      ) : (
+        <div className="flex flex-col gap-5 px-4 py-4">
+          {/* KPIs from the categories overview */}
+          {overview && (
+            <KpiRow
+              itemsSold={overview.itemsSold}
+              revenue={overview.totalRevenue}
+              avgTimeToSellSeconds={overview.avgTimeToSellSeconds}
+            />
+          )}
+
+          {/* Best location hint */}
+          {overview?.bestLocation && (
+            <p className="text-xs text-indigo-700 bg-indigo-50 rounded-xl px-3 py-2">
+              Best location: <strong>{overview.bestLocation}</strong>
+            </p>
+          )}
+
+          {/* Per-location breakdown */}
+          {categoryDetail && categoryDetail.length > 0 && (
+            <section>
+              <p className="text-xs font-semibold text-gray-500 mb-2">
+                Performance by location
+              </p>
+              <CategoryByLocationChart data={categoryDetail} metric="itemsSold" />
+            </section>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+```
+
+---
+
+## Step 13d — `FloorMapLegend`
+
+**File:** `src/features/analytics/components/floor-map/FloorMapLegend.tsx`
+
+A simple row of color swatches explaining the heat scale. Rendered below the canvas.
+
+```tsx
+const LEGEND = [
+  { color: "#22c55e", label: "High sales" },
+  { color: "#84cc16", label: "Good" },
+  { color: "#f59e0b", label: "Low" },
+  { color: "#ef4444", label: "Minimal" },
+  { color: "#94a3b8", label: "No data" },
+];
+
+export function FloorMapLegend() {
+  return (
+    <div className="flex items-center gap-3 flex-wrap mt-1">
+      {LEGEND.map((item) => (
+        <div key={item.label} className="flex items-center gap-1">
+          <span
+            className="inline-block w-3 h-3 rounded-sm"
+            style={{ backgroundColor: item.color }}
+          />
+          <span className="text-xs text-gray-500">{item.label}</span>
+        </div>
+      ))}
+    </div>
+  );
+}
+```
+
+---
+
+## Step 13e — Empty Canvas State
+
+**File:** Update `FloorMapCanvas.tsx`
+
+When `zones.length === 0`, render a prompt instead of a blank dark rectangle so first-time
+admins know what to do:
+
+```tsx
+// Add at the top of the return, before the Stage:
+if (zones.length === 0) {
+  return (
+    <div
+      style={{ width: stageWidth, height: stageHeight, background: "#1e293b", borderRadius: 12 }}
+      className="flex flex-col items-center justify-center gap-2"
+    >
+      <span className="text-slate-400 text-sm">No zones drawn yet</span>
+      <span className="text-slate-500 text-xs">Go to Settings → Store Map to draw your floor plan</span>
     </div>
   );
 }
@@ -1109,33 +1493,61 @@ export function AnalyticsPage() {
 
 ## Step 14 — Zone Editor (Admin)
 
-The zone editor lets admins draw zones on the map. It is a settings page, not part of
-the main analytics view.
+The zone editor lets admins draw zones on the canvas. It is a settings page, not part
+of the main analytics view.
 
 **File:** `src/features/analytics/flows/use-zone-editor.flow.ts`
 
 The editor works as follows:
 1. Admin navigates to Settings → Store Map
-2. They see the Konva stage in edit mode
+2. They see the Konva stage in edit mode (dark canvas, no heat overlay)
 3. They can drag existing zones to reposition
 4. They can click-and-drag on empty canvas to draw a new zone
 5. They can double-tap a zone to rename it
-6. Save sends `POST /zones` or `PATCH /zones/:id`
+6. When committing a new zone, a small form appears: label input + a **Zone / Corridor** toggle that sets `type`
+7. Save sends `POST /zones` or `PATCH /zones/:id`
 
-Key Konva events to wire up on the Stage when `isEditorMode` is true:
-- `onMouseDown` / `onTouchStart` on Stage (not on a zone) → begin drawing new zone rect
-- `onMouseMove` / `onTouchMove` → update the in-progress rect dimensions
-- `onMouseUp` / `onTouchEnd` → commit the new zone (open a label input)
-- On each zone `Rect`: set `draggable={true}` and handle `onDragEnd` to call
-  `PATCH /zones/:id` with new x, y
+### Coordinate conversion rule
+
+All mouse/touch events from Konva return **pixel** coordinates. Before sending to the
+API, convert to percentages:
+
+```typescript
+// Pixel → percentage (to save to API)
+const xPct = (xPx / stageWidth) * 100;
+const yPct = (yPx / stageHeight) * 100;
+const widthPct = (widthPx / stageWidth) * 100;
+const heightPct = (heightPx / stageHeight) * 100;
+```
+
+When reading from the API and rendering in Konva, convert back:
+
+```typescript
+// Percentage → pixel (to render in Konva)
+const xPx = (zone.xPct / 100) * stageWidth;
+const yPx = (zone.yPct / 100) * stageHeight;
+```
+
+This conversion happens **only in the editor flow and in `FloorMapCanvas`** — the store
+always holds percentages, matching the API.
+
+### Key Konva events to wire up when `isEditorMode` is true
+
+- `onMouseDown` / `onTouchStart` on the Stage background → begin drawing new zone rect
+- `onMouseMove` / `onTouchMove` → update the in-progress rect pixel dimensions
+- `onMouseUp` / `onTouchEnd` → commit: convert pixels → percentages, open label input,
+  call `POST /zones`
+- On each zone `Rect`: set `draggable={true}`, handle `onDragEnd` → convert final pixel
+  position → percentages → call `PATCH /zones/:id`
 
 This flow is complex enough to deserve its own implementation session. The key state
 needed in `floor-map.store.ts`:
 
 ```typescript
 // Add to FloorMapStore:
-draftZone: { x: number; y: number; width: number; height: number } | null;
-setDraftZone: (zone: { x: number; y: number; width: number; height: number } | null) => void;
+// Draft uses pixels during the draw gesture (converted to pct only on commit)
+draftZonePx: { x: number; y: number; width: number; height: number } | null;
+setDraftZonePx: (zone: { x: number; y: number; width: number; height: number } | null) => void;
 ```
 
 ---
@@ -1155,24 +1567,18 @@ icon library is decided).
 
 ---
 
-## Step 16 — Map Image Bootstrap
+## Step 16 — Map Bootstrap
 
-When the app boots, fetch the map image URL from the backend:
+When the app or the analytics page boots, load the zone list from the backend:
 
-- Add a `GET /zones` call to the bootstrap or to the floor-map flow
-- The backend returns `StoreZone[]`
-- The map image URL comes from `GET /zones/map-image` (or from the bootstrap payload if
-  the backend team adds it there)
+- `use-floor-map.flow.ts` calls `listZonesApi()` → `GET /zones`
+- The response is `StoreZone[]` with percentage coordinates
+- These are stored in `floor-map.store.ts` and rendered by `FloorMapCanvas`
 
-For the initial implementation, hardcode the map image as a local bundled asset:
-
-```typescript
-// In use-floor-map.flow.ts or FloorMapCanvas.tsx
-import storeMapUrl from "../../../assets/store-map.png";
-// Pass storeMapUrl as mapImageUrl prop
-```
-
-Once the admin map-image upload endpoint is built, read the URL from the API instead.
+There is no map image to fetch. The canvas background is a dark solid color (`#1e293b`)
+and the zones are the only visual elements. If the zone list is empty, the canvas
+shows an empty dark rectangle and the editor button should be visible so the admin
+can start drawing zones.
 
 ---
 
@@ -1191,38 +1597,60 @@ No `@types` needed — it ships with TypeScript declarations.
 ## Full Checklist
 
 ### Packages
-- [ ] `npm install recharts konva react-konva use-image` in `apps/frontend`
+- [ ] `npm install recharts konva react-konva` in `apps/frontend`
 
 ### Types & API layer
 - [ ] `src/features/analytics/types/analytics.types.ts` created
 - [ ] All 10 API files created (6 stats + 4 zones CRUD)
+- [ ] `get-category-by-location.api.ts` created (needs matching backend endpoint)
 
 ### State
-- [ ] `analytics.store.ts` created
+- [ ] `analytics.store.ts` created — includes `selectedCategory`, `categoryDetail`, `zoneComparisonMetric`
 - [ ] `floor-map.store.ts` created
 
 ### Flows
-- [ ] `use-analytics-page.flow.ts` created
+- [ ] `use-analytics-page.flow.ts` created — loads zones, categories, dimensions, velocity, insights in one shot + WS subscription
 - [ ] `use-zone-detail.flow.ts` created
+- [ ] `use-category-detail.flow.ts` created
 - [ ] `use-floor-map.flow.ts` created
 
-### Components
-- [ ] `FloorMapCanvas.tsx` created
-- [ ] `KpiRow.tsx` created
+### Components — Floor map
+- [ ] `FloorMapCanvas.tsx` created — zone/corridor render split + empty state
+- [ ] `FloorMapLegend.tsx` created
+
+### Components — Panels
+- [ ] `ZoneStatsPanel.tsx` created
+- [ ] `CategoryStatsPanel.tsx` created
+
+### Components — Charts
 - [ ] `CategoryBarChart.tsx` created
+- [ ] `CategoryByLocationChart.tsx` created
 - [ ] `SalesTimelineChart.tsx` created
 - [ ] `ZoneComparisonChart.tsx` created
 - [ ] `DimensionBucketChart.tsx` created
 - [ ] `TimeToSellChart.tsx` created
-- [ ] `ZoneStatsPanel.tsx` created
+
+### Components — Shared
+- [ ] `KpiRow.tsx` created
 - [ ] `InsightCard.tsx` + `InsightList.tsx` created
 - [ ] `DateRangePicker.tsx` created
 
 ### Pages & routing
-- [ ] `AnalyticsPage.tsx` created
+- [ ] `AnalyticsPage.tsx` created — all sections wired
 - [ ] Analytics page registered in home shell navigation
 
-### Integration
-- [ ] Store map image loaded (bundled asset initially)
-- [ ] Zone editor flow created (can be deferred to a second session)
-- [ ] End-to-end test: tap zone → panel opens with charts
+### Backend dependency (hand off to backend plan)
+- [ ] `GET /stats/categories/:category/locations` endpoint added (needed by `CategoryStatsPanel`)
+
+### Editor (second session)
+- [ ] `use-zone-editor.flow.ts` created
+- [ ] Zone editor settings page created
+
+### Integration tests
+- [ ] Tap zone on canvas → `ZoneStatsPanel` opens with KPIs + charts
+- [ ] Tap category row → `CategoryStatsPanel` opens with per-location breakdown
+- [ ] Dimension section renders 4 bucket charts
+- [ ] Zone comparison metric toggle switches between items/revenue
+- [ ] Date range change re-fetches all data
+- [ ] Real-time: scan in another tab → analytics overview refreshes via WebSocket
+- [ ] Empty canvas: no zones → prompt shown, not blank screen

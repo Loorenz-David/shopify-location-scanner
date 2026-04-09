@@ -18,6 +18,8 @@ import {
 import type { HomePageRegistration } from "./types/home-shell.types";
 import { HomeLayout } from "./ui/HomeLayout";
 import { HomePage } from "./ui/HomePage";
+import { AnalyticsPage } from "../analytics/pages/AnalyticsPage";
+import { StoreMapSettingsPage } from "../analytics/ui/StoreMapSettingsPage";
 import {
   useItemScanHistoryRealtimeFlow,
 } from "../item-scan-history/flows/use-item-scan-history.flow";
@@ -63,6 +65,18 @@ export function HomeFeature({ onLogout }: HomeFeatureProps) {
         },
       },
       {
+        id: "analytics",
+        title: "Analytics",
+        component: AnalyticsPage,
+        bottomMenu: {
+          label: "Analytics",
+          slot: "left",
+          order: 5,
+          visible: true,
+        },
+        presentation: "full-overlay",
+      },
+      {
         id: "scanner",
         title: "Scanner",
         component: ScannerFeature,
@@ -101,6 +115,12 @@ export function HomeFeature({ onLogout }: HomeFeatureProps) {
         id: "settings-users",
         title: "Users",
         component: UsersSettingsPage,
+        presentation: "full-overlay",
+      },
+      {
+        id: "settings-store-map",
+        title: "Store Map",
+        component: StoreMapSettingsPage,
         presentation: "full-overlay",
       },
     ],

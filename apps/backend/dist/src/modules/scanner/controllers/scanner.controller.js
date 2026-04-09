@@ -32,6 +32,7 @@ export const scannerController = {
             stringColumns: req.query.stringColumns,
             sold: req.query.sold,
             inStore: req.query.inStore,
+            salesChannel: req.query.salesChannel,
             from: req.query.from,
             to: req.query.to,
         });
@@ -45,6 +46,7 @@ export const scannerController = {
             ...(query.stringColumns ? { stringColumns: query.stringColumns } : {}),
             ...(typeof query.sold === "boolean" ? { sold: query.sold } : {}),
             ...(typeof query.inStore === "boolean" ? { inStore: query.inStore } : {}),
+            ...(query.salesChannel ? { salesChannel: query.salesChannel } : {}),
             ...(query.from ? { from: query.from } : {}),
             ...(query.to ? { to: query.to } : {}),
         });

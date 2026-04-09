@@ -1,5 +1,9 @@
 import { prisma } from "../../../shared/database/prisma-client.js";
 import { logger } from "../../../shared/logging/logger.js";
+import {
+  classifyShopifyChannel,
+  type SalesChannel,
+} from "../../../shared/sales-channel/classify-sales-channel.js";
 import { scanHistoryRepository } from "../../scanner/repositories/scan-history.repository.js";
 import type { ShopifyOrdersPaidWebhookPayload } from "../contracts/shopify.contract.js";
 
@@ -64,6 +68,9 @@ export const handleOrdersPaidWebhookCommand = async (input: {
   const orderId = String(input.payload.id);
   const orderGroupId = `order:${orderId}`;
   const soldLocation = `SOLD_ORDER:${orderId}`;
+  const salesChannel: SalesChannel = classifyShopifyChannel(
+    input.payload.source_name,
+  );
 
   const lineItemsByProduct = new Map<
     string,
@@ -110,6 +117,7 @@ export const handleOrdersPaidWebhookCommand = async (input: {
       unknownLocation: UNKNOWN_POSITION_LOCATION,
       soldLocation,
       happenedAt: paidAt,
+      salesChannel,
     });
 
     processedProducts += 1;

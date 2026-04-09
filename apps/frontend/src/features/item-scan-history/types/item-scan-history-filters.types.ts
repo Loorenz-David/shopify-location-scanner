@@ -1,3 +1,5 @@
+import type { SalesChannel } from "../../analytics/types/analytics.types";
+
 export type ItemScanHistorySearchField =
   | "sku"
   | "barcode"
@@ -12,6 +14,7 @@ export interface ItemScanHistoryFilters {
   selectedFields: ItemScanHistorySearchField[];
   includeLocationHistory: boolean;
   status: ItemScanHistoryStatusFilter;
+  salesChannel?: SalesChannel;
   from: string;
   to: string;
 }

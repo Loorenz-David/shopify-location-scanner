@@ -210,6 +210,7 @@ function buildOptimisticHandleItem(
     lastModifiedLabel: formatLongFriendlyDateTime(nowIso),
     latestLocationLabel: locationCode,
     latestUsername: OPTIMISTIC_EVENT_USERNAME,
+    lastSoldChannel: null,
     events: [buildOptimisticEvent(nowIso, locationCode)],
     priceHistory: [],
   };

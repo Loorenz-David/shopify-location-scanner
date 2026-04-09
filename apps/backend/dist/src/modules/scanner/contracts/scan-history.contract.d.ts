@@ -69,6 +69,12 @@ export declare const GetScanHistoryQuerySchema: z.ZodPipe<z.ZodObject<{
     }>>>>;
     sold: z.ZodPipe<z.ZodTransform<{} | undefined, unknown>, z.ZodOptional<z.ZodBoolean>>;
     inStore: z.ZodPipe<z.ZodTransform<{} | undefined, unknown>, z.ZodOptional<z.ZodBoolean>>;
+    salesChannel: z.ZodOptional<z.ZodEnum<{
+        webshop: "webshop";
+        physical: "physical";
+        imported: "imported";
+        unknown: "unknown";
+    }>>;
     from: z.ZodPipe<z.ZodTransform<{} | undefined, unknown>, z.ZodOptional<z.ZodCoercedDate<unknown>>>;
     to: z.ZodPipe<z.ZodTransform<{} | undefined, unknown>, z.ZodOptional<z.ZodCoercedDate<unknown>>>;
 }, z.core.$strip>, z.ZodTransform<{
@@ -80,6 +86,7 @@ export declare const GetScanHistoryQuerySchema: z.ZodPipe<z.ZodObject<{
     stringColumns: ("username" | "productId" | "itemCategory" | "itemSku" | "itemBarcode" | "itemType" | "itemTitle" | "eventUsername" | "eventLocation")[] | undefined;
     sold: boolean | undefined;
     inStore: boolean | undefined;
+    salesChannel: "webshop" | "physical" | "imported" | "unknown" | undefined;
     from: Date | undefined;
     to: Date | undefined;
 }, {
@@ -91,6 +98,7 @@ export declare const GetScanHistoryQuerySchema: z.ZodPipe<z.ZodObject<{
     stringColumns?: ("username" | "productId" | "itemCategory" | "itemSku" | "itemBarcode" | "itemType" | "itemTitle" | "eventUsername" | "eventLocation")[] | undefined;
     sold?: boolean | undefined;
     inStore?: boolean | undefined;
+    salesChannel?: "webshop" | "physical" | "imported" | "unknown" | undefined;
     from?: Date | undefined;
     to?: Date | undefined;
 }>>;

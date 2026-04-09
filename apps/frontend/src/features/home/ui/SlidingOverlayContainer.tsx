@@ -12,12 +12,14 @@ interface SlidingOverlayContainerProps {
   isOpen: boolean;
   title: string;
   children?: ReactNode;
+  zIndexClassName?: string;
 }
 
 export function SlidingOverlayContainer({
   isOpen,
   title,
   children,
+  zIndexClassName = "z-60",
 }: SlidingOverlayContainerProps) {
   const [isReady, setIsReady] = useState(false);
 
@@ -41,36 +43,46 @@ export function SlidingOverlayContainer({
     <SlidingOverlayReadyContext.Provider value={isReady}>
       <AnimatePresence>
         {isOpen ? (
-          <motion.section
-            className="fixed inset-0 z-60 bg-slate-50"
+          <div
+            className={`fixed inset-0 ${zIndexClassName}`}
             role="dialog"
             aria-modal="true"
             aria-label={title}
-            variants={slideVariants}
-            initial="hidden"
-            animate="visible"
-            exit="hidden"
-            transition={{ duration: 0.25, ease: "easeOut" }}
-            onAnimationStart={(definition) => {
-              if (definition === "visible") {
-                setIsReady(false);
-              }
-            }}
-            onAnimationComplete={(definition) => {
-              if (definition === "visible") {
-                setIsReady(true);
-                return;
-              }
-
-              if (definition === "hidden") {
-                setIsReady(false);
-              }
-            }}
           >
-            <div className="flex h-svh min-h-0 flex-col overflow-hidden">
+            <motion.div
+              className="absolute inset-0 bg-slate-950/24 backdrop-blur-[1px]"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+            />
+
+            <motion.section
+              className="relative flex h-svh min-h-0 flex-col overflow-hidden"
+              variants={slideVariants}
+              initial="hidden"
+              animate="visible"
+              exit="hidden"
+              transition={{ duration: 0.25, ease: "easeOut" }}
+              onAnimationStart={(definition) => {
+                if (definition === "visible") {
+                  setIsReady(false);
+                }
+              }}
+              onAnimationComplete={(definition) => {
+                if (definition === "visible") {
+                  setIsReady(true);
+                  return;
+                }
+
+                if (definition === "hidden") {
+                  setIsReady(false);
+                }
+              }}
+            >
               {children}
-            </div>
-          </motion.section>
+            </motion.section>
+          </div>
         ) : null}
       </AnimatePresence>
     </SlidingOverlayReadyContext.Provider>

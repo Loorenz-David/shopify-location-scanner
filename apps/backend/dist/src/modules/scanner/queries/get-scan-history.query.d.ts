@@ -8,6 +8,7 @@ export declare const getScanHistoryQuery: (input: {
     stringColumns?: ScanHistoryStringFilterColumn[];
     sold?: boolean;
     inStore?: boolean;
+    salesChannel?: "webshop" | "physical" | "imported" | "unknown";
     from?: Date;
     to?: Date;
 }) => Promise<ScanHistoryPage>;

@@ -1,5 +1,6 @@
 import { prisma } from "../../../shared/database/prisma-client.js";
 import { logger } from "../../../shared/logging/logger.js";
+import { startOfUtcDay } from "../../../shared/utils/date.js";
 import { broadcastToShop } from "../../ws/ws-broadcaster.js";
 import { ScanHistoryEventType } from "@prisma/client";
 const normalizePrice = (price) => {
@@ -29,9 +30,6 @@ const parsePriceValue = (price) => {
     const normalized = price.replace(/,/g, "").trim();
     const parsed = Number.parseFloat(normalized);
     return Number.isFinite(parsed) ? parsed : 0;
-};
-const startOfUtcDay = (value) => {
-    return new Date(Date.UTC(value.getUTCFullYear(), value.getUTCMonth(), value.getUTCDate()));
 };
 const toDurationSeconds = (from, to) => {
     const seconds = (to.getTime() - from.getTime()) / 1000;
@@ -100,12 +98,14 @@ const toDomain = (record) => {
         itemDepth: record.itemDepth,
         volume: record.volume,
         latestLocation: record.latestLocation,
+        lastSoldChannel: record.lastSoldChannel,
         lastModifiedAt: record.lastModifiedAt,
         events: record.events.map((entry) => ({
             username: entry.username,
             eventType: entry.eventType,
             orderId: entry.orderId,
             orderGroupId: entry.orderGroupId,
+            salesChannel: entry.salesChannel ?? null,
             location: entry.location,
             happenedAt: entry.happenedAt,
         })),
@@ -178,7 +178,7 @@ export const scanHistoryRepository = {
                     eventType,
                     location: input.location,
                 });
-                return tx.scanHistory.create({
+                const createdHistory = await tx.scanHistory.create({
                     data: {
                         shopId: input.shopId,
                         userId: input.userId ?? null,
@@ -229,6 +229,29 @@ export const scanHistoryRepository = {
                         },
                     },
                 });
+                if (eventType === "location_update") {
+                    const statsDate = startOfUtcDay(happenedAt);
+                    await tx.locationStatsDaily.upsert({
+                        where: {
+                            date_location: {
+                                date: statsDate,
+                                location: input.location,
+                            },
+                        },
+                        create: {
+                            date: statsDate,
+                            location: input.location,
+                            itemsReceived: 1,
+                            itemsSold: 0,
+                            totalTimeToSellSeconds: 0,
+                            totalValuation: 0,
+                        },
+                        update: {
+                            itemsReceived: { increment: 1 },
+                        },
+                    });
+                }
+                return createdHistory;
             }
             logger.info("Scan history record found; appending event", {
                 scanHistoryId: existing.id,
@@ -266,6 +289,28 @@ export const scanHistoryRepository = {
                     happenedAt,
                 },
             });
+            if (eventType === "location_update") {
+                const statsDate = startOfUtcDay(happenedAt);
+                await tx.locationStatsDaily.upsert({
+                    where: {
+                        date_location: {
+                            date: statsDate,
+                            location: input.location,
+                        },
+                    },
+                    create: {
+                        date: statsDate,
+                        location: input.location,
+                        itemsReceived: 1,
+                        itemsSold: 0,
+                        totalTimeToSellSeconds: 0,
+                        totalValuation: 0,
+                    },
+                    update: {
+                        itemsReceived: { increment: 1 },
+                    },
+                });
+            }
             if (currentPrice) {
                 const latestPrice = await tx.scanHistoryPrice.findFirst({
                     where: {
@@ -317,12 +362,14 @@ export const scanHistoryRepository = {
     },
     async appendSoldTerminalEventWithFallback(input) {
         const happenedAt = input.happenedAt ?? new Date();
+        const salesChannel = input.salesChannel ?? "unknown";
         const soldPrice = normalizePrice(input.soldPrice);
         const soldValuation = parsePriceValue(soldPrice);
         const itemCategory = normalizeCategory(input.itemCategory);
         const orderId = input.orderId ?? null;
         const orderGroupId = input.orderGroupId ?? null;
         const history = await prisma.$transaction(async (tx) => {
+            const txWithSalesChannelStats = tx;
             const existing = await tx.scanHistory.findUnique({
                 where: {
                     shopId_productId: {
@@ -333,55 +380,81 @@ export const scanHistoryRepository = {
             });
             if (!existing) {
                 const statsDate = startOfUtcDay(happenedAt);
-                await tx.locationStatsDaily.upsert({
-                    where: {
-                        date_location: {
+                if (salesChannel === "physical") {
+                    await tx.locationStatsDaily.upsert({
+                        where: {
+                            date_location: {
+                                date: statsDate,
+                                location: input.unknownLocation,
+                            },
+                        },
+                        create: {
                             date: statsDate,
                             location: input.unknownLocation,
+                            itemsSold: 1,
+                            itemsReceived: 0,
+                            totalTimeToSellSeconds: 0,
+                            totalValuation: soldValuation,
                         },
-                    },
-                    create: {
-                        date: statsDate,
-                        location: input.unknownLocation,
-                        itemsSold: 1,
-                        itemsReceived: 0,
-                        totalTimeToSellSeconds: 0,
-                        totalValuation: soldValuation,
-                    },
-                    update: {
-                        itemsSold: {
-                            increment: 1,
+                        update: {
+                            itemsSold: {
+                                increment: 1,
+                            },
+                            totalTimeToSellSeconds: {
+                                increment: 0,
+                            },
+                            totalValuation: {
+                                increment: soldValuation,
+                            },
                         },
-                        totalTimeToSellSeconds: {
-                            increment: 0,
+                    });
+                    await tx.locationCategoryStatsDaily.upsert({
+                        where: {
+                            date_location_itemCategory: {
+                                date: statsDate,
+                                location: input.unknownLocation,
+                                itemCategory,
+                            },
                         },
-                        totalValuation: {
-                            increment: soldValuation,
-                        },
-                    },
-                });
-                await tx.locationCategoryStatsDaily.upsert({
-                    where: {
-                        date_location_itemCategory: {
+                        create: {
                             date: statsDate,
                             location: input.unknownLocation,
                             itemCategory,
+                            itemsSold: 1,
+                            totalRevenue: soldValuation,
+                            totalTimeToSellSeconds: 0,
+                        },
+                        update: {
+                            itemsSold: {
+                                increment: 1,
+                            },
+                            totalRevenue: {
+                                increment: soldValuation,
+                            },
+                            totalTimeToSellSeconds: {
+                                increment: 0,
+                            },
+                        },
+                    });
+                }
+                await txWithSalesChannelStats.salesChannelStatsDaily.upsert({
+                    where: {
+                        date_shopId_salesChannel: {
+                            date: statsDate,
+                            shopId: input.shopId,
+                            salesChannel,
                         },
                     },
                     create: {
                         date: statsDate,
-                        location: input.unknownLocation,
-                        itemCategory,
+                        shopId: input.shopId,
+                        salesChannel,
                         itemsSold: 1,
                         totalRevenue: soldValuation,
                     },
                     update: {
-                        itemsSold: {
-                            increment: 1,
-                        },
-                        totalRevenue: {
-                            increment: soldValuation,
-                        },
+                        itemsSold: { increment: 1 },
+                        totalRevenue: { increment: soldValuation },
                     },
                 });
                 return tx.scanHistory.create({
@@ -398,6 +471,7 @@ export const scanHistoryRepository = {
                         itemTitle: input.itemTitle,
                         latestLocation: input.soldLocation,
                         isSold: true,
+                        lastSoldChannel: salesChannel,
                         lastModifiedAt: happenedAt,
                         events: {
                             create: [
@@ -414,6 +488,7 @@ export const scanHistoryRepository = {
                                     eventType: "sold_terminal",
                                     orderId,
                                     orderGroupId,
+                                    salesChannel,
                                     location: input.soldLocation,
                                     happenedAt,
                                 },
@@ -465,6 +540,7 @@ export const scanHistoryRepository = {
                     itemTitle: input.itemTitle,
                     latestLocation: input.soldLocation,
                     isSold: true,
+                    lastSoldChannel: salesChannel,
                     lastModifiedAt: happenedAt,
                 },
             });
@@ -515,6 +591,7 @@ export const scanHistoryRepository = {
                     eventType: "sold_terminal",
                     orderId,
                     orderGroupId,
+                    salesChannel,
                     location: input.soldLocation,
                     happenedAt,
                 },
@@ -529,55 +606,81 @@ export const scanHistoryRepository = {
                     happenedAt,
                 },
             });
-            await tx.locationStatsDaily.upsert({
-                where: {
-                    date_location: {
+            if (salesChannel === "physical") {
+                await tx.locationStatsDaily.upsert({
+                    where: {
+                        date_location: {
+                            date: statsDate,
+                            location: arrivedLocation,
+                        },
+                    },
+                    create: {
                         date: statsDate,
                         location: arrivedLocation,
+                        itemsSold: 1,
+                        itemsReceived: 0,
+                        totalTimeToSellSeconds,
+                        totalValuation: soldValuation,
                     },
-                },
-                create: {
-                    date: statsDate,
-                    location: arrivedLocation,
-                    itemsSold: 1,
-                    itemsReceived: 0,
-                    totalTimeToSellSeconds,
-                    totalValuation: soldValuation,
-                },
-                update: {
-                    itemsSold: {
-                        increment: 1,
+                    update: {
+                        itemsSold: {
+                            increment: 1,
+                        },
+                        totalTimeToSellSeconds: {
+                            increment: totalTimeToSellSeconds,
+                        },
+                        totalValuation: {
+                            increment: soldValuation,
+                        },
                     },
-                    totalTimeToSellSeconds: {
-                        increment: totalTimeToSellSeconds,
+                });
+                await tx.locationCategoryStatsDaily.upsert({
+                    where: {
+                        date_location_itemCategory: {
+                            date: statsDate,
+                            location: arrivedLocation,
+                            itemCategory: soldItemCategory,
+                        },
                     },
-                    totalValuation: {
-                        increment: soldValuation,
-                    },
-                },
-            });
-            await tx.locationCategoryStatsDaily.upsert({
-                where: {
-                    date_location_itemCategory: {
+                    create: {
                         date: statsDate,
                         location: arrivedLocation,
                         itemCategory: soldItemCategory,
+                        itemsSold: 1,
+                        totalRevenue: soldValuation,
+                        totalTimeToSellSeconds,
+                    },
+                    update: {
+                        itemsSold: {
+                            increment: 1,
+                        },
+                        totalRevenue: {
+                            increment: soldValuation,
+                        },
+                        totalTimeToSellSeconds: {
+                            increment: totalTimeToSellSeconds,
+                        },
+                    },
+                });
+            }
+            await txWithSalesChannelStats.salesChannelStatsDaily.upsert({
+                where: {
+                    date_shopId_salesChannel: {
+                        date: statsDate,
+                        shopId: input.shopId,
+                        salesChannel,
                     },
                 },
                 create: {
                     date: statsDate,
-                    location: arrivedLocation,
-                    itemCategory: soldItemCategory,
+                    shopId: input.shopId,
+                    salesChannel,
                     itemsSold: 1,
                     totalRevenue: soldValuation,
                 },
                 update: {
-                    itemsSold: {
-                        increment: 1,
-                    },
-                    totalRevenue: {
-                        increment: soldValuation,
-                    },
+                    itemsSold: { increment: 1 },
+                    totalRevenue: { increment: soldValuation },
                 },
             });
             return tx.scanHistory.findUniqueOrThrow({
@@ -671,6 +774,9 @@ export const scanHistoryRepository = {
         }
         if (input.inStore === true && input.sold !== true) {
             whereAnd.push({ isSold: false });
+        }
+        if (input.salesChannel) {
+            whereAnd.push({ lastSoldChannel: input.salesChannel });
         }
         if (trimmedQuery) {
             const stringFilterOptions = input.includeLocationHistory

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 
-import { useWsEvent, type WsInboundEvent } from "../../../core/api-client";
+import { useWsEvent } from "../../../core/ws-client/use-ws-event";
+import type { WsInboundEvent } from "../../../core/ws-client/ws-events";
 import { itemScanHistoryActions } from "../actions/item-scan-history.actions";
 import {
   selectItemScanHistoryFiltersRequestKey,

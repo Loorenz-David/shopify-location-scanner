@@ -84,6 +84,7 @@ export function normalizeItemScanHistoryItem(
     latestLocationLabel:
       item.latestLocation?.trim() || latestEvent?.location || "No scans yet",
     latestUsername: latestEvent?.username ?? item.username,
+    lastSoldChannel: item.lastSoldChannel ?? null,
     events,
     priceHistory,
   };

@@ -38,6 +38,10 @@ export async function getItemScanHistoryApi(
 
   queryParams.set("status", filters.status);
 
+  if (filters.salesChannel) {
+    queryParams.set("salesChannel", filters.salesChannel);
+  }
+
   if (filters.from) {
     queryParams.set("from", filters.from);
   }

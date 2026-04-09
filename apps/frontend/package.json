@@ -12,8 +12,11 @@
   "dependencies": {
     "@zxing/browser": "^0.1.5",
     "framer-motion": "^12.38.0",
+    "konva": "^10.2.3",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
+    "react-konva": "^19.2.3",
+    "recharts": "^3.8.1",
     "zustand": "^5.0.12"
   },
   "devDependencies": {

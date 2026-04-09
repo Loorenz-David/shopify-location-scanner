@@ -17,6 +17,7 @@ export const defaultItemScanHistoryFilters: ItemScanHistoryFilters = {
   selectedFields: [],
   includeLocationHistory: false,
   status: "active",
+  salesChannel: undefined,
   from: "",
   to: "",
 };
@@ -32,6 +33,7 @@ export function normalizeItemScanHistoryFilters(
     selectedFields: Array.from(new Set(normalizedFields)),
     includeLocationHistory: Boolean(filters.includeLocationHistory),
     status: filters.status === "sold" ? "sold" : "active",
+    salesChannel: filters.salesChannel,
     from: filters.from.trim(),
     to: filters.to.trim(),
   };
@@ -47,6 +49,7 @@ export function countActiveItemScanHistoryFilters(
     hasCustomFields ? "1" : "",
     normalized.includeLocationHistory ? "1" : "",
     normalized.status === "sold" ? "1" : "",
+    normalized.salesChannel ?? "",
     normalized.from,
     normalized.to,
   ].filter(Boolean).length;
@@ -87,6 +90,10 @@ export function applyItemScanHistoryLiveFilters(
     }
 
     if (!matchesStatusFilter(item, normalized.status)) {
+      return false;
+    }
+
+    if (!matchesSalesChannelFilter(item, normalized.salesChannel)) {
       return false;
     }
 
@@ -159,6 +166,17 @@ function matchesStatusFilter(
   }
 
   return !isSold;
+}
+
+function matchesSalesChannelFilter(
+  item: ItemScanHistoryItem,
+  salesChannel: ItemScanHistoryFilters["salesChannel"],
+): boolean {
+  if (!salesChannel) {
+    return true;
+  }
+
+  return item.lastSoldChannel === salesChannel;
 }
 
 function getFieldValuesForSearch(

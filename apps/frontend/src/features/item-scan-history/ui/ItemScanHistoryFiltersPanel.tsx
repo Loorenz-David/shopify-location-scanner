@@ -1,3 +1,4 @@
+import type { SalesChannel } from "../../analytics/types/analytics.types";
 import { itemScanHistorySearchFieldOptions } from "../domain/item-scan-history-filters.domain";
 import {
   resolveItemScanHistoryDateRangePreset,
@@ -166,6 +167,31 @@ export function ItemScanHistoryFiltersPanel({
 
           <div className="rounded-2xl border border-slate-900/10 bg-white p-3">
             <p className="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+              Sales channel
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {CHANNEL_OPTIONS.map((channel) => (
+                <ToggleChip
+                  key={channel.value}
+                  label={channel.label}
+                  checked={
+                    channel.value === "all"
+                      ? !filters.salesChannel
+                      : filters.salesChannel === channel.value
+                  }
+                  onToggle={() =>
+                    onChangeFilters({
+                      salesChannel:
+                        channel.value === "all" ? undefined : channel.value,
+                    })
+                  }
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-slate-900/10 bg-white p-3">
+            <p className="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
               Date range
             </p>
             <label className="mt-2 block">
@@ -218,6 +244,16 @@ export function ItemScanHistoryFiltersPanel({
     </section>
   );
 }
+
+const CHANNEL_OPTIONS: Array<{
+  value: SalesChannel | "all";
+  label: string;
+}> = [
+  { value: "all", label: "All channels" },
+  { value: "physical", label: "Physical" },
+  { value: "webshop", label: "Webshop" },
+  { value: "unknown", label: "Unknown" },
+];
 
 interface ToggleChipProps {
   label: string;

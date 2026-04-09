@@ -86,6 +86,7 @@ export const ShopifyOrdersPaidWebhookPayloadSchema = z.object({
   processed_at: z.string().trim().nullable().optional(),
   created_at: z.string().trim().nullable().optional(),
   updated_at: z.string().trim().nullable().optional(),
+  source_name: z.string().trim().nullable().optional(),
   line_items: z.array(ShopifyOrderLineItemSchema),
 });
 
