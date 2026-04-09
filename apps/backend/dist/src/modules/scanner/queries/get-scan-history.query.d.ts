@@ -4,6 +4,7 @@ export declare const getScanHistoryQuery: (input: {
     shopId: string;
     page: number;
     q?: string;
+    includeLocationHistory?: boolean;
     stringColumns?: ScanHistoryStringFilterColumn[];
     sold?: boolean;
     inStore?: boolean;

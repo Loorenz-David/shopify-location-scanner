@@ -15,6 +15,7 @@ export const itemScanHistorySearchFieldOptions: ItemScanHistorySearchField[] = [
 
 export const defaultItemScanHistoryFilters: ItemScanHistoryFilters = {
   selectedFields: [],
+  includeLocationHistory: false,
   status: "active",
   from: "",
   to: "",
@@ -29,6 +30,7 @@ export function normalizeItemScanHistoryFilters(
 
   return {
     selectedFields: Array.from(new Set(normalizedFields)),
+    includeLocationHistory: Boolean(filters.includeLocationHistory),
     status: filters.status === "sold" ? "sold" : "active",
     from: filters.from.trim(),
     to: filters.to.trim(),
@@ -43,6 +45,7 @@ export function countActiveItemScanHistoryFilters(
 
   return [
     hasCustomFields ? "1" : "",
+    normalized.includeLocationHistory ? "1" : "",
     normalized.status === "sold" ? "1" : "",
     normalized.from,
     normalized.to,
@@ -71,6 +74,7 @@ export function applyItemScanHistoryLiveFilters(
         item,
         normalizedQuery,
         normalized.selectedFields,
+        normalized.includeLocationHistory,
       )
     ) {
       return false;
@@ -94,6 +98,7 @@ function matchesQueryInSelectedFields(
   item: ItemScanHistoryItem,
   normalizedQuery: string,
   selectedFields: ItemScanHistorySearchField[],
+  includeLocationHistory: boolean,
 ): boolean {
   if (!normalizedQuery) {
     return true;
@@ -105,7 +110,7 @@ function matchesQueryInSelectedFields(
       : itemScanHistorySearchFieldOptions;
 
   return effectiveFields.some((field) => {
-    const values = getFieldValuesForSearch(item, field);
+    const values = getFieldValuesForSearch(item, field, includeLocationHistory);
     return values.some((value) =>
       value.toLowerCase().includes(normalizedQuery),
     );
@@ -159,6 +164,7 @@ function matchesStatusFilter(
 function getFieldValuesForSearch(
   item: ItemScanHistoryItem,
   field: ItemScanHistorySearchField,
+  includeLocationHistory: boolean,
 ): string[] {
   switch (field) {
     case "sku":
@@ -166,15 +172,14 @@ function getFieldValuesForSearch(
     case "barcode":
       return [item.barcodeLabel ?? ""];
     case "location":
-      return [
-        item.latestLocationLabel,
-        ...item.events.map((event) => event.location),
-      ];
+      return includeLocationHistory
+        ? [item.latestLocationLabel, ...item.events.map((event) => event.location)]
+        : [item.latestLocationLabel];
     case "itemTitle":
       return [item.title];
     case "itemCategory":
       return [item.categoryLabel ?? ""];
-    default:
-      return [];
+    case "username":
+      return [item.latestUsername, ...item.events.map((event) => event.username)];
   }
 }

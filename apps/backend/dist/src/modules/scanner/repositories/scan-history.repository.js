@@ -48,8 +48,19 @@ const ALL_STRING_FILTER_COLUMNS = [
     "eventUsername",
     "eventLocation",
 ];
-const buildStringFilterConditions = (query, columns) => {
+const buildStringFilterConditions = (query, columns, options) => {
     const targetColumns = columns?.length ? columns : ALL_STRING_FILTER_COLUMNS;
+    const eventLocationCondition = options?.includeLocationHistory
+        ? {
+            events: {
+                some: {
+                    location: { contains: query },
+                },
+            },
+        }
+        : {
+            latestLocation: { contains: query },
+        };
     const conditionsByColumn = {
         username: { username: { contains: query } },
         productId: { productId: { contains: query } },
@@ -66,11 +77,7 @@ const buildStringFilterConditions = (query, columns) => {
             },
         },
         eventLocation: {
-            events: {
-                some: {
-                    location: { contains: query },
-                },
-            },
+            ...eventLocationCondition,
         },
     };
     return targetColumns.map((column) => conditionsByColumn[column]);
@@ -92,6 +99,7 @@ const toDomain = (record) => {
         itemWidth: record.itemWidth,
         itemDepth: record.itemDepth,
         volume: record.volume,
+        latestLocation: record.latestLocation,
         lastModifiedAt: record.lastModifiedAt,
         events: record.events.map((entry) => ({
             username: entry.username,
@@ -113,6 +121,29 @@ const toDomain = (record) => {
     };
 };
 export const scanHistoryRepository = {
+    async findByShopAndProduct(input) {
+        const record = await prisma.scanHistory.findUnique({
+            where: {
+                shopId_productId: {
+                    shopId: input.shopId,
+                    productId: input.productId,
+                },
+            },
+            include: {
+                events: {
+                    orderBy: {
+                        happenedAt: "desc",
+                    },
+                },
+                priceHistory: {
+                    orderBy: {
+                        happenedAt: "desc",
+                    },
+                },
+            },
+        });
+        return record ? toDomain(record) : null;
+    },
     async appendLocationEvent(input) {
         const happenedAt = input.happenedAt ?? new Date();
         const eventType = input.eventType ?? "location_update";
@@ -163,6 +194,7 @@ export const scanHistoryRepository = {
                         itemWidth,
                         itemDepth,
                         volume,
+                        latestLocation: input.location,
                         isSold: eventType === "sold_terminal",
                         lastModifiedAt: happenedAt,
                         events: {
@@ -220,6 +252,7 @@ export const scanHistoryRepository = {
                     ...(itemWidth !== null ? { itemWidth } : {}),
                     ...(itemDepth !== null ? { itemDepth } : {}),
                     ...(volume !== null ? { volume } : {}),
+                    latestLocation: input.location,
                     isSold: eventType === "sold_terminal",
                     lastModifiedAt: happenedAt,
                 },
@@ -363,6 +396,7 @@ export const scanHistoryRepository = {
                         itemImageUrl: input.itemImageUrl ?? null,
                         itemType: input.itemType,
                         itemTitle: input.itemTitle,
+                        latestLocation: input.soldLocation,
                         isSold: true,
                         lastModifiedAt: happenedAt,
                         events: {
@@ -429,6 +463,7 @@ export const scanHistoryRepository = {
                     itemImageUrl: input.itemImageUrl ?? null,
                     itemType: input.itemType,
                     itemTitle: input.itemTitle,
+                    latestLocation: input.soldLocation,
                     isSold: true,
                     lastModifiedAt: happenedAt,
                 },
@@ -638,8 +673,11 @@ export const scanHistoryRepository = {
             whereAnd.push({ isSold: false });
         }
         if (trimmedQuery) {
+            const stringFilterOptions = input.includeLocationHistory
+                ? { includeLocationHistory: true }
+                : undefined;
             whereAnd.push({
-                OR: buildStringFilterConditions(trimmedQuery, input.stringColumns),
+                OR: buildStringFilterConditions(trimmedQuery, input.stringColumns, stringFilterOptions),
             });
         }
         const where = {

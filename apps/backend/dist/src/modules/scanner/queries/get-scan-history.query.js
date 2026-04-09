@@ -6,6 +6,9 @@ export const getScanHistoryQuery = async (input) => {
         page: input.page,
         pageSize: PAGE_SIZE,
         ...(input.q ? { q: input.q } : {}),
+        ...(input.includeLocationHistory
+            ? { includeLocationHistory: input.includeLocationHistory }
+            : {}),
         ...(input.stringColumns ? { stringColumns: input.stringColumns } : {}),
         ...(typeof input.sold === "boolean" ? { sold: input.sold } : {}),
         ...(typeof input.inStore === "boolean" ? { inStore: input.inStore } : {}),

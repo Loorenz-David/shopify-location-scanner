@@ -1,6 +1,10 @@
 import type { AppendScanLocationHistoryInput, ScanHistoryStringFilterColumn } from "../contracts/scan-history.contract.js";
 import type { ScanHistoryPage, ScanHistoryRecord } from "../domain/scan-history.js";
 export declare const scanHistoryRepository: {
+    findByShopAndProduct(input: {
+        shopId: string;
+        productId: string;
+    }): Promise<ScanHistoryRecord | null>;
     appendLocationEvent(input: AppendScanLocationHistoryInput): Promise<ScanHistoryRecord>;
     appendSoldTerminalEventWithFallback(input: {
         shopId: string;
@@ -31,6 +35,7 @@ export declare const scanHistoryRepository: {
         page: number;
         pageSize: number;
         q?: string;
+        includeLocationHistory?: boolean;
         stringColumns?: ScanHistoryStringFilterColumn[];
         sold?: boolean;
         inStore?: boolean;

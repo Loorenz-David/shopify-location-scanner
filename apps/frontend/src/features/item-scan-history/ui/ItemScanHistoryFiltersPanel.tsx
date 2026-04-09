@@ -24,6 +24,9 @@ export function ItemScanHistoryFiltersPanel({
   onResetFilters,
   onClose,
 }: ItemScanHistoryFiltersPanelProps) {
+  const isLocationFieldActive =
+    filters.selectedFields.length === 0 ||
+    filters.selectedFields.includes("location");
   const selectedDatePreset = resolveItemScanHistoryDateRangePreset(
     filters.from,
     filters.to,
@@ -101,6 +104,46 @@ export function ItemScanHistoryFiltersPanel({
                 );
               })}
             </div>
+
+            <label
+              className={`mt-3 flex items-center justify-between rounded-xl border px-3 py-2 ${
+                isLocationFieldActive
+                  ? "border-slate-900/10 bg-slate-50"
+                  : "border-slate-900/5 bg-slate-50/60 opacity-60"
+              }`}
+            >
+              <div>
+                <p className="m-0 text-sm font-semibold text-slate-900">
+                  Include previous locations
+                </p>
+                <p className="m-0 mt-1 text-xs text-slate-500">
+                  Off means location search matches only the latest location.
+                </p>
+              </div>
+              <button
+                type="button"
+                role="switch"
+                aria-checked={filters.includeLocationHistory}
+                aria-label="Include previous locations in search"
+                disabled={!isLocationFieldActive}
+                onClick={() =>
+                  onChangeFilters({
+                    includeLocationHistory: !filters.includeLocationHistory,
+                  })
+                }
+                className={`relative inline-flex h-7 w-12 shrink-0 rounded-full transition ${
+                  filters.includeLocationHistory
+                    ? "bg-sky-500"
+                    : "bg-slate-300"
+                } disabled:cursor-not-allowed`}
+              >
+                <span
+                  className={`absolute top-1 h-5 w-5 rounded-full bg-white shadow transition ${
+                    filters.includeLocationHistory ? "left-6" : "left-1"
+                  }`}
+                />
+              </button>
+            </label>
           </div>
 
           <div className="rounded-2xl border border-slate-900/10 bg-white p-3">

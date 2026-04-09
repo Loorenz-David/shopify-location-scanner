@@ -74,8 +74,23 @@ const ALL_STRING_FILTER_COLUMNS: ScanHistoryStringFilterColumn[] = [
 const buildStringFilterConditions = (
   query: string,
   columns?: ScanHistoryStringFilterColumn[],
+  options?: {
+    includeLocationHistory?: boolean;
+  },
 ): Prisma.ScanHistoryWhereInput[] => {
   const targetColumns = columns?.length ? columns : ALL_STRING_FILTER_COLUMNS;
+  const eventLocationCondition: Prisma.ScanHistoryWhereInput =
+    options?.includeLocationHistory
+      ? {
+          events: {
+            some: {
+              location: { contains: query },
+            },
+          },
+        }
+      : {
+          latestLocation: { contains: query },
+        };
 
   const conditionsByColumn: Record<
     ScanHistoryStringFilterColumn,
@@ -96,11 +111,7 @@ const buildStringFilterConditions = (
       },
     },
     eventLocation: {
-      events: {
-        some: {
-          location: { contains: query },
-        },
-      },
+      ...eventLocationCondition,
     },
   };
 
@@ -123,6 +134,7 @@ const toDomain = (record: {
   itemWidth: number | null;
   itemDepth: number | null;
   volume: number | null;
+  latestLocation: string | null;
   lastModifiedAt: Date;
   events: Array<{
     username: string;
@@ -158,6 +170,7 @@ const toDomain = (record: {
     itemWidth: record.itemWidth,
     itemDepth: record.itemDepth,
     volume: record.volume,
+    latestLocation: record.latestLocation,
     lastModifiedAt: record.lastModifiedAt,
     events: record.events.map((entry) => ({
       username: entry.username,
@@ -180,6 +193,34 @@ const toDomain = (record: {
 };
 
 export const scanHistoryRepository = {
+  async findByShopAndProduct(input: {
+    shopId: string;
+    productId: string;
+  }): Promise<ScanHistoryRecord | null> {
+    const record = await prisma.scanHistory.findUnique({
+      where: {
+        shopId_productId: {
+          shopId: input.shopId,
+          productId: input.productId,
+        },
+      },
+      include: {
+        events: {
+          orderBy: {
+            happenedAt: "desc",
+          },
+        },
+        priceHistory: {
+          orderBy: {
+            happenedAt: "desc",
+          },
+        },
+      },
+    });
+
+    return record ? toDomain(record) : null;
+  },
+
   async appendLocationEvent(
     input: AppendScanLocationHistoryInput,
   ): Promise<ScanHistoryRecord> {
@@ -236,6 +277,7 @@ export const scanHistoryRepository = {
             itemWidth,
             itemDepth,
             volume,
+            latestLocation: input.location,
             isSold: eventType === "sold_terminal",
             lastModifiedAt: happenedAt,
             events: {
@@ -295,6 +337,7 @@ export const scanHistoryRepository = {
           ...(itemWidth !== null ? { itemWidth } : {}),
           ...(itemDepth !== null ? { itemDepth } : {}),
           ...(volume !== null ? { volume } : {}),
+          latestLocation: input.location,
           isSold: eventType === "sold_terminal",
           lastModifiedAt: happenedAt,
         },
@@ -468,6 +511,7 @@ export const scanHistoryRepository = {
             itemImageUrl: input.itemImageUrl ?? null,
             itemType: input.itemType,
             itemTitle: input.itemTitle,
+            latestLocation: input.soldLocation,
             isSold: true,
             lastModifiedAt: happenedAt,
             events: {
@@ -535,6 +579,7 @@ export const scanHistoryRepository = {
           itemImageUrl: input.itemImageUrl ?? null,
           itemType: input.itemType,
           itemTitle: input.itemTitle,
+          latestLocation: input.soldLocation,
           isSold: true,
           lastModifiedAt: happenedAt,
         },
@@ -755,6 +800,7 @@ export const scanHistoryRepository = {
     page: number;
     pageSize: number;
     q?: string;
+    includeLocationHistory?: boolean;
     stringColumns?: ScanHistoryStringFilterColumn[];
     sold?: boolean;
     inStore?: boolean;
@@ -788,8 +834,16 @@ export const scanHistoryRepository = {
     }
 
     if (trimmedQuery) {
+      const stringFilterOptions = input.includeLocationHistory
+        ? { includeLocationHistory: true }
+        : undefined;
+
       whereAnd.push({
-        OR: buildStringFilterConditions(trimmedQuery, input.stringColumns),
+        OR: buildStringFilterConditions(
+          trimmedQuery,
+          input.stringColumns,
+          stringFilterOptions,
+        ),
       });
     }
 

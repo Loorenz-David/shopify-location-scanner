@@ -81,7 +81,8 @@ export function normalizeItemScanHistoryItem(
     volume: item.volume,
     lastModifiedAt: item.lastModifiedAt,
     lastModifiedLabel: formatLongFriendlyDateTime(item.lastModifiedAt),
-    latestLocationLabel: latestEvent?.location ?? "No scans yet",
+    latestLocationLabel:
+      item.latestLocation?.trim() || latestEvent?.location || "No scans yet",
     latestUsername: latestEvent?.username ?? item.username,
     events,
     priceHistory,

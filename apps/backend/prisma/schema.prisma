@@ -78,6 +78,7 @@ model ScanHistory {
   itemWidth        Float?
   itemDepth        Float?
   volume           Float?
+  latestLocation   String?
   isSold           Boolean  @default(false)
   lastModifiedAt   DateTime @default(now())
   createdAt        DateTime @default(now())
@@ -97,6 +98,7 @@ model ScanHistory {
   @@index([shopId, itemBarcode])
   @@index([shopId, itemType])
   @@index([shopId, itemTitle])
+  @@index([shopId, latestLocation])
   @@index([shopId, isSold, lastModifiedAt])
 }
 
@@ -178,4 +180,3 @@ model LocationCategoryStatsDaily {
   @@id([date, location, itemCategory])
   @@map("location_category_stats_daily")
 }
-

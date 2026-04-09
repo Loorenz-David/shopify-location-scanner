@@ -31,6 +31,11 @@ export async function getItemScanHistoryApi(
   if (filters.selectedFields.length > 0) {
     queryParams.set("fields", JSON.stringify(filters.selectedFields));
   }
+
+  if (filters.includeLocationHistory) {
+    queryParams.set("includeLocationHistory", "true");
+  }
+
   queryParams.set("status", filters.status);
 
   if (filters.from) {

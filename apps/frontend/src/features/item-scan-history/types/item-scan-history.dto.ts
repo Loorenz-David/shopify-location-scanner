@@ -37,6 +37,7 @@ export interface ItemScanHistoryEntryDto {
   itemDepth: number | null;
   volume: number | null;
   lastModifiedAt: string;
+  latestLocation?: string | null;
   events: ItemScanHistoryEventDto[];
   priceHistory: ItemScanHistoryPriceHistoryDto[];
   createdAt: string;

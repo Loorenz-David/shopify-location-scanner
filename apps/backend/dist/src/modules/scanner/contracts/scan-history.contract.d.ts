@@ -49,6 +49,7 @@ export declare const GetScanHistoryQuerySchema: z.ZodPipe<z.ZodObject<{
         active: "active";
         sold: "sold";
     }>>;
+    includeLocationHistory: z.ZodPipe<z.ZodTransform<{} | undefined, unknown>, z.ZodOptional<z.ZodBoolean>>;
     stringColumns: z.ZodPipe<z.ZodTransform<string[] | undefined, unknown>, z.ZodOptional<z.ZodArray<z.ZodEnum<{
         username: "username";
         productId: "productId";
@@ -69,6 +70,7 @@ export declare const GetScanHistoryQuerySchema: z.ZodPipe<z.ZodObject<{
     q: string | undefined;
     fields: ("username" | "itemCategory" | "itemTitle" | "location" | "sku" | "barcode")[] | undefined;
     status: "active" | "sold";
+    includeLocationHistory: boolean;
     stringColumns: ("username" | "productId" | "itemCategory" | "itemSku" | "itemBarcode" | "itemType" | "itemTitle" | "eventUsername" | "eventLocation")[] | undefined;
     sold: boolean | undefined;
     inStore: boolean | undefined;
@@ -79,6 +81,7 @@ export declare const GetScanHistoryQuerySchema: z.ZodPipe<z.ZodObject<{
     status: "active" | "sold";
     q?: string | undefined;
     fields?: ("username" | "itemCategory" | "itemTitle" | "location" | "sku" | "barcode")[] | undefined;
+    includeLocationHistory?: boolean | undefined;
     stringColumns?: ("username" | "productId" | "itemCategory" | "itemSku" | "itemBarcode" | "itemType" | "itemTitle" | "eventUsername" | "eventLocation")[] | undefined;
     sold?: boolean | undefined;
     inStore?: boolean | undefined;

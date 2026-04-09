@@ -41,6 +41,7 @@ export type ScanHistoryRecord = {
   itemWidth: number | null;
   itemDepth: number | null;
   volume: number | null;
+  latestLocation: string | null;
   lastModifiedAt: Date;
   events: ScanHistoryEvent[];
   priceHistory: ScanHistoryPricePoint[];

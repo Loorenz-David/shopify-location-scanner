@@ -1,7 +1,11 @@
 import { prisma } from "../../../shared/database/prisma-client.js";
 import { logger } from "../../../shared/logging/logger.js";
 import { scanHistoryRepository } from "../../scanner/repositories/scan-history.repository.js";
+import { shopifyAdminApi } from "../integrations/shopify-admin-api.integration.js";
+import { shopRepository } from "../repositories/shop.repository.js";
 import type { ShopifyProductsUpdateWebhookPayload } from "../contracts/shopify.contract.js";
+
+const WEBHOOK_ACTOR = "system:shopify-webhook";
 
 const normalizeProductId = (rawProductId: number | string): string => {
   const asString = String(rawProductId).trim();
@@ -69,6 +73,7 @@ export const handleProductsUpdateWebhookCommand = async (input: {
 
   const productId = normalizeProductId(input.payload.id);
   const price = getWebhookPrice(input.payload);
+  const happenedAt = parseHappenedAt(input.payload);
   let applied = false;
 
   if (price) {
@@ -76,8 +81,52 @@ export const handleProductsUpdateWebhookCommand = async (input: {
       shopId: input.shopId,
       productId,
       price,
-      happenedAt: parseHappenedAt(input.payload),
+      happenedAt,
     });
+  }
+
+  const existingHistory = await scanHistoryRepository.findByShopAndProduct({
+    shopId: input.shopId,
+    productId,
+  });
+
+  if (existingHistory) {
+    const shop = await shopRepository.findById(input.shopId);
+
+    if (shop?.accessToken) {
+      const product = await shopifyAdminApi.getProductWithLocation({
+        shopDomain: shop.shopDomain,
+        accessToken: shop.accessToken,
+        productId,
+      });
+
+      const normalizedLocation = product.location?.trim() || null;
+      const previousLocation = existingHistory.latestLocation?.trim() || null;
+
+      if (normalizedLocation && normalizedLocation !== previousLocation) {
+        await scanHistoryRepository.appendLocationEvent({
+          shopId: input.shopId,
+          userId: null,
+          username: WEBHOOK_ACTOR,
+          currentPrice: product.price,
+          itemHeight: product.itemHeight,
+          itemWidth: product.itemWidth,
+          itemDepth: product.itemDepth,
+          volume: product.volume,
+          productId,
+          itemCategory: product.itemCategory,
+          itemSku: product.sku,
+          itemBarcode: product.barcode,
+          itemImageUrl: product.imageUrl,
+          itemType: "product_id",
+          itemTitle: product.title,
+          location: normalizedLocation,
+          happenedAt,
+        });
+
+        applied = true;
+      }
+    }
   }
 
   await prisma.shopifyWebhookDelivery.create({

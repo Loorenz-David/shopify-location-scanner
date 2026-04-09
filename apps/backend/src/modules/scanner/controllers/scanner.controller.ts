@@ -9,6 +9,7 @@ export const scannerController = {
       q: req.query.q,
       fields: req.query.fields,
       status: req.query.status,
+      includeLocationHistory: req.query.includeLocationHistory,
       stringColumns: req.query.stringColumns,
       sold: req.query.sold,
       inStore: req.query.inStore,
@@ -20,6 +21,9 @@ export const scannerController = {
       shopId: req.authUser.shopId as string,
       page: query.page,
       ...(query.q ? { q: query.q } : {}),
+      ...(query.includeLocationHistory
+        ? { includeLocationHistory: query.includeLocationHistory }
+        : {}),
       ...(query.stringColumns ? { stringColumns: query.stringColumns } : {}),
       ...(typeof query.sold === "boolean" ? { sold: query.sold } : {}),
       ...(typeof query.inStore === "boolean" ? { inStore: query.inStore } : {}),
