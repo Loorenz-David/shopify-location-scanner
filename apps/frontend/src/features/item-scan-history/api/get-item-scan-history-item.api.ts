@@ -24,10 +24,9 @@ function normalizeItemResponse(
 export async function getItemScanHistoryItemApi(
   productId: string,
 ): Promise<ItemScanHistoryEntryDto | null> {
-  const encodedProductId = encodeURIComponent(productId);
   const response = await apiClient.get<
     ItemScanHistoryEntryDto | ItemScanHistoryItemResponseDto | null
-  >(`/scanner/history/${encodedProductId}`, {
+  >(`/scanner/history/item?productId=${encodeURIComponent(productId)}`, {
     requiresAuth: true,
   });
 

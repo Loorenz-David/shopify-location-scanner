@@ -37,6 +37,9 @@ export declare const AppendScanLocationHistorySchema: z.ZodObject<{
 export declare const GetScanHistoryItemParamsSchema: z.ZodObject<{
     productId: z.ZodString;
 }, z.core.$strip>;
+export declare const GetScanHistoryItemQuerySchema: z.ZodObject<{
+    productId: z.ZodString;
+}, z.core.$strip>;
 export declare const GetScanHistoryQuerySchema: z.ZodPipe<z.ZodObject<{
     page: z.ZodDefault<z.ZodCoercedNumber<unknown>>;
     q: z.ZodOptional<z.ZodString>;
@@ -94,6 +97,7 @@ export declare const GetScanHistoryQuerySchema: z.ZodPipe<z.ZodObject<{
 export type ScanHistoryStringFilterColumn = z.infer<typeof ScanHistoryStringFilterColumnSchema>;
 export type AppendScanLocationHistoryInput = z.infer<typeof AppendScanLocationHistorySchema>;
 export type GetScanHistoryItemParamsInput = z.infer<typeof GetScanHistoryItemParamsSchema>;
+export type GetScanHistoryItemQueryInput = z.infer<typeof GetScanHistoryItemQuerySchema>;
 export type GetScanHistoryQueryInput = z.infer<typeof GetScanHistoryQuerySchema>;
 export {};
 //# sourceMappingURL=scan-history.contract.d.ts.map

@@ -118,6 +118,9 @@ export const AppendScanLocationHistorySchema = z.object({
 export const GetScanHistoryItemParamsSchema = z.object({
     productId: z.string().trim().min(1),
 });
+export const GetScanHistoryItemQuerySchema = z.object({
+    productId: z.string().trim().min(1),
+});
 export const GetScanHistoryQuerySchema = z
     .object({
     page: z.coerce.number().int().min(1).default(1),

@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import {
+  GetScanHistoryItemQuerySchema,
   GetScanHistoryItemParamsSchema,
   GetScanHistoryQuerySchema,
 } from "../contracts/scan-history.contract.js";
@@ -7,6 +8,19 @@ import { getScanHistoryQuery } from "../queries/get-scan-history.query.js";
 import { getScanHistoryItemQuery } from "../queries/get-scan-history-item.query.js";
 
 export const scannerController = {
+  getHistoryItemByQuery: async (req: Request, res: Response): Promise<void> => {
+    const query = GetScanHistoryItemQuerySchema.parse({
+      productId: req.query.productId,
+    });
+
+    const item = await getScanHistoryItemQuery({
+      shopId: req.authUser.shopId as string,
+      productId: query.productId,
+    });
+
+    res.status(200).json({ item });
+  },
+
   getHistoryItem: async (req: Request, res: Response): Promise<void> => {
     const params = GetScanHistoryItemParamsSchema.parse({
       productId: req.params.productId,
