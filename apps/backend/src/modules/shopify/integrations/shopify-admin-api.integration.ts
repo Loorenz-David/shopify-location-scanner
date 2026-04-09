@@ -53,6 +53,8 @@ const shopifyGraphql = async <T>(
   query: string,
   variables?: Record<string, unknown>,
 ): Promise<T> => {
+  const operationName =
+    query.match(/\b(?:query|mutation)\s+([A-Za-z0-9_]+)/)?.[1] ?? "anonymous";
   const response = await fetch(
     `https://${shopDomain}/admin/api/${env.SHOPIFY_API_VERSION}/graphql.json`,
     {
@@ -66,10 +68,16 @@ const shopifyGraphql = async <T>(
   );
 
   if (!response.ok) {
+    const responseBody = await response.text().catch(() => null);
+
     throw new AppError("Shopify API request failed", {
       code: "INTERNAL_ERROR",
       statusCode: 502,
-      details: { status: response.status },
+      details: {
+        operationName,
+        status: response.status,
+        responseBody,
+      },
     });
   }
 
@@ -82,7 +90,10 @@ const shopifyGraphql = async <T>(
     throw new AppError("Shopify GraphQL returned an error", {
       code: "INTERNAL_ERROR",
       statusCode: 502,
-      details: payload.errors,
+      details: {
+        operationName,
+        errors: payload.errors ?? null,
+      },
     });
   }
 

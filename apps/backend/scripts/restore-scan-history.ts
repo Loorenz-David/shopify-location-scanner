@@ -4,6 +4,7 @@ import { prisma } from "../src/shared/database/prisma-client.js";
 import { scanHistoryRepository } from "../src/modules/scanner/repositories/scan-history.repository.js";
 import { shopRepository } from "../src/modules/shopify/repositories/shop.repository.js";
 import { shopifyAdminApi } from "../src/modules/shopify/integrations/shopify-admin-api.integration.js";
+import { AppError } from "../src/shared/errors/app-error.js";
 
 const RESTORE_ACTOR = "system:restore-scan-history";
 
@@ -109,6 +110,7 @@ const main = async (): Promise<void> => {
         productId: product.id,
         title: product.title,
         error: error instanceof Error ? error.message : "unknown",
+        details: error instanceof AppError ? error.details : undefined,
       });
     }
   }
@@ -125,6 +127,7 @@ main()
   .catch((error) => {
     console.error("[restore-scan-history] Fatal error", {
       error: error instanceof Error ? error.message : "unknown",
+      details: error instanceof AppError ? error.details : undefined,
     });
     process.exitCode = 1;
   })

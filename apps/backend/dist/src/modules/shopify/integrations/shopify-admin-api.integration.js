@@ -17,6 +17,7 @@ const managedWebhookCallbackByTopic = new Map(MANAGED_WEBHOOK_SUBSCRIPTIONS.map(
 ]));
 const isWebhookHttpEndpoint = (endpoint) => endpoint.__typename === "WebhookHttpEndpoint";
 const shopifyGraphql = async (shopDomain, accessToken, query, variables) => {
+    const operationName = query.match(/\b(?:query|mutation)\s+([A-Za-z0-9_]+)/)?.[1] ?? "anonymous";
     const response = await fetch(`https://${shopDomain}/admin/api/${env.SHOPIFY_API_VERSION}/graphql.json`, {
         method: "POST",
         headers: {
@@ -26,10 +27,15 @@ const shopifyGraphql = async (shopDomain, accessToken, query, variables) => {
         body: JSON.stringify({ query, variables }),
     });
     if (!response.ok) {
+        const responseBody = await response.text().catch(() => null);
         throw new AppError("Shopify API request failed", {
             code: "INTERNAL_ERROR",
             statusCode: 502,
-            details: { status: response.status },
+            details: {
+                operationName,
+                status: response.status,
+                responseBody,
+            },
         });
     }
     const payload = (await response.json());
@@ -37,7 +43,10 @@ const shopifyGraphql = async (shopDomain, accessToken, query, variables) => {
         throw new AppError("Shopify GraphQL returned an error", {
             code: "INTERNAL_ERROR",
             statusCode: 502,
-            details: payload.errors,
+            details: {
+                operationName,
+                errors: payload.errors ?? null,
+            },
         });
     }
     return payload.data;
