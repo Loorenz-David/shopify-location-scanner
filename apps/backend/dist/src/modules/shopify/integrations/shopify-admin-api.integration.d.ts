@@ -1,4 +1,4 @@
-import type { ProductLocationData } from "../domain/shopify-shop.js";
+import type { ProductLocationData, ProductLocationSnapshot } from "../domain/shopify-shop.js";
 import type { ShopifyMetafieldOptionsDto, ShopifySkuSearchItemDto } from "../contracts/shopify.contract.js";
 export declare const shopifyAdminApi: {
     exchangeCodeForAccessToken(input: {
@@ -11,6 +11,11 @@ export declare const shopifyAdminApi: {
         accessToken: string;
         productId: string;
     }): Promise<ProductLocationData>;
+    listProductsWithLocation(input: {
+        shopDomain: string;
+        accessToken: string;
+        pageSize?: number;
+    }): Promise<ProductLocationSnapshot[]>;
     resolveProductIdByHandle(input: {
         shopDomain: string;
         accessToken: string;

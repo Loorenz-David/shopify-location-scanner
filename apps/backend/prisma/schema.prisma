@@ -86,7 +86,7 @@ model ScanHistory {
   events           ScanHistoryEvent[]
   priceHistory     ScanHistoryPrice[]
 
-  shop Shop  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shop Shop  @relation(fields: [shopId], references: [id], onDelete: Restrict)
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
 
   @@unique([shopId, productId])

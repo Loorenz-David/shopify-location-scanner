@@ -87,4 +87,15 @@ export const userRepository = {
       },
     });
   },
+
+  async unassignUsersFromShop(shopId: string): Promise<void> {
+    await prisma.user.updateMany({
+      where: {
+        shopId,
+      },
+      data: {
+        shopId: null,
+      },
+    });
+  },
 };

@@ -8,5 +8,6 @@ export declare const shopRepository: {
         accessToken: string;
     }): Promise<LinkedShop>;
     deleteById(id: string): Promise<LinkedShop>;
+    clearAccessToken(id: string): Promise<LinkedShop>;
 };
 //# sourceMappingURL=shop.repository.d.ts.map

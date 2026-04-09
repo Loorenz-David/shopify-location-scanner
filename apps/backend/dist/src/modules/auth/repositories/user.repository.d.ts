@@ -12,5 +12,6 @@ export declare const userRepository: {
     }): Promise<AuthUser>;
     assignShop(userId: string, shopId: string): Promise<void>;
     assignUnlinkedUsersToShop(shopId: string): Promise<void>;
+    unassignUsersFromShop(shopId: string): Promise<void>;
 };
 //# sourceMappingURL=user.repository.d.ts.map

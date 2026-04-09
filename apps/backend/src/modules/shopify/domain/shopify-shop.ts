@@ -21,3 +21,5 @@ export type ProductLocationData = {
   location: string | null;
   updatedAt: string;
 };
+
+export type ProductLocationSnapshot = ProductLocationData;

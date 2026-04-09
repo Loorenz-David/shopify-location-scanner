@@ -69,6 +69,28 @@ const resolveDimensions = (input) => {
             : null,
     };
 };
+const mapProductNodeToLocationSnapshot = (product) => {
+    const dimensions = resolveDimensions({
+        height: product.itemHeight?.value ?? product.itemHeightAlt?.value ?? null,
+        width: product.itemWidth?.value ?? product.itemWidthAlt?.value ?? null,
+        depth: product.itemDepth?.value ?? product.itemDepthAlt?.value ?? null,
+    });
+    return {
+        id: product.id,
+        title: product.title,
+        itemCategory: product.productType?.trim() || null,
+        sku: product.variants.edges[0]?.node.sku ?? null,
+        barcode: product.variants.edges[0]?.node.barcode ?? null,
+        price: product.variants.edges[0]?.node.price ?? null,
+        itemHeight: dimensions.itemHeight,
+        itemWidth: dimensions.itemWidth,
+        itemDepth: dimensions.itemDepth,
+        volume: dimensions.volume,
+        imageUrl: product.featuredImage?.url ?? null,
+        updatedAt: product.updatedAt,
+        location: product.itemLocation?.value ?? null,
+    };
+};
 export const shopifyAdminApi = {
     async exchangeCodeForAccessToken(input) {
         const response = await fetch(`https://${input.shopDomain}/admin/oauth/access_token`, {
@@ -168,32 +190,97 @@ export const shopifyAdminApi = {
                 statusCode: 404,
             });
         }
-        const dimensions = resolveDimensions({
-            height: data.product.itemHeight?.value ??
-                data.product.itemHeightAlt?.value ??
-                null,
-            width: data.product.itemWidth?.value ??
-                data.product.itemWidthAlt?.value ??
-                null,
-            depth: data.product.itemDepth?.value ??
-                data.product.itemDepthAlt?.value ??
-                null,
-        });
-        return {
-            id: data.product.id,
-            title: data.product.title,
-            itemCategory: data.product.productType?.trim() || null,
-            sku: data.product.variants.edges[0]?.node.sku ?? null,
-            barcode: data.product.variants.edges[0]?.node.barcode ?? null,
-            price: data.product.variants.edges[0]?.node.price ?? null,
-            itemHeight: dimensions.itemHeight,
-            itemWidth: dimensions.itemWidth,
-            itemDepth: dimensions.itemDepth,
-            volume: dimensions.volume,
-            imageUrl: data.product.featuredImage?.url ?? null,
-            updatedAt: data.product.updatedAt,
-            location: data.product.itemLocation?.value ?? null,
-        };
+        return mapProductNodeToLocationSnapshot(data.product);
+    },
+    async listProductsWithLocation(input) {
+        const pageSize = input.pageSize ?? 100;
+        const results = [];
+        let hasNextPage = true;
+        let cursor = null;
+        while (hasNextPage) {
+            const data = await shopifyGraphql(input.shopDomain, input.accessToken, `#graphql
+        query ListProductsWithLocation(
+          $first: Int!
+          $after: String
+          $namespace: String!
+          $locationKey: String!
+          $heightKey: String!
+          $heightKeyAlt: String!
+          $widthKey: String!
+          $widthKeyAlt: String!
+          $depthKey: String!
+          $depthKeyAlt: String!
+        ) {
+          products(first: $first, after: $after) {
+            pageInfo {
+              hasNextPage
+            }
+            edges {
+              cursor
+              node {
+                id
+                title
+                productType
+                updatedAt
+                featuredImage {
+                  url
+                }
+                variants(first: 1) {
+                  edges {
+                    node {
+                      sku
+                      barcode
+                      price
+                    }
+                  }
+                }
+                itemLocation: metafield(namespace: $namespace, key: $locationKey) {
+                  value
+                }
+                itemHeight: metafield(namespace: $namespace, key: $heightKey) {
+                  value
+                }
+                itemHeightAlt: metafield(namespace: $namespace, key: $heightKeyAlt) {
+                  value
+                }
+                itemWidth: metafield(namespace: $namespace, key: $widthKey) {
+                  value
+                }
+                itemWidthAlt: metafield(namespace: $namespace, key: $widthKeyAlt) {
+                  value
+                }
+                itemDepth: metafield(namespace: $namespace, key: $depthKey) {
+                  value
+                }
+                itemDepthAlt: metafield(namespace: $namespace, key: $depthKeyAlt) {
+                  value
+                }
+              }
+            }
+          }
+        }`, {
+                first: pageSize,
+                after: cursor,
+                namespace: env.SHOPIFY_METAFIELD_NAMESPACE,
+                locationKey: env.SHOPIFY_METAFIELD_KEY,
+                heightKey: "height",
+                heightKeyAlt: "Height",
+                widthKey: "width",
+                widthKeyAlt: "Width",
+                depthKey: "depth",
+                depthKeyAlt: "Depth",
+            });
+            for (const edge of data.products.edges) {
+                const location = edge.node.itemLocation?.value?.trim();
+                if (!location) {
+                    continue;
+                }
+                results.push(mapProductNodeToLocationSnapshot(edge.node));
+            }
+            hasNextPage = data.products.pageInfo.hasNextPage;
+            cursor = data.products.edges.at(-1)?.cursor ?? null;
+        }
+        return results;
     },
     async resolveProductIdByHandle(input) {
         const data = await shopifyGraphql(input.shopDomain, input.accessToken, `#graphql

@@ -60,5 +60,15 @@ export const userRepository = {
             },
         });
     },
+    async unassignUsersFromShop(shopId) {
+        await prisma.user.updateMany({
+            where: {
+                shopId,
+            },
+            data: {
+                shopId: null,
+            },
+        });
+    },
 };
 //# sourceMappingURL=user.repository.js.map

@@ -22,6 +22,11 @@ const toDomain = (record: ShopRecord): LinkedShop => {
 export const shopRepository = {
   async findAnyLinkedShop(): Promise<LinkedShop | null> {
     const record = await prisma.shop.findFirst({
+      where: {
+        accessToken: {
+          not: null,
+        },
+      },
       orderBy: { createdAt: "asc" },
     });
 
@@ -59,6 +64,17 @@ export const shopRepository = {
   async deleteById(id: string): Promise<LinkedShop> {
     const record = await prisma.shop.delete({
       where: { id },
+    });
+
+    return toDomain(record);
+  },
+
+  async clearAccessToken(id: string): Promise<LinkedShop> {
+    const record = await prisma.shop.update({
+      where: { id },
+      data: {
+        accessToken: null,
+      },
     });
 
     return toDomain(record);

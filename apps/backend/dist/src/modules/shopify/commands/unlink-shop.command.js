@@ -1,5 +1,6 @@
 import { NotFoundError } from "../../../shared/errors/http-errors.js";
 import { logger } from "../../../shared/logging/logger.js";
+import { userRepository } from "../../auth/repositories/user.repository.js";
 import { shopifyAdminApi } from "../integrations/shopify-admin-api.integration.js";
 import { shopRepository } from "../repositories/shop.repository.js";
 export const unlinkShopCommand = async (input) => {
@@ -22,10 +23,11 @@ export const unlinkShopCommand = async (input) => {
             });
         }
     }
-    const deleted = await shopRepository.deleteById(existing.id);
+    await userRepository.unassignUsersFromShop(existing.id);
+    const unlinked = await shopRepository.clearAccessToken(existing.id);
     return {
-        shopDomain: deleted.shopDomain,
-        createdAt: deleted.createdAt.toISOString(),
+        shopDomain: unlinked.shopDomain,
+        createdAt: unlinked.createdAt.toISOString(),
     };
 };
 //# sourceMappingURL=unlink-shop.command.js.map

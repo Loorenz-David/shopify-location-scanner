@@ -10,6 +10,7 @@
     "start": "node dist/src/server.js",
     "deploy:ec2": "bash ./scripts/deploy-ec2.sh",
     "backup:sqlite": "bash ./scripts/backup-sqlite.sh",
+    "restore:scan-history": "tsx scripts/restore-scan-history.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
