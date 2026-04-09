@@ -1,6 +1,10 @@
 import { prisma } from "../../../shared/database/prisma-client.js";
 import { logger } from "../../../shared/logging/logger.js";
-import type { AppendScanLocationHistoryInput } from "../contracts/scan-history.contract.js";
+import { broadcastToShop } from "../../ws/ws-broadcaster.js";
+import type {
+  AppendScanLocationHistoryInput,
+  ScanHistoryStringFilterColumn,
+} from "../contracts/scan-history.contract.js";
 import type {
   ScanHistoryPage,
   ScanHistoryRecord,
@@ -19,6 +23,14 @@ const normalizeVolume = (volume?: number | null): number | null => {
   }
 
   return volume;
+};
+
+const normalizeDimension = (value?: number | null): number | null => {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) {
+    return null;
+  }
+
+  return value;
 };
 
 const normalizeCategory = (category?: string | null): string => {
@@ -47,6 +59,54 @@ const toDurationSeconds = (from: Date, to: Date): number => {
   return seconds > 0 ? seconds : 0;
 };
 
+const ALL_STRING_FILTER_COLUMNS: ScanHistoryStringFilterColumn[] = [
+  "username",
+  "productId",
+  "itemCategory",
+  "itemSku",
+  "itemBarcode",
+  "itemType",
+  "itemTitle",
+  "eventUsername",
+  "eventLocation",
+];
+
+const buildStringFilterConditions = (
+  query: string,
+  columns?: ScanHistoryStringFilterColumn[],
+): Prisma.ScanHistoryWhereInput[] => {
+  const targetColumns = columns?.length ? columns : ALL_STRING_FILTER_COLUMNS;
+
+  const conditionsByColumn: Record<
+    ScanHistoryStringFilterColumn,
+    Prisma.ScanHistoryWhereInput
+  > = {
+    username: { username: { contains: query } },
+    productId: { productId: { contains: query } },
+    itemCategory: { itemCategory: { contains: query } },
+    itemSku: { itemSku: { contains: query } },
+    itemBarcode: { itemBarcode: { contains: query } },
+    itemType: { itemType: { contains: query } },
+    itemTitle: { itemTitle: { contains: query } },
+    eventUsername: {
+      events: {
+        some: {
+          username: { contains: query },
+        },
+      },
+    },
+    eventLocation: {
+      events: {
+        some: {
+          location: { contains: query },
+        },
+      },
+    },
+  };
+
+  return targetColumns.map((column) => conditionsByColumn[column]);
+};
+
 const toDomain = (record: {
   id: string;
   shopId: string;
@@ -59,6 +119,9 @@ const toDomain = (record: {
   itemImageUrl: string | null;
   itemType: string;
   itemTitle: string;
+  itemHeight: number | null;
+  itemWidth: number | null;
+  itemDepth: number | null;
   volume: number | null;
   lastModifiedAt: Date;
   events: Array<{
@@ -71,7 +134,7 @@ const toDomain = (record: {
   }>;
   priceHistory: Array<{
     price: string | null;
-    terminalType: "unknown_position" | "sold_terminal" | null;
+    terminalType: "unknown_position" | "sold_terminal" | "price_update" | null;
     orderId: string | null;
     orderGroupId: string | null;
     happenedAt: Date;
@@ -91,6 +154,9 @@ const toDomain = (record: {
     itemImageUrl: record.itemImageUrl,
     itemType: record.itemType,
     itemTitle: record.itemTitle,
+    itemHeight: record.itemHeight,
+    itemWidth: record.itemWidth,
+    itemDepth: record.itemDepth,
     volume: record.volume,
     lastModifiedAt: record.lastModifiedAt,
     events: record.events.map((entry) => ({
@@ -121,6 +187,9 @@ export const scanHistoryRepository = {
     const eventType = input.eventType ?? "location_update";
     const currentPrice = normalizePrice(input.currentPrice);
     const itemCategory = normalizeCategory(input.itemCategory);
+    const itemHeight = normalizeDimension(input.itemHeight);
+    const itemWidth = normalizeDimension(input.itemWidth);
+    const itemDepth = normalizeDimension(input.itemDepth);
     const volume = normalizeVolume(input.volume);
 
     logger.info("Scan history append started", {
@@ -163,7 +232,11 @@ export const scanHistoryRepository = {
             itemImageUrl: input.itemImageUrl ?? null,
             itemType: input.itemType,
             itemTitle: input.itemTitle,
+            itemHeight,
+            itemWidth,
+            itemDepth,
             volume,
+            isSold: eventType === "sold_terminal",
             lastModifiedAt: happenedAt,
             events: {
               create: {
@@ -218,7 +291,11 @@ export const scanHistoryRepository = {
           itemImageUrl: input.itemImageUrl ?? null,
           itemType: input.itemType,
           itemTitle: input.itemTitle,
+          ...(itemHeight !== null ? { itemHeight } : {}),
+          ...(itemWidth !== null ? { itemWidth } : {}),
+          ...(itemDepth !== null ? { itemDepth } : {}),
           ...(volume !== null ? { volume } : {}),
+          isSold: eventType === "sold_terminal",
           lastModifiedAt: happenedAt,
         },
       });
@@ -279,7 +356,13 @@ export const scanHistoryRepository = {
       latestEventType: history.events[0]?.eventType ?? null,
     });
 
-    return toDomain(history);
+    const result = toDomain(history);
+    broadcastToShop(input.shopId, {
+      type: "scan_history_updated",
+      productId: result.productId,
+    });
+
+    return result;
   },
 
   async appendSoldTerminalEventWithFallback(input: {
@@ -385,6 +468,7 @@ export const scanHistoryRepository = {
             itemImageUrl: input.itemImageUrl ?? null,
             itemType: input.itemType,
             itemTitle: input.itemTitle,
+            isSold: true,
             lastModifiedAt: happenedAt,
             events: {
               create: [
@@ -451,6 +535,7 @@ export const scanHistoryRepository = {
           itemImageUrl: input.itemImageUrl ?? null,
           itemType: input.itemType,
           itemTitle: input.itemTitle,
+          isSold: true,
           lastModifiedAt: happenedAt,
         },
       });
@@ -594,7 +679,13 @@ export const scanHistoryRepository = {
       });
     });
 
-    return toDomain(history);
+    const result = toDomain(history);
+    broadcastToShop(input.shopId, {
+      type: "scan_history_updated",
+      productId: result.productId,
+    });
+
+    return result;
   },
 
   async appendPriceChangeIfHistoryExists(input: {
@@ -610,7 +701,7 @@ export const scanHistoryRepository = {
       return false;
     }
 
-    return prisma.$transaction(async (tx) => {
+    const didAppend = await prisma.$transaction(async (tx) => {
       const existing = await tx.scanHistory.findUnique({
         where: {
           shopId_productId: {
@@ -641,12 +732,22 @@ export const scanHistoryRepository = {
         data: {
           scanHistoryId: existing.id,
           price: normalizedPrice,
+          terminalType: "price_update",
           happenedAt,
         },
       });
 
       return true;
     });
+
+    if (didAppend) {
+      broadcastToShop(input.shopId, {
+        type: "scan_history_updated",
+        productId: input.productId,
+      });
+    }
+
+    return didAppend;
   },
 
   async listByShopPaginated(input: {
@@ -654,38 +755,47 @@ export const scanHistoryRepository = {
     page: number;
     pageSize: number;
     q?: string;
+    stringColumns?: ScanHistoryStringFilterColumn[];
+    sold?: boolean;
+    inStore?: boolean;
+    from?: Date;
+    to?: Date;
   }): Promise<ScanHistoryPage> {
     const skip = (input.page - 1) * input.pageSize;
     const trimmedQuery = input.q?.trim();
 
-    const where: Prisma.ScanHistoryWhereInput = trimmedQuery
-      ? {
-          shopId: input.shopId,
-          OR: [
-            { username: { startsWith: trimmedQuery } },
-            { productId: { startsWith: trimmedQuery } },
-            { itemCategory: { startsWith: trimmedQuery } },
-            { itemSku: { startsWith: trimmedQuery } },
-            { itemBarcode: { startsWith: trimmedQuery } },
-            { itemType: { startsWith: trimmedQuery } },
-            { itemTitle: { startsWith: trimmedQuery } },
-            {
-              events: {
-                some: {
-                  username: { startsWith: trimmedQuery },
-                },
-              },
-            },
-            {
-              events: {
-                some: {
-                  location: { startsWith: trimmedQuery },
-                },
-              },
-            },
-          ],
-        }
-      : { shopId: input.shopId };
+    const whereAnd: Prisma.ScanHistoryWhereInput[] = [
+      {
+        shopId: input.shopId,
+      },
+    ];
+
+    if (input.from || input.to) {
+      whereAnd.push({
+        lastModifiedAt: {
+          ...(input.from ? { gte: input.from } : {}),
+          ...(input.to ? { lte: input.to } : {}),
+        },
+      });
+    }
+
+    if (input.sold === true && input.inStore !== true) {
+      whereAnd.push({ isSold: true });
+    }
+
+    if (input.inStore === true && input.sold !== true) {
+      whereAnd.push({ isSold: false });
+    }
+
+    if (trimmedQuery) {
+      whereAnd.push({
+        OR: buildStringFilterConditions(trimmedQuery, input.stringColumns),
+      });
+    }
+
+    const where: Prisma.ScanHistoryWhereInput = {
+      AND: whereAnd,
+    };
 
     const [total, records] = await Promise.all([
       prisma.scanHistory.count({

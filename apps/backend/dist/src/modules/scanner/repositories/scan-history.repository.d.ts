@@ -1,4 +1,4 @@
-import type { AppendScanLocationHistoryInput } from "../contracts/scan-history.contract.js";
+import type { AppendScanLocationHistoryInput, ScanHistoryStringFilterColumn } from "../contracts/scan-history.contract.js";
 import type { ScanHistoryPage, ScanHistoryRecord } from "../domain/scan-history.js";
 export declare const scanHistoryRepository: {
     appendLocationEvent(input: AppendScanLocationHistoryInput): Promise<ScanHistoryRecord>;
@@ -31,6 +31,11 @@ export declare const scanHistoryRepository: {
         page: number;
         pageSize: number;
         q?: string;
+        stringColumns?: ScanHistoryStringFilterColumn[];
+        sold?: boolean;
+        inStore?: boolean;
+        from?: Date;
+        to?: Date;
     }): Promise<ScanHistoryPage>;
 };
 //# sourceMappingURL=scan-history.repository.d.ts.map

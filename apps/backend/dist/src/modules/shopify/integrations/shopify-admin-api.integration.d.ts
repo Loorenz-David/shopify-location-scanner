@@ -41,6 +41,14 @@ export declare const shopifyAdminApi: {
         accessToken: string;
         options: string[];
     }): Promise<ShopifyMetafieldOptionsDto>;
+    ensureWebhookSubscriptions(input: {
+        shopDomain: string;
+        accessToken: string;
+    }): Promise<void>;
+    removeManagedWebhookSubscriptions(input: {
+        shopDomain: string;
+        accessToken: string;
+    }): Promise<void>;
     updateProductLocation(input: {
         shopDomain: string;
         accessToken: string;

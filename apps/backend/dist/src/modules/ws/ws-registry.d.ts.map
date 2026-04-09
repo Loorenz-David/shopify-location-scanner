@@ -1,0 +1,1 @@
+{"version":3,"file":"ws-registry.d.ts","sourceRoot":"","sources":["../../../../src/modules/ws/ws-registry.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,SAAS,MAAM,IAAI,CAAC;AAIhC,eAAO,MAAM,kBAAkB,GAAI,QAAQ,MAAM,EAAE,IAAI,SAAS,KAAG,IAQlE,CAAC;AAEF,eAAO,MAAM,gBAAgB,GAAI,QAAQ,MAAM,EAAE,IAAI,SAAS,KAAG,IAUhE,CAAC;AAEF,eAAO,MAAM,cAAc,GAAI,QAAQ,MAAM,KAAG,GAAG,CAAC,SAAS,CAE5D,CAAC"}

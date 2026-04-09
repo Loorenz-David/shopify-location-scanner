@@ -1,3 +1,5 @@
+import { BoldArrowIcon } from "../../../assets/icons";
+
 interface ItemScanHistoryPullRefreshIndicatorProps {
   pullDistance: number;
   isArmed: boolean;
@@ -26,19 +28,18 @@ export function ItemScanHistoryPullRefreshIndicator({
       aria-hidden="true"
     >
       <div
-        className="mt-2 inline-flex items-center gap-2 rounded-full border border-slate-900/10 bg-white/90 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-slate-600 shadow-[0_10px_24px_rgba(15,23,42,0.12)] transition-all duration-150"
+        className="mt-2 inline-flex items-center gap-2 rounded-full border border-slate-900/10 bg-white/90 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.08em] text-slate-600  transition-all duration-150"
         style={{ opacity }}
       >
         {isRefreshing ? (
           <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-700" />
         ) : (
-          <span
-            className={`text-sm leading-none transition-transform duration-150 ${
-              isArmed ? "rotate-180" : "rotate-0"
+          <BoldArrowIcon
+            className={`h-3.5 w-3.5 transition-transform duration-150 ${
+              isArmed ? "rotate-270" : "rotate-90"
             }`}
-          >
-            v
-          </span>
+            aria-hidden="true"
+          />
         )}
         <span>{label}</span>
       </div>

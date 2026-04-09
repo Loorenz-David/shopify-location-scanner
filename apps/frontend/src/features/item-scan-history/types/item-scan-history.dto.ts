@@ -1,7 +1,23 @@
+import type {
+  ScanHistoryEventType,
+  ScanHistoryPriceTerminalType,
+} from "./item-scan-history.enums";
+
 export interface ItemScanHistoryEventDto {
+  username: string;
+  eventType: ScanHistoryEventType;
+  orderId: string | null;
+  orderGroupId: string | null;
   location: string;
   happenedAt: string;
-  username: string;
+}
+
+export interface ItemScanHistoryPriceHistoryDto {
+  price: string | null;
+  terminalType: ScanHistoryPriceTerminalType | null;
+  orderId: string | null;
+  orderGroupId: string | null;
+  happenedAt: string;
 }
 
 export interface ItemScanHistoryEntryDto {
@@ -10,12 +26,19 @@ export interface ItemScanHistoryEntryDto {
   userId: string | null;
   username: string;
   productId: string;
+  itemCategory: string | null;
   itemSku: string | null;
-  itemType: "product_id" | "handle" | "sku";
+  itemBarcode: string | null;
+  itemType: "product_id" | "handle" | "sku" | "barcode";
   itemTitle: string;
   itemImageUrl: string | null;
+  itemHeight: number | null;
+  itemWidth: number | null;
+  itemDepth: number | null;
+  volume: number | null;
   lastModifiedAt: string;
   events: ItemScanHistoryEventDto[];
+  priceHistory: ItemScanHistoryPriceHistoryDto[];
   createdAt: string;
   updatedAt: string;
 }

@@ -1,5 +1,6 @@
 import { NotFoundError } from "../../../shared/errors/http-errors.js";
 import { logger } from "../../../shared/logging/logger.js";
+import { resolveHandleFallback } from "../integrations/resolve-handle-fallback.integration.js";
 import { shopifyAdminApi } from "../integrations/shopify-admin-api.integration.js";
 const normalizeProductId = (productId) => {
     if (productId.startsWith("gid://shopify/Product/")) {
@@ -32,22 +33,46 @@ export const resolveProductIdCommand = async (input) => {
             accessToken: input.accessToken,
             handle: input.itemId,
         });
-        if (!resolved) {
-            logger.warn("Resolve product id failed", {
+        if (resolved) {
+            logger.info("Resolve product id succeeded", {
                 idType: input.idType,
                 itemId: input.itemId,
+                resolvedProductId: resolved,
                 strategy: "handle_lookup",
-                reason: "no_match",
             });
-            throw new NotFoundError("No product found for the given handle");
+            return resolved;
         }
-        logger.info("Resolve product id succeeded", {
+        const fallbackHandle = await resolveHandleFallback({
+            handle: input.itemId,
+            shopDomain: input.shopDomain,
+        });
+        if (fallbackHandle) {
+            const fallbackResolved = await shopifyAdminApi.resolveProductIdByHandle({
+                shopDomain: input.shopDomain,
+                accessToken: input.accessToken,
+                handle: fallbackHandle,
+            });
+            if (fallbackResolved) {
+                logger.info("Resolve product id succeeded", {
+                    idType: input.idType,
+                    itemId: input.itemId,
+                    resolvedProductId: fallbackResolved,
+                    fallbackHandle,
+                    strategy: "handle_lookup_redirect_fallback",
+                });
+                return fallbackResolved;
+            }
+        }
+        logger.warn("Resolve product id failed", {
             idType: input.idType,
             itemId: input.itemId,
-            resolvedProductId: resolved,
-            strategy: "handle_lookup",
+            strategy: fallbackHandle
+                ? "handle_lookup_redirect_fallback"
+                : "handle_lookup",
+            reason: "no_match",
+            fallbackHandle,
         });
-        return resolved;
+        throw new NotFoundError("No product found for the given handle");
     }
     if (input.idType === "barcode") {
         const resolved = await shopifyAdminApi.resolveProductIdByBarcode({

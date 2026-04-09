@@ -1,11 +1,13 @@
 import { getItemScanHistoryApi } from "../api/get-item-scan-history.api";
 import { normalizeItemScanHistoryPayload } from "../domain/item-scan-history.domain";
 import { useItemScanHistoryStore } from "../stores/item-scan-history.store";
+import type { ItemScanHistoryFilters } from "../types/item-scan-history-filters.types";
 
 let requestSequence = 0;
 
 export async function loadItemScanHistoryController(
   query: string,
+  filters: ItemScanHistoryFilters,
 ): Promise<void> {
   const store = useItemScanHistoryStore.getState();
   const requestId = ++requestSequence;
@@ -18,6 +20,7 @@ export async function loadItemScanHistoryController(
     const response = await getItemScanHistoryApi({
       page: 1,
       query,
+      filters,
     });
 
     if (useItemScanHistoryStore.getState().activeRequestId !== requestId) {
@@ -25,8 +28,7 @@ export async function loadItemScanHistoryController(
     }
 
     const normalizedPayload = normalizeItemScanHistoryPayload(response.history);
-
-    useItemScanHistoryStore.getState().hydrate(normalizedPayload);
+    useItemScanHistoryStore.getState().hydrateAndFinish(normalizedPayload);
   } catch {
     if (useItemScanHistoryStore.getState().activeRequestId !== requestId) {
       return;
@@ -34,12 +36,6 @@ export async function loadItemScanHistoryController(
 
     useItemScanHistoryStore
       .getState()
-      .setErrorMessage("Unable to load item scan history.");
-  } finally {
-    if (useItemScanHistoryStore.getState().activeRequestId === requestId) {
-      const currentStore = useItemScanHistoryStore.getState();
-      currentStore.setLoading(false);
-      currentStore.setHasLoaded(true);
-    }
+      .finishWithError("Unable to load item scan history.");
   }
 }

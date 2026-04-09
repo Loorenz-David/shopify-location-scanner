@@ -1,10 +1,16 @@
 import "./config/load-env.js";
+import { createServer } from "http";
 import express from "express";
 import cors from "cors";
 import { env } from "./config/env.js";
 import { asyncHandler } from "./shared/http/async-handler.js";
 import { errorMiddleware } from "./shared/http/error-middleware.js";
 import { notFoundMiddleware } from "./shared/http/not-found-middleware.js";
+import {
+  authRateLimitMiddleware,
+  globalRateLimitMiddleware,
+} from "./shared/http/rate-limit-middleware.js";
+import { requestFilterMiddleware } from "./shared/http/request-filter-middleware.js";
 import { requestContextMiddleware } from "./shared/http/request-context-middleware.js";
 import { logger } from "./shared/logging/logger.js";
 import { ValidationError } from "./shared/errors/http-errors.js";
@@ -16,8 +22,10 @@ import { authRouter } from "./modules/auth/routes/auth.routes.js";
 import { shopifyRouter } from "./modules/shopify/routes/shopify.routes.js";
 import { bootstrapRouter } from "./modules/bootstrap/routes/bootstrap.routes.js";
 import { scannerRouter } from "./modules/scanner/routes/scanner.routes.js";
+import { closeWsServer, createWsServer } from "./modules/ws/ws-server.js";
 
 const app = express();
+app.set("trust proxy", 1);
 
 const corsAllowedOrigins = Array.from(
   new Set([
@@ -47,7 +55,12 @@ app.use(
   }),
 );
 app.use(requestContextMiddleware);
-app.use("/shopify/webhooks", express.raw({ type: "application/json" }));
+app.use(requestFilterMiddleware);
+app.use(globalRateLimitMiddleware);
+app.use(
+  ["/shopify/webhooks", "/api/shopify/webhooks"],
+  express.raw({ type: "application/json" }),
+);
 app.use(express.json());
 
 app.get("/health", (_req, res) => {
@@ -69,10 +82,14 @@ app.get(
   }),
 );
 
-app.use("/auth", authRouter);
+app.use("/auth", authRateLimitMiddleware, authRouter);
 app.use("/shopify", shopifyRouter);
 app.use("/bootstrap", bootstrapRouter);
 app.use("/scanner", scannerRouter);
+app.use("/api/auth", authRateLimitMiddleware, authRouter);
+app.use("/api/shopify", shopifyRouter);
+app.use("/api/bootstrap", bootstrapRouter);
+app.use("/api/scanner", scannerRouter);
 
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);
@@ -80,16 +97,27 @@ app.use(errorMiddleware);
 const PORT = Number(env.PORT || 4000);
 await initializeDatabaseRuntime();
 
-const server = app.listen(PORT, () => {
+const httpServer = createServer(app);
+createWsServer(httpServer);
+
+httpServer.listen(PORT, () => {
   logger.info("Backend started", { port: PORT, env: env.NODE_ENV });
 });
 
 const shutdown = (signal: NodeJS.Signals) => {
   logger.warn("Shutdown signal received", { signal });
-  server.close(() => {
-    logger.info("HTTP server closed");
-    process.exit(0);
-  });
+  void closeWsServer()
+    .catch((error) => {
+      logger.error("Failed to close WS server", {
+        error: error instanceof Error ? error.message : "unknown",
+      });
+    })
+    .finally(() => {
+      httpServer.close(() => {
+        logger.info("HTTP server closed");
+        process.exit(0);
+      });
+    });
 };
 
 process.on("SIGINT", () => shutdown("SIGINT"));

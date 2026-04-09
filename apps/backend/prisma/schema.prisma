@@ -21,6 +21,7 @@ enum ScanHistoryEventType {
 enum ScanHistoryPriceTerminalType {
   unknown_position
   sold_terminal
+  price_update
 }
 
 model Shop {
@@ -73,7 +74,11 @@ model ScanHistory {
   itemImageUrl     String?
   itemType         String
   itemTitle        String
+  itemHeight       Float?
+  itemWidth        Float?
+  itemDepth        Float?
   volume           Float?
+  isSold           Boolean  @default(false)
   lastModifiedAt   DateTime @default(now())
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -92,6 +97,7 @@ model ScanHistory {
   @@index([shopId, itemBarcode])
   @@index([shopId, itemType])
   @@index([shopId, itemTitle])
+  @@index([shopId, isSold, lastModifiedAt])
 }
 
 model ScanHistoryEvent {

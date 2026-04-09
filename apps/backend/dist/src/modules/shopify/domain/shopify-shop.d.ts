@@ -12,6 +12,9 @@ export type ProductLocationData = {
     sku: string | null;
     barcode: string | null;
     price: string | null;
+    itemHeight: number | null;
+    itemWidth: number | null;
+    itemDepth: number | null;
     volume: number | null;
     imageUrl: string | null;
     location: string | null;

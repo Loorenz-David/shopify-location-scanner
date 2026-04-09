@@ -5,6 +5,7 @@ export type OverlayPageId =
   | "scanner-item-manual"
   | "scanner-location-manual"
   | "scanner-error-detail"
+  | "item-scan-history-filters"
   | (string & {});
 
 export type BottomMenuSlot = "left" | "center" | "right";

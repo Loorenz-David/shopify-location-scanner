@@ -1,0 +1,1 @@
+{"version":3,"file":"ws-broadcaster.d.ts","sourceRoot":"","sources":["../../../../src/modules/ws/ws-broadcaster.ts"],"names":[],"mappings":"AAIA,MAAM,MAAM,eAAe,GACvB;IAAE,IAAI,EAAE,eAAe,CAAC;IAAC,MAAM,EAAE,MAAM,CAAA;CAAE,GACzC;IAAE,IAAI,EAAE,sBAAsB,CAAC;IAAC,SAAS,EAAE,MAAM,CAAA;CAAE,CAAC;AAExD,eAAO,MAAM,eAAe,GAC1B,QAAQ,MAAM,EACd,OAAO,eAAe,KACrB,IAaF,CAAC"}

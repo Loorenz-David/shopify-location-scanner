@@ -13,6 +13,8 @@ export function ItemScanHistoryCard({
   isExpanded,
   onToggle,
 }: ItemScanHistoryCardProps) {
+  const isLatestSold = item.events[0]?.eventType === "sold_terminal";
+
   return (
     <article className="relative overflow-hidden rounded-[28px] border border-slate-900/10 bg-white/85 shadow-[0_18px_45px_rgba(15,23,42,0.1)] backdrop-blur-md">
       <button
@@ -60,9 +62,15 @@ export function ItemScanHistoryCard({
             <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-emerald-700">
               Latest
             </p>
-            <p className="m-0 truncate text-sm font-semibold text-slate-900">
-              {item.latestLocationLabel}
-            </p>
+            {isLatestSold ? (
+              <span className="inline-flex w-fit items-center rounded-full border border-rose-200 bg-rose-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.08em] text-rose-700">
+                Sold
+              </span>
+            ) : (
+              <p className="m-0 truncate text-sm font-semibold text-slate-900">
+                {item.latestLocationLabel}
+              </p>
+            )}
           </div>
         </div>
       </button>

@@ -7,13 +7,8 @@ export const requireShopLinkMiddleware = (
   _res: Response,
   next: NextFunction,
 ): void => {
-  // Tokens can carry a stale shopId claim right after linking/unlinking;
-  // fallback to current DB state before rejecting the request.
-  if (req.authUser.shopId) {
-    next();
-    return;
-  }
-
+  // Always trust the current DB linkage over token claims.
+  // This avoids stale non-null shopId values after relink/unlink flows.
   userRepository
     .findById(req.authUser.userId)
     .then((user) => {

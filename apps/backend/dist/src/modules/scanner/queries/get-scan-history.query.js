@@ -6,6 +6,11 @@ export const getScanHistoryQuery = async (input) => {
         page: input.page,
         pageSize: PAGE_SIZE,
         ...(input.q ? { q: input.q } : {}),
+        ...(input.stringColumns ? { stringColumns: input.stringColumns } : {}),
+        ...(typeof input.sold === "boolean" ? { sold: input.sold } : {}),
+        ...(typeof input.inStore === "boolean" ? { inStore: input.inStore } : {}),
+        ...(input.from ? { from: input.from } : {}),
+        ...(input.to ? { to: input.to } : {}),
     });
 };
 //# sourceMappingURL=get-scan-history.query.js.map

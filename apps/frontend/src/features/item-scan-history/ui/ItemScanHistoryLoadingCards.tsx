@@ -3,7 +3,7 @@ const PLACEHOLDER_CARD_COUNT = 4;
 export function ItemScanHistoryLoadingCards() {
   return (
     <ul
-      className="m-0 flex list-none flex-col gap-4 p-0"
+      className="m-0 flex list-none flex-col gap-4 p-0 "
       aria-label="Loading item scan history"
     >
       {Array.from({ length: PLACEHOLDER_CARD_COUNT }, (_, index) => (

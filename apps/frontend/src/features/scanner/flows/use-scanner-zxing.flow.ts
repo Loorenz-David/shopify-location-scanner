@@ -23,9 +23,28 @@ const SCANNER_IDLE_RELEASE_TIMEOUT_MS = 60_000;
 
 let scheduledScannerReleaseTimerId: number | null = null;
 let scheduledScannerRelease: (() => void) | null = null;
+let activeScannerControls: { stop: () => void } | null = null;
+let activeScannerStream: MediaStream | null = null;
+
+function releaseActiveScannerSession(): void {
+  try {
+    activeScannerControls?.stop();
+  } catch {
+    // Ignore teardown races.
+  }
+
+  activeScannerControls = null;
+
+  if (activeScannerStream) {
+    activeScannerStream.getTracks().forEach((track) => track.stop());
+    activeScannerStream = null;
+  }
+
+  releaseScannerVideoElement();
+}
 
 function clearScheduledScannerRelease(): void {
-  if (scheduledScannerReleaseTimerId) {
+  if (scheduledScannerReleaseTimerId !== null) {
     window.clearTimeout(scheduledScannerReleaseTimerId);
     scheduledScannerReleaseTimerId = null;
   }
@@ -114,6 +133,13 @@ function releaseScannerVideoElement(): void {
 
   videoElement.srcObject = null;
   videoElement.remove();
+}
+
+function cacheActiveStreamFromVideoElement(
+  videoElement: HTMLVideoElement,
+): void {
+  const stream = videoElement.srcObject;
+  activeScannerStream = stream instanceof MediaStream ? stream : null;
 }
 
 async function applyTorchConstraint(enabled: boolean): Promise<boolean> {
@@ -419,13 +445,8 @@ export function useScannerZxingFlow(
         setIsCameraReady(false);
         setCameraError(null);
 
-        try {
-          scannerControlsRef.current?.stop();
-        } catch {
-          // Ignore teardown races while switching devices quickly.
-        }
+        releaseActiveScannerSession();
         scannerControlsRef.current = null;
-        releaseScannerVideoElement();
 
         if (!hasCameraPermissionRef.current) {
           await requestCameraPermission();
@@ -526,6 +547,8 @@ export function useScannerZxingFlow(
         );
 
         scannerControlsRef.current = controls;
+        activeScannerControls = controls;
+        cacheActiveStreamFromVideoElement(videoElement);
         setIsCameraReady(true);
         setCameraError(null);
       } catch (error) {
@@ -551,15 +574,9 @@ export function useScannerZxingFlow(
       }
 
       const releaseResources = () => {
-        try {
-          scannerControlsRef.current?.stop();
-        } catch {
-          // Ignore teardown races.
-        }
-
+        releaseActiveScannerSession();
         scannerControlsRef.current = null;
         readerRef.current = null;
-        releaseScannerVideoElement();
       };
 
       scheduleScannerRelease(releaseResources);

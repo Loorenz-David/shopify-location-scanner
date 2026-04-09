@@ -18,7 +18,11 @@ import {
 import type { HomePageRegistration } from "./types/home-shell.types";
 import { HomeLayout } from "./ui/HomeLayout";
 import { HomePage } from "./ui/HomePage";
+import {
+  useItemScanHistoryRealtimeFlow,
+} from "../item-scan-history/flows/use-item-scan-history.flow";
 import { ItemScanHistoryPage } from "../item-scan-history/ui/ItemScanHistoryPage";
+import { ItemScanHistoryOverlayHost } from "../item-scan-history/ItemScanHistoryOverlayHost";
 import { ScannerFeature } from "../scanner/ScannerFeature";
 import { ScannerOverlayHost } from "../scanner/ScannerOverlayHost";
 import { LocationOptionsSettingsPage } from "../location-options/ui/LocationOptionsSettingsPage";
@@ -31,6 +35,8 @@ interface HomeFeatureProps {
 }
 
 export function HomeFeature({ onLogout }: HomeFeatureProps) {
+  useItemScanHistoryRealtimeFlow();
+
   const registry = useHomeShellStore(selectHomeShellRegistry);
   const currentPageId = useHomeShellStore(selectHomeShellCurrentPageId);
   const fullFeaturePageId = useHomeShellStore(selectHomeShellFullFeaturePageId);
@@ -130,7 +136,12 @@ export function HomeFeature({ onLogout }: HomeFeatureProps) {
       isOverlayOpen={isOverlayOpen}
       overlayTitle={overlayTitle}
       overlayContent={
-        <ScannerOverlayHost onClose={homeShellActions.closeOverlayPage} />
+        <>
+          <ScannerOverlayHost onClose={homeShellActions.closeOverlayPage} />
+          <ItemScanHistoryOverlayHost
+            onClose={homeShellActions.closeOverlayPage}
+          />
+        </>
       }
       onSelectPage={homeShellActions.selectNavigationPage}
     />

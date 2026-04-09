@@ -1,6 +1,21 @@
 import { env } from "../../../config/env.js";
 import { AppError } from "../../../shared/errors/app-error.js";
 import { logger } from "../../../shared/logging/logger.js";
+const MANAGED_WEBHOOK_SUBSCRIPTIONS = [
+    {
+        topic: "ORDERS_PAID",
+        path: "/api/shopify/webhooks/orders/paid",
+    },
+    {
+        topic: "PRODUCTS_UPDATE",
+        path: "/api/shopify/webhooks/products/update",
+    },
+];
+const managedWebhookCallbackByTopic = new Map(MANAGED_WEBHOOK_SUBSCRIPTIONS.map(({ topic, path }) => [
+    topic,
+    new URL(path, env.SHOPIFY_APP_URL).toString(),
+]));
+const isWebhookHttpEndpoint = (endpoint) => endpoint.__typename === "WebhookHttpEndpoint";
 const shopifyGraphql = async (shopDomain, accessToken, query, variables) => {
     const response = await fetch(`https://${shopDomain}/admin/api/${env.SHOPIFY_API_VERSION}/graphql.json`, {
         method: "POST",
@@ -41,14 +56,18 @@ const parseDimensionCm = (value) => {
     }
     return parsed;
 };
-const computeVolume = (input) => {
-    const height = parseDimensionCm(input.height);
-    const width = parseDimensionCm(input.width);
-    const depth = parseDimensionCm(input.depth);
-    if (height === null || width === null || depth === null) {
-        return null;
-    }
-    return height * width * depth;
+const resolveDimensions = (input) => {
+    const itemHeight = parseDimensionCm(input.height);
+    const itemWidth = parseDimensionCm(input.width);
+    const itemDepth = parseDimensionCm(input.depth);
+    return {
+        itemHeight,
+        itemWidth,
+        itemDepth,
+        volume: itemHeight !== null && itemWidth !== null && itemDepth !== null
+            ? itemHeight * itemWidth * itemDepth
+            : null,
+    };
 };
 export const shopifyAdminApi = {
     async exchangeCodeForAccessToken(input) {
@@ -149,6 +168,17 @@ export const shopifyAdminApi = {
                 statusCode: 404,
             });
         }
+        const dimensions = resolveDimensions({
+            height: data.product.itemHeight?.value ??
+                data.product.itemHeightAlt?.value ??
+                null,
+            width: data.product.itemWidth?.value ??
+                data.product.itemWidthAlt?.value ??
+                null,
+            depth: data.product.itemDepth?.value ??
+                data.product.itemDepthAlt?.value ??
+                null,
+        });
         return {
             id: data.product.id,
             title: data.product.title,
@@ -156,17 +186,10 @@ export const shopifyAdminApi = {
             sku: data.product.variants.edges[0]?.node.sku ?? null,
             barcode: data.product.variants.edges[0]?.node.barcode ?? null,
             price: data.product.variants.edges[0]?.node.price ?? null,
-            volume: computeVolume({
-                height: data.product.itemHeight?.value ??
-                    data.product.itemHeightAlt?.value ??
-                    null,
-                width: data.product.itemWidth?.value ??
-                    data.product.itemWidthAlt?.value ??
-                    null,
-                depth: data.product.itemDepth?.value ??
-                    data.product.itemDepthAlt?.value ??
-                    null,
-            }),
+            itemHeight: dimensions.itemHeight,
+            itemWidth: dimensions.itemWidth,
+            itemDepth: dimensions.itemDepth,
+            volume: dimensions.volume,
             imageUrl: data.product.featuredImage?.url ?? null,
             updatedAt: data.product.updatedAt,
             location: data.product.itemLocation?.value ?? null,
@@ -401,6 +424,128 @@ export const shopifyAdminApi = {
             shopDomain: input.shopDomain,
             accessToken: input.accessToken,
         });
+    },
+    async ensureWebhookSubscriptions(input) {
+        const existing = await shopifyGraphql(input.shopDomain, input.accessToken, `#graphql
+      query GetWebhookSubscriptions($first: Int!) {
+        webhookSubscriptions(first: $first) {
+          edges {
+            node {
+              id
+              topic
+              endpoint {
+                __typename
+                ... on WebhookHttpEndpoint {
+                  callbackUrl
+                }
+              }
+            }
+          }
+        }
+      }`, {
+            first: 100,
+        });
+        for (const { topic, path } of MANAGED_WEBHOOK_SUBSCRIPTIONS) {
+            const callbackUrl = new URL(path, env.SHOPIFY_APP_URL).toString();
+            const alreadySubscribed = existing.webhookSubscriptions.edges.some((edge) => edge.node.topic === topic &&
+                isWebhookHttpEndpoint(edge.node.endpoint) &&
+                edge.node.endpoint.callbackUrl === callbackUrl);
+            if (alreadySubscribed) {
+                continue;
+            }
+            const created = await shopifyGraphql(input.shopDomain, input.accessToken, `#graphql
+        mutation CreateWebhookSubscription(
+          $topic: WebhookSubscriptionTopic!
+          $callbackUrl: URL!
+        ) {
+          webhookSubscriptionCreate(
+            topic: $topic
+            webhookSubscription: {
+              callbackUrl: $callbackUrl
+              format: JSON
+            }
+          ) {
+            webhookSubscription {
+              id
+            }
+            userErrors {
+              field
+              message
+            }
+          }
+        }`, {
+                topic,
+                callbackUrl,
+            });
+            const firstError = created.webhookSubscriptionCreate.userErrors[0];
+            if (firstError) {
+                throw new AppError(firstError.message, {
+                    code: "INTERNAL_ERROR",
+                    statusCode: 502,
+                    details: {
+                        topic,
+                        callbackUrl,
+                        field: firstError.field,
+                    },
+                });
+            }
+        }
+    },
+    async removeManagedWebhookSubscriptions(input) {
+        const existing = await shopifyGraphql(input.shopDomain, input.accessToken, `#graphql
+      query GetWebhookSubscriptions($first: Int!) {
+        webhookSubscriptions(first: $first) {
+          edges {
+            node {
+              id
+              topic
+              endpoint {
+                __typename
+                ... on WebhookHttpEndpoint {
+                  callbackUrl
+                }
+              }
+            }
+          }
+        }
+      }`, {
+            first: 100,
+        });
+        const managedSubscriptionIds = existing.webhookSubscriptions.edges
+            .filter((edge) => {
+            if (!isWebhookHttpEndpoint(edge.node.endpoint)) {
+                return false;
+            }
+            const expectedCallbackUrl = managedWebhookCallbackByTopic.get(edge.node.topic);
+            return (expectedCallbackUrl !== undefined &&
+                edge.node.endpoint.callbackUrl === expectedCallbackUrl);
+        })
+            .map((edge) => edge.node.id);
+        for (const id of managedSubscriptionIds) {
+            const deleted = await shopifyGraphql(input.shopDomain, input.accessToken, `#graphql
+        mutation DeleteWebhookSubscription($id: ID!) {
+          webhookSubscriptionDelete(id: $id) {
+            deletedWebhookSubscriptionId
+            userErrors {
+              field
+              message
+            }
+          }
+        }`, {
+                id,
+            });
+            const firstError = deleted.webhookSubscriptionDelete.userErrors[0];
+            if (firstError) {
+                throw new AppError(firstError.message, {
+                    code: "INTERNAL_ERROR",
+                    statusCode: 502,
+                    details: {
+                        id,
+                        field: firstError.field,
+                    },
+                });
+            }
+        }
     },
     async updateProductLocation(input) {
         logger.info("Shopify GraphQL updateProductLocation request", {

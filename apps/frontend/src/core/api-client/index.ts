@@ -18,6 +18,13 @@ export const apiClient = createApiClient({
 export { ApiClientError } from "./actions/api-client.action";
 export { AuthSessionExpiredError } from "./controllers/token-auth.controller";
 export { decodeJwtPayload, getAccessTokenClaims } from "./domain/jwt.domain";
+export {
+  connectWsClient,
+  disconnectWsClient,
+  onWsEvent,
+} from "../ws-client/ws-client";
+export { useWsEvent } from "../ws-client/use-ws-event";
+export type { WsInboundEvent, WsOutboundMessage } from "../ws-client/ws-events";
 export type {
   AccessTokenClaims,
   ApiClient,

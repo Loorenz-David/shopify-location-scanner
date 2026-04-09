@@ -1,4 +1,5 @@
 import { homeShellActions } from "../../home/actions/home-shell.actions";
+import { itemScanHistoryActions } from "../../item-scan-history/actions/item-scan-history.actions";
 import { bootstrapLocationOptionsApi } from "../api/bootstrap-location-options.api";
 import { linkItemPositionsApi } from "../api/link-item-positions.api";
 import { searchItemsBySkuApi } from "../api/search-items.api";
@@ -127,13 +128,25 @@ export async function linkCurrentSelectionController(): Promise<void> {
   store.setLinking(true);
   store.setLastError(null);
 
+  const optimisticToken = itemScanHistoryActions.beginOptimisticLocationUpdate(
+    store.selectedItem,
+    store.selectedLocation.code,
+  );
+
   try {
-    await linkItemPositionsApi({
+    const response = await linkItemPositionsApi({
       idType: store.selectedItem.idType,
       itemId: store.selectedItem.itemId,
       location: store.selectedLocation.code,
     });
+
+    itemScanHistoryActions.commitOptimisticLocationUpdate(
+      optimisticToken,
+      response,
+    );
   } catch (error) {
+    itemScanHistoryActions.rollbackOptimisticLocationUpdate(optimisticToken);
+
     const state = useScannerStore.getState();
     state.setLastError(
       buildLinkError(error, state.selectedItem, state.selectedLocation),

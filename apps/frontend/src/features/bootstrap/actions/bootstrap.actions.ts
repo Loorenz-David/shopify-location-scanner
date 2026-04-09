@@ -1,3 +1,4 @@
+import { connectWsClient, tokenAuthController } from "../../../core/api-client";
 import {
   clearBootstrapController,
   hydrateBootstrapController,
@@ -6,6 +7,7 @@ import {
 export const bootstrapActions = {
   async hydrate(): Promise<void> {
     await hydrateBootstrapController();
+    connectWsClient(() => tokenAuthController.getAccessToken());
   },
   clear(): void {
     clearBootstrapController();

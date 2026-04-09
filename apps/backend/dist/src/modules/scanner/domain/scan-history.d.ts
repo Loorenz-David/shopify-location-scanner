@@ -1,5 +1,5 @@
 export type ScanHistoryEventType = "location_update" | "unknown_position" | "sold_terminal";
-export type ScanHistoryPriceTerminalType = "unknown_position" | "sold_terminal";
+export type ScanHistoryPriceTerminalType = "unknown_position" | "sold_terminal" | "price_update";
 export type ScanHistoryEvent = {
     username: string;
     eventType: ScanHistoryEventType;
@@ -27,6 +27,9 @@ export type ScanHistoryRecord = {
     itemImageUrl: string | null;
     itemType: string;
     itemTitle: string;
+    itemHeight: number | null;
+    itemWidth: number | null;
+    itemDepth: number | null;
     volume: number | null;
     lastModifiedAt: Date;
     events: ScanHistoryEvent[];

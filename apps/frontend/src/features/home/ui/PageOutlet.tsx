@@ -11,7 +11,7 @@ export function PageOutlet({
 }: PageOutletProps) {
   return (
     <section
-      className="min-h-svh box-border px-5 pb-36 pt-9 max-[640px]:px-4 max-[640px]:pb-32 max-[640px]:pt-6"
+      className="min-h-svh box-border  pb-36 pt-9  max-[640px]:pb-32 max-[640px]:pt-6"
       aria-label={activePageTitle}
     >
       <ActivePageComponent />

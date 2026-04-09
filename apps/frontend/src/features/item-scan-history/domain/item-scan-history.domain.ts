@@ -5,6 +5,7 @@ import type {
 import type {
   ItemScanHistoryEvent,
   ItemScanHistoryItem,
+  ItemScanHistoryPriceHistory,
 } from "../types/item-scan-history.types";
 import { normalizeShopifyImageUrl } from "../../shopify/domain/shopify-image.domain";
 
@@ -43,6 +44,9 @@ export function normalizeItemScanHistoryItem(
     .sort(compareNewestFirst)
     .map((event, index) => ({
       id: `${item.id}-${event.happenedAt}-${index}`,
+      eventType: event.eventType,
+      orderId: event.orderId,
+      orderGroupId: event.orderGroupId,
       location: event.location,
       happenedAt: event.happenedAt,
       happenedAtLabel: formatShortFriendlyDateTime(event.happenedAt),
@@ -50,19 +54,37 @@ export function normalizeItemScanHistoryItem(
     }));
 
   const latestEvent = events[0];
+  const priceHistory = [...item.priceHistory]
+    .sort(compareNewestFirst)
+    .map((entry, index) => ({
+      id: `${item.id}-price-${entry.happenedAt}-${index}`,
+      price: entry.price,
+      terminalType: entry.terminalType,
+      orderId: entry.orderId,
+      orderGroupId: entry.orderGroupId,
+      happenedAt: entry.happenedAt,
+      happenedAtLabel: formatShortFriendlyDateTime(entry.happenedAt),
+    }));
 
   return {
     id: item.id,
+    categoryLabel: item.itemCategory,
     skuLabel: buildSkuLabel(item.itemSku, item.productId),
+    barcodeLabel: item.itemBarcode,
     title: item.itemTitle,
     imageUrl: normalizeShopifyImageUrl(item.itemImageUrl),
     productId: item.productId,
     itemType: item.itemType,
+    itemHeight: item.itemHeight,
+    itemWidth: item.itemWidth,
+    itemDepth: item.itemDepth,
+    volume: item.volume,
     lastModifiedAt: item.lastModifiedAt,
     lastModifiedLabel: formatLongFriendlyDateTime(item.lastModifiedAt),
     latestLocationLabel: latestEvent?.location ?? "No scans yet",
     latestUsername: latestEvent?.username ?? item.username,
     events,
+    priceHistory,
   };
 }
 
@@ -106,8 +128,8 @@ export function buildSkuLabel(
 }
 
 function compareNewestFirst(
-  left: Pick<ItemScanHistoryEvent, "happenedAt">,
-  right: Pick<ItemScanHistoryEvent, "happenedAt">,
+  left: Pick<ItemScanHistoryEvent | ItemScanHistoryPriceHistory, "happenedAt">,
+  right: Pick<ItemScanHistoryEvent | ItemScanHistoryPriceHistory, "happenedAt">,
 ): number {
   return toTimestamp(right.happenedAt) - toTimestamp(left.happenedAt);
 }

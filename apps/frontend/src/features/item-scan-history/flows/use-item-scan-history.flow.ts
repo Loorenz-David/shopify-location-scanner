@@ -1,48 +1,82 @@
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 
+import { useWsEvent } from "../../../core/api-client";
 import { itemScanHistoryActions } from "../actions/item-scan-history.actions";
-import { useItemScanHistoryStore } from "../stores/item-scan-history.store";
+import {
+  selectItemScanHistoryFiltersRequestKey,
+  useItemScanHistoryStore,
+} from "../stores/item-scan-history.store";
 
-const SEARCH_DEBOUNCE_MS = 250;
-const LOADING_VISIBILITY_DELAY_MS = 180;
+const SEARCH_DEBOUNCE_MS = 300;
+const INITIAL_LOADING_VISIBILITY_DELAY_MS = 180;
+const REFRESH_LOADING_VISIBILITY_DELAY_MS = 400;
+const WS_REFRESH_DEDUPE_MS = 750;
 const PULL_REFRESH_MAX_PULL_PX = 110;
 const PULL_REFRESH_TRIGGER_PX = 72;
 const PULL_REFRESH_RESISTANCE = 0.5;
 
+export function useItemScanHistoryRealtimeFlow(): void {
+  const lastRefreshAtRef = useRef(0);
+  const reloadHistory = useCallback(() => {
+    void itemScanHistoryActions.loadHistory();
+  }, []);
+
+  useWsEvent("scan_history_updated", () => {
+    const now = Date.now();
+    if (now - lastRefreshAtRef.current < WS_REFRESH_DEDUPE_MS) {
+      return;
+    }
+
+    lastRefreshAtRef.current = now;
+    reloadHistory();
+  });
+}
+
 export function useItemScanHistoryFlow(): void {
   const hasLoaded = useItemScanHistoryStore((state) => state.hasLoaded);
   const query = useItemScanHistoryStore((state) => state.query);
-  const lastFetchedQueryRef = useRef<string | null>(null);
+  const filtersRequestKey = useItemScanHistoryStore(
+    selectItemScanHistoryFiltersRequestKey,
+  );
+  const lastFetchedRequestKeyRef = useRef<string | null>(null);
+  const reloadHistory = useCallback(() => {
+    void itemScanHistoryActions.loadHistory();
+  }, []);
 
   useEffect(() => {
     if (!hasLoaded) {
-      void itemScanHistoryActions.loadHistory();
+      reloadHistory();
     }
-  }, [hasLoaded]);
+  }, [hasLoaded, reloadHistory]);
 
   useEffect(() => {
     if (!hasLoaded) {
       return;
     }
 
-    if (lastFetchedQueryRef.current === null) {
-      lastFetchedQueryRef.current = query;
+    const nextRequestKey = `${query}::${filtersRequestKey}`;
+
+    if (lastFetchedRequestKeyRef.current === null) {
+      lastFetchedRequestKeyRef.current = nextRequestKey;
       return;
     }
+
+    useItemScanHistoryStore.getState().setLoading(true);
 
     const timeoutId = window.setTimeout(() => {
-      lastFetchedQueryRef.current = query;
-      void itemScanHistoryActions.loadHistory();
+      lastFetchedRequestKeyRef.current = nextRequestKey;
+      reloadHistory();
     }, SEARCH_DEBOUNCE_MS);
 
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [hasLoaded, query]);
+  }, [filtersRequestKey, hasLoaded, query, reloadHistory]);
 }
 
 export function useItemScanHistoryLoadingVisibilityFlow(
   isLoading: boolean,
+  hasLoaded: boolean,
 ): boolean {
   const [isLoadingVisible, setIsLoadingVisible] = useState(false);
 
@@ -52,14 +86,18 @@ export function useItemScanHistoryLoadingVisibilityFlow(
       return;
     }
 
+    const delayMs = hasLoaded
+      ? REFRESH_LOADING_VISIBILITY_DELAY_MS
+      : INITIAL_LOADING_VISIBILITY_DELAY_MS;
+
     const timeoutId = window.setTimeout(() => {
       setIsLoadingVisible(true);
-    }, LOADING_VISIBILITY_DELAY_MS);
+    }, delayMs);
 
     return () => {
       window.clearTimeout(timeoutId);
     };
-  }, [isLoading]);
+  }, [hasLoaded, isLoading]);
 
   return isLoadingVisible;
 }
@@ -68,10 +106,13 @@ interface UseItemScanHistoryPullRefreshFlowParams {
   scrollContainerRef: RefObject<HTMLDivElement | null>;
 }
 
+const PULL_REFRESH_MIN_LOADING_MS = 3000;
+
 interface PullRefreshFlowState {
   pullDistance: number;
   isArmed: boolean;
   isRefreshing: boolean;
+  isPullLoadingVisible: boolean;
 }
 
 export function useItemScanHistoryPullRefreshFlow({
@@ -80,10 +121,28 @@ export function useItemScanHistoryPullRefreshFlow({
   const isLoading = useItemScanHistoryStore((state) => state.isLoading);
   const [pullDistance, setPullDistance] = useState(0);
   const [isArmed, setIsArmed] = useState(false);
+  const [isPullRefreshing, setIsPullRefreshing] = useState(false);
+  const [isPullLoadingVisible, setIsPullLoadingVisible] = useState(false);
 
   const startYRef = useRef<number | null>(null);
   const isDraggingRef = useRef(false);
-  const hasTriggeredRef = useRef(false);
+  const fetchDoneRef = useRef(false);
+  const timerElapsedRef = useRef(false);
+
+  const finishPullLoading = () => {
+    if (fetchDoneRef.current && timerElapsedRef.current) {
+      setIsPullLoadingVisible(false);
+      setIsPullRefreshing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isLoading && isPullRefreshing) {
+      fetchDoneRef.current = true;
+      finishPullLoading();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, isPullRefreshing]);
 
   useEffect(() => {
     const container = scrollContainerRef.current;
@@ -94,16 +153,26 @@ export function useItemScanHistoryPullRefreshFlow({
     const resetPullState = () => {
       startYRef.current = null;
       isDraggingRef.current = false;
-      hasTriggeredRef.current = false;
       setPullDistance(0);
       setIsArmed(false);
     };
 
     const triggerRefresh = () => {
-      hasTriggeredRef.current = true;
       setIsArmed(false);
+      setIsPullRefreshing(true);
+      setIsPullLoadingVisible(true);
+      fetchDoneRef.current = false;
+      timerElapsedRef.current = false;
 
-      if (typeof navigator !== "undefined" && typeof navigator.vibrate === "function") {
+      window.setTimeout(() => {
+        timerElapsedRef.current = true;
+        finishPullLoading();
+      }, PULL_REFRESH_MIN_LOADING_MS);
+
+      if (
+        typeof navigator !== "undefined" &&
+        typeof navigator.vibrate === "function"
+      ) {
         navigator.vibrate(20);
       }
 
@@ -121,7 +190,6 @@ export function useItemScanHistoryPullRefreshFlow({
 
       startYRef.current = event.touches[0]?.clientY ?? null;
       isDraggingRef.current = true;
-      hasTriggeredRef.current = false;
       setPullDistance(0);
       setIsArmed(false);
     };
@@ -159,10 +227,6 @@ export function useItemScanHistoryPullRefreshFlow({
       setIsArmed(nextArmed);
 
       event.preventDefault();
-
-      if (nextArmed && !hasTriggeredRef.current) {
-        triggerRefresh();
-      }
     };
 
     const handleTouchEnd = () => {
@@ -170,11 +234,20 @@ export function useItemScanHistoryPullRefreshFlow({
         return;
       }
 
+      const shouldRefresh = isArmed;
       resetPullState();
+
+      if (shouldRefresh) {
+        triggerRefresh();
+      }
     };
 
-    container.addEventListener("touchstart", handleTouchStart, { passive: true });
-    container.addEventListener("touchmove", handleTouchMove, { passive: false });
+    container.addEventListener("touchstart", handleTouchStart, {
+      passive: true,
+    });
+    container.addEventListener("touchmove", handleTouchMove, {
+      passive: false,
+    });
     container.addEventListener("touchend", handleTouchEnd);
     container.addEventListener("touchcancel", handleTouchEnd);
 
@@ -184,11 +257,12 @@ export function useItemScanHistoryPullRefreshFlow({
       container.removeEventListener("touchend", handleTouchEnd);
       container.removeEventListener("touchcancel", handleTouchEnd);
     };
-  }, [isLoading, scrollContainerRef]);
+  }, [isArmed, isLoading, scrollContainerRef]);
 
   return {
     pullDistance,
     isArmed,
-    isRefreshing: isLoading,
+    isRefreshing: isPullRefreshing,
+    isPullLoadingVisible,
   };
 }

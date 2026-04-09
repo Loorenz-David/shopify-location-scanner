@@ -42,6 +42,10 @@ export const handleOauthCallbackCommand = async (input) => {
     });
     await userRepository.assignShop(user.id, shop.id);
     await userRepository.assignUnlinkedUsersToShop(shop.id);
+    await shopifyAdminApi.ensureWebhookSubscriptions({
+        shopDomain: shop.shopDomain,
+        accessToken,
+    });
     return {
         shop: {
             id: shop.id,

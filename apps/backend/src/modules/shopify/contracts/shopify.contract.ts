@@ -137,6 +137,9 @@ export type ShopifyProductLocationDto = {
   itemCategory: string | null;
   barcode: string | null;
   price: string | null;
+  itemHeight: number | null;
+  itemWidth: number | null;
+  itemDepth: number | null;
   volume: number | null;
   location: string | null;
   updatedAt: string;

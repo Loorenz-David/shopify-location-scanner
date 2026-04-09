@@ -6,6 +6,7 @@ import RetryIcon from "./RetryIcon.svg?react";
 import CloseIcon from "./CloseIcon.svg?react";
 import BoldArrowIcon from "./BoldArrowIcon.svg?react";
 import SearchIcon from "./SearchIcon.svg?react";
+import FilterIcon from "./FilterIcon.svg?react";
 
 export {
   BackArrowIcon,
@@ -16,4 +17,5 @@ export {
   CloseIcon,
   BoldArrowIcon,
   SearchIcon,
+  FilterIcon,
 };
