@@ -16,40 +16,102 @@ const managedWebhookCallbackByTopic = new Map(MANAGED_WEBHOOK_SUBSCRIPTIONS.map(
     new URL(path, env.SHOPIFY_APP_URL).toString(),
 ]));
 const isWebhookHttpEndpoint = (endpoint) => endpoint.__typename === "WebhookHttpEndpoint";
+const sleep = async (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const getThrottleRetryDelayMs = (errors, attempt) => {
+    if (!Array.isArray(errors)) {
+        return null;
+    }
+    const isThrottled = errors.some((error) => {
+        if (!error || typeof error !== "object") {
+            return false;
+        }
+        const extensions = "extensions" in error && error.extensions && typeof error.extensions === "object"
+            ? error.extensions
+            : null;
+        return (("message" in error && error.message === "Throttled") ||
+            (extensions &&
+                "code" in extensions &&
+                typeof extensions.code === "string" &&
+                extensions.code.toUpperCase() === "THROTTLED"));
+    });
+    if (!isThrottled) {
+        return null;
+    }
+    const baseDelayMs = 1_000;
+    const maxDelayMs = 8_000;
+    return Math.min(baseDelayMs * 2 ** attempt, maxDelayMs);
+};
 const shopifyGraphql = async (shopDomain, accessToken, query, variables) => {
     const operationName = query.match(/\b(?:query|mutation)\s+([A-Za-z0-9_]+)/)?.[1] ?? "anonymous";
-    const response = await fetch(`https://${shopDomain}/admin/api/${env.SHOPIFY_API_VERSION}/graphql.json`, {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json",
-            "X-Shopify-Access-Token": accessToken,
+    const maxAttempts = 6;
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        const response = await fetch(`https://${shopDomain}/admin/api/${env.SHOPIFY_API_VERSION}/graphql.json`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "X-Shopify-Access-Token": accessToken,
+            },
+            body: JSON.stringify({ query, variables }),
+        });
+        if (!response.ok) {
+            const responseBody = await response.text().catch(() => null);
+            if (response.status === 429 && attempt < maxAttempts - 1) {
+                const retryAfterHeader = response.headers.get("retry-after");
+                const retryAfterSeconds = retryAfterHeader
+                    ? Number.parseInt(retryAfterHeader, 10)
+                    : Number.NaN;
+                const retryDelayMs = Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0
+                    ? retryAfterSeconds * 1_000
+                    : Math.min(1_000 * 2 ** attempt, 8_000);
+                logger.warn("Shopify API throttled request; retrying", {
+                    operationName,
+                    attempt: attempt + 1,
+                    retryDelayMs,
+                    status: response.status,
+                });
+                await sleep(retryDelayMs);
+                continue;
+            }
+            throw new AppError("Shopify API request failed", {
+                code: "INTERNAL_ERROR",
+                statusCode: 502,
+                details: {
+                    operationName,
+                    status: response.status,
+                    responseBody,
+                },
+            });
+        }
+        const payload = (await response.json());
+        const throttleRetryDelayMs = getThrottleRetryDelayMs(payload.errors, attempt);
+        if (throttleRetryDelayMs !== null && attempt < maxAttempts - 1) {
+            logger.warn("Shopify GraphQL throttled request; retrying", {
+                operationName,
+                attempt: attempt + 1,
+                retryDelayMs: throttleRetryDelayMs,
+            });
+            await sleep(throttleRetryDelayMs);
+            continue;
+        }
+        if (payload.errors || !payload.data) {
+            throw new AppError("Shopify GraphQL returned an error", {
+                code: "INTERNAL_ERROR",
+                statusCode: 502,
+                details: {
+                    operationName,
+                    errors: payload.errors ?? null,
+                },
+            });
+        }
+        return payload.data;
+    }
+    throw new AppError("Shopify GraphQL retries exhausted", {
+        code: "INTERNAL_ERROR",
+        statusCode: 502,
+        details: {
+            operationName,
         },
-        body: JSON.stringify({ query, variables }),
     });
-    if (!response.ok) {
-        const responseBody = await response.text().catch(() => null);
-        throw new AppError("Shopify API request failed", {
-            code: "INTERNAL_ERROR",
-            statusCode: 502,
-            details: {
-                operationName,
-                status: response.status,
-                responseBody,
-            },
-        });
-    }
-    const payload = (await response.json());
-    if (payload.errors || !payload.data) {
-        throw new AppError("Shopify GraphQL returned an error", {
-            code: "INTERNAL_ERROR",
-            statusCode: 502,
-            details: {
-                operationName,
-                errors: payload.errors ?? null,
-            },
-        });
-    }
-    return payload.data;
 };
 const parseDimensionCm = (value) => {
     if (!value) {
