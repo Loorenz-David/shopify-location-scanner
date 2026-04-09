@@ -139,6 +139,10 @@ export const AppendScanLocationHistorySchema = z.object({
   happenedAt: z.date().optional(),
 });
 
+export const GetScanHistoryItemParamsSchema = z.object({
+  productId: z.string().trim().min(1),
+});
+
 export const GetScanHistoryQuerySchema = z
   .object({
     page: z.coerce.number().int().min(1).default(1),
@@ -191,6 +195,9 @@ export type ScanHistoryStringFilterColumn = z.infer<
 
 export type AppendScanLocationHistoryInput = z.infer<
   typeof AppendScanLocationHistorySchema
+>;
+export type GetScanHistoryItemParamsInput = z.infer<
+  typeof GetScanHistoryItemParamsSchema
 >;
 export type GetScanHistoryQueryInput = z.infer<
   typeof GetScanHistoryQuerySchema

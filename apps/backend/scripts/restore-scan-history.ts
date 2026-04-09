@@ -5,7 +5,7 @@ import { scanHistoryRepository } from "../src/modules/scanner/repositories/scan-
 import { shopRepository } from "../src/modules/shopify/repositories/shop.repository.js";
 import { shopifyAdminApi } from "../src/modules/shopify/integrations/shopify-admin-api.integration.js";
 
-const RESTORE_ACTOR = "Fayoz (restore)";
+const RESTORE_ACTOR = "system:restore-scan-history";
 
 const getRestoreTimestamp = (): Date => {
   const restoreAt = new Date();
@@ -37,7 +37,7 @@ const main = async (): Promise<void> => {
   );
 
   let restored = 0;
-  let skippedExisting = 0;
+  let refreshedExisting = 0;
   let failed = 0;
 
   for (const product of products) {
@@ -48,7 +48,27 @@ const main = async (): Promise<void> => {
       });
 
       if (existing) {
-        skippedExisting += 1;
+        await prisma.scanHistory.update({
+          where: {
+            shopId_productId: {
+              shopId: linkedShop.id,
+              productId: product.id,
+            },
+          },
+          data: {
+            itemCategory: product.itemCategory,
+            itemSku: product.sku,
+            itemBarcode: product.barcode,
+            itemImageUrl: product.imageUrl,
+            itemTitle: product.title,
+            itemHeight: product.itemHeight,
+            itemWidth: product.itemWidth,
+            itemDepth: product.itemDepth,
+            volume: product.volume,
+          },
+        });
+
+        refreshedExisting += 1;
         continue;
       }
 
@@ -95,7 +115,7 @@ const main = async (): Promise<void> => {
 
   console.log("[restore-scan-history] Completed", {
     restored,
-    skippedExisting,
+    refreshedExisting,
     failed,
     totalSeen: products.length,
   });

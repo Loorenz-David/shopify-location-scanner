@@ -1,6 +1,7 @@
 import { prisma } from "../../../shared/database/prisma-client.js";
 import { logger } from "../../../shared/logging/logger.js";
 import { scanHistoryRepository } from "../../scanner/repositories/scan-history.repository.js";
+import { broadcastToShop } from "../../ws/ws-broadcaster.js";
 import { shopifyAdminApi } from "../integrations/shopify-admin-api.integration.js";
 import { shopRepository } from "../repositories/shop.repository.js";
 const WEBHOOK_ACTOR = "system:shopify-webhook";
@@ -49,13 +50,17 @@ export const handleProductsUpdateWebhookCommand = async (input) => {
     const price = getWebhookPrice(input.payload);
     const happenedAt = parseHappenedAt(input.payload);
     let applied = false;
+    let priceUpdated = false;
+    let locationUpdated = false;
     if (price) {
-        applied = await scanHistoryRepository.appendPriceChangeIfHistoryExists({
+        priceUpdated = await scanHistoryRepository.appendPriceChangeIfHistoryExists({
             shopId: input.shopId,
             productId,
             price,
             happenedAt,
+            emitBroadcast: false,
         });
+        applied = priceUpdated;
     }
     const existingHistory = await scanHistoryRepository.findByShopAndProduct({
         shopId: input.shopId,
@@ -91,9 +96,16 @@ export const handleProductsUpdateWebhookCommand = async (input) => {
                     location: normalizedLocation,
                     happenedAt,
                 });
+                locationUpdated = true;
                 applied = true;
             }
         }
+    }
+    if (priceUpdated && !locationUpdated) {
+        broadcastToShop(input.shopId, {
+            type: "scan_history_updated",
+            productId,
+        });
     }
     await prisma.shopifyWebhookDelivery.create({
         data: {

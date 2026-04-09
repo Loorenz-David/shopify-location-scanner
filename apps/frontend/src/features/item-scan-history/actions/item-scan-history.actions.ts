@@ -1,4 +1,7 @@
-import { loadItemScanHistoryController } from "../controllers/item-scan-history.controller";
+import {
+  loadItemScanHistoryController,
+  refreshItemScanHistoryItemController,
+} from "../controllers/item-scan-history.controller";
 import {
   commitOptimisticLocationUpdateController,
   rollbackOptimisticLocationUpdateController,
@@ -17,6 +20,9 @@ export const itemScanHistoryActions = {
   async loadHistory(): Promise<void> {
     const state = useItemScanHistoryStore.getState();
     await loadItemScanHistoryController(state.query, state.filters);
+  },
+  async refreshHistoryItem(productId: string): Promise<void> {
+    await refreshItemScanHistoryItemController(productId);
   },
   setQuery(query: string): void {
     useItemScanHistoryStore.getState().setQuery(query);

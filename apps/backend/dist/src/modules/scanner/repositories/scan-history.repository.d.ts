@@ -29,6 +29,7 @@ export declare const scanHistoryRepository: {
         productId: string;
         price: string;
         happenedAt?: Date;
+        emitBroadcast?: boolean;
     }): Promise<boolean>;
     listByShopPaginated(input: {
         shopId: string;

@@ -69,11 +69,21 @@ const resolveDimensions = (input) => {
             : null,
     };
 };
+const DIMENSION_NAMESPACE_FALLBACK = "custom";
+const coalesceMetafieldValue = (...values) => {
+    for (const value of values) {
+        const trimmed = value?.trim();
+        if (trimmed) {
+            return trimmed;
+        }
+    }
+    return null;
+};
 const mapProductNodeToLocationSnapshot = (product) => {
     const dimensions = resolveDimensions({
-        height: product.itemHeight?.value ?? product.itemHeightAlt?.value ?? null,
-        width: product.itemWidth?.value ?? product.itemWidthAlt?.value ?? null,
-        depth: product.itemDepth?.value ?? product.itemDepthAlt?.value ?? null,
+        height: coalesceMetafieldValue(product.itemHeight?.value, product.itemHeightAlt?.value, product.itemHeightFallback?.value, product.itemHeightAltFallback?.value),
+        width: coalesceMetafieldValue(product.itemWidth?.value, product.itemWidthAlt?.value, product.itemWidthFallback?.value, product.itemWidthAltFallback?.value),
+        depth: coalesceMetafieldValue(product.itemDepth?.value, product.itemDepthAlt?.value, product.itemDepthFallback?.value, product.itemDepthAltFallback?.value),
     });
     return {
         id: product.id,
@@ -129,6 +139,7 @@ export const shopifyAdminApi = {
         $locationKey: String!
         $heightKey: String!
         $heightKeyAlt: String!
+        $dimensionNamespaceFallback: String!
         $widthKey: String!
         $widthKeyAlt: String!
         $depthKey: String!
@@ -160,16 +171,34 @@ export const shopifyAdminApi = {
           itemHeightAlt: metafield(namespace: $namespace, key: $heightKeyAlt) {
             value
           }
+          itemHeightFallback: metafield(namespace: $dimensionNamespaceFallback, key: $heightKey) {
+            value
+          }
+          itemHeightAltFallback: metafield(namespace: $dimensionNamespaceFallback, key: $heightKeyAlt) {
+            value
+          }
           itemWidth: metafield(namespace: $namespace, key: $widthKey) {
             value
           }
           itemWidthAlt: metafield(namespace: $namespace, key: $widthKeyAlt) {
             value
           }
+          itemWidthFallback: metafield(namespace: $dimensionNamespaceFallback, key: $widthKey) {
+            value
+          }
+          itemWidthAltFallback: metafield(namespace: $dimensionNamespaceFallback, key: $widthKeyAlt) {
+            value
+          }
           itemDepth: metafield(namespace: $namespace, key: $depthKey) {
             value
           }
           itemDepthAlt: metafield(namespace: $namespace, key: $depthKeyAlt) {
+            value
+          }
+          itemDepthFallback: metafield(namespace: $dimensionNamespaceFallback, key: $depthKey) {
+            value
+          }
+          itemDepthAltFallback: metafield(namespace: $dimensionNamespaceFallback, key: $depthKeyAlt) {
             value
           }
         }
@@ -179,6 +208,7 @@ export const shopifyAdminApi = {
             locationKey: env.SHOPIFY_METAFIELD_KEY,
             heightKey: "height",
             heightKeyAlt: "Height",
+            dimensionNamespaceFallback: DIMENSION_NAMESPACE_FALLBACK,
             widthKey: "width",
             widthKeyAlt: "Width",
             depthKey: "depth",
@@ -206,6 +236,7 @@ export const shopifyAdminApi = {
           $locationKey: String!
           $heightKey: String!
           $heightKeyAlt: String!
+          $dimensionNamespaceFallback: String!
           $widthKey: String!
           $widthKeyAlt: String!
           $depthKey: String!
@@ -243,16 +274,34 @@ export const shopifyAdminApi = {
                 itemHeightAlt: metafield(namespace: $namespace, key: $heightKeyAlt) {
                   value
                 }
+                itemHeightFallback: metafield(namespace: $dimensionNamespaceFallback, key: $heightKey) {
+                  value
+                }
+                itemHeightAltFallback: metafield(namespace: $dimensionNamespaceFallback, key: $heightKeyAlt) {
+                  value
+                }
                 itemWidth: metafield(namespace: $namespace, key: $widthKey) {
                   value
                 }
                 itemWidthAlt: metafield(namespace: $namespace, key: $widthKeyAlt) {
                   value
                 }
+                itemWidthFallback: metafield(namespace: $dimensionNamespaceFallback, key: $widthKey) {
+                  value
+                }
+                itemWidthAltFallback: metafield(namespace: $dimensionNamespaceFallback, key: $widthKeyAlt) {
+                  value
+                }
                 itemDepth: metafield(namespace: $namespace, key: $depthKey) {
                   value
                 }
                 itemDepthAlt: metafield(namespace: $namespace, key: $depthKeyAlt) {
+                  value
+                }
+                itemDepthFallback: metafield(namespace: $dimensionNamespaceFallback, key: $depthKey) {
+                  value
+                }
+                itemDepthAltFallback: metafield(namespace: $dimensionNamespaceFallback, key: $depthKeyAlt) {
                   value
                 }
               }
@@ -265,6 +314,7 @@ export const shopifyAdminApi = {
                 locationKey: env.SHOPIFY_METAFIELD_KEY,
                 heightKey: "height",
                 heightKeyAlt: "Height",
+                dimensionNamespaceFallback: DIMENSION_NAMESPACE_FALLBACK,
                 widthKey: "width",
                 widthKeyAlt: "Width",
                 depthKey: "depth",

@@ -642,7 +642,7 @@ export const scanHistoryRepository = {
             });
             return true;
         });
-        if (didAppend) {
+        if (didAppend && input.emitBroadcast !== false) {
             broadcastToShop(input.shopId, {
                 type: "scan_history_updated",
                 productId: input.productId,

@@ -738,6 +738,7 @@ export const scanHistoryRepository = {
     productId: string;
     price: string;
     happenedAt?: Date;
+    emitBroadcast?: boolean;
   }): Promise<boolean> {
     const happenedAt = input.happenedAt ?? new Date();
     const normalizedPrice = normalizePrice(input.price);
@@ -785,7 +786,7 @@ export const scanHistoryRepository = {
       return true;
     });
 
-    if (didAppend) {
+    if (didAppend && input.emitBroadcast !== false) {
       broadcastToShop(input.shopId, {
         type: "scan_history_updated",
         productId: input.productId,

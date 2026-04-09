@@ -7,6 +7,13 @@ import { scannerController } from "../controllers/scanner.controller.js";
 export const scannerRouter = Router();
 
 scannerRouter.get(
+  "/history/:productId",
+  authenticateUserMiddleware,
+  requireShopLinkMiddleware,
+  asyncHandler(scannerController.getHistoryItem),
+);
+
+scannerRouter.get(
   "/history",
   authenticateUserMiddleware,
   requireShopLinkMiddleware,

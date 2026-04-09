@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 
-import { useWsEvent } from "../../../core/api-client";
+import { useWsEvent, type WsInboundEvent } from "../../../core/api-client";
 import { itemScanHistoryActions } from "../actions/item-scan-history.actions";
 import {
   selectItemScanHistoryFiltersRequestKey,
@@ -16,19 +16,30 @@ const PULL_REFRESH_TRIGGER_PX = 72;
 const PULL_REFRESH_RESISTANCE = 0.5;
 
 export function useItemScanHistoryRealtimeFlow(): void {
-  const lastRefreshAtRef = useRef(0);
-  const reloadHistory = useCallback(() => {
-    void itemScanHistoryActions.loadHistory();
+  const lastRefreshByProductIdRef = useRef(new Map<string, number>());
+  const refreshHistoryItem = useCallback((productId: string) => {
+    void itemScanHistoryActions.refreshHistoryItem(productId);
   }, []);
 
-  useWsEvent("scan_history_updated", () => {
-    const now = Date.now();
-    if (now - lastRefreshAtRef.current < WS_REFRESH_DEDUPE_MS) {
+  useWsEvent("scan_history_updated", (event: Extract<
+    WsInboundEvent,
+    { type: "scan_history_updated" }
+  >) => {
+    const normalizedProductId = event.productId.trim();
+    if (!normalizedProductId) {
       return;
     }
 
-    lastRefreshAtRef.current = now;
-    reloadHistory();
+    const now = Date.now();
+    const lastRefreshAt =
+      lastRefreshByProductIdRef.current.get(normalizedProductId) ?? 0;
+
+    if (now - lastRefreshAt < WS_REFRESH_DEDUPE_MS) {
+      return;
+    }
+
+    lastRefreshByProductIdRef.current.set(normalizedProductId, now);
+    refreshHistoryItem(normalizedProductId);
   });
 }
 
