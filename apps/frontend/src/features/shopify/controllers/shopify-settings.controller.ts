@@ -56,7 +56,7 @@ export async function startShopifyInstallController(
 
   try {
     const response = await getOauthInstallUrlApi(payload);
-    window.location.assign(response.authorizationUrl);
+    (window.top ?? window).location.href = response.authorizationUrl;
   } catch {
     store.setErrorMessage("Unable to start Shopify connection.");
   } finally {
