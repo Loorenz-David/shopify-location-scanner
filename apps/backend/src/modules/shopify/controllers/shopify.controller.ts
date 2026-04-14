@@ -155,6 +155,7 @@ export const shopifyController = {
   install: async (req: Request, res: Response): Promise<void> => {
     const input = InstallShopInputSchema.parse(req.body);
     const result = await createInstallUrlCommand(input, req.authUser.userId);
+    console.log("SHOPIFY INSTALL URL:", req.body, result);
     res.status(200).json(result);
   },
 
