@@ -9,8 +9,8 @@ export const shopifySettingsActions = {
   async loadLinkedShop(): Promise<void> {
     await loadLinkedShopController();
   },
-  async startInstall(storeInput: string): Promise<void> {
-    await startShopifyInstallController(storeInput);
+  startInstall(storeInput: string): void {
+    startShopifyInstallController(storeInput);
   },
   async unlinkShop(): Promise<void> {
     await unlinkShopController();

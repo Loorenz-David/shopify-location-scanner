@@ -1,5 +1,4 @@
-import { ApiClientError } from "../../../core/api-client";
-import { getOauthInstallUrlApi } from "../api/get-oauth-install-url.api";
+import { ApiClientError, tokenAuthController } from "../../../core/api-client";
 import { getShopApi } from "../api/get-shop.api";
 import { unlinkShopApi } from "../api/unlink-shop.api";
 import { normalizeShopifyStoreInput } from "../domain/shopify-settings.domain";
@@ -40,9 +39,7 @@ export async function unlinkShopController(): Promise<void> {
   }
 }
 
-export async function startShopifyInstallController(
-  storeInput: string,
-): Promise<void> {
+export function startShopifyInstallController(storeInput: string): void {
   const store = useShopifySettingsStore.getState();
   const payload = normalizeShopifyStoreInput(storeInput);
 
@@ -51,15 +48,19 @@ export async function startShopifyInstallController(
     return;
   }
 
-  store.setSubmitting(true);
-  store.setErrorMessage(null);
-
-  try {
-    const response = await getOauthInstallUrlApi(payload);
-    (window.top ?? window).location.href = response.authorizationUrl;
-  } catch {
-    store.setErrorMessage("Unable to start Shopify connection.");
-  } finally {
-    store.setSubmitting(false);
+  const token = tokenAuthController.getAccessToken();
+  if (!token) {
+    store.setErrorMessage("Session expired. Please log in again.");
+    return;
   }
+
+  const params = new URLSearchParams({ token });
+  if (payload.shopDomain) {
+    params.set("shop", payload.shopDomain);
+  } else if (payload.storeName) {
+    params.set("storeName", payload.storeName);
+  }
+
+  const apiBase = import.meta.env.VITE_API_BASE_URL ?? "";
+  window.location.href = `${apiBase}/shopify/oauth/install?${params.toString()}`;
 }

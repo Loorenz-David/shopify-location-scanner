@@ -12,6 +12,7 @@ import {
   UpdateItemLocationByIdentifierSchema,
   UpdateItemLocationInputSchema,
 } from "../contracts/shopify.contract.js";
+import { tokenService } from "../../auth/integrations/token.service.js";
 import { createInstallUrlCommand } from "../commands/create-install-url.command.js";
 import { handleOauthCallbackCommand } from "../commands/handle-oauth-callback.command.js";
 import { getProductQuery } from "../queries/get-product.query.js";
@@ -153,10 +154,35 @@ export const shopifyController = {
   },
 
   install: async (req: Request, res: Response): Promise<void> => {
-    const input = InstallShopInputSchema.parse(req.body);
-    const result = await createInstallUrlCommand(input, req.authUser.userId);
-    console.log("SHOPIFY INSTALL URL:", req.body, result);
-    res.status(200).json(result);
+    const rawToken = typeof req.query.token === "string" ? req.query.token : null;
+    if (!rawToken) {
+      throw new ValidationError("Missing authentication token");
+    }
+
+    let principal;
+    try {
+      principal = tokenService.verifyAccessToken(rawToken);
+    } catch {
+      throw new ValidationError("Invalid authentication token");
+    }
+
+    if (principal.role !== "admin") {
+      throw new ValidationError("Admin role is required");
+    }
+
+    const input = InstallShopInputSchema.parse({
+      shopDomain: req.query.shopDomain ?? req.query.shop,
+      storeName: req.query.storeName,
+    });
+
+    const result = await createInstallUrlCommand(input, principal.userId);
+
+    logger.info("Shopify OAuth install redirect", {
+      shopDomain: input.shopDomain ?? input.storeName,
+      authorizationUrl: result.authorizationUrl,
+    });
+
+    res.redirect(302, result.authorizationUrl);
   },
 
   callback: async (req: Request, res: Response): Promise<void> => {

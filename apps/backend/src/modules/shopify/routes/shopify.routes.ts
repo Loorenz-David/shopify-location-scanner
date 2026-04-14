@@ -37,12 +37,7 @@ shopifyRouter.get(
   asyncHandler(shopifyController.getLinkedShop),
 );
 
-shopifyRouter.post(
-  "/oauth/install",
-  authenticateUserMiddleware,
-  requireAdminMiddleware,
-  asyncHandler(shopifyController.install),
-);
+shopifyRouter.get("/oauth/install", asyncHandler(shopifyController.install));
 
 shopifyRouter.get("/oauth/callback", asyncHandler(shopifyController.callback));
 
