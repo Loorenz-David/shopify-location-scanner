@@ -30,6 +30,7 @@ import { unlinkShopCommand } from "../commands/unlink-shop.command.js";
 import { removeMetafieldOptionCommand } from "../commands/remove-metafield-option.command.js";
 import { AppError } from "../../../shared/errors/app-error.js";
 import { logger } from "../../../shared/logging/logger.js";
+import { env } from "../../../config/env.js";
 import { appendMetafieldOptionsCommand } from "../commands/append-metafield-options.command.js";
 import { handleOrdersCreateWebhookCommand } from "../commands/handle-orders-create-webhook.command.js";
 import { handleOrdersPaidWebhookCommand } from "../commands/handle-orders-paid-webhook.command.js";
@@ -168,12 +169,12 @@ export const shopifyController = {
 
     const rawParams = extractCallbackParams(req);
 
-    const result = await handleOauthCallbackCommand({
+    await handleOauthCallbackCommand({
       query: parsed,
       rawParams,
     });
 
-    res.status(200).json({ ok: true, ...result });
+    res.redirect(302, env.FRONTEND_URL);
   },
 
   getProduct: async (req: Request, res: Response): Promise<void> => {

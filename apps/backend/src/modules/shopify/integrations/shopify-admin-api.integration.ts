@@ -1143,53 +1143,58 @@ export const shopifyAdminApi = {
         continue;
       }
 
-      const created = await shopifyGraphql<{
-        webhookSubscriptionCreate: {
-          webhookSubscription: {
-            id: string;
-          } | null;
-          userErrors: Array<{ field: string[] | null; message: string }>;
-        };
-      }>(
-        input.shopDomain,
-        input.accessToken,
-        `#graphql
-        mutation CreateWebhookSubscription(
-          $topic: WebhookSubscriptionTopic!
-          $callbackUrl: URL!
-        ) {
-          webhookSubscriptionCreate(
-            topic: $topic
+      try {
+        const created = await shopifyGraphql<{
+          webhookSubscriptionCreate: {
             webhookSubscription: {
-              callbackUrl: $callbackUrl
-              format: JSON
-            }
+              id: string;
+            } | null;
+            userErrors: Array<{ field: string[] | null; message: string }>;
+          };
+        }>(
+          input.shopDomain,
+          input.accessToken,
+          `#graphql
+          mutation CreateWebhookSubscription(
+            $topic: WebhookSubscriptionTopic!
+            $callbackUrl: URL!
           ) {
-            webhookSubscription {
-              id
+            webhookSubscriptionCreate(
+              topic: $topic
+              webhookSubscription: {
+                callbackUrl: $callbackUrl
+                format: JSON
+              }
+            ) {
+              webhookSubscription {
+                id
+              }
+              userErrors {
+                field
+                message
+              }
             }
-            userErrors {
-              field
-              message
-            }
-          }
-        }`,
-        {
-          topic,
-          callbackUrl,
-        },
-      );
+          }`,
+          {
+            topic,
+            callbackUrl,
+          },
+        );
 
-      const firstError = created.webhookSubscriptionCreate.userErrors[0];
-      if (firstError) {
-        throw new AppError(firstError.message, {
-          code: "INTERNAL_ERROR",
-          statusCode: 502,
-          details: {
+        const firstError = created.webhookSubscriptionCreate.userErrors[0];
+        if (firstError) {
+          logger.warn("Shopify webhook subscription creation failed", {
             topic,
             callbackUrl,
             field: firstError.field,
-          },
+            message: firstError.message,
+          });
+        }
+      } catch (error) {
+        logger.warn("Shopify webhook subscription request failed", {
+          topic,
+          callbackUrl,
+          error: error instanceof Error ? error.message : "unknown",
         });
       }
     }
