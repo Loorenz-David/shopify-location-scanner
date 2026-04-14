@@ -1,7 +1,6 @@
 import { useCallback, useEffect } from "react";
 
 import { useWsEvent } from "../../../core/ws-client/use-ws-event";
-import type { WsInboundEvent } from "../../../core/ws-client/ws-events";
 import { getCategoriesOverviewApi } from "../apis/get-categories-overview.api";
 import { getDimensionsStatsApi } from "../apis/get-dimensions-stats.api";
 import { getSalesChannelOverviewApi } from "../apis/get-sales-channel-overview.api";
