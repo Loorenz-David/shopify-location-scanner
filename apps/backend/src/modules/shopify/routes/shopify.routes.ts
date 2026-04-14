@@ -5,11 +5,18 @@ import { requireAdminMiddleware } from "../../auth/middleware/require-admin.midd
 import { requireShopLinkMiddleware } from "../../auth/middleware/require-shop-link.middleware.js";
 import { shopifyController } from "../controllers/shopify.controller.js";
 import {
+  verifyOrdersCreateWebhookMiddleware,
   verifyOrdersPaidWebhookMiddleware,
   verifyProductsUpdateWebhookMiddleware,
 } from "../middleware/verify-shopify-webhook.middleware.js";
 
 export const shopifyRouter = Router();
+
+shopifyRouter.post(
+  "/webhooks/orders/create",
+  verifyOrdersCreateWebhookMiddleware,
+  asyncHandler(shopifyController.handleOrdersCreateWebhook),
+);
 
 shopifyRouter.post(
   "/webhooks/orders/paid",

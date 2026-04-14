@@ -20,14 +20,31 @@ import {
 } from "./shared/database/sqlite-runtime.js";
 import { authRouter } from "./modules/auth/routes/auth.routes.js";
 import { shopifyRouter } from "./modules/shopify/routes/shopify.routes.js";
+import { webhookAdminRouter } from "./modules/shopify/routes/webhook-admin.routes.js";
 import { bootstrapRouter } from "./modules/bootstrap/routes/bootstrap.routes.js";
 import { scannerRouter } from "./modules/scanner/routes/scanner.routes.js";
 import { statsRouter } from "./modules/stats/routes/stats.routes.js";
 import { closeWsServer, createWsServer } from "./modules/ws/ws-server.js";
+import { broadcastToShop } from "./modules/ws/ws-broadcaster.js";
+import { createWsBroadcastSubscriber } from "./shared/queue/ws-bridge.js";
 import { zonesRouter } from "./modules/zones/routes/zones.routes.js";
 
 const app = express();
 app.set("trust proxy", 1);
+
+const isShopifyEmbeddedLaunch = (req: express.Request): boolean => {
+  const shop = req.query.shop;
+  const host = req.query.host;
+  const embedded = req.query.embedded;
+  const idToken = req.query.id_token;
+
+  const hasShop = typeof shop === "string" && shop.length > 0;
+  const hasHost = typeof host === "string" && host.length > 0;
+  const isEmbedded = embedded === "1";
+  const hasIdToken = typeof idToken === "string" && idToken.length > 0;
+
+  return hasShop && hasHost && (isEmbedded || hasIdToken);
+};
 
 const corsAllowedOrigins = Array.from(
   new Set([
@@ -65,6 +82,20 @@ app.use(
 );
 app.use(express.json());
 
+app.get("/", (req, res, next) => {
+  if (!isShopifyEmbeddedLaunch(req)) {
+    next();
+    return;
+  }
+
+  const redirectUrl = new URL(env.FRONTEND_URL);
+  if (req.originalUrl.includes("?")) {
+    redirectUrl.search = req.originalUrl.slice(req.originalUrl.indexOf("?"));
+  }
+
+  res.redirect(302, redirectUrl.toString());
+});
+
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "backend" });
 });
@@ -90,12 +121,14 @@ app.use("/bootstrap", bootstrapRouter);
 app.use("/scanner", scannerRouter);
 app.use("/stats", statsRouter);
 app.use("/zones", zonesRouter);
+app.use("/internal/webhooks", webhookAdminRouter);
 app.use("/api/auth", authRateLimitMiddleware, authRouter);
 app.use("/api/shopify", shopifyRouter);
 app.use("/api/bootstrap", bootstrapRouter);
 app.use("/api/scanner", scannerRouter);
 app.use("/api/stats", statsRouter);
 app.use("/api/zones", zonesRouter);
+app.use("/api/internal/webhooks", webhookAdminRouter);
 
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);
@@ -106,12 +139,20 @@ await initializeDatabaseRuntime();
 const httpServer = createServer(app);
 createWsServer(httpServer);
 
+// Subscribe to broadcast events published by the webhook worker process.
+// The worker cannot call broadcastToShop directly (different process, empty
+// in-memory WS registry), so it publishes over Redis and we forward here.
+const wsBroadcastSubscriber = createWsBroadcastSubscriber((shopId, event) => {
+  broadcastToShop(shopId, event as Parameters<typeof broadcastToShop>[1]);
+});
+
 httpServer.listen(PORT, () => {
   logger.info("Backend started", { port: PORT, env: env.NODE_ENV });
 });
 
 const shutdown = (signal: NodeJS.Signals) => {
   logger.warn("Shutdown signal received", { signal });
+  void wsBroadcastSubscriber.quit();
   void closeWsServer()
     .catch((error) => {
       logger.error("Failed to close WS server", {

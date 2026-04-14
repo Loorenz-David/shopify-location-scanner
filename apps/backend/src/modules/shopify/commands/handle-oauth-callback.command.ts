@@ -10,7 +10,7 @@ import { verifyShopifyCallbackHmac } from "../integrations/shopify-hmac.service.
 import { shopifyAdminApi } from "../integrations/shopify-admin-api.integration.js";
 import { shopRepository } from "../repositories/shop.repository.js";
 import { userRepository } from "../../auth/repositories/user.repository.js";
-import { env } from "../../../config/env.js";
+import { backendPublicUrl } from "../../../config/env.js";
 
 export const handleOauthCallbackCommand = async (input: {
   query: ShopifyCallbackQuery;
@@ -51,7 +51,7 @@ export const handleOauthCallbackCommand = async (input: {
   const accessToken = await shopifyAdminApi.exchangeCodeForAccessToken({
     shopDomain: input.query.shop,
     code: input.query.code,
-    redirectUri: `${env.SHOPIFY_APP_URL}/api/shopify/oauth/callback`,
+    redirectUri: `${backendPublicUrl}/api/shopify/oauth/callback`,
   });
 
   if (!accessToken) {

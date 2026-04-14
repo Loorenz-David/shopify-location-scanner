@@ -2,7 +2,7 @@ import {
   ConflictError,
   ValidationError,
 } from "../../../shared/errors/http-errors.js";
-import { env } from "../../../config/env.js";
+import { backendPublicUrl, env } from "../../../config/env.js";
 import type { InstallShopInput } from "../contracts/shopify.contract.js";
 import { shopRepository } from "../repositories/shop.repository.js";
 import { shopifyOauthStateService } from "../integrations/shopify-oauth-state.service.js";
@@ -34,7 +34,7 @@ export const createInstallUrlCommand = async (
   }
 
   const state = shopifyOauthStateService.sign(userId);
-  const redirectUri = `${env.SHOPIFY_APP_URL}/api/shopify/oauth/callback`;
+  const redirectUri = `${backendPublicUrl}/api/shopify/oauth/callback`;
   const scopes = env.SHOPIFY_SCOPES;
 
   const authorizationUrl = new URL(

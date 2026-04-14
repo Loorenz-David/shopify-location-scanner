@@ -1,5 +1,5 @@
 import { ConflictError, ValidationError, } from "../../../shared/errors/http-errors.js";
-import { env } from "../../../config/env.js";
+import { backendPublicUrl, env } from "../../../config/env.js";
 import { shopRepository } from "../repositories/shop.repository.js";
 import { shopifyOauthStateService } from "../integrations/shopify-oauth-state.service.js";
 const resolveShopDomain = (input) => {
@@ -19,7 +19,7 @@ export const createInstallUrlCommand = async (input, userId) => {
         throw new ConflictError("A different Shopify store is already linked. Relink is required by an admin.");
     }
     const state = shopifyOauthStateService.sign(userId);
-    const redirectUri = `${env.SHOPIFY_APP_URL}/api/shopify/oauth/callback`;
+    const redirectUri = `${backendPublicUrl}/api/shopify/oauth/callback`;
     const scopes = env.SHOPIFY_SCOPES;
     const authorizationUrl = new URL(`https://${shopDomain}/admin/oauth/authorize`);
     authorizationUrl.searchParams.set("client_id", env.SHOPIFY_API_KEY);

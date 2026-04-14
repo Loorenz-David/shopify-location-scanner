@@ -1,10 +1,9 @@
-import { prisma } from "../../../shared/database/prisma-client.js";
-import { logger } from "../../../shared/logging/logger.js";
+import type { WebhookIntakeRecord } from "@prisma/client";
 import { scanHistoryRepository } from "../../scanner/repositories/scan-history.repository.js";
-import { broadcastToShop } from "../../ws/ws-broadcaster.js";
+import type { ShopifyProductsUpdateWebhookPayload } from "../contracts/shopify.contract.js";
+import { ShopifyProductsUpdateWebhookPayloadSchema } from "../contracts/shopify.contract.js";
 import { shopifyAdminApi } from "../integrations/shopify-admin-api.integration.js";
 import { shopRepository } from "../repositories/shop.repository.js";
-import type { ShopifyProductsUpdateWebhookPayload } from "../contracts/shopify.contract.js";
 
 const WEBHOOK_ACTOR = "system:shopify-webhook";
 
@@ -45,58 +44,39 @@ const parseHappenedAt = (
   return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
 };
 
-export const handleProductsUpdateWebhookCommand = async (input: {
-  shopId: string;
-  shopDomain: string;
-  topic: string;
-  webhookId: string;
-  payload: ShopifyProductsUpdateWebhookPayload;
-}): Promise<{
-  duplicate: boolean;
-  applied: boolean;
-}> => {
-  const existing = await prisma.shopifyWebhookDelivery.findUnique({
-    where: {
-      shopId_topic_webhookId: {
-        shopId: input.shopId,
-        topic: input.topic,
-        webhookId: input.webhookId,
-      },
-    },
-  });
-
-  if (existing) {
-    return {
-      duplicate: true,
-      applied: false,
-    };
-  }
-
-  const productId = normalizeProductId(input.payload.id);
-  const price = getWebhookPrice(input.payload);
-  const happenedAt = parseHappenedAt(input.payload);
-  let applied = false;
+// broadcast is injected by the caller so the job processor has no dependency on
+// the in-process WebSocket registry. In the worker process the caller publishes
+// over Redis; in the API server process (if ever called directly) it can call
+// broadcastToShop. This keeps the job testable and process-agnostic.
+export const processProductsUpdateWebhookJob = async (
+  intake: WebhookIntakeRecord,
+  broadcast: (shopId: string, event: { type: string } & Record<string, unknown>) => Promise<void> | void,
+): Promise<void> => {
+  const parsedBody = JSON.parse(intake.rawPayload) as unknown;
+  const payload = ShopifyProductsUpdateWebhookPayloadSchema.parse(parsedBody);
+  const productId = normalizeProductId(payload.id);
+  const price = getWebhookPrice(payload);
+  const happenedAt = parseHappenedAt(payload);
   let priceUpdated = false;
   let locationUpdated = false;
 
   if (price) {
     priceUpdated = await scanHistoryRepository.appendPriceChangeIfHistoryExists({
-      shopId: input.shopId,
+      shopId: intake.shopId,
       productId,
       price,
       happenedAt,
       emitBroadcast: false,
     });
-    applied = priceUpdated;
   }
 
   const existingHistory = await scanHistoryRepository.findByShopAndProduct({
-    shopId: input.shopId,
+    shopId: intake.shopId,
     productId,
   });
 
-  if (existingHistory) {
-    const shop = await shopRepository.findById(input.shopId);
+  if (existingHistory && !existingHistory.isSold) {
+    const shop = await shopRepository.findById(intake.shopId);
 
     if (shop?.accessToken) {
       const product = await shopifyAdminApi.getProductWithLocation({
@@ -110,7 +90,7 @@ export const handleProductsUpdateWebhookCommand = async (input: {
 
       if (normalizedLocation && normalizedLocation !== previousLocation) {
         await scanHistoryRepository.appendLocationEvent({
-          shopId: input.shopId,
+          shopId: intake.shopId,
           userId: null,
           username: WEBHOOK_ACTOR,
           currentPrice: product.price,
@@ -130,37 +110,14 @@ export const handleProductsUpdateWebhookCommand = async (input: {
         });
 
         locationUpdated = true;
-        applied = true;
       }
     }
   }
 
-  if (priceUpdated && !locationUpdated) {
-    broadcastToShop(input.shopId, {
+  if (priceUpdated || locationUpdated) {
+    await broadcast(intake.shopId, {
       type: "scan_history_updated",
       productId,
     });
   }
-
-  await prisma.shopifyWebhookDelivery.create({
-    data: {
-      shopId: input.shopId,
-      topic: input.topic,
-      webhookId: input.webhookId,
-    },
-  });
-
-  logger.info("Processed Shopify products/update webhook", {
-    shopId: input.shopId,
-    shopDomain: input.shopDomain,
-    topic: input.topic,
-    webhookId: input.webhookId,
-    productId,
-    applied,
-  });
-
-  return {
-    duplicate: false,
-    applied,
-  };
 };

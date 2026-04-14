@@ -14,12 +14,15 @@ const EnvSchema = z.object({
   SHOPIFY_API_SECRET: z.string().min(1),
   SHOPIFY_SCOPES: z.string().min(1),
   SHOPIFY_APP_URL: z.string().url(),
+  BACKEND_PUBLIC_URL: z.string().url().optional(),
   SHOPIFY_API_VERSION: z.string().min(1).default("2025-10"),
   SHOPIFY_METAFIELD_NAMESPACE: z.string().min(1).default("app"),
   SHOPIFY_METAFIELD_KEY: z.string().min(1).default("item_location"),
+  REDIS_URL: z.string().url().default("redis://127.0.0.1:6379"),
 });
 
 export const env = EnvSchema.parse(process.env);
+export const backendPublicUrl = env.BACKEND_PUBLIC_URL ?? env.SHOPIFY_APP_URL;
 
 const isRelativeSqlitePath = (databaseUrl: string): boolean => {
   if (!databaseUrl.startsWith("file:")) {

@@ -1,6 +1,6 @@
 import { prisma } from "../../../shared/database/prisma-client.js";
 import { logger } from "../../../shared/logging/logger.js";
-import { classifyShopifyChannel, } from "../../../shared/sales-channel/classify-sales-channel.js";
+import { classifyShopifyOrderChannel, } from "../../../shared/sales-channel/classify-sales-channel.js";
 import { scanHistoryRepository } from "../../scanner/repositories/scan-history.repository.js";
 const WEBHOOK_ACTOR = "system:shopify-webhook";
 const UNKNOWN_POSITION_LOCATION = "UNKNOWN_POSITION";
@@ -43,7 +43,11 @@ export const handleOrdersPaidWebhookCommand = async (input) => {
     const orderId = String(input.payload.id);
     const orderGroupId = `order:${orderId}`;
     const soldLocation = `SOLD_ORDER:${orderId}`;
-    const salesChannel = classifyShopifyChannel(input.payload.source_name);
+    const salesChannel = classifyShopifyOrderChannel({
+        sourceName: input.payload.source_name,
+        appId: input.payload.app_id,
+        noteAttributes: input.payload.note_attributes,
+    });
     const lineItemsByProduct = new Map();
     for (const lineItem of input.payload.line_items) {
         if (!lineItem.product_id) {

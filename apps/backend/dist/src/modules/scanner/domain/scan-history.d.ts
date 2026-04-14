@@ -34,6 +34,7 @@ export type ScanHistoryRecord = {
     itemDepth: number | null;
     volume: number | null;
     latestLocation: string | null;
+    isSold: boolean;
     lastSoldChannel: SalesChannel | null;
     lastModifiedAt: Date;
     events: ScanHistoryEvent[];

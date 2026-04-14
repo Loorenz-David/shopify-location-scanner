@@ -81,12 +81,31 @@ const ShopifyOrderLineItemSchema = z.object({
   quantity: z.number().int().min(1).optional(),
 });
 
+const ShopifyNoteAttributeSchema = z.object({
+  name: z.string().trim().min(1),
+  value: z.string().trim().nullable().optional(),
+});
+
 export const ShopifyOrdersPaidWebhookPayloadSchema = z.object({
   id: z.union([z.number().int().positive(), z.string().trim().min(1)]),
   processed_at: z.string().trim().nullable().optional(),
   created_at: z.string().trim().nullable().optional(),
   updated_at: z.string().trim().nullable().optional(),
   source_name: z.string().trim().nullable().optional(),
+  app_id: z.number().int().nullable().optional(),
+  note_attributes: z.array(ShopifyNoteAttributeSchema).optional(),
+  line_items: z.array(ShopifyOrderLineItemSchema),
+});
+
+export const ShopifyOrdersCreateWebhookPayloadSchema = z.object({
+  id: z.union([z.number().int().positive(), z.string().trim().min(1)]),
+  financial_status: z.string().trim().nullable().optional(),
+  processed_at: z.string().trim().nullable().optional(),
+  created_at: z.string().trim().nullable().optional(),
+  updated_at: z.string().trim().nullable().optional(),
+  source_name: z.string().trim().nullable().optional(),
+  app_id: z.number().int().nullable().optional(),
+  note_attributes: z.array(ShopifyNoteAttributeSchema).optional(),
   line_items: z.array(ShopifyOrderLineItemSchema),
 });
 
@@ -127,6 +146,9 @@ export type RemoveMetafieldOptionParams = z.infer<
 >;
 export type ShopifyOrdersPaidWebhookPayload = z.infer<
   typeof ShopifyOrdersPaidWebhookPayloadSchema
+>;
+export type ShopifyOrdersCreateWebhookPayload = z.infer<
+  typeof ShopifyOrdersCreateWebhookPayloadSchema
 >;
 export type ShopifyProductsUpdateWebhookPayload = z.infer<
   typeof ShopifyProductsUpdateWebhookPayloadSchema

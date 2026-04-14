@@ -28,6 +28,7 @@ src/generated/prisma/
 **/src/generated/prisma/
 
 # logs
+ec2-logs/
 logs/
 *.log
 npm-debug.log*

@@ -1,4 +1,4 @@
-import { env } from "../../../config/env.js";
+import { backendPublicUrl, env } from "../../../config/env.js";
 import { AppError } from "../../../shared/errors/app-error.js";
 import { logger } from "../../../shared/logging/logger.js";
 import type {
@@ -10,12 +10,16 @@ import type {
   ShopifySkuSearchItemDto,
 } from "../contracts/shopify.contract.js";
 
-type ManagedWebhookTopic = "ORDERS_PAID" | "PRODUCTS_UPDATE";
+type ManagedWebhookTopic = "ORDERS_CREATE" | "ORDERS_PAID" | "PRODUCTS_UPDATE";
 
 const MANAGED_WEBHOOK_SUBSCRIPTIONS: Array<{
   topic: ManagedWebhookTopic;
   path: string;
 }> = [
+  {
+    topic: "ORDERS_CREATE",
+    path: "/api/shopify/webhooks/orders/create",
+  },
   {
     topic: "ORDERS_PAID",
     path: "/api/shopify/webhooks/orders/paid",
@@ -29,7 +33,7 @@ const MANAGED_WEBHOOK_SUBSCRIPTIONS: Array<{
 const managedWebhookCallbackByTopic = new Map(
   MANAGED_WEBHOOK_SUBSCRIPTIONS.map(({ topic, path }) => [
     topic,
-    new URL(path, env.SHOPIFY_APP_URL).toString(),
+    new URL(path, backendPublicUrl).toString(),
   ]),
 );
 
@@ -240,6 +244,31 @@ const coalesceMetafieldValue = (
   return null;
 };
 
+type ProductCollections = {
+  edges: Array<{
+    node: {
+      title: string;
+    };
+  }>;
+};
+
+const resolveProductCategory = (
+  productType: string,
+  collections: ProductCollections,
+): string | null => {
+  const trimmedType = productType?.trim();
+  if (trimmedType) {
+    return trimmedType;
+  }
+
+  const firstCollection = collections.edges[0]?.node.title?.trim();
+  if (firstCollection) {
+    return firstCollection;
+  }
+
+  return null;
+};
+
 const mapProductNodeToLocationSnapshot = (product: {
   id: string;
   title: string;
@@ -248,6 +277,7 @@ const mapProductNodeToLocationSnapshot = (product: {
   featuredImage: {
     url: string;
   } | null;
+  collections: ProductCollections;
   variants: {
     edges: Array<{
       node: {
@@ -295,7 +325,7 @@ const mapProductNodeToLocationSnapshot = (product: {
   return {
     id: product.id,
     title: product.title,
-    itemCategory: product.productType?.trim() || null,
+    itemCategory: resolveProductCategory(product.productType, product.collections),
     sku: product.variants.edges[0]?.node.sku ?? null,
     barcode: product.variants.edges[0]?.node.barcode ?? null,
     price: product.variants.edges[0]?.node.price ?? null,
@@ -324,6 +354,7 @@ type ListProductsWithLocationResponse = {
         featuredImage: {
           url: string;
         } | null;
+        collections: ProductCollections;
         variants: {
           edges: Array<{
             node: {
@@ -406,6 +437,7 @@ export const shopifyAdminApi = {
         featuredImage: {
           url: string;
         } | null;
+        collections: ProductCollections;
         variants: {
           edges: Array<{
             node: {
@@ -452,6 +484,13 @@ export const shopifyAdminApi = {
           updatedAt
           featuredImage {
             url
+          }
+          collections(first: 5) {
+            edges {
+              node {
+                title
+              }
+            }
           }
           variants(first: 1) {
             edges {
@@ -569,6 +608,13 @@ export const shopifyAdminApi = {
                 updatedAt
                 featuredImage {
                   url
+                }
+                collections(first: 5) {
+                  edges {
+                    node {
+                      title
+                    }
+                  }
                 }
                 variants(first: 1) {
                   edges {
@@ -1085,7 +1131,7 @@ export const shopifyAdminApi = {
     );
 
     for (const { topic, path } of MANAGED_WEBHOOK_SUBSCRIPTIONS) {
-      const callbackUrl = new URL(path, env.SHOPIFY_APP_URL).toString();
+      const callbackUrl = new URL(path, backendPublicUrl).toString();
       const alreadySubscribed = existing.webhookSubscriptions.edges.some(
         (edge) =>
           edge.node.topic === topic &&

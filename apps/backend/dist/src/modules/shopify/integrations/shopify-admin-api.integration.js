@@ -1,4 +1,4 @@
-import { env } from "../../../config/env.js";
+import { backendPublicUrl, env } from "../../../config/env.js";
 import { AppError } from "../../../shared/errors/app-error.js";
 import { logger } from "../../../shared/logging/logger.js";
 const MANAGED_WEBHOOK_SUBSCRIPTIONS = [
@@ -13,7 +13,7 @@ const MANAGED_WEBHOOK_SUBSCRIPTIONS = [
 ];
 const managedWebhookCallbackByTopic = new Map(MANAGED_WEBHOOK_SUBSCRIPTIONS.map(({ topic, path }) => [
     topic,
-    new URL(path, env.SHOPIFY_APP_URL).toString(),
+    new URL(path, backendPublicUrl).toString(),
 ]));
 const isWebhookHttpEndpoint = (endpoint) => endpoint.__typename === "WebhookHttpEndpoint";
 const sleep = async (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -654,7 +654,7 @@ export const shopifyAdminApi = {
             first: 100,
         });
         for (const { topic, path } of MANAGED_WEBHOOK_SUBSCRIPTIONS) {
-            const callbackUrl = new URL(path, env.SHOPIFY_APP_URL).toString();
+            const callbackUrl = new URL(path, backendPublicUrl).toString();
             const alreadySubscribed = existing.webhookSubscriptions.edges.some((edge) => edge.node.topic === topic &&
                 isWebhookHttpEndpoint(edge.node.endpoint) &&
                 edge.node.endpoint.callbackUrl === callbackUrl);

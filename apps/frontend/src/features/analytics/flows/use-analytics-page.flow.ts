@@ -102,12 +102,11 @@ export function useAnalyticsPageFlow() {
     };
   }, [dateRange, setVelocity, setVelocityCompareSeries, velocityChannel]);
 
-  useWsEvent(
-    "scan_history_updated",
-    (_event: Extract<WsInboundEvent, { type: "scan_history_updated" }>) => {
-      void load();
-    },
-  );
+  const handleScanHistoryUpdated = useCallback(() => {
+    void load();
+  }, [load]);
+
+  useWsEvent("scan_history_updated", handleScanHistoryUpdated);
 
   return {
     store: useAnalyticsStore(),

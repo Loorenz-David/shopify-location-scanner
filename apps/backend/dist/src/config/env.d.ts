@@ -11,7 +11,10 @@ export declare const env: {
     SHOPIFY_API_VERSION: string;
     SHOPIFY_METAFIELD_NAMESPACE: string;
     SHOPIFY_METAFIELD_KEY: string;
+    REDIS_URL: string;
     FRONTEND_URLS?: string | undefined;
     ADMIN_KEY?: string | undefined;
+    BACKEND_PUBLIC_URL?: string | undefined;
 };
+export declare const backendPublicUrl: string;
 //# sourceMappingURL=env.d.ts.map

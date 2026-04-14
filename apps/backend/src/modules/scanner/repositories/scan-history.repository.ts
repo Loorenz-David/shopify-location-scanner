@@ -40,6 +40,11 @@ const normalizeCategory = (category?: string | null): string => {
   return trimmed ? trimmed : "unknown";
 };
 
+const normalizeLocation = (location?: string | null): string | null => {
+  const trimmed = location?.trim();
+  return trimmed ? trimmed : null;
+};
+
 const parsePriceValue = (price?: string | null): number => {
   if (!price) {
     return 0;
@@ -132,6 +137,7 @@ const toDomain = (record: any): ScanHistoryRecord => {
     itemDepth: record.itemDepth,
     volume: record.volume,
     latestLocation: record.latestLocation,
+    isSold: record.isSold,
     lastSoldChannel: record.lastSoldChannel,
     lastModifiedAt: record.lastModifiedAt,
     events: record.events.map((entry: any) => ({
@@ -189,19 +195,25 @@ export const scanHistoryRepository = {
   ): Promise<ScanHistoryRecord> {
     const happenedAt = input.happenedAt ?? new Date();
     const eventType = input.eventType ?? "location_update";
+    const normalizedLocation = normalizeLocation(input.location);
     const currentPrice = normalizePrice(input.currentPrice);
     const itemCategory = normalizeCategory(input.itemCategory);
     const itemHeight = normalizeDimension(input.itemHeight);
     const itemWidth = normalizeDimension(input.itemWidth);
     const itemDepth = normalizeDimension(input.itemDepth);
     const volume = normalizeVolume(input.volume);
+    let didAppendLocationEvent = false;
+
+    if (!normalizedLocation) {
+      throw new Error("Location is required");
+    }
 
     logger.info("Scan history append started", {
       shopId: input.shopId,
       productId: input.productId,
       username: input.username,
       eventType,
-      location: input.location,
+      location: normalizedLocation,
       hasPrice: currentPrice !== null,
       hasVolume: volume !== null,
     });
@@ -221,7 +233,7 @@ export const scanHistoryRepository = {
           shopId: input.shopId,
           productId: input.productId,
           eventType,
-          location: input.location,
+          location: normalizedLocation,
         });
 
         const createdHistory = await tx.scanHistory.create({
@@ -240,14 +252,14 @@ export const scanHistoryRepository = {
             itemWidth,
             itemDepth,
             volume,
-            latestLocation: input.location,
+            latestLocation: normalizedLocation,
             isSold: eventType === "sold_terminal",
             lastModifiedAt: happenedAt,
             events: {
               create: {
                 username: input.username,
                 eventType,
-                location: input.location,
+                location: normalizedLocation,
                 happenedAt,
               },
             },
@@ -283,12 +295,12 @@ export const scanHistoryRepository = {
             where: {
               date_location: {
                 date: statsDate,
-                location: input.location,
+                location: normalizedLocation,
               },
             },
             create: {
               date: statsDate,
-              location: input.location,
+              location: normalizedLocation,
               itemsReceived: 1,
               itemsSold: 0,
               totalTimeToSellSeconds: 0,
@@ -300,6 +312,7 @@ export const scanHistoryRepository = {
           });
         }
 
+        didAppendLocationEvent = true;
         return createdHistory;
       }
 
@@ -308,8 +321,26 @@ export const scanHistoryRepository = {
         shopId: input.shopId,
         productId: input.productId,
         eventType,
-        location: input.location,
+        location: normalizedLocation,
       });
+
+      if (normalizeLocation(existing.latestLocation) === normalizedLocation) {
+        return tx.scanHistory.findUniqueOrThrow({
+          where: { id: existing.id },
+          include: {
+            events: {
+              orderBy: {
+                happenedAt: "desc",
+              },
+            },
+            priceHistory: {
+              orderBy: {
+                happenedAt: "desc",
+              },
+            },
+          },
+        });
+      }
 
       await tx.scanHistory.update({
         where: { id: existing.id },
@@ -326,7 +357,7 @@ export const scanHistoryRepository = {
           ...(itemWidth !== null ? { itemWidth } : {}),
           ...(itemDepth !== null ? { itemDepth } : {}),
           ...(volume !== null ? { volume } : {}),
-          latestLocation: input.location,
+          latestLocation: normalizedLocation,
           isSold: eventType === "sold_terminal",
           lastModifiedAt: happenedAt,
         },
@@ -337,7 +368,7 @@ export const scanHistoryRepository = {
           scanHistoryId: existing.id,
           username: input.username,
           eventType,
-          location: input.location,
+          location: normalizedLocation,
           happenedAt,
         },
       });
@@ -349,12 +380,12 @@ export const scanHistoryRepository = {
           where: {
             date_location: {
               date: statsDate,
-              location: input.location,
+              location: normalizedLocation,
             },
           },
           create: {
             date: statsDate,
-            location: input.location,
+            location: normalizedLocation,
             itemsReceived: 1,
             itemsSold: 0,
             totalTimeToSellSeconds: 0,
@@ -387,6 +418,7 @@ export const scanHistoryRepository = {
         }
       }
 
+      didAppendLocationEvent = true;
       return tx.scanHistory.findUniqueOrThrow({
         where: { id: existing.id },
         include: {
@@ -413,10 +445,12 @@ export const scanHistoryRepository = {
     });
 
     const result = toDomain(history);
-    broadcastToShop(input.shopId, {
-      type: "scan_history_updated",
-      productId: result.productId,
-    });
+    if (didAppendLocationEvent) {
+      broadcastToShop(input.shopId, {
+        type: "scan_history_updated",
+        productId: result.productId,
+      });
+    }
 
     return result;
   },
@@ -445,8 +479,14 @@ export const scanHistoryRepository = {
     const soldPrice = normalizePrice(input.soldPrice);
     const soldValuation = parsePriceValue(soldPrice);
     const itemCategory = normalizeCategory(input.itemCategory);
+    const normalizedUnknownLocation = normalizeLocation(input.unknownLocation);
+    const normalizedSoldLocation = normalizeLocation(input.soldLocation);
     const orderId = input.orderId ?? null;
     const orderGroupId = input.orderGroupId ?? null;
+
+    if (!normalizedUnknownLocation || !normalizedSoldLocation) {
+      throw new Error("Sold and fallback locations are required");
+    }
 
     const history = await prisma.$transaction(async (tx) => {
       const txWithSalesChannelStats = tx as typeof tx & {
@@ -469,12 +509,12 @@ export const scanHistoryRepository = {
             where: {
               date_location: {
                 date: statsDate,
-                location: input.unknownLocation,
+                location: normalizedUnknownLocation,
               },
             },
             create: {
               date: statsDate,
-              location: input.unknownLocation,
+              location: normalizedUnknownLocation,
               itemsSold: 1,
               itemsReceived: 0,
               totalTimeToSellSeconds: 0,
@@ -497,13 +537,13 @@ export const scanHistoryRepository = {
             where: {
               date_location_itemCategory: {
                 date: statsDate,
-                location: input.unknownLocation,
+                location: normalizedUnknownLocation,
                 itemCategory,
               },
             },
             create: {
               date: statsDate,
-              location: input.unknownLocation,
+              location: normalizedUnknownLocation,
               itemCategory,
               itemsSold: 1,
               totalRevenue: soldValuation,
@@ -556,7 +596,7 @@ export const scanHistoryRepository = {
             itemImageUrl: input.itemImageUrl ?? null,
             itemType: input.itemType,
             itemTitle: input.itemTitle,
-            latestLocation: input.soldLocation,
+            latestLocation: normalizedSoldLocation,
             isSold: true,
             lastSoldChannel: salesChannel,
             lastModifiedAt: happenedAt,
@@ -567,7 +607,7 @@ export const scanHistoryRepository = {
                   eventType: "unknown_position",
                   orderId,
                   orderGroupId,
-                  location: input.unknownLocation,
+                  location: normalizedUnknownLocation,
                   happenedAt,
                 },
                 {
@@ -576,7 +616,7 @@ export const scanHistoryRepository = {
                   orderId,
                   orderGroupId,
                   salesChannel,
-                  location: input.soldLocation,
+                  location: normalizedSoldLocation,
                   happenedAt,
                 },
               ],
@@ -615,33 +655,66 @@ export const scanHistoryRepository = {
         });
       }
 
-      await tx.scanHistory.update({
-        where: { id: existing.id },
-        data: {
-          userId: input.userId ?? null,
-          username: input.username,
-          itemCategory,
-          itemSku: input.itemSku ?? null,
-          itemBarcode: input.itemBarcode ?? null,
-          itemImageUrl: input.itemImageUrl ?? null,
-          itemType: input.itemType,
-          itemTitle: input.itemTitle,
-          latestLocation: input.soldLocation,
-          isSold: true,
-          lastSoldChannel: salesChannel,
-          lastModifiedAt: happenedAt,
-        },
-      });
+      if (orderId) {
+        const alreadyProcessedForOrder = await tx.scanHistoryEvent.findFirst({
+          where: {
+            scanHistoryId: existing.id,
+            orderId,
+            eventType: "sold_terminal",
+          },
+        });
+
+        if (alreadyProcessedForOrder) {
+          return tx.scanHistory.findUniqueOrThrow({
+            where: { id: existing.id },
+            include: {
+              events: {
+                orderBy: {
+                  happenedAt: "desc",
+                },
+              },
+              priceHistory: {
+                orderBy: {
+                  happenedAt: "desc",
+                },
+              },
+            },
+          });
+        }
+      }
 
       const alreadyTerminalForLocation = await tx.scanHistoryEvent.findFirst({
         where: {
           scanHistoryId: existing.id,
           eventType: "sold_terminal",
-          location: input.soldLocation,
+          location: normalizedSoldLocation,
         },
       });
 
+      const latestLocationUnchanged =
+        normalizeLocation(existing.latestLocation) === normalizedSoldLocation;
+
       if (alreadyTerminalForLocation) {
+        await tx.scanHistory.update({
+          where: { id: existing.id },
+          data: {
+            userId: input.userId ?? null,
+            username: input.username,
+            itemCategory,
+            itemSku: input.itemSku ?? null,
+            itemBarcode: input.itemBarcode ?? null,
+            itemImageUrl: input.itemImageUrl ?? null,
+            itemType: input.itemType,
+            itemTitle: input.itemTitle,
+            ...(latestLocationUnchanged
+              ? {}
+              : { latestLocation: normalizedSoldLocation }),
+            isSold: true,
+            lastSoldChannel: salesChannel,
+            lastModifiedAt: happenedAt,
+          },
+        });
+
         return tx.scanHistory.findUniqueOrThrow({
           where: { id: existing.id },
           include: {
@@ -659,6 +732,26 @@ export const scanHistoryRepository = {
         });
       }
 
+      await tx.scanHistory.update({
+        where: { id: existing.id },
+        data: {
+          userId: input.userId ?? null,
+          username: input.username,
+          itemCategory,
+          itemSku: input.itemSku ?? null,
+          itemBarcode: input.itemBarcode ?? null,
+          itemImageUrl: input.itemImageUrl ?? null,
+          itemType: input.itemType,
+          itemTitle: input.itemTitle,
+          ...(latestLocationUnchanged
+            ? {}
+            : { latestLocation: normalizedSoldLocation }),
+          isSold: true,
+          lastSoldChannel: salesChannel,
+          lastModifiedAt: happenedAt,
+        },
+      });
+
       const arrivedEvent = await tx.scanHistoryEvent.findFirst({
         where: {
           scanHistoryId: existing.id,
@@ -672,25 +765,27 @@ export const scanHistoryRepository = {
       });
 
       const arrivedTime = arrivedEvent?.happenedAt ?? happenedAt;
-      const arrivedLocation = arrivedEvent?.location ?? input.unknownLocation;
+      const arrivedLocation = arrivedEvent?.location ?? normalizedUnknownLocation;
       const totalTimeToSellSeconds = toDurationSeconds(arrivedTime, happenedAt);
       const statsDate = startOfUtcDay(happenedAt);
       const soldItemCategory = normalizeCategory(
         existing.itemCategory ?? itemCategory,
       );
 
-      await tx.scanHistoryEvent.create({
-        data: {
-          scanHistoryId: existing.id,
-          username: input.username,
-          eventType: "sold_terminal",
-          orderId,
-          orderGroupId,
-          salesChannel,
-          location: input.soldLocation,
-          happenedAt,
-        },
-      });
+      if (!latestLocationUnchanged) {
+        await tx.scanHistoryEvent.create({
+          data: {
+            scanHistoryId: existing.id,
+            username: input.username,
+            eventType: "sold_terminal",
+            orderId,
+            orderGroupId,
+            salesChannel,
+            location: normalizedSoldLocation,
+            happenedAt,
+          },
+        });
+      }
 
       await tx.scanHistoryPrice.create({
         data: {
@@ -823,53 +918,55 @@ export const scanHistoryRepository = {
       return false;
     }
 
-    const didAppend = await prisma.$transaction(async (tx) => {
-      const existing = await tx.scanHistory.findUnique({
-        where: {
-          shopId_productId: {
-            shopId: input.shopId,
-            productId: input.productId,
-          },
+    const existing = await prisma.scanHistory.findUnique({
+      where: {
+        shopId_productId: {
+          shopId: input.shopId,
+          productId: input.productId,
         },
-      });
-
-      if (!existing) {
-        return false;
-      }
-
-      const latestPrice = await tx.scanHistoryPrice.findFirst({
-        where: {
-          scanHistoryId: existing.id,
-        },
-        orderBy: {
-          happenedAt: "desc",
-        },
-      });
-
-      if (latestPrice?.price === normalizedPrice) {
-        return true;
-      }
-
-      await tx.scanHistoryPrice.create({
-        data: {
-          scanHistoryId: existing.id,
-          price: normalizedPrice,
-          terminalType: "price_update",
-          happenedAt,
-        },
-      });
-
-      return true;
+      },
+      select: {
+        id: true,
+      },
     });
 
-    if (didAppend && input.emitBroadcast !== false) {
+    if (!existing) {
+      return false;
+    }
+
+    const latestPrice = await prisma.scanHistoryPrice.findFirst({
+      where: {
+        scanHistoryId: existing.id,
+      },
+      orderBy: {
+        happenedAt: "desc",
+      },
+      select: {
+        price: true,
+      },
+    });
+
+    if (latestPrice?.price === normalizedPrice) {
+      return false;
+    }
+
+    await prisma.scanHistoryPrice.create({
+      data: {
+        scanHistoryId: existing.id,
+        price: normalizedPrice,
+        terminalType: "price_update",
+        happenedAt,
+      },
+    });
+
+    if (input.emitBroadcast !== false) {
       broadcastToShop(input.shopId, {
         type: "scan_history_updated",
         productId: input.productId,
       });
     }
 
-    return didAppend;
+    return true;
   },
 
   async listByShopPaginated(input: {

@@ -5,7 +5,7 @@ import {
   type SalesChannel,
 } from "../../../shared/sales-channel/classify-sales-channel.js";
 import { scanHistoryRepository } from "../../scanner/repositories/scan-history.repository.js";
-import type { ShopifyOrdersPaidWebhookPayload } from "../contracts/shopify.contract.js";
+import type { ShopifyOrdersCreateWebhookPayload } from "../contracts/shopify.contract.js";
 
 const WEBHOOK_ACTOR = "system:shopify-webhook";
 const UNKNOWN_POSITION_LOCATION = "UNKNOWN_POSITION";
@@ -24,9 +24,9 @@ const normalizeProductId = (rawProductId: number | string): string => {
   return asString;
 };
 
-const parsePaidDate = (payload: ShopifyOrdersPaidWebhookPayload): Date => {
+const parseOrderDate = (payload: ShopifyOrdersCreateWebhookPayload): Date => {
   const rawDate =
-    payload.processed_at ?? payload.updated_at ?? payload.created_at;
+    payload.processed_at ?? payload.created_at ?? payload.updated_at;
   if (!rawDate) {
     return new Date();
   }
@@ -35,17 +35,34 @@ const parsePaidDate = (payload: ShopifyOrdersPaidWebhookPayload): Date => {
   return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
 };
 
-export const handleOrdersPaidWebhookCommand = async (input: {
+export const handleOrdersCreateWebhookCommand = async (input: {
   shopId: string;
   shopDomain: string;
   topic: string;
   webhookId: string;
-  payload: ShopifyOrdersPaidWebhookPayload;
+  payload: ShopifyOrdersCreateWebhookPayload;
 }): Promise<{
+  skipped: boolean;
   duplicate: boolean;
   processedProducts: number;
   skippedProducts: number;
 }> => {
+  if (input.payload.financial_status !== "paid") {
+    logger.info("Skipping orders/create webhook: financial_status is not paid", {
+      shopId: input.shopId,
+      shopDomain: input.shopDomain,
+      webhookId: input.webhookId,
+      financial_status: input.payload.financial_status ?? null,
+    });
+
+    return {
+      skipped: true,
+      duplicate: false,
+      processedProducts: 0,
+      skippedProducts: 0,
+    };
+  }
+
   const existing = await prisma.shopifyWebhookDelivery.findUnique({
     where: {
       shopId_topic_webhookId: {
@@ -58,13 +75,14 @@ export const handleOrdersPaidWebhookCommand = async (input: {
 
   if (existing) {
     return {
+      skipped: false,
       duplicate: true,
       processedProducts: 0,
       skippedProducts: 0,
     };
   }
 
-  const paidAt = parsePaidDate(input.payload);
+  const happenedAt = parseOrderDate(input.payload);
   const orderId = String(input.payload.id);
   const orderGroupId = `order:${orderId}`;
   const soldLocation = `SOLD_ORDER:${orderId}`;
@@ -118,7 +136,7 @@ export const handleOrdersPaidWebhookCommand = async (input: {
       orderGroupId,
       unknownLocation: UNKNOWN_POSITION_LOCATION,
       soldLocation,
-      happenedAt: paidAt,
+      happenedAt,
       salesChannel,
     });
 
@@ -145,7 +163,7 @@ export const handleOrdersPaidWebhookCommand = async (input: {
 
   const skippedProducts = input.payload.line_items.length - processedProducts;
 
-  logger.info("Processed Shopify orders/paid webhook", {
+  logger.info("Processed Shopify orders/create webhook", {
     shopId: input.shopId,
     shopDomain: input.shopDomain,
     topic: input.topic,
@@ -156,6 +174,7 @@ export const handleOrdersPaidWebhookCommand = async (input: {
   });
 
   return {
+    skipped: false,
     duplicate: false,
     processedProducts,
     skippedProducts,

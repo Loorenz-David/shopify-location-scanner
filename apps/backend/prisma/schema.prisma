@@ -31,6 +31,13 @@ enum SalesChannel {
   unknown
 }
 
+enum WebhookIntakeStatus {
+  pending
+  processing
+  processed
+  failed
+}
+
 model Shop {
   id            String        @id @default(cuid())
   shopDomain    String        @unique
@@ -41,6 +48,7 @@ model Shop {
   scanHistories ScanHistory[]
   storeZones    StoreZone[]
   webhookDeliveries ShopifyWebhookDelivery[]
+  webhookIntakeRecords WebhookIntakeRecord[]
 }
 
 model User {
@@ -167,6 +175,30 @@ model ShopifyWebhookDelivery {
   @@unique([shopId, topic, webhookId])
   @@index([shopId, createdAt])
   @@index([topic, createdAt])
+}
+
+model WebhookIntakeRecord {
+  id          String              @id @default(cuid())
+  shopId      String
+  shopDomain  String
+  topic       String
+  webhookId   String
+  rawPayload  String
+  dedupeKey   String              @unique
+  status      WebhookIntakeStatus @default(pending)
+  attempts    Int                 @default(0)
+  processedAt DateTime?
+  lastError   String?
+  retryable   Boolean             @default(true)
+  receivedAt  DateTime            @default(now())
+  createdAt   DateTime            @default(now())
+  updatedAt   DateTime            @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, status])
+  @@index([topic, status])
+  @@index([status, createdAt])
 }
 
 model LocationStatsDaily {

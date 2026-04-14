@@ -40,12 +40,19 @@ cp apps/backend/.env.production.example apps/backend/.env
 Important values:
 
 - `DATABASE_URL=file:/var/lib/item-scanner/data/app.db`
-- `SHOPIFY_APP_URL=https://api.your-domain.com`
 - `FRONTEND_URL=https://your-frontend-domain.com`
+- `SHOPIFY_APP_URL=https://your-frontend-domain.com`
+- `BACKEND_PUBLIC_URL=https://api.your-domain.com`
 
 Shopify callback URL must exactly be:
 
 - `https://api.your-domain.com/api/shopify/oauth/callback`
+
+Notes:
+
+- `SHOPIFY_APP_URL` is the browser-facing embedded app URL.
+- `BACKEND_PUBLIC_URL` is the backend base URL used for OAuth callback and webhook registration.
+- Managed webhook callback URLs must resolve under the backend domain.
 
 ## 3) Deploy
 

@@ -1,4 +1,4 @@
-import { AppendMetafieldOptionsInputSchema, InstallShopInputSchema, QueryBySkuSchema, RemoveMetafieldOptionParamsSchema, ShopifyProductsUpdateWebhookPayloadSchema, SetMetafieldOptionsInputSchema, ShopifyOrdersPaidWebhookPayloadSchema, ShopifyCallbackQuerySchema, UpdateItemLocationByIdentifierBatchSchema, UpdateItemLocationByIdentifierSchema, UpdateItemLocationInputSchema, } from "../contracts/shopify.contract.js";
+import { AppendMetafieldOptionsInputSchema, InstallShopInputSchema, QueryBySkuSchema, RemoveMetafieldOptionParamsSchema, SetMetafieldOptionsInputSchema, ShopifyOrdersPaidWebhookPayloadSchema, ShopifyCallbackQuerySchema, UpdateItemLocationByIdentifierBatchSchema, UpdateItemLocationByIdentifierSchema, UpdateItemLocationInputSchema, } from "../contracts/shopify.contract.js";
 import { createInstallUrlCommand } from "../commands/create-install-url.command.js";
 import { handleOauthCallbackCommand } from "../commands/handle-oauth-callback.command.js";
 import { getProductQuery } from "../queries/get-product.query.js";
@@ -16,7 +16,8 @@ import { AppError } from "../../../shared/errors/app-error.js";
 import { logger } from "../../../shared/logging/logger.js";
 import { appendMetafieldOptionsCommand } from "../commands/append-metafield-options.command.js";
 import { handleOrdersPaidWebhookCommand } from "../commands/handle-orders-paid-webhook.command.js";
-import { handleProductsUpdateWebhookCommand } from "../commands/handle-products-update-webhook.command.js";
+import { webhookQueue } from "../../../shared/queue/index.js";
+import { webhookIntakeRepository } from "../repositories/webhook-intake.repository.js";
 const extractCallbackParams = (req) => {
     const url = new URL(req.originalUrl, "http://localhost");
     const params = {};
@@ -31,22 +32,27 @@ export const shopifyController = {
         if (!context) {
             throw new ValidationError("Webhook context missing");
         }
-        let parsedBody;
-        try {
-            parsedBody = JSON.parse(context.rawBody);
-        }
-        catch {
-            throw new ValidationError("Invalid webhook JSON payload");
-        }
-        const payload = ShopifyProductsUpdateWebhookPayloadSchema.parse(parsedBody);
-        const result = await handleProductsUpdateWebhookCommand({
+        const { id: intakeId, isDuplicate } = await webhookIntakeRepository.createIntakeRecord({
             shopId: context.shopId,
             shopDomain: context.shopDomain,
             topic: context.topic,
             webhookId: context.webhookId,
-            payload,
+            rawPayload: context.rawBody,
         });
-        res.status(200).json({ ok: true, ...result });
+        await webhookQueue.add(context.topic, {
+            intakeId,
+        }, {
+            jobId: intakeId,
+        });
+        logger.info("Accepted Shopify products/update webhook", {
+            shopId: context.shopId,
+            shopDomain: context.shopDomain,
+            topic: context.topic,
+            webhookId: context.webhookId,
+            intakeId,
+            isDuplicate,
+        });
+        res.status(200).json({ received: true });
     },
     handleOrdersPaidWebhook: async (req, res) => {
         const context = req.webhookContext;

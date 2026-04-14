@@ -22,26 +22,28 @@ export function useItemScanHistoryRealtimeFlow(): void {
     void itemScanHistoryActions.refreshHistoryItem(productId);
   }, []);
 
-  useWsEvent("scan_history_updated", (event: Extract<
-    WsInboundEvent,
-    { type: "scan_history_updated" }
-  >) => {
-    const normalizedProductId = event.productId.trim();
-    if (!normalizedProductId) {
-      return;
-    }
+  const handleScanHistoryUpdated = useCallback(
+    (event: Extract<WsInboundEvent, { type: "scan_history_updated" }>) => {
+      const normalizedProductId = event.productId.trim();
+      if (!normalizedProductId) {
+        return;
+      }
 
-    const now = Date.now();
-    const lastRefreshAt =
-      lastRefreshByProductIdRef.current.get(normalizedProductId) ?? 0;
+      const now = Date.now();
+      const lastRefreshAt =
+        lastRefreshByProductIdRef.current.get(normalizedProductId) ?? 0;
 
-    if (now - lastRefreshAt < WS_REFRESH_DEDUPE_MS) {
-      return;
-    }
+      if (now - lastRefreshAt < WS_REFRESH_DEDUPE_MS) {
+        return;
+      }
 
-    lastRefreshByProductIdRef.current.set(normalizedProductId, now);
-    refreshHistoryItem(normalizedProductId);
-  });
+      lastRefreshByProductIdRef.current.set(normalizedProductId, now);
+      refreshHistoryItem(normalizedProductId);
+    },
+    [refreshHistoryItem],
+  );
+
+  useWsEvent("scan_history_updated", handleScanHistoryUpdated);
 }
 
 export function useItemScanHistoryFlow(): void {
