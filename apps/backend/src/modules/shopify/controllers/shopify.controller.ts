@@ -37,13 +37,13 @@ import { handleOrdersPaidWebhookCommand } from "../commands/handle-orders-paid-w
 import { webhookQueue } from "../../../shared/queue/index.js";
 import { webhookIntakeRepository } from "../repositories/webhook-intake.repository.js";
 
-const extractCallbackParams = (req: Request): Record<string, string> => {
-  const url = new URL(req.originalUrl, "http://localhost");
+const extractRawQueryParams = (req: Request): Record<string, string> => {
   const params: Record<string, string> = {};
-  for (const [key, value] of url.searchParams.entries()) {
-    params[key] = value;
+  for (const [key, value] of Object.entries(req.query)) {
+    if (typeof value === "string") {
+      params[key] = value;
+    }
   }
-
   return params;
 };
 
@@ -160,6 +160,13 @@ export const shopifyController = {
   },
 
   callback: async (req: Request, res: Response): Promise<void> => {
+    logger.info("Shopify OAuth callback received", {
+      shop: req.query.shop,
+      rawParamKeys: Object.keys(req.query),
+      originalUrl: req.originalUrl,
+      skipHmac: env.SHOPIFY_DEBUG_SKIP_HMAC,
+    });
+
     const parsed = ShopifyCallbackQuerySchema.parse({
       code: req.query.code,
       hmac: req.query.hmac,
@@ -168,11 +175,12 @@ export const shopifyController = {
       timestamp: req.query.timestamp,
     });
 
-    const rawParams = extractCallbackParams(req);
+    const rawParams = extractRawQueryParams(req);
 
     await handleOauthCallbackCommand({
       query: parsed,
       rawParams,
+      skipHmacValidation: env.SHOPIFY_DEBUG_SKIP_HMAC,
     });
 
     res.redirect(302, env.FRONTEND_URL);
