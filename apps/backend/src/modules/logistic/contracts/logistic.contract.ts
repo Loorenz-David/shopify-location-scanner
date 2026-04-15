@@ -23,6 +23,7 @@ export const MarkIntentionInputSchema = z.object({
   scanHistoryId: z.string().min(1),
   intention: LogisticIntentionSchema,
   fixItem: z.boolean(),
+  fixNotes: z.string().trim().max(500).optional(),
   scheduledDate: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "Must be yyyy-mm-dd")
@@ -43,8 +44,20 @@ export const FulfilItemInputSchema = z.object({
   scanHistoryId: z.string().min(1),
 });
 
+export const MarkItemFixedInputSchema = z.object({
+  scanHistoryId: z.string().min(1),
+});
+
+export const UpdateFixNotesInputSchema = z.object({
+  fixNotes: z.string().trim().max(500).nullable(),
+});
+
 export const GetLogisticItemsQuerySchema = z.object({
   fixItem: z.preprocess(
+    (v) => (v === "true" ? true : v === "false" ? false : v),
+    z.boolean().optional(),
+  ),
+  isItemFixed: z.preprocess(
     (v) => (v === "true" ? true : v === "false" ? false : v),
     z.boolean().optional(),
   ),
@@ -92,6 +105,7 @@ export type GetLogisticLocationsQuery = z.infer<
 >;
 
 export type LogisticZoneType = z.infer<typeof LogisticZoneTypeSchema>;
+export type UpdateFixNotesInput = z.infer<typeof UpdateFixNotesInputSchema>;
 
 // Response DTO — shape returned by all location endpoints and bootstrap
 export type LogisticLocationDto = {

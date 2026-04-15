@@ -43,6 +43,7 @@ export const markLogisticIntentionCommand = async (input: {
       data: {
         intention: input.payload.intention as any,
         fixItem: input.payload.fixItem,
+        fixNotes: input.payload.fixNotes ?? null,
         scheduledDate: input.payload.scheduledDate ?? null,
       },
     });

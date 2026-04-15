@@ -3,11 +3,13 @@ import {
   CreateLogisticLocationInputSchema,
   DeletePushSubscriptionInputSchema,
   FulfilItemInputSchema,
+  MarkItemFixedInputSchema,
   GetLogisticItemsQuerySchema,
   GetLogisticLocationsQuerySchema,
   MarkIntentionInputSchema,
   MarkPlacementInputSchema,
   SavePushSubscriptionInputSchema,
+  UpdateFixNotesInputSchema,
   UpdateLogisticLocationInputSchema,
 } from "../contracts/logistic.contract.js";
 import { logisticLocationRepository } from "../repositories/logistic-location.repository.js";
@@ -15,6 +17,8 @@ import { pushSubscriptionRepository } from "../repositories/push-subscription.re
 import { markLogisticIntentionCommand } from "../commands/mark-logistic-intention.command.js";
 import { markLogisticPlacementCommand } from "../commands/mark-logistic-placement.command.js";
 import { fulfilLogisticItemService } from "../services/fulfil-logistic-item.service.js";
+import { markItemFixedService } from "../services/mark-item-fixed.service.js";
+import { updateFixNotesService } from "../services/update-fix-notes.service.js";
 import { getLogisticItemsQuery } from "../queries/get-logistic-items.query.js";
 import { logger } from "../../../shared/logging/logger.js";
 import {
@@ -101,6 +105,7 @@ export const logisticController = {
   getItems: async (req: Request, res: Response): Promise<void> => {
     const filters = GetLogisticItemsQuerySchema.parse({
       fixItem: req.query.fixItem,
+      isItemFixed: req.query.isItemFixed,
       lastLogisticEventType: req.query.lastLogisticEventType,
       zoneType: req.query.zoneType,
       intention: req.query.intention,
@@ -145,6 +150,30 @@ export const logisticController = {
       shopId: req.authUser.shopId as string,
       username: req.authUser.username,
     });
+    res.status(200).json({ ok: true });
+  },
+
+  markItemFixed: async (req: Request, res: Response): Promise<void> => {
+    const input = MarkItemFixedInputSchema.parse(req.body);
+    await markItemFixedService({
+      scanHistoryId: input.scanHistoryId,
+      shopId: req.authUser.shopId as string,
+    });
+    res.status(200).json({ ok: true });
+  },
+
+  updateFixNotes: async (req: Request, res: Response): Promise<void> => {
+    const scanHistoryId = req.params["scanHistoryId"] as string;
+    if (!scanHistoryId) throw new ValidationError("scanHistoryId param is required");
+
+    const input = UpdateFixNotesInputSchema.parse(req.body);
+
+    await updateFixNotesService({
+      scanHistoryId,
+      shopId: req.authUser.shopId as string,
+      fixNotes: input.fixNotes,
+    });
+
     res.status(200).json({ ok: true });
   },
 

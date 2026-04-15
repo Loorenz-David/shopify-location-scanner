@@ -11,9 +11,7 @@ export function getVisibleBottomMenuItems(
   activePageId: HomePageId | null,
 ): BottomMenuItem[] {
   return Object.values(registry)
-    .filter(
-      (page) => Boolean(page.bottomMenu) && (page.bottomMenu?.visible ?? true),
-    )
+    .filter((page) => Boolean(page.bottomMenu))
     .sort(
       (left, right) =>
         (left.bottomMenu?.order ?? 0) - (right.bottomMenu?.order ?? 0),
@@ -21,8 +19,10 @@ export function getVisibleBottomMenuItems(
     .map((page) => ({
       id: page.id,
       label: page.bottomMenu?.label ?? page.title,
+      icon: page.bottomMenu?.icon,
       slot: page.bottomMenu?.slot ?? "center",
       isActive: page.id === activePageId,
+      isHidden: !(page.bottomMenu?.visible ?? true),
     }));
 }
 

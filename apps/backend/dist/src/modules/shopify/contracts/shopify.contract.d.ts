@@ -55,6 +55,30 @@ export declare const RemoveMetafieldOptionParamsSchema: z.ZodObject<{
 }, z.core.$strip>;
 export declare const ShopifyOrdersPaidWebhookPayloadSchema: z.ZodObject<{
     id: z.ZodUnion<readonly [z.ZodNumber, z.ZodString]>;
+    order_number: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+    processed_at: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    created_at: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    updated_at: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    source_name: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    app_id: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+    note_attributes: z.ZodOptional<z.ZodArray<z.ZodObject<{
+        name: z.ZodString;
+        value: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+    }, z.core.$strip>>>;
+    line_items: z.ZodArray<z.ZodObject<{
+        id: z.ZodUnion<readonly [z.ZodNumber, z.ZodString]>;
+        product_id: z.ZodOptional<z.ZodNullable<z.ZodUnion<readonly [z.ZodNumber, z.ZodString]>>>;
+        sku: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        barcode: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        price: z.ZodOptional<z.ZodNullable<z.ZodString>>;
+        title: z.ZodString;
+        quantity: z.ZodOptional<z.ZodNumber>;
+    }, z.core.$strip>>;
+}, z.core.$strip>;
+export declare const ShopifyOrdersCreateWebhookPayloadSchema: z.ZodObject<{
+    id: z.ZodUnion<readonly [z.ZodNumber, z.ZodString]>;
+    order_number: z.ZodOptional<z.ZodNullable<z.ZodNumber>>;
+    financial_status: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     processed_at: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     created_at: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     updated_at: z.ZodOptional<z.ZodNullable<z.ZodString>>;
@@ -95,6 +119,7 @@ export type SetMetafieldOptionsInput = z.infer<typeof SetMetafieldOptionsInputSc
 export type AppendMetafieldOptionsInput = z.infer<typeof AppendMetafieldOptionsInputSchema>;
 export type RemoveMetafieldOptionParams = z.infer<typeof RemoveMetafieldOptionParamsSchema>;
 export type ShopifyOrdersPaidWebhookPayload = z.infer<typeof ShopifyOrdersPaidWebhookPayloadSchema>;
+export type ShopifyOrdersCreateWebhookPayload = z.infer<typeof ShopifyOrdersCreateWebhookPayloadSchema>;
 export type ShopifyProductsUpdateWebhookPayload = z.infer<typeof ShopifyProductsUpdateWebhookPayloadSchema>;
 export type ShopifyProductLocationDto = {
     id: string;

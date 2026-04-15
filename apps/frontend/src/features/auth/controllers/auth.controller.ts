@@ -3,6 +3,7 @@ import { getCurrentUserApi } from "../api/get-current-user.api";
 import { loginApi } from "../api/login.api";
 import { logoutApi } from "../api/logout.api";
 import { registerApi } from "../api/register.api";
+import { pwaActions } from "../../pwa/actions/pwa.actions";
 import type {
   AuthUserDto,
   LoginRequestDto,
@@ -60,8 +61,10 @@ export function clearAuthSessionController(): void {
 }
 
 export async function logoutController(): Promise<void> {
-  const refreshToken = tokenAuthController.getRefreshToken();
+  // Unsubscribe from push before clearing tokens (the DELETE endpoint requires auth).
+  await pwaActions.unsubscribeFromPush();
 
+  const refreshToken = tokenAuthController.getRefreshToken();
   try {
     if (refreshToken) {
       await logoutApi({ refreshToken });

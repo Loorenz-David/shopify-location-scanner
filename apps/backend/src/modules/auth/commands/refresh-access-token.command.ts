@@ -24,6 +24,7 @@ export const refreshAccessTokenCommand = async (
     username: user.username,
     role: user.role,
     shopId: user.shopId,
+    tokenVersion: user.tokenVersion,
   });
 
   return {

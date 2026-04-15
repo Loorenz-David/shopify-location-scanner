@@ -30,6 +30,7 @@ import { createWsBroadcastSubscriber } from "./shared/queue/ws-bridge.js";
 import type { UserRole } from "@prisma/client";
 import { zonesRouter } from "./modules/zones/routes/zones.routes.js";
 import { logisticRouter } from "./modules/logistic/routes/logistic.routes.js";
+import { usersRouter } from "./modules/users/routes/users.routes.js";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -124,6 +125,7 @@ app.use("/scanner", scannerRouter);
 app.use("/stats", statsRouter);
 app.use("/zones", zonesRouter);
 app.use("/logistic", logisticRouter);
+app.use("/users", usersRouter);
 app.use("/internal/webhooks", webhookAdminRouter);
 app.use("/api/auth", authRateLimitMiddleware, authRouter);
 app.use("/api/shopify", shopifyRouter);
@@ -132,6 +134,7 @@ app.use("/api/scanner", scannerRouter);
 app.use("/api/stats", statsRouter);
 app.use("/api/zones", zonesRouter);
 app.use("/api/logistic", logisticRouter);
+app.use("/api/users", usersRouter);
 app.use("/api/internal/webhooks", webhookAdminRouter);
 
 app.use(notFoundMiddleware);

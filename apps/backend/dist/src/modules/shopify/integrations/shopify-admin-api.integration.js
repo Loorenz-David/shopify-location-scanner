@@ -3,6 +3,10 @@ import { AppError } from "../../../shared/errors/app-error.js";
 import { logger } from "../../../shared/logging/logger.js";
 const MANAGED_WEBHOOK_SUBSCRIPTIONS = [
     {
+        topic: "ORDERS_CREATE",
+        path: "/api/shopify/webhooks/orders/create",
+    },
+    {
         topic: "ORDERS_PAID",
         path: "/api/shopify/webhooks/orders/paid",
     },
@@ -150,6 +154,17 @@ const coalesceMetafieldValue = (...values) => {
     }
     return null;
 };
+const resolveProductCategory = (productType, collections) => {
+    const trimmedType = productType?.trim();
+    if (trimmedType) {
+        return trimmedType;
+    }
+    const firstCollection = collections.edges[0]?.node.title?.trim();
+    if (firstCollection) {
+        return firstCollection;
+    }
+    return null;
+};
 const mapProductNodeToLocationSnapshot = (product) => {
     const dimensions = resolveDimensions({
         height: coalesceMetafieldValue(product.itemHeight?.value, product.itemHeightAlt?.value, product.itemHeightFallback?.value, product.itemHeightAltFallback?.value),
@@ -159,7 +174,7 @@ const mapProductNodeToLocationSnapshot = (product) => {
     return {
         id: product.id,
         title: product.title,
-        itemCategory: product.productType?.trim() || null,
+        itemCategory: resolveProductCategory(product.productType, product.collections),
         sku: product.variants.edges[0]?.node.sku ?? null,
         barcode: product.variants.edges[0]?.node.barcode ?? null,
         price: product.variants.edges[0]?.node.price ?? null,
@@ -223,6 +238,13 @@ export const shopifyAdminApi = {
           updatedAt
           featuredImage {
             url
+          }
+          collections(first: 5) {
+            edges {
+              node {
+                title
+              }
+            }
           }
           variants(first: 1) {
             edges {
@@ -326,6 +348,13 @@ export const shopifyAdminApi = {
                 updatedAt
                 featuredImage {
                   url
+                }
+                collections(first: 5) {
+                  edges {
+                    node {
+                      title
+                    }
+                  }
                 }
                 variants(first: 1) {
                   edges {
@@ -661,40 +690,46 @@ export const shopifyAdminApi = {
             if (alreadySubscribed) {
                 continue;
             }
-            const created = await shopifyGraphql(input.shopDomain, input.accessToken, `#graphql
-        mutation CreateWebhookSubscription(
-          $topic: WebhookSubscriptionTopic!
-          $callbackUrl: URL!
-        ) {
-          webhookSubscriptionCreate(
-            topic: $topic
-            webhookSubscription: {
-              callbackUrl: $callbackUrl
-              format: JSON
-            }
+            try {
+                const created = await shopifyGraphql(input.shopDomain, input.accessToken, `#graphql
+          mutation CreateWebhookSubscription(
+            $topic: WebhookSubscriptionTopic!
+            $callbackUrl: URL!
           ) {
-            webhookSubscription {
-              id
+            webhookSubscriptionCreate(
+              topic: $topic
+              webhookSubscription: {
+                callbackUrl: $callbackUrl
+                format: JSON
+              }
+            ) {
+              webhookSubscription {
+                id
+              }
+              userErrors {
+                field
+                message
+              }
             }
-            userErrors {
-              field
-              message
-            }
-          }
-        }`, {
-                topic,
-                callbackUrl,
-            });
-            const firstError = created.webhookSubscriptionCreate.userErrors[0];
-            if (firstError) {
-                throw new AppError(firstError.message, {
-                    code: "INTERNAL_ERROR",
-                    statusCode: 502,
-                    details: {
+          }`, {
+                    topic,
+                    callbackUrl,
+                });
+                const firstError = created.webhookSubscriptionCreate.userErrors[0];
+                if (firstError) {
+                    logger.warn("Shopify webhook subscription creation failed", {
                         topic,
                         callbackUrl,
                         field: firstError.field,
-                    },
+                        message: firstError.message,
+                    });
+                }
+            }
+            catch (error) {
+                logger.warn("Shopify webhook subscription request failed", {
+                    topic,
+                    callbackUrl,
+                    error: error instanceof Error ? error.message : "unknown",
                 });
             }
         }

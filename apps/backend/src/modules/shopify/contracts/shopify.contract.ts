@@ -88,6 +88,7 @@ const ShopifyNoteAttributeSchema = z.object({
 
 export const ShopifyOrdersPaidWebhookPayloadSchema = z.object({
   id: z.union([z.number().int().positive(), z.string().trim().min(1)]),
+  order_number: z.number().int().positive().nullable().optional(),
   processed_at: z.string().trim().nullable().optional(),
   created_at: z.string().trim().nullable().optional(),
   updated_at: z.string().trim().nullable().optional(),
@@ -99,6 +100,7 @@ export const ShopifyOrdersPaidWebhookPayloadSchema = z.object({
 
 export const ShopifyOrdersCreateWebhookPayloadSchema = z.object({
   id: z.union([z.number().int().positive(), z.string().trim().min(1)]),
+  order_number: z.number().int().positive().nullable().optional(),
   financial_status: z.string().trim().nullable().optional(),
   processed_at: z.string().trim().nullable().optional(),
   created_at: z.string().trim().nullable().optional(),

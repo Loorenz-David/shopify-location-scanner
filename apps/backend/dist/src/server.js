@@ -22,6 +22,8 @@ import { closeWsServer, createWsServer } from "./modules/ws/ws-server.js";
 import { broadcastToShop } from "./modules/ws/ws-broadcaster.js";
 import { createWsBroadcastSubscriber } from "./shared/queue/ws-bridge.js";
 import { zonesRouter } from "./modules/zones/routes/zones.routes.js";
+import { logisticRouter } from "./modules/logistic/routes/logistic.routes.js";
+import { usersRouter } from "./modules/users/routes/users.routes.js";
 const app = express();
 app.set("trust proxy", 1);
 const isShopifyEmbeddedLaunch = (req) => {
@@ -87,6 +89,8 @@ app.use("/bootstrap", bootstrapRouter);
 app.use("/scanner", scannerRouter);
 app.use("/stats", statsRouter);
 app.use("/zones", zonesRouter);
+app.use("/logistic", logisticRouter);
+app.use("/users", usersRouter);
 app.use("/internal/webhooks", webhookAdminRouter);
 app.use("/api/auth", authRateLimitMiddleware, authRouter);
 app.use("/api/shopify", shopifyRouter);
@@ -94,6 +98,8 @@ app.use("/api/bootstrap", bootstrapRouter);
 app.use("/api/scanner", scannerRouter);
 app.use("/api/stats", statsRouter);
 app.use("/api/zones", zonesRouter);
+app.use("/api/logistic", logisticRouter);
+app.use("/api/users", usersRouter);
 app.use("/api/internal/webhooks", webhookAdminRouter);
 app.use(notFoundMiddleware);
 app.use(errorMiddleware);
@@ -104,8 +110,8 @@ createWsServer(httpServer);
 // Subscribe to broadcast events published by the webhook worker process.
 // The worker cannot call broadcastToShop directly (different process, empty
 // in-memory WS registry), so it publishes over Redis and we forward here.
-const wsBroadcastSubscriber = createWsBroadcastSubscriber((shopId, event) => {
-    broadcastToShop(shopId, event);
+const wsBroadcastSubscriber = createWsBroadcastSubscriber((shopId, event, targetRoles) => {
+    broadcastToShop(shopId, event, targetRoles);
 });
 httpServer.listen(PORT, () => {
     logger.info("Backend started", { port: PORT, env: env.NODE_ENV });

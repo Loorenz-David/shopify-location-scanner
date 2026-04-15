@@ -39,6 +39,14 @@ logisticRouter.post(
   asyncHandler(logisticController.markPlacement),
 );
 logisticRouter.post("/fulfil", asyncHandler(logisticController.fulfilItem));
+logisticRouter.post(
+  "/item-is-fix",
+  asyncHandler(logisticController.markItemFixed),
+);
+logisticRouter.patch(
+  "/fix-notes/:scanHistoryId",
+  asyncHandler(logisticController.updateFixNotes),
+);
 
 // Push subscription management
 logisticRouter.post(

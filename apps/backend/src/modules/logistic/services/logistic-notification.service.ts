@@ -38,7 +38,7 @@ export const scheduleRoleNotification = async (
     { shopId, role },
     {
       delay: delayMs,
-      jobId: `notify:${shopId}:${role}:${Math.floor(Date.now() / delayMs)}`,
+      jobId: `notify-${shopId}-${role}-${Math.floor(Date.now() / delayMs)}`,
     },
   );
 };

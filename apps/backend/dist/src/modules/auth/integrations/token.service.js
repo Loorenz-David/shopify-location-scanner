@@ -9,6 +9,7 @@ export const tokenService = {
             username: principal.username,
             role: principal.role,
             shopId: principal.shopId,
+            tokenVersion: principal.tokenVersion,
             type: ACCESS_TOKEN_TYPE,
         };
         return jwt.sign(payload, env.JWT_SECRET);
@@ -23,6 +24,7 @@ export const tokenService = {
             username: payload.username,
             role: payload.role ?? "worker",
             shopId: payload.shopId ?? null,
+            tokenVersion: payload.tokenVersion ?? 0,
         };
     },
     createRefreshToken() {

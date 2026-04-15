@@ -1,7 +1,7 @@
 import WebSocket from "ws";
 import type { UserRole } from "@prisma/client";
 import { logger } from "../../shared/logging/logger.js";
-import { getConnections, removeConnection } from "./ws-registry.js";
+import { getConnections, getConnectionsForUser, removeConnection } from "./ws-registry.js";
 
 export type WsOutboundEvent =
   | { type: "authenticated"; shopId: string }
@@ -28,7 +28,27 @@ export type WsOutboundEvent =
       count: number;
       itemIds: string[];
       message: string;
-    };
+    }
+  | { type: "session_invalidated" };
+
+export const broadcastToUser = (
+  shopId: string,
+  userId: string,
+  event: WsOutboundEvent,
+): void => {
+  const connections = getConnectionsForUser(shopId, userId);
+  const payload = JSON.stringify(event);
+
+  for (const ws of connections) {
+    if (ws.readyState === WebSocket.OPEN) {
+      ws.send(payload);
+      continue;
+    }
+
+    void removeConnection(shopId, ws);
+    logger.info("WS: removed stale connection", { shopId });
+  }
+};
 
 export const broadcastToShop = (
   shopId: string,

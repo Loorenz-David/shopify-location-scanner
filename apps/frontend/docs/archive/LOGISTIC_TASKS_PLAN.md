@@ -90,9 +90,9 @@ export interface LogisticTaskItemDto {
   orderId: string | null;
   intention: LogisticIntentionDto;
   fixItem: boolean | null;
-  scheduledDate: string | null;   // ISO string
+  scheduledDate: string | null; // ISO string
   lastLogisticEventType: LogisticEventTypeDto | null;
-  updatedAt: string;              // ISO string
+  updatedAt: string; // ISO string
   logisticEvent: {
     username: string;
     eventType: LogisticEventTypeDto;
@@ -119,7 +119,7 @@ export interface MarkIntentionRequestDto {
   scanHistoryId: string;
   intention: LogisticIntentionDto;
   fixItem: boolean;
-  scheduledDate?: string;         // yyyy-mm-dd
+  scheduledDate?: string; // yyyy-mm-dd
 }
 
 export interface MarkIntentionResponseDto {
@@ -151,7 +151,7 @@ export type LogisticEventType = "marked_intention" | "placed" | "fulfilled";
 export type LogisticZoneType = "for_delivery" | "for_pickup" | "for_fixing";
 
 export interface LogisticTaskItem {
-  id: string;             // scanHistoryId
+  id: string; // scanHistoryId
   productId: string;
   sku: string | null;
   imageUrl: string | null;
@@ -159,11 +159,11 @@ export interface LogisticTaskItem {
   itemTitle: string;
   location: string | null;
   orderId: string | null;
-  intention: LogisticIntention | null;   // null when noIntention items
+  intention: LogisticIntention | null; // null when noIntention items
   fixItem: boolean;
   scheduledDate: Date | null;
   lastEventType: LogisticEventType | null;
-  logisticLocation: string | null;       // location name from latest event
+  logisticLocation: string | null; // location name from latest event
   logisticZoneType: LogisticZoneType | null;
   updatedAt: Date;
 }
@@ -277,7 +277,7 @@ interface LogisticTasksStoreState {
 
   // Filter state
   filters: LogisticTaskFilters;
-  query: string;                      // client-side text search (sku, title)
+  query: string; // client-side text search (sku, title)
 
   // Intention tab — persisted to localStorage (key: "logistic-tasks:activeTab")
   activeIntentionTab: LogisticIntention | null;
@@ -295,8 +295,8 @@ interface LogisticTasksStoreState {
   hydrate: (items: LogisticTaskItem[]) => void;
   hydrateAndFinish: (items: LogisticTaskItem[]) => void;
   finishWithError: (msg: string) => void;
-  upsertItem: (item: LogisticTaskItem) => void;   // for WS realtime + optimistic
-  removeItem: (id: string) => void;               // for fulfilled items
+  upsertItem: (item: LogisticTaskItem) => void; // for WS realtime + optimistic
+  removeItem: (id: string) => void; // for fulfilled items
   setFilters: (partial: Partial<LogisticTaskFilters>) => void;
   setQuery: (q: string) => void;
   setActiveIntentionTab: (tab: LogisticIntention | null) => void;
@@ -308,16 +308,16 @@ interface LogisticTasksStoreState {
 **Selectors:**
 
 ```typescript
-export const selectLogisticTasksItems      // raw items
-export const selectLogisticTasksOrderGroups   // buildOrderGroups(items)
-export const selectLogisticTasksIntentionMap  // groupByIntention(items)
-export const selectLogisticTasksIntentionCounts
-export const selectLogisticTasksIsLoading
-export const selectLogisticTasksHasLoaded
-export const selectLogisticTasksErrorMessage
-export const selectLogisticTasksFiltersRequestKey  // serializeFiltersForRequestKey(filters)
-export const selectLogisticTasksActiveIntentionTab
-export const selectLogisticTasksBatchNotification
+export const selectLogisticTasksItems; // raw items
+export const selectLogisticTasksOrderGroups; // buildOrderGroups(items)
+export const selectLogisticTasksIntentionMap; // groupByIntention(items)
+export const selectLogisticTasksIntentionCounts;
+export const selectLogisticTasksIsLoading;
+export const selectLogisticTasksHasLoaded;
+export const selectLogisticTasksErrorMessage;
+export const selectLogisticTasksFiltersRequestKey; // serializeFiltersForRequestKey(filters)
+export const selectLogisticTasksActiveIntentionTab;
+export const selectLogisticTasksBatchNotification;
 ```
 
 **Active intention tab persistence:**
@@ -338,7 +338,7 @@ On store init, read from localStorage to restore the tab.
 export async function getLogisticTasksApi(
   filters: LogisticTaskFilters,
   ids?: string[],
-): Promise<GetLogisticTasksResponseDto>
+): Promise<GetLogisticTasksResponseDto>;
 ```
 
 Internally calls `buildApiQueryParams(filters)`, appends `ids` if provided.
@@ -362,6 +362,7 @@ Internally calls `buildApiQueryParams(filters)`, appends `ids` if provided.
 ### `controllers/logistic-tasks.controller.ts`
 
 **`loadLogisticTasksController(filters, query)`**
+
 1. Increment request sequence; store `activeRequestId`
 2. `store.setLoading(true)`, `store.setErrorMessage(null)`
 3. `getLogisticTasksApi(filters)`
@@ -370,6 +371,7 @@ Internally calls `buildApiQueryParams(filters)`, appends `ids` if provided.
 6. Guards stale request (request sequence mismatch → discard)
 
 **`refreshLogisticTasksByIdsController(ids: string[], currentFilters)`**
+
 1. Calls `getLogisticTasksApi(currentFilters, ids)`
 2. For each returned item: `store.upsertItem(item)` — replaces by `id`
 3. For each `id` NOT returned by the server: `store.removeItem(id)` — item was
@@ -381,6 +383,7 @@ Internally calls `buildApiQueryParams(filters)`, appends `ids` if provided.
 ### `controllers/logistic-tasks-optimistic.controller.ts`
 
 **`optimisticMarkIntention(scanHistoryId, intention, fixItem, scheduledDate)`**
+
 1. Find item in store by `id === scanHistoryId`
 2. Return if not found
 3. Build updated item: apply new intention/fixItem/scheduledDate + set
@@ -389,6 +392,7 @@ Internally calls `buildApiQueryParams(filters)`, appends `ids` if provided.
 5. Return the previous item (for rollback)
 
 **`optimisticMarkPlacement(scanHistoryId, locationRecord)`**
+
 1. Find item, build update: set `lastEventType: "placed"`,
    `logisticLocation: locationRecord.location`,
    `logisticZoneType: locationRecord.zoneType`
@@ -403,7 +407,6 @@ Internally calls `buildApiQueryParams(filters)`, appends `ids` if provided.
 
 ```typescript
 export const logisticTasksActions = {
-
   // Initial and filter-driven load
   async loadTasks(): Promise<void> {
     const { filters, query } = useLogisticTasksStore.getState();
@@ -433,13 +436,23 @@ export const logisticTasksActions = {
     fixItem: boolean,
     scheduledDate?: string,
   ): Promise<void> {
-    const prev = optimisticMarkIntention(scanHistoryId, intention, fixItem, scheduledDate);
-    homeShellActions.closeOverlayPage();  // close the intention overlay
+    const prev = optimisticMarkIntention(
+      scanHistoryId,
+      intention,
+      fixItem,
+      scheduledDate,
+    );
+    homeShellActions.closeOverlayPage(); // close the intention overlay
 
     try {
-      await markIntentionApi({ scanHistoryId, intention, fixItem, scheduledDate });
+      await markIntentionApi({
+        scanHistoryId,
+        intention,
+        fixItem,
+        scheduledDate,
+      });
     } catch {
-      if (prev) store.upsertItem(prev);   // rollback
+      if (prev) store.upsertItem(prev); // rollback
       store.setErrorMessage("Unable to mark intention. Please try again.");
     }
   },
@@ -456,7 +469,10 @@ export const logisticTasksActions = {
   },
 
   // Called from scanner placement page after location confirmed
-  async markPlacement(scanHistoryId: string, locationId: string): Promise<void> {
+  async markPlacement(
+    scanHistoryId: string,
+    locationId: string,
+  ): Promise<void> {
     const locations = useLogisticLocationsStore.getState().locations;
     const locationRecord = locations.find((l) => l.id === locationId) ?? null;
     const prev = locationRecord
@@ -503,17 +519,19 @@ Three effects, same pattern as `use-item-scan-history.flow.ts`:
 Registered in `HomeFeature.tsx` alongside `useItemScanHistoryRealtimeFlow`.
 
 Subscribes to three WS events. Each handler:
+
 1. Deduplicates by scanHistoryId (last refresh timestamp map, 750ms window)
 2. Calls `logisticTasksActions.refreshByIds([scanHistoryId])`
 
 For `logistic_batch_notification`:
+
 1. `useLogisticTasksStore.getState().setBatchNotification({ count, message })`
 2. Auto-dismiss after 8 seconds (`window.setTimeout`)
 
 ```typescript
 export function useLogisticTasksRealtimeFlow(): void {
-  useWsEvent("logistic_intention_set",  handler);
-  useWsEvent("logistic_item_placed",    handler);
+  useWsEvent("logistic_intention_set", handler);
+  useWsEvent("logistic_item_placed", handler);
   useWsEvent("logistic_item_fulfilled", handler);
   useWsEvent("logistic_batch_notification", notificationHandler);
 }
@@ -531,6 +549,7 @@ Shows only the filter controls whose `key` is in `task_page_allowed_filters`
 (read via `useRoleCapabilities()`).
 
 Available controls (when allowed):
+
 - `fixItem` — toggle: "Fix required"
 - `lastLogisticEventType` — segmented selector: "marked intention / placed / fulfilled"
 - `zoneType` — segmented selector: "for delivery / for pickup / for fixing"
@@ -578,18 +597,22 @@ Each control reads/writes `logisticTasksActions.setFilters(...)`.
 ```
 
 **Visible groups derivation:**
+
 ```typescript
 // In the page (or a selector):
 const allGroups = selectLogisticTasksOrderGroups(state);
 
-const visibleGroups = task_intention_tab_menu && activeIntentionTab
-  ? allGroups
-      .map((group) => ({
-        ...group,
-        items: group.items.filter((item) => item.intention === activeIntentionTab),
-      }))
-      .filter((group) => group.items.length > 0)
-  : allGroups;
+const visibleGroups =
+  task_intention_tab_menu && activeIntentionTab
+    ? allGroups
+        .map((group) => ({
+          ...group,
+          items: group.items.filter(
+            (item) => item.intention === activeIntentionTab,
+          ),
+        }))
+        .filter((group) => group.items.length > 0)
+    : allGroups;
 ```
 
 ### `ui/LogisticTasksTabMenu.tsx`
@@ -660,6 +683,7 @@ Uses same intersection-observer virtual scroll pattern as `ItemScanHistoryList`
 ```
 
 `ActionButton` renders:
+
 - `markItemIntention` → "Set Intention" button → calls `openMarkIntentionOverlay(item.id)`
 - `markItemPlacement` → "Place" button → calls `logisticTasksActions.openPlacementScanner(item.id)`
 
@@ -725,6 +749,7 @@ The overlay receives `scanHistoryId` via the `LogisticTasksOverlayHost` context.
 ```
 
 **Validation rules:**
+
 - At least one intention box must be selected — show inline error if submit
   attempted without selection
 - `scheduledDate` is optional, but if the selected date is earlier than today,
@@ -732,6 +757,7 @@ The overlay receives `scanHistoryId` via the `LogisticTasksOverlayHost` context.
   submitting (past date allowed after confirmation)
 
 **Submit:**
+
 1. Set `isSubmitting = true`
 2. Call `logisticTasksActions.markIntention(scanHistoryId, intention, fixItem, scheduledDate)`
 3. Overlay closes on action (action calls `homeShellActions.closeOverlayPage()`)
@@ -763,6 +789,7 @@ Same pattern as `ItemScanHistoryOverlayHost`. Reads `overlayPageId` from the
 home shell store and conditionally renders the correct overlay content.
 
 Overlay page IDs managed by this host:
+
 - `"logistic-tasks-filters"` → `<LogisticTasksFiltersPanel />`
 - `"logistic-tasks-mark-intention"` → `<MarkIntentionOverlay />`
 
@@ -782,9 +809,9 @@ registered by `HomeFeature` as a full-overlay page and triggered exclusively by
 ```typescript
 interface ScannerLogisticPlacementStoreState {
   scanHistoryId: string | null;
-  confirmedLocationId: string | null;  // after successful placement
+  confirmedLocationId: string | null; // after successful placement
   confirmedLocationName: string | null;
-  warning: string | null;             // invalid scan warning text
+  warning: string | null; // invalid scan warning text
   isPlacing: boolean;
   setScanHistoryId: (id: string | null) => void;
   setConfirmedLocation: (id: string, name: string) => void;
@@ -801,6 +828,7 @@ Full-page scanner, `presentation: "full-overlay"` in HomeFeature.
 **Two visual states:**
 
 **State A — Scanning** (`confirmedLocationId === null`):
+
 ```
 <header>
   <BackArrowButton onClick={logisticTasksActions.closePlacementScanner} />
@@ -825,6 +853,7 @@ Full-page scanner, `presentation: "full-overlay"` in HomeFeature.
 ```
 
 **State B — Placed** (`confirmedLocationId !== null`):
+
 ```
 <header>
   <h1>Logistic Placement</h1>
@@ -845,12 +874,14 @@ Full-page scanner, `presentation: "full-overlay"` in HomeFeature.
 ```
 
 **Scan decode logic** (inside the scanner camera callback):
+
 1. Extract decoded value
 2. `const match = findLocationByValue(logisticLocationsStore.locations, decodedValue)`
 3. If `!match` → `store.setWarning("Location not recognised. Check the QR code.")` → do NOT submit
 4. If `match` → call `logisticTasksActions.markPlacement(scanHistoryId, match.id)` → set confirmed state
 
 **Manual location search logic:**
+
 - User types in `LocationManualInputPanel`
 - Search runs against `logisticLocationsStore.locations` client-side using
   `filterLogisticLocations(locations, query)` — no API call needed since
@@ -858,6 +889,7 @@ Full-page scanner, `presentation: "full-overlay"` in HomeFeature.
 - Selecting a result triggers the same flow as a successful scan
 
 **"Change Location" (regret):**
+
 1. `store.setConfirmedLocation(null, null)` — back to State A
 2. The scanner resumes (camera is always running in the background)
 3. User scans again → calls `markPlacement` with the new location
@@ -899,6 +931,7 @@ interface LogisticTasksPageContext {
 
 Provided by a wrapper around `LogisticTasksPage`. The `openMarkIntention`
 function:
+
 1. Sets `activeScanHistoryId` in context state
 2. Calls `homeShellActions.openOverlayPage("logistic-tasks-mark-intention", "Set Intention")`
 
@@ -948,11 +981,11 @@ Worker marks placement
 
 ## Risks and Assumptions
 
-| Risk | Mitigation |
-|---|---|
-| WS event arrives before API call completes | Dedupe window (750ms) prevents double refresh |
-| Scanner placement page camera conflicts with main scanner | Each is a separate full-overlay; only one is open at a time |
-| `noIntention` backend filter not yet deployed | Feature flags not used — task list shows empty for sellers until backend is deployed |
-| scheduledDate past-date confirmation adds complexity | Warning is inline, not a modal — reduces code surface |
+| Risk                                                               | Mitigation                                                                                    |
+| ------------------------------------------------------------------ | --------------------------------------------------------------------------------------------- |
+| WS event arrives before API call completes                         | Dedupe window (750ms) prevents double refresh                                                 |
+| Scanner placement page camera conflicts with main scanner          | Each is a separate full-overlay; only one is open at a time                                   |
+| `noIntention` backend filter not yet deployed                      | Feature flags not used — task list shows empty for sellers until backend is deployed          |
+| scheduledDate past-date confirmation adds complexity               | Warning is inline, not a modal — reduces code surface                                         |
 | Bootstrap doesn't include logistic locations for non-shop accounts | `hydrateLogisticLocationsFromBootstrap` called with empty array — store stays empty, no crash |
-| `recentlyAddedIds` grows unbounded in session | Reset on `hydrateLogisticLocationsController` call (page re-enter) |
+| `recentlyAddedIds` grows unbounded in session                      | Reset on `hydrateLogisticLocationsController` call (page re-enter)                            |

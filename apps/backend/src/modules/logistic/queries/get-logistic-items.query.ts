@@ -30,6 +30,10 @@ export const getLogisticItemsQuery = async (input: {
     where.fixItem = filters.fixItem;
   }
 
+  if (typeof filters.isItemFixed === "boolean") {
+    where.isItemFixed = filters.isItemFixed;
+  }
+
   if (filters.lastLogisticEventType) {
     where.lastLogisticEventType = filters.lastLogisticEventType;
   }
@@ -81,8 +85,11 @@ export const getLogisticItemsQuery = async (input: {
       itemTitle: record.itemTitle,
       latestLocation: record.latestLocation ?? null,
       orderId: record.orderId ?? null,
+      orderNumber: record.orderNumber ?? null,
       intention: record.intention as LogisticIntention,
       fixItem: record.fixItem ?? null,
+      isItemFixed: record.isItemFixed,
+      fixNotes: record.fixNotes ?? null,
       scheduledDate: record.scheduledDate ?? null,
       lastLogisticEventType:
         record.lastLogisticEventType as LogisticEventType | null,

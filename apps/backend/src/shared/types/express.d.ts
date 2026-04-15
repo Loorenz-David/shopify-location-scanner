@@ -7,6 +7,7 @@ declare global {
         username: string;
         role: "admin" | "manager" | "worker" | "seller";
         shopId: string | null;
+        tokenVersion: number;
       };
       webhookContext?: {
         shopId: string;

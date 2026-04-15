@@ -1,13 +1,15 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { authActions } from "./features/auth/actions/auth.actions";
 import { bootstrapActions } from "./features/bootstrap/actions/bootstrap.actions";
 import type { AuthUserDto } from "./features/auth/types/auth.dto";
 import { AuthPage } from "./features/auth/ui/AuthPage";
 import { HomeFeature } from "./features/home/HomeFeature";
+import { RoleContextProvider } from "./features/role-context/providers/RoleContextProvider";
 import { usePwaFlow } from "./features/pwa/flows/use-pwa.flow";
 import { usePwaStore } from "./features/pwa/stores/pwa.store";
 import { PwaUpdatePrompt } from "./features/pwa/ui/PwaUpdatePrompt";
+import { useWsEvent } from "./core/ws-client/use-ws-event";
 
 function App() {
   usePwaFlow();
@@ -94,6 +96,13 @@ function App() {
     setAuthErrorMessage(null);
   };
 
+  const handleSessionInvalidated = useCallback(() => {
+    authActions.clearSession();
+    window.location.reload();
+  }, []);
+
+  useWsEvent("session_invalidated", handleSessionInvalidated);
+
   if (isSessionCheckPending) {
     return (
       <>
@@ -129,7 +138,9 @@ function App() {
 
   return (
     <>
-      <HomeFeature onLogout={handleLogout} />
+      <RoleContextProvider user={authenticatedUser}>
+        <HomeFeature onLogout={handleLogout} />
+      </RoleContextProvider>
       <PwaUpdatePrompt
         isVisible={isPwaUpdateVisible}
         isApplyingUpdate={isApplyingPwaUpdate}

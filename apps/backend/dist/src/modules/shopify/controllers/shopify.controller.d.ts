@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 export declare const shopifyController: {
     handleProductsUpdateWebhook: (req: Request, res: Response) => Promise<void>;
+    handleOrdersCreateWebhook: (req: Request, res: Response) => Promise<void>;
     handleOrdersPaidWebhook: (req: Request, res: Response) => Promise<void>;
     getLinkedShop: (req: Request, res: Response) => Promise<void>;
     install: (req: Request, res: Response) => Promise<void>;

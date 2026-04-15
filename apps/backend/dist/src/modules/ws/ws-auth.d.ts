@@ -1,8 +1,10 @@
 import type WebSocket from "ws";
+import type { UserRole } from "@prisma/client";
 export type WsAuthResult = {
     ok: true;
     shopId: string;
     userId: string;
+    role: UserRole;
 } | {
     ok: false;
 };

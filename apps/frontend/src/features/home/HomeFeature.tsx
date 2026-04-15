@@ -11,7 +11,9 @@ import {
   selectHomeShellFullFeaturePageId,
   selectHomeShellIsFullFeatureOpen,
   selectHomeShellIsOverlayOpen,
+  selectHomeShellIsPopupOpen,
   selectHomeShellOverlayTitle,
+  selectHomeShellPopupPageId,
   selectHomeShellRegistry,
   useHomeShellStore,
 } from "./stores/home-shell.store";
@@ -20,17 +22,29 @@ import { HomeLayout } from "./ui/HomeLayout";
 import { HomePage } from "./ui/HomePage";
 import { AnalyticsPage } from "../analytics/pages/AnalyticsPage";
 import { StoreMapSettingsPage } from "../analytics/ui/StoreMapSettingsPage";
-import {
-  useItemScanHistoryRealtimeFlow,
-} from "../item-scan-history/flows/use-item-scan-history.flow";
+import { useItemScanHistoryRealtimeFlow } from "../item-scan-history/flows/use-item-scan-history.flow";
 import { ItemScanHistoryPage } from "../item-scan-history/ui/ItemScanHistoryPage";
 import { ItemScanHistoryOverlayHost } from "../item-scan-history/ItemScanHistoryOverlayHost";
 import { ScannerFeature } from "../scanner/ScannerFeature";
 import { ScannerOverlayHost } from "../scanner/ScannerOverlayHost";
+import { PlacementItemFixedPopup } from "../scanner/ui/PlacementItemFixedPopup";
+import { PlacementZoneMismatchPopup } from "../scanner/ui/PlacementZoneMismatchPopup";
 import { LocationOptionsSettingsPage } from "../location-options/ui/LocationOptionsSettingsPage";
+import { LogisticLocationsSettingsPage } from "../logistic-locations/ui/LogisticLocationsSettingsPage";
+import { LogisticTasksOverlayHost } from "../logistic-tasks/LogisticTasksOverlayHost";
+import { useLogisticTasksRealtimeFlow } from "../logistic-tasks/flows/use-logistic-tasks-realtime.flow";
+import { LogisticTasksPage } from "../logistic-tasks/ui/LogisticTasksPage";
+import { useRoleCapabilities } from "../role-context/hooks/use-role-capabilities";
+import { ScannerLogisticPlacementPage } from "../scanner/ui/ScannerLogisticPlacementPage";
 import { SettingsFeature } from "../settings/SettingsFeature";
 import { ShopifySettingsPage } from "../shopify/ui/ShopifySettingsPage";
 import { UsersSettingsPage } from "../users/ui/UsersSettingsPage";
+import {
+  HomeIcon,
+  SettingsIcon,
+  StatsIcon,
+  TaskIcon,
+} from "../../assets/icons";
 
 interface HomeFeatureProps {
   onLogout: () => void;
@@ -38,6 +52,9 @@ interface HomeFeatureProps {
 
 export function HomeFeature({ onLogout }: HomeFeatureProps) {
   useItemScanHistoryRealtimeFlow();
+  useLogisticTasksRealtimeFlow();
+
+  const { can_display_main_stats } = useRoleCapabilities();
 
   const registry = useHomeShellStore(selectHomeShellRegistry);
   const currentPageId = useHomeShellStore(selectHomeShellCurrentPageId);
@@ -45,9 +62,23 @@ export function HomeFeature({ onLogout }: HomeFeatureProps) {
   const isFullFeatureOpen = useHomeShellStore(selectHomeShellIsFullFeatureOpen);
   const isOverlayOpen = useHomeShellStore(selectHomeShellIsOverlayOpen);
   const overlayTitle = useHomeShellStore(selectHomeShellOverlayTitle);
+  const isPopupOpen = useHomeShellStore(selectHomeShellIsPopupOpen);
+  const popupPageId = useHomeShellStore(selectHomeShellPopupPageId);
 
   const registeredPages = useMemo<HomePageRegistration[]>(
     () => [
+      {
+        id: "logistic-tasks",
+        title: "Tasks",
+        component: LogisticTasksPage,
+        bottomMenu: {
+          label: "Tasks",
+          icon: TaskIcon,
+          slot: "left",
+          order: 5,
+          visible: true,
+        },
+      },
       {
         id: "home",
         title: "Home",
@@ -59,6 +90,7 @@ export function HomeFeature({ onLogout }: HomeFeatureProps) {
         component: ItemScanHistoryPage,
         bottomMenu: {
           label: "History",
+          icon: HomeIcon,
           slot: "left",
           order: 0,
           visible: true,
@@ -66,13 +98,14 @@ export function HomeFeature({ onLogout }: HomeFeatureProps) {
       },
       {
         id: "analytics",
-        title: "Analytics",
+        title: "Stats",
         component: AnalyticsPage,
         bottomMenu: {
-          label: "Analytics",
-          slot: "left",
-          order: 5,
-          visible: true,
+          label: "Stats",
+          icon: StatsIcon,
+          slot: "right",
+          order: 15,
+          visible: can_display_main_stats,
         },
         presentation: "full-overlay",
       },
@@ -94,6 +127,7 @@ export function HomeFeature({ onLogout }: HomeFeatureProps) {
         component: () => <SettingsFeature onLogout={onLogout} />,
         bottomMenu: {
           label: "Settings",
+          icon: SettingsIcon,
           slot: "right",
           order: 20,
           visible: true,
@@ -112,6 +146,18 @@ export function HomeFeature({ onLogout }: HomeFeatureProps) {
         presentation: "full-overlay",
       },
       {
+        id: "settings-logistic-locations",
+        title: "Logistic locations",
+        component: LogisticLocationsSettingsPage,
+        presentation: "full-overlay",
+      },
+      {
+        id: "scanner-logistic-placement",
+        title: "Logistic Placement",
+        component: ScannerLogisticPlacementPage,
+        presentation: "full-overlay",
+      },
+      {
         id: "settings-users",
         title: "Users",
         component: UsersSettingsPage,
@@ -124,7 +170,7 @@ export function HomeFeature({ onLogout }: HomeFeatureProps) {
         presentation: "full-overlay",
       },
     ],
-    [onLogout],
+    [onLogout, can_display_main_stats],
   );
 
   useHomeShellFlow({
@@ -161,8 +207,23 @@ export function HomeFeature({ onLogout }: HomeFeatureProps) {
           <ItemScanHistoryOverlayHost
             onClose={homeShellActions.closeOverlayPage}
           />
+          <LogisticTasksOverlayHost
+            onClose={homeShellActions.closeOverlayPage}
+          />
         </>
       }
+      isPopupOpen={isPopupOpen}
+      popupContent={
+        <>
+          {popupPageId === "placement-item-fixed-check" && (
+            <PlacementItemFixedPopup />
+          )}
+          {popupPageId === "placement-zone-mismatch" && (
+            <PlacementZoneMismatchPopup />
+          )}
+        </>
+      }
+      onClosePopup={homeShellActions.closePopupPage}
       onSelectPage={homeShellActions.selectNavigationPage}
     />
   );

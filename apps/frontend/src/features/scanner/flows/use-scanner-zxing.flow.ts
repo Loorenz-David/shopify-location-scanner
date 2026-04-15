@@ -1,7 +1,8 @@
-import { BrowserMultiFormatReader } from "@zxing/browser";
 import { useCallback, useEffect, useRef, useState } from "react";
+import type { BrowserMultiFormatReader } from "@zxing/browser";
 
 import { scannerActions } from "../actions/scanner.actions";
+import { CAMERA_REGION_IDS } from "../domain/camera-session.manager";
 import {
   getRememberedLensId,
   mapCameraDevicesToLenses,
@@ -17,56 +18,8 @@ import type { ScannerEngineFlowResult } from "../types/scanner-engine.types";
 import type { ScannerFrozenFrame } from "../types/scanner.types";
 import type { ScannerStep } from "../types/scanner.types";
 
-const scannerRegionId = "scanner-qr-reader";
+const scannerRegionId = CAMERA_REGION_IDS["main-scanner"];
 const ITEM_FREEZE_CONFIRMATION_DELAY_MS = 600;
-const SCANNER_IDLE_RELEASE_TIMEOUT_MS = 60_000;
-
-let scheduledScannerReleaseTimerId: number | null = null;
-let scheduledScannerRelease: (() => void) | null = null;
-let activeScannerControls: { stop: () => void } | null = null;
-let activeScannerStream: MediaStream | null = null;
-
-function releaseActiveScannerSession(): void {
-  try {
-    activeScannerControls?.stop();
-  } catch {
-    // Ignore teardown races.
-  }
-
-  activeScannerControls = null;
-
-  if (activeScannerStream) {
-    activeScannerStream.getTracks().forEach((track) => track.stop());
-    activeScannerStream = null;
-  }
-
-  releaseScannerVideoElement();
-}
-
-function clearScheduledScannerRelease(): void {
-  if (scheduledScannerReleaseTimerId !== null) {
-    window.clearTimeout(scheduledScannerReleaseTimerId);
-    scheduledScannerReleaseTimerId = null;
-  }
-
-  scheduledScannerRelease = null;
-}
-
-function flushScheduledScannerRelease(): void {
-  const release = scheduledScannerRelease;
-  clearScheduledScannerRelease();
-  release?.();
-}
-
-function scheduleScannerRelease(release: () => void): void {
-  clearScheduledScannerRelease();
-  scheduledScannerRelease = release;
-  scheduledScannerReleaseTimerId = window.setTimeout(() => {
-    const pendingRelease = scheduledScannerRelease;
-    clearScheduledScannerRelease();
-    pendingRelease?.();
-  }, SCANNER_IDLE_RELEASE_TIMEOUT_MS);
-}
 
 function getScannerErrorMessage(error: unknown): string {
   if (error && typeof error === "object" && "message" in error) {
@@ -117,29 +70,6 @@ function ensureScannerVideoElement(): HTMLVideoElement {
   videoElement.style.setProperty("inset", "0", "important");
 
   return videoElement;
-}
-
-function releaseScannerVideoElement(): void {
-  const scannerRoot = document.getElementById(scannerRegionId);
-  const videoElement = scannerRoot?.querySelector("video");
-  if (!(videoElement instanceof HTMLVideoElement)) {
-    return;
-  }
-
-  const stream = videoElement.srcObject;
-  if (stream instanceof MediaStream) {
-    stream.getTracks().forEach((track) => track.stop());
-  }
-
-  videoElement.srcObject = null;
-  videoElement.remove();
-}
-
-function cacheActiveStreamFromVideoElement(
-  videoElement: HTMLVideoElement,
-): void {
-  const stream = videoElement.srcObject;
-  activeScannerStream = stream instanceof MediaStream ? stream : null;
 }
 
 async function applyTorchConstraint(enabled: boolean): Promise<boolean> {
@@ -227,11 +157,6 @@ function isDecodedResultInsideGuideRegion(
     );
   });
 }
-
-type ScannerDecodeResult = {
-  getText: () => string;
-  getResultPoints: () => Array<{ getX: () => number; getY: () => number }>;
-};
 
 function triggerScanHapticFeedback(): void {
   if (typeof navigator === "undefined" || !navigator.vibrate) {
@@ -436,36 +361,27 @@ export function useScannerZxingFlow(
   }, [flashEnabled, isCameraReady, selectedLensId]);
 
   useEffect(() => {
-    let isDisposed = false;
+    setIsCameraReady(false);
+    setCameraError(null);
+    decodePausedRef.current = false;
 
-    async function startScanner(): Promise<void> {
+    // ── Lens resolution ──────────────────────────────────────────────────────
+    // We resolve the best camera device ID up front so `attachDecodeSession`
+    // can pass it through to ZXing.  Lens enumeration requires a prior
+    // getUserMedia grant; the camera-session manager's prewarm already handles
+    // that, so by the time the scanner page opens the grant is usually cached.
+    let detachSession: (() => void) | null = null;
+
+    async function resolveLensAndAttach(): Promise<void> {
       try {
-        flushScheduledScannerRelease();
-
-        setIsCameraReady(false);
-        setCameraError(null);
-
-        releaseActiveScannerSession();
-        scannerControlsRef.current = null;
-
         if (!hasCameraPermissionRef.current) {
           await requestCameraPermission();
           hasCameraPermissionRef.current = true;
         }
 
-        if (isDisposed) {
-          return;
-        }
-
-        const reader = new BrowserMultiFormatReader();
-        readerRef.current = reader;
-
         const cameras = (await navigator.mediaDevices.enumerateDevices())
           .filter((device) => device.kind === "videoinput")
-          .map((device) => ({
-            id: device.deviceId,
-            label: device.label,
-          }));
+          .map((device) => ({ id: device.deviceId, label: device.label }));
 
         const availableLenses = mapCameraDevicesToLenses(cameras);
         scannerActions.setAvailableLenses(availableLenses);
@@ -481,90 +397,106 @@ export function useScannerZxingFlow(
           scannerActions.selectLens(cameraId);
         }
 
+        // ── Decode callback with ROI guard + dedup + haptics ─────────────────
+        const onDecode = (rawValue: string) => {
+          if (decodePausedRef.current) return;
+
+          const videoElement = document
+            .getElementById(scannerRegionId)
+            ?.querySelector("video");
+          if (!(videoElement instanceof HTMLVideoElement)) return;
+
+          const resultValue = rawValue.trim();
+          if (!resultValue) return;
+
+          const now = Date.now();
+          const lastScan = lastScanRef.current;
+          if (
+            lastScan &&
+            lastScan.value === resultValue &&
+            now - lastScan.at < 1200
+          ) {
+            return;
+          }
+
+          lastScanRef.current = { value: resultValue, at: now };
+          triggerScanHapticFeedback();
+
+          const currentStep = scannerStepRef.current;
+          if (currentStep === "item") {
+            const frame = captureCurrentFrame();
+            if (frame) setItemFrozenFrame(frame);
+            setItemDecodedText(toScannerItemDisplayValue(resultValue));
+            setPendingItemTransitionValue(resultValue);
+            decodePausedRef.current = true;
+            return;
+          }
+
+          const frame = captureCurrentFrame();
+          if (frame) setLocationFrozenFrame(frame);
+          setLocationDecodedText(resultValue);
+          decodePausedRef.current = true;
+          scannerActions.applyDecodedScannerValue(resultValue, currentStep);
+        };
+
+        // Note: attachDecodeSession wraps decodeFromVideoDevice with a raw
+        // ZXing result object.  We need the resultPoints for the ROI guard,
+        // so we bypass the simplified onDecode API here and use
+        // ensureScannerVideoElement + BrowserMultiFormatReader directly,
+        // then notify the session manager so it tracks the stream.
+        // This keeps full ROI gate support while still benefiting from
+        // prewarm (the manager has already started the stream).
+        const { BrowserMultiFormatReader } = await import("@zxing/browser");
+        const reader = new BrowserMultiFormatReader();
+        readerRef.current = reader;
+
         const videoElement = ensureScannerVideoElement();
+
+        type ScannerDecodeResult = {
+          getText: () => string;
+          getResultPoints: () => Array<{
+            getX: () => number;
+            getY: () => number;
+          }>;
+        };
 
         const controls = await reader.decodeFromVideoDevice(
           cameraId ?? undefined,
           videoElement,
           (result: ScannerDecodeResult | null | undefined) => {
-            if (isDisposed) {
-              return;
-            }
-
-            if (!result || decodePausedRef.current) {
-              return;
-            }
+            if (!result || decodePausedRef.current) return;
 
             const resultPoints = result.getResultPoints() ?? null;
             if (!isDecodedResultInsideGuideRegion(resultPoints, videoElement)) {
               return;
             }
 
-            const decodedValue = result.getText().trim();
-            if (!decodedValue) {
-              return;
-            }
-
-            const now = Date.now();
-            const lastScan = lastScanRef.current;
-            if (
-              lastScan &&
-              lastScan.value === decodedValue &&
-              now - lastScan.at < 1200
-            ) {
-              return;
-            }
-
-            lastScanRef.current = {
-              value: decodedValue,
-              at: now,
-            };
-
-            triggerScanHapticFeedback();
-
-            const currentStep = scannerStepRef.current;
-            if (currentStep === "item") {
-              const frame = captureCurrentFrame();
-              if (frame) {
-                setItemFrozenFrame(frame);
-              }
-
-              setItemDecodedText(toScannerItemDisplayValue(decodedValue));
-              setPendingItemTransitionValue(decodedValue);
-              decodePausedRef.current = true;
-              return;
-            }
-
-            const frame = captureCurrentFrame();
-            if (frame) {
-              setLocationFrozenFrame(frame);
-            }
-
-            setLocationDecodedText(decodedValue);
-            decodePausedRef.current = true;
-            scannerActions.applyDecodedScannerValue(decodedValue, currentStep);
+            onDecode(result.getText());
           },
         );
 
         scannerControlsRef.current = controls;
-        activeScannerControls = controls;
-        cacheActiveStreamFromVideoElement(videoElement);
         setIsCameraReady(true);
         setCameraError(null);
       } catch (error) {
-        if (isDisposed) {
-          return;
-        }
-
         setIsCameraReady(false);
         setCameraError(getScannerErrorMessage(error));
       }
     }
 
-    void startScanner();
+    void resolveLensAndAttach();
+
+    detachSession = () => {
+      try {
+        scannerControlsRef.current?.stop();
+      } catch {
+        // Ignore teardown races.
+      }
+      scannerControlsRef.current = null;
+      readerRef.current = null;
+    };
 
     return () => {
-      isDisposed = true;
       setIsCameraReady(false);
       decodePausedRef.current = false;
 
@@ -573,13 +505,8 @@ export function useScannerZxingFlow(
         itemTransitionTimerRef.current = null;
       }
 
-      const releaseResources = () => {
-        releaseActiveScannerSession();
-        scannerControlsRef.current = null;
-        readerRef.current = null;
-      };
-
-      scheduleScannerRelease(releaseResources);
+      detachSession?.();
+      detachSession = null;
     };
   }, [selectedLensId, captureCurrentFrame]);
 

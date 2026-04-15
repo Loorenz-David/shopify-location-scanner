@@ -2,6 +2,10 @@ import {
   applyWaitingServiceWorkerController,
   registerPwaController,
 } from "../controllers/pwa.controller";
+import {
+  subscribeToPushController,
+  unsubscribeFromPushController,
+} from "../controllers/push-notification.controller";
 import { usePwaStore } from "../stores/pwa.store";
 
 export const pwaActions = {
@@ -9,6 +13,10 @@ export const pwaActions = {
     await registerPwaController({
       onRegistered: (registration) => {
         usePwaStore.getState().setRegistration(registration);
+        const vapidKey = import.meta.env.VITE_VAPID_PUBLIC_KEY;
+        if (vapidKey) {
+          void pwaActions.subscribeToPush(vapidKey);
+        }
       },
       onNeedRefresh: (registration) => {
         const store = usePwaStore.getState();
@@ -40,5 +48,13 @@ export const pwaActions = {
     }
 
     window.location.reload();
+  },
+  async subscribeToPush(vapidPublicKey: string): Promise<void> {
+    const subscribed = await subscribeToPushController(vapidPublicKey);
+    usePwaStore.getState().setPushSubscribed(subscribed);
+  },
+  async unsubscribeFromPush(): Promise<void> {
+    await unsubscribeFromPushController();
+    usePwaStore.getState().setPushSubscribed(false);
   },
 };

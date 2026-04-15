@@ -1,7 +1,7 @@
 export interface AuthUserDto {
   id: string;
   username: string;
-  role: "admin" | "worker";
+  role: "admin" | "manager" | "worker" | "seller";
   shopId: string | null;
 }
 

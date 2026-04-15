@@ -43,6 +43,7 @@ const createVerifyShopifyWebhookMiddleware = (expectedTopic) => {
         next();
     };
 };
+export const verifyOrdersCreateWebhookMiddleware = createVerifyShopifyWebhookMiddleware("orders/create");
 export const verifyOrdersPaidWebhookMiddleware = createVerifyShopifyWebhookMiddleware("orders/paid");
 export const verifyProductsUpdateWebhookMiddleware = createVerifyShopifyWebhookMiddleware("products/update");
 //# sourceMappingURL=verify-shopify-webhook.middleware.js.map

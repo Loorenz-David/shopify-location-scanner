@@ -36,6 +36,8 @@ export type ScanHistoryRecord = {
     latestLocation: string | null;
     isSold: boolean;
     lastSoldChannel: SalesChannel | null;
+    orderId: string | null;
+    orderNumber: number | null;
     lastModifiedAt: Date;
     events: ScanHistoryEvent[];
     priceHistory: ScanHistoryPricePoint[];

@@ -26,6 +26,7 @@ export const waitForAuth = (ws) => {
                     ok: true,
                     shopId: principal.shopId,
                     userId: principal.userId,
+                    role: principal.role,
                 });
             }
             catch {

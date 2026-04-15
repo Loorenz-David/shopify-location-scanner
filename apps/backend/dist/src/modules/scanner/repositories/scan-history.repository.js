@@ -104,6 +104,8 @@ const toDomain = (record) => {
         latestLocation: record.latestLocation,
         isSold: record.isSold,
         lastSoldChannel: record.lastSoldChannel,
+        orderId: record.orderId ?? null,
+        orderNumber: record.orderNumber ?? null,
         lastModifiedAt: record.lastModifiedAt,
         events: record.events.map((entry) => ({
             username: entry.username,
@@ -400,6 +402,7 @@ export const scanHistoryRepository = {
         const normalizedUnknownLocation = normalizeLocation(input.unknownLocation);
         const normalizedSoldLocation = normalizeLocation(input.soldLocation);
         const orderId = input.orderId ?? null;
+        const orderNumber = input.orderNumber ?? null;
         const orderGroupId = input.orderGroupId ?? null;
         if (!normalizedUnknownLocation || !normalizedSoldLocation) {
             throw new Error("Sold and fallback locations are required");
@@ -508,6 +511,8 @@ export const scanHistoryRepository = {
                         latestLocation: normalizedSoldLocation,
                         isSold: true,
                         lastSoldChannel: salesChannel,
+                        orderId: orderId ?? null,
+                        orderNumber: orderNumber ?? null,
                         lastModifiedAt: happenedAt,
                         events: {
                             create: [
@@ -563,6 +568,32 @@ export const scanHistoryRepository = {
                     },
                 });
             }
+            if (orderId) {
+                const alreadyProcessedForOrder = await tx.scanHistoryEvent.findFirst({
+                    where: {
+                        scanHistoryId: existing.id,
+                        orderId,
+                        eventType: "sold_terminal",
+                    },
+                });
+                if (alreadyProcessedForOrder) {
+                    return tx.scanHistory.findUniqueOrThrow({
+                        where: { id: existing.id },
+                        include: {
+                            events: {
+                                orderBy: {
+                                    happenedAt: "desc",
+                                },
+                            },
+                            priceHistory: {
+                                orderBy: {
+                                    happenedAt: "desc",
+                                },
+                            },
+                        },
+                    });
+                }
+            }
             const alreadyTerminalForLocation = await tx.scanHistoryEvent.findFirst({
                 where: {
                     scanHistoryId: existing.id,
@@ -580,14 +611,13 @@ export const scanHistoryRepository = {
                         itemCategory,
                         itemSku: input.itemSku ?? null,
                         itemBarcode: input.itemBarcode ?? null,
-                        itemImageUrl: input.itemImageUrl ?? null,
+                        itemImageUrl: input.itemImageUrl ?? existing.itemImageUrl ?? null,
                         itemType: input.itemType,
                         itemTitle: input.itemTitle,
-                        ...(latestLocationUnchanged
-                            ? {}
-                            : { latestLocation: normalizedSoldLocation }),
                         isSold: true,
                         lastSoldChannel: salesChannel,
+                        orderId: orderId ?? existing.orderId ?? null,
+                        orderNumber: orderNumber ?? existing.orderNumber ?? null,
                         lastModifiedAt: happenedAt,
                     },
                 });
@@ -615,14 +645,12 @@ export const scanHistoryRepository = {
                     itemCategory,
                     itemSku: input.itemSku ?? null,
                     itemBarcode: input.itemBarcode ?? null,
-                    itemImageUrl: input.itemImageUrl ?? null,
+                    itemImageUrl: input.itemImageUrl ?? existing.itemImageUrl ?? null,
                     itemType: input.itemType,
                     itemTitle: input.itemTitle,
-                    ...(latestLocationUnchanged
-                        ? {}
-                        : { latestLocation: normalizedSoldLocation }),
                     isSold: true,
                     lastSoldChannel: salesChannel,
+                    orderId: orderId ?? existing.orderId ?? null,
                     lastModifiedAt: happenedAt,
                 },
             });

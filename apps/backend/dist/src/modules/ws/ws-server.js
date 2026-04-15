@@ -4,6 +4,7 @@ import { env } from "../../config/env.js";
 import { logger } from "../../shared/logging/logger.js";
 import { waitForAuth } from "./ws-auth.js";
 import { registerConnection, removeConnection } from "./ws-registry.js";
+import { updateUserActivity } from "../logistic/services/logistic-notification.service.js";
 const PING_INTERVAL_MS = 30_000;
 const WS_PATH = "/ws";
 let wsServer = null;
@@ -64,39 +65,42 @@ export const createWsServer = (httpServer) => {
             });
             return;
         }
-        const { shopId, userId } = auth;
-        registerConnection(shopId, ws);
+        const { shopId, userId, role } = auth;
+        await registerConnection(shopId, ws, role, userId);
         logger.info("WS: client connected", { connectionId, shopId, userId });
         sendEvent(ws, { type: "authenticated", shopId });
         let isAlive = true;
         const pingTimer = setInterval(() => {
-            if (!isAlive) {
-                logger.info("WS: client did not pong, terminating", {
-                    connectionId,
-                    shopId,
-                    userId,
-                });
-                removeConnection(shopId, ws);
-                ws.terminate();
-                return;
-            }
-            isAlive = false;
-            ws.ping();
+            void (async () => {
+                if (!isAlive) {
+                    logger.info("WS: client did not pong, terminating", {
+                        connectionId,
+                        shopId,
+                        userId,
+                    });
+                    await removeConnection(shopId, ws);
+                    ws.terminate();
+                    return;
+                }
+                isAlive = false;
+                ws.ping();
+            })();
         }, PING_INTERVAL_MS);
         ws.on("pong", () => {
             isAlive = true;
+            void updateUserActivity(userId);
         });
         ws.on("message", () => {
             isAlive = true;
         });
         ws.on("close", () => {
             clearInterval(pingTimer);
-            removeConnection(shopId, ws);
+            void removeConnection(shopId, ws);
             logger.info("WS: client disconnected", { connectionId, shopId, userId });
         });
         ws.on("error", (error) => {
             clearInterval(pingTimer);
-            removeConnection(shopId, ws);
+            void removeConnection(shopId, ws);
             logger.error("WS: socket error", {
                 connectionId,
                 shopId,

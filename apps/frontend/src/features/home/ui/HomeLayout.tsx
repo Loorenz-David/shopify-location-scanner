@@ -4,6 +4,7 @@ import type { BottomMenuItem, HomePageId } from "../types/home-shell.types";
 import { BottomNav } from "./BottomNav";
 import { FullFeatureOverlayContainer } from "./FullFeatureOverlayContainer";
 import { PageOutlet } from "./PageOutlet";
+import { PopupContainer } from "./PopupContainer";
 import { SlidingOverlayContainer } from "./SlidingOverlayContainer";
 
 interface HomeLayoutProps {
@@ -16,6 +17,9 @@ interface HomeLayoutProps {
   isOverlayOpen: boolean;
   overlayTitle: string;
   overlayContent?: ReactNode;
+  isPopupOpen: boolean;
+  popupContent?: ReactNode;
+  onClosePopup: () => void;
   onSelectPage: (pageId: HomePageId) => void;
 }
 
@@ -29,6 +33,9 @@ export function HomeLayout({
   isOverlayOpen,
   overlayTitle,
   overlayContent,
+  isPopupOpen,
+  popupContent,
+  onClosePopup,
   onSelectPage,
 }: HomeLayoutProps) {
   return (
@@ -49,6 +56,10 @@ export function HomeLayout({
         title={activeFullFeatureTitle}
         ActiveFeatureComponent={ActiveFullFeatureComponent}
       />
+
+      <PopupContainer isOpen={isPopupOpen} onClose={onClosePopup}>
+        {popupContent}
+      </PopupContainer>
     </main>
   );
 }

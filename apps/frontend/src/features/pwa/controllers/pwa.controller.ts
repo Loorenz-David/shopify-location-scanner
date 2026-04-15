@@ -6,6 +6,15 @@ import type { RegisterPwaControllerArgs } from "../types/pwa.types";
 
 const SERVICE_WORKER_URL = "/service-worker.js";
 
+// Set to true when you are ready to re-enable the service worker.
+const SERVICE_WORKER_ENABLED = true;
+
+async function unregisterAllServiceWorkers(): Promise<void> {
+  if (!canUseServiceWorkers()) return;
+  const registrations = await navigator.serviceWorker.getRegistrations();
+  await Promise.all(registrations.map((r) => r.unregister()));
+}
+
 async function checkForServiceWorkerUpdate(
   registration: ServiceWorkerRegistration,
 ): Promise<void> {
@@ -20,7 +29,12 @@ export async function registerPwaController({
   onNeedRefresh,
   onRegistered,
 }: RegisterPwaControllerArgs): Promise<void> {
-  if (!import.meta.env.PROD || !canUseServiceWorkers()) {
+  if (
+    !SERVICE_WORKER_ENABLED ||
+    !import.meta.env.PROD ||
+    !canUseServiceWorkers()
+  ) {
+    await unregisterAllServiceWorkers();
     return;
   }
 

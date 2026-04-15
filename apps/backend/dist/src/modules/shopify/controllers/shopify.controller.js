@@ -1,4 +1,5 @@
-import { AppendMetafieldOptionsInputSchema, InstallShopInputSchema, QueryBySkuSchema, RemoveMetafieldOptionParamsSchema, SetMetafieldOptionsInputSchema, ShopifyOrdersPaidWebhookPayloadSchema, ShopifyCallbackQuerySchema, UpdateItemLocationByIdentifierBatchSchema, UpdateItemLocationByIdentifierSchema, UpdateItemLocationInputSchema, } from "../contracts/shopify.contract.js";
+import { AppendMetafieldOptionsInputSchema, InstallShopInputSchema, QueryBySkuSchema, RemoveMetafieldOptionParamsSchema, SetMetafieldOptionsInputSchema, ShopifyOrdersCreateWebhookPayloadSchema, ShopifyOrdersPaidWebhookPayloadSchema, ShopifyCallbackQuerySchema, UpdateItemLocationByIdentifierBatchSchema, UpdateItemLocationByIdentifierSchema, UpdateItemLocationInputSchema, } from "../contracts/shopify.contract.js";
+import { tokenService } from "../../auth/integrations/token.service.js";
 import { createInstallUrlCommand } from "../commands/create-install-url.command.js";
 import { handleOauthCallbackCommand } from "../commands/handle-oauth-callback.command.js";
 import { getProductQuery } from "../queries/get-product.query.js";
@@ -14,15 +15,18 @@ import { unlinkShopCommand } from "../commands/unlink-shop.command.js";
 import { removeMetafieldOptionCommand } from "../commands/remove-metafield-option.command.js";
 import { AppError } from "../../../shared/errors/app-error.js";
 import { logger } from "../../../shared/logging/logger.js";
+import { env } from "../../../config/env.js";
 import { appendMetafieldOptionsCommand } from "../commands/append-metafield-options.command.js";
+import { handleOrdersCreateWebhookCommand } from "../commands/handle-orders-create-webhook.command.js";
 import { handleOrdersPaidWebhookCommand } from "../commands/handle-orders-paid-webhook.command.js";
 import { webhookQueue } from "../../../shared/queue/index.js";
 import { webhookIntakeRepository } from "../repositories/webhook-intake.repository.js";
-const extractCallbackParams = (req) => {
-    const url = new URL(req.originalUrl, "http://localhost");
+const extractRawQueryParams = (req) => {
     const params = {};
-    for (const [key, value] of url.searchParams.entries()) {
-        params[key] = value;
+    for (const [key, value] of Object.entries(req.query)) {
+        if (typeof value === "string") {
+            params[key] = value;
+        }
     }
     return params;
 };
@@ -54,6 +58,28 @@ export const shopifyController = {
         });
         res.status(200).json({ received: true });
     },
+    handleOrdersCreateWebhook: async (req, res) => {
+        const context = req.webhookContext;
+        if (!context) {
+            throw new ValidationError("Webhook context missing");
+        }
+        let parsedBody;
+        try {
+            parsedBody = JSON.parse(context.rawBody);
+        }
+        catch {
+            throw new ValidationError("Invalid webhook JSON payload");
+        }
+        const payload = ShopifyOrdersCreateWebhookPayloadSchema.parse(parsedBody);
+        const result = await handleOrdersCreateWebhookCommand({
+            shopId: context.shopId,
+            shopDomain: context.shopDomain,
+            topic: context.topic,
+            webhookId: context.webhookId,
+            payload,
+        });
+        res.status(200).json({ ok: true, ...result });
+    },
     handleOrdersPaidWebhook: async (req, res) => {
         const context = req.webhookContext;
         if (!context) {
@@ -83,11 +109,38 @@ export const shopifyController = {
         res.status(200).json({ shop });
     },
     install: async (req, res) => {
-        const input = InstallShopInputSchema.parse(req.body);
-        const result = await createInstallUrlCommand(input, req.authUser.userId);
-        res.status(200).json(result);
+        const rawToken = typeof req.query.token === "string" ? req.query.token : null;
+        if (!rawToken) {
+            throw new ValidationError("Missing authentication token");
+        }
+        let principal;
+        try {
+            principal = tokenService.verifyAccessToken(rawToken);
+        }
+        catch {
+            throw new ValidationError("Invalid authentication token");
+        }
+        if (principal.role !== "admin") {
+            throw new ValidationError("Admin role is required");
+        }
+        const input = InstallShopInputSchema.parse({
+            shopDomain: req.query.shopDomain ?? req.query.shop,
+            storeName: req.query.storeName,
+        });
+        const result = await createInstallUrlCommand(input, principal.userId);
+        logger.info("Shopify OAuth install redirect", {
+            shopDomain: input.shopDomain ?? input.storeName,
+            authorizationUrl: result.authorizationUrl,
+        });
+        res.redirect(302, result.authorizationUrl);
     },
     callback: async (req, res) => {
+        logger.info("Shopify OAuth callback received", {
+            shop: req.query.shop,
+            rawParamKeys: Object.keys(req.query),
+            originalUrl: req.originalUrl,
+            skipHmac: env.SHOPIFY_DEBUG_SKIP_HMAC,
+        });
         const parsed = ShopifyCallbackQuerySchema.parse({
             code: req.query.code,
             hmac: req.query.hmac,
@@ -95,12 +148,13 @@ export const shopifyController = {
             state: req.query.state,
             timestamp: req.query.timestamp,
         });
-        const rawParams = extractCallbackParams(req);
-        const result = await handleOauthCallbackCommand({
+        const rawParams = extractRawQueryParams(req);
+        await handleOauthCallbackCommand({
             query: parsed,
             rawParams,
+            skipHmacValidation: env.SHOPIFY_DEBUG_SKIP_HMAC,
         });
-        res.status(200).json({ ok: true, ...result });
+        res.redirect(302, env.FRONTEND_URL);
     },
     getProduct: async (req, res) => {
         const param = req.params.productId;

@@ -7,6 +7,7 @@ import type {
   HomePageId,
   HomePageRegistration,
   OverlayPageId,
+  PopupPageId,
 } from "../types/home-shell.types";
 
 function resolveFallbackPageId(preferredPageId: HomePageId): HomePageId | null {
@@ -99,6 +100,14 @@ export function openFullFeaturePageController(pageId: HomePageId): void {
 
 export function closeFullFeaturePageController(): void {
   useHomeShellStore.getState().closeFullFeature();
+}
+
+export function openPopupPageController(pageId: PopupPageId): void {
+  useHomeShellStore.getState().openPopup(pageId);
+}
+
+export function closePopupPageController(): void {
+  useHomeShellStore.getState().closePopup();
 }
 
 export function selectNavigationPageController(pageId: HomePageId): void {

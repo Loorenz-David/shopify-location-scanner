@@ -4,6 +4,7 @@ import type {
   HomePageId,
   HomePageRegistration,
   OverlayPageId,
+  PopupPageId,
 } from "../types/home-shell.types";
 
 interface HomeShellStoreState {
@@ -15,6 +16,8 @@ interface HomeShellStoreState {
   overlayPageId: OverlayPageId | null;
   overlayTitle: string;
   isOverlayOpen: boolean;
+  popupPageId: PopupPageId | null;
+  isPopupOpen: boolean;
   registerPages: (pages: HomePageRegistration[]) => void;
   unregisterPage: (pageId: HomePageId) => void;
   openPage: (pageId: HomePageId) => void;
@@ -24,6 +27,8 @@ interface HomeShellStoreState {
   closeFullFeature: () => void;
   openOverlay: (pageId: OverlayPageId, title: string) => void;
   closeOverlay: () => void;
+  openPopup: (pageId: PopupPageId) => void;
+  closePopup: () => void;
   reset: () => void;
 }
 
@@ -36,6 +41,8 @@ const initialState = {
   overlayPageId: null,
   overlayTitle: "",
   isOverlayOpen: false,
+  popupPageId: null,
+  isPopupOpen: false,
 };
 
 export const useHomeShellStore = create<HomeShellStoreState>((set, get) => ({
@@ -152,6 +159,12 @@ export const useHomeShellStore = create<HomeShellStoreState>((set, get) => ({
       overlayTitle: "",
     });
   },
+  openPopup: (pageId) => {
+    set({ isPopupOpen: true, popupPageId: pageId });
+  },
+  closePopup: () => {
+    set({ isPopupOpen: false, popupPageId: null });
+  },
   reset: () => {
     set(initialState);
   },
@@ -171,3 +184,7 @@ export const selectHomeShellOverlayTitle = (state: HomeShellStoreState) =>
   state.overlayTitle;
 export const selectHomeShellOverlayPageId = (state: HomeShellStoreState) =>
   state.overlayPageId;
+export const selectHomeShellIsPopupOpen = (state: HomeShellStoreState) =>
+  state.isPopupOpen;
+export const selectHomeShellPopupPageId = (state: HomeShellStoreState) =>
+  state.popupPageId;

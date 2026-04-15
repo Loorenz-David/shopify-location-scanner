@@ -140,6 +140,7 @@ const toDomain = (record: any): ScanHistoryRecord => {
     isSold: record.isSold,
     lastSoldChannel: record.lastSoldChannel,
     orderId: record.orderId ?? null,
+    orderNumber: record.orderNumber ?? null,
     lastModifiedAt: record.lastModifiedAt,
     events: record.events.map((entry: any) => ({
       username: entry.username,
@@ -469,6 +470,7 @@ export const scanHistoryRepository = {
     itemCategory?: string | null;
     soldPrice?: string | null;
     orderId?: string | null;
+    orderNumber?: number | null;
     orderGroupId?: string | null;
     unknownLocation: string;
     soldLocation: string;
@@ -483,6 +485,7 @@ export const scanHistoryRepository = {
     const normalizedUnknownLocation = normalizeLocation(input.unknownLocation);
     const normalizedSoldLocation = normalizeLocation(input.soldLocation);
     const orderId = input.orderId ?? null;
+    const orderNumber = input.orderNumber ?? null;
     const orderGroupId = input.orderGroupId ?? null;
 
     if (!normalizedUnknownLocation || !normalizedSoldLocation) {
@@ -601,6 +604,7 @@ export const scanHistoryRepository = {
             isSold: true,
             lastSoldChannel: salesChannel,
             orderId: orderId ?? null,
+            orderNumber: orderNumber ?? null,
             lastModifiedAt: happenedAt,
             events: {
               create: [
@@ -705,15 +709,13 @@ export const scanHistoryRepository = {
             itemCategory,
             itemSku: input.itemSku ?? null,
             itemBarcode: input.itemBarcode ?? null,
-            itemImageUrl: input.itemImageUrl ?? null,
+            itemImageUrl: input.itemImageUrl ?? existing.itemImageUrl ?? null,
             itemType: input.itemType,
             itemTitle: input.itemTitle,
-            ...(latestLocationUnchanged
-              ? {}
-              : { latestLocation: normalizedSoldLocation }),
             isSold: true,
             lastSoldChannel: salesChannel,
             orderId: orderId ?? existing.orderId ?? null,
+            orderNumber: orderNumber ?? existing.orderNumber ?? null,
             lastModifiedAt: happenedAt,
           },
         });
@@ -743,12 +745,9 @@ export const scanHistoryRepository = {
           itemCategory,
           itemSku: input.itemSku ?? null,
           itemBarcode: input.itemBarcode ?? null,
-          itemImageUrl: input.itemImageUrl ?? null,
+          itemImageUrl: input.itemImageUrl ?? existing.itemImageUrl ?? null,
           itemType: input.itemType,
           itemTitle: input.itemTitle,
-          ...(latestLocationUnchanged
-            ? {}
-            : { latestLocation: normalizedSoldLocation }),
           isSold: true,
           lastSoldChannel: salesChannel,
           orderId: orderId ?? existing.orderId ?? null,

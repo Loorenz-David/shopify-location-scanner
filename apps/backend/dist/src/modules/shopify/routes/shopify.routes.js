@@ -4,12 +4,13 @@ import { authenticateUserMiddleware } from "../../auth/middleware/authenticate-u
 import { requireAdminMiddleware } from "../../auth/middleware/require-admin.middleware.js";
 import { requireShopLinkMiddleware } from "../../auth/middleware/require-shop-link.middleware.js";
 import { shopifyController } from "../controllers/shopify.controller.js";
-import { verifyOrdersPaidWebhookMiddleware, verifyProductsUpdateWebhookMiddleware, } from "../middleware/verify-shopify-webhook.middleware.js";
+import { verifyOrdersCreateWebhookMiddleware, verifyOrdersPaidWebhookMiddleware, verifyProductsUpdateWebhookMiddleware, } from "../middleware/verify-shopify-webhook.middleware.js";
 export const shopifyRouter = Router();
+shopifyRouter.post("/webhooks/orders/create", verifyOrdersCreateWebhookMiddleware, asyncHandler(shopifyController.handleOrdersCreateWebhook));
 shopifyRouter.post("/webhooks/orders/paid", verifyOrdersPaidWebhookMiddleware, asyncHandler(shopifyController.handleOrdersPaidWebhook));
 shopifyRouter.post("/webhooks/products/update", verifyProductsUpdateWebhookMiddleware, asyncHandler(shopifyController.handleProductsUpdateWebhook));
 shopifyRouter.get("/shop", authenticateUserMiddleware, requireShopLinkMiddleware, asyncHandler(shopifyController.getLinkedShop));
-shopifyRouter.post("/oauth/install", authenticateUserMiddleware, requireAdminMiddleware, asyncHandler(shopifyController.install));
+shopifyRouter.get("/oauth/install", asyncHandler(shopifyController.install));
 shopifyRouter.get("/oauth/callback", asyncHandler(shopifyController.callback));
 shopifyRouter.get("/products/:productId", authenticateUserMiddleware, requireShopLinkMiddleware, asyncHandler(shopifyController.getProduct));
 shopifyRouter.patch("/products/:productId/location", authenticateUserMiddleware, requireShopLinkMiddleware, asyncHandler(shopifyController.updateLocation));

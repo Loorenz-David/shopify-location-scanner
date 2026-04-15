@@ -80,6 +80,7 @@ model User {
   passwordHash  String
   role          UserRole      @default(worker)
   shopId        String?
+  tokenVersion  Int           @default(0)
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   shop          Shop?         @relation(fields: [shopId], references: [id], onDelete: SetNull)
@@ -122,8 +123,11 @@ model ScanHistory {
   isSold           Boolean  @default(false)
   lastSoldChannel  SalesChannel?
   orderId              String?
+  orderNumber          Int?
   intention            LogisticIntention?
   fixItem              Boolean?
+  isItemFixed          Boolean  @default(false)
+  fixNotes             String?
   scheduledDate        DateTime?
   lastLogisticEventType LogisticEventType?
   logisticLocationId   String?
@@ -154,6 +158,8 @@ model ScanHistory {
   @@index([shopId, intention])
   @@index([shopId, lastLogisticEventType])
   @@index([shopId, logisticsCompletedAt])
+  @@index([shopId, fixItem])
+  @@index([shopId, isItemFixed])
   @@index([shopId, orderId])
 }
 

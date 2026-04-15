@@ -20,6 +20,7 @@ export declare const scanHistoryRepository: {
         itemCategory?: string | null;
         soldPrice?: string | null;
         orderId?: string | null;
+        orderNumber?: number | null;
         orderGroupId?: string | null;
         unknownLocation: string;
         soldLocation: string;

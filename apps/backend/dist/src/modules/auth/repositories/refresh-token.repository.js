@@ -31,5 +31,16 @@ export const refreshTokenRepository = {
             },
         });
     },
+    async revokeAllByUserId(userId) {
+        await prisma.refreshToken.updateMany({
+            where: {
+                userId,
+                revokedAt: null,
+            },
+            data: {
+                revokedAt: new Date(),
+            },
+        });
+    },
 };
 //# sourceMappingURL=refresh-token.repository.js.map

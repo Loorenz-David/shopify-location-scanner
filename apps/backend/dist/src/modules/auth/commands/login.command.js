@@ -17,6 +17,7 @@ export const loginCommand = async (input) => {
         username: user.username,
         role: user.role,
         shopId: user.shopId,
+        tokenVersion: user.tokenVersion,
     });
     const refreshToken = tokenService.createRefreshToken();
     const refreshTokenHash = tokenService.hashRefreshToken(refreshToken);

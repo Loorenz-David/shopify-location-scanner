@@ -41,8 +41,11 @@ export type LogisticItemSummary = {
   itemTitle: string;
   latestLocation: string | null;
   orderId: string | null;
+  orderNumber: number | null;
   intention: LogisticIntention;
   fixItem: boolean | null;
+  isItemFixed: boolean;
+  fixNotes: string | null;
   scheduledDate: Date | null;
   lastLogisticEventType: LogisticEventType | null;
   updatedAt: Date;

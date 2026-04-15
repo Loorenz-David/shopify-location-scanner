@@ -12,6 +12,10 @@ export declare const env: {
     SHOPIFY_METAFIELD_NAMESPACE: string;
     SHOPIFY_METAFIELD_KEY: string;
     REDIS_URL: string;
+    SHOPIFY_DEBUG_SKIP_HMAC: boolean;
+    VAPID_PUBLIC_KEY: string;
+    VAPID_PRIVATE_KEY: string;
+    VAPID_SUBJECT: string;
     FRONTEND_URLS?: string | undefined;
     ADMIN_KEY?: string | undefined;
     BACKEND_PUBLIC_URL?: string | undefined;

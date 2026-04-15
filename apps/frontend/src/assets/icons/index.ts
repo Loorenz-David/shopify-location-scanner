@@ -9,6 +9,10 @@ import SearchIcon from "./SearchIcon.svg?react";
 import FilterIcon from "./FilterIcon.svg?react";
 import AnalyticsIcon from "./AnalyticsIcon.svg?react";
 import ThickArrowIcon from "./ThickArrowIcon.svg?react";
+import StatsIcon from "./StatsIcon.svg?react";
+import TaskIcon from "./TaskIcon.svg?react";
+import HomeIcon from "./HomeIcon.svg?react";
+import SettingsIcon from "./SettingsIcon.svg?react";
 
 export {
   BackArrowIcon,
@@ -22,4 +26,8 @@ export {
   FilterIcon,
   AnalyticsIcon,
   ThickArrowIcon,
+  StatsIcon,
+  TaskIcon,
+  HomeIcon,
+  SettingsIcon,
 };

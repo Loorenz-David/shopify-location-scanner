@@ -7,6 +7,7 @@ type UserRecord = {
   passwordHash: string;
   role: "admin" | "manager" | "worker" | "seller";
   shopId: string | null;
+  tokenVersion: number;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -18,6 +19,7 @@ const toDomain = (record: UserRecord): AuthUser => {
     passwordHash: record.passwordHash,
     role: record.role,
     shopId: record.shopId,
+    tokenVersion: record.tokenVersion,
     createdAt: record.createdAt,
     updatedAt: record.updatedAt,
   };
@@ -96,6 +98,32 @@ export const userRepository = {
       data: {
         shopId: null,
       },
+    });
+  },
+
+  async findAllByShop(shopId: string): Promise<AuthUser[]> {
+    const records = await prisma.user.findMany({
+      where: { shopId },
+      orderBy: { createdAt: "asc" },
+    });
+    return records.map(toDomain);
+  },
+
+  async updateRole(
+    userId: string,
+    role: "admin" | "manager" | "worker" | "seller",
+  ): Promise<AuthUser> {
+    const record = await prisma.user.update({
+      where: { id: userId },
+      data: { role, tokenVersion: { increment: 1 } },
+    });
+    return toDomain(record);
+  },
+
+  async incrementTokenVersion(userId: string): Promise<void> {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { tokenVersion: { increment: 1 } },
     });
   },
 };

@@ -7,5 +7,6 @@ export declare const refreshTokenRepository: {
         userId: string;
     } | null>;
     revokeByHash(tokenHash: string): Promise<void>;
+    revokeAllByUserId(userId: string): Promise<void>;
 };
 //# sourceMappingURL=refresh-token.repository.d.ts.map

@@ -41,6 +41,7 @@ export const handleOrdersPaidWebhookCommand = async (input) => {
     }
     const paidAt = parsePaidDate(input.payload);
     const orderId = String(input.payload.id);
+    const orderNumber = input.payload.order_number ?? null;
     const orderGroupId = `order:${orderId}`;
     const soldLocation = `SOLD_ORDER:${orderId}`;
     const salesChannel = classifyShopifyOrderChannel({
@@ -77,6 +78,7 @@ export const handleOrdersPaidWebhookCommand = async (input) => {
             itemTitle: lineItem.title,
             soldPrice: lineItem.price,
             orderId,
+            orderNumber,
             orderGroupId,
             unknownLocation: UNKNOWN_POSITION_LOCATION,
             soldLocation,

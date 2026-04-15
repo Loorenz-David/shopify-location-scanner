@@ -1,7 +1,14 @@
-import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type RefObject,
+} from "react";
 
 import { useWsEvent } from "../../../core/ws-client/use-ws-event";
 import type { WsInboundEvent } from "../../../core/ws-client/ws-events";
+import { useCameraPrewarm } from "../../scanner/flows/use-camera-prewarm";
 import { itemScanHistoryActions } from "../actions/item-scan-history.actions";
 import {
   selectItemScanHistoryFiltersRequestKey,
@@ -47,6 +54,9 @@ export function useItemScanHistoryRealtimeFlow(): void {
 }
 
 export function useItemScanHistoryFlow(): void {
+  // Prewarm the main scanner camera so it's ready when the user taps scan.
+  useCameraPrewarm("main-scanner");
+
   const hasLoaded = useItemScanHistoryStore((state) => state.hasLoaded);
   const query = useItemScanHistoryStore((state) => state.query);
   const filtersRequestKey = useItemScanHistoryStore(

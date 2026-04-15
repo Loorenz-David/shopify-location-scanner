@@ -78,6 +78,14 @@ export const getConnections = (
     .map((c) => c.ws);
 };
 
+export const getConnectionsForUser = (
+  shopId: string,
+  userId: string,
+): WebSocket[] => {
+  const all = registry.get(shopId) ?? new Set<WsConnection>();
+  return [...all].filter((c) => c.userId === userId).map((c) => c.ws);
+};
+
 export const isUserConnectedViaWs = async (
   shopId: string,
   userId: string,

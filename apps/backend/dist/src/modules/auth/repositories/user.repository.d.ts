@@ -13,5 +13,8 @@ export declare const userRepository: {
     assignShop(userId: string, shopId: string): Promise<void>;
     assignUnlinkedUsersToShop(shopId: string): Promise<void>;
     unassignUsersFromShop(shopId: string): Promise<void>;
+    findAllByShop(shopId: string): Promise<AuthUser[]>;
+    updateRole(userId: string, role: "admin" | "manager" | "worker" | "seller"): Promise<AuthUser>;
+    incrementTokenVersion(userId: string): Promise<void>;
 };
 //# sourceMappingURL=user.repository.d.ts.map

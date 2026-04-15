@@ -1,5 +1,6 @@
 import { rateLimit } from "express-rate-limit";
 import { logger } from "../logging/logger.js";
+const isDevelopment = process.env.NODE_ENV === "development";
 const buildRateLimitHandler = (label) => {
     return (req, res) => {
         logger.warn("Rate limit exceeded", {
@@ -22,7 +23,9 @@ export const globalRateLimitMiddleware = rateLimit({
     limit: 180,
     standardHeaders: true,
     legacyHeaders: false,
-    skip: (req) => req.path.startsWith("/health") || req.path.startsWith("/shopify/webhooks"),
+    skip: (req) => isDevelopment ||
+        req.path.startsWith("/health") ||
+        req.path.startsWith("/shopify/webhooks"),
     handler: buildRateLimitHandler("global"),
 });
 export const authRateLimitMiddleware = rateLimit({
@@ -30,6 +33,7 @@ export const authRateLimitMiddleware = rateLimit({
     limit: 25,
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => isDevelopment,
     handler: buildRateLimitHandler("auth"),
 });
 //# sourceMappingURL=rate-limit-middleware.js.map

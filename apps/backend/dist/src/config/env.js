@@ -18,6 +18,10 @@ const EnvSchema = z.object({
     SHOPIFY_METAFIELD_NAMESPACE: z.string().min(1).default("app"),
     SHOPIFY_METAFIELD_KEY: z.string().min(1).default("item_location"),
     REDIS_URL: z.string().url().default("redis://127.0.0.1:6379"),
+    SHOPIFY_DEBUG_SKIP_HMAC: z.coerce.boolean().default(false),
+    VAPID_PUBLIC_KEY: z.string().min(1),
+    VAPID_PRIVATE_KEY: z.string().min(1),
+    VAPID_SUBJECT: z.string().min(1),
 });
 export const env = EnvSchema.parse(process.env);
 export const backendPublicUrl = env.BACKEND_PUBLIC_URL ?? env.SHOPIFY_APP_URL;

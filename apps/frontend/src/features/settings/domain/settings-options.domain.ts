@@ -7,7 +7,11 @@ export const settingsOptionSubscriptions: SettingsOptionSubscription[] = [
   },
   {
     id: "settings-location-options",
-    label: "Location options",
+    label: "Shop locations",
+  },
+  {
+    id: "settings-logistic-locations",
+    label: "Logistic locations",
   },
   {
     id: "settings-users",

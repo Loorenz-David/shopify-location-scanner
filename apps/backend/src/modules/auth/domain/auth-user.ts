@@ -4,6 +4,7 @@ export type AuthUser = {
   passwordHash: string;
   role: "admin" | "manager" | "worker" | "seller";
   shopId: string | null;
+  tokenVersion: number;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -13,4 +14,5 @@ export type AuthPrincipal = {
   username: string;
   role: "admin" | "manager" | "worker" | "seller";
   shopId: string | null;
+  tokenVersion: number;
 };

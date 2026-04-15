@@ -8,12 +8,15 @@ import {
   openHomePageController,
   registerHomePagesController,
   selectNavigationPageController,
+  openPopupPageController,
+  closePopupPageController,
 } from "../controllers/home-shell.controller";
 import { HOME_DEFAULT_PAGE_ID } from "../domain/page-registry.domain";
 import type {
   HomePageId,
   HomePageRegistration,
   OverlayPageId,
+  PopupPageId,
 } from "../types/home-shell.types";
 
 export const homeShellActions = {
@@ -43,5 +46,11 @@ export const homeShellActions = {
   },
   closeOverlayPage(): void {
     closeOverlayPageController();
+  },
+  popupFeaturePage(pageId: PopupPageId): void {
+    openPopupPageController(pageId);
+  },
+  closePopupPage(): void {
+    closePopupPageController();
   },
 };

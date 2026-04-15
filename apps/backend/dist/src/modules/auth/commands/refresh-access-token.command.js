@@ -17,6 +17,7 @@ export const refreshAccessTokenCommand = async (input) => {
         username: user.username,
         role: user.role,
         shopId: user.shopId,
+        tokenVersion: user.tokenVersion,
     });
     return {
         user: {

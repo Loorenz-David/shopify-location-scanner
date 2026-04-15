@@ -1,5 +1,7 @@
 import { ApiClientError } from "../../../core/api-client";
 import { useLocationOptionsStore } from "../../scanner/stores/location-options.store";
+import { hydrateLogisticLocationsFromBootstrap } from "../../logistic-locations/flows/logistic-locations-bootstrap.flow";
+import { pwaActions } from "../../pwa/actions/pwa.actions";
 import { getBootstrapApi } from "../api/get-bootstrap.api";
 import { useBootstrapStore } from "../stores/bootstrap.store";
 
@@ -20,6 +22,12 @@ export async function hydrateBootstrapController(): Promise<void> {
     useLocationOptionsStore
       .getState()
       .setOptions(response.payload.shopify.metafields.options);
+
+    hydrateLogisticLocationsFromBootstrap(response.payload.logisticLocations);
+
+    if (response.payload.vapidPublicKey) {
+      void pwaActions.subscribeToPush(response.payload.vapidPublicKey);
+    }
   } catch (error) {
     if (error instanceof ApiClientError && error.status === 403) {
       bootstrapStore.setErrorMessage("Shop is not linked yet.");
