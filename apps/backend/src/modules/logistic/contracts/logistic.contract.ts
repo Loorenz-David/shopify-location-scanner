@@ -52,6 +52,10 @@ export const GetLogisticItemsQuerySchema = z.object({
   zoneType: LogisticZoneTypeSchema.optional(),
   intention: LogisticIntentionSchema.optional(),
   orderId: z.string().optional(),
+  ids: z.string().optional(), // comma-separated scanHistory IDs for targeted refetch
+  noIntention: z
+    .preprocess((v) => v === "true" || v === true, z.boolean())
+    .optional(),
 });
 
 export const CreateLogisticLocationInputSchema = z.object({

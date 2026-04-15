@@ -323,3 +323,72 @@ scheduledDate: z.string()
 ### Compile Status After Second-Pass Fixes
 
 `npx tsc --noEmit` — **0 errors**
+
+---
+
+## Logistic Items Filter Additions
+
+Source plan: `docs/under_development/LOGISTIC_API_FILTER_ADDITIONS.md`.
+Additive only — no existing behaviour changed.
+
+### Change 1 — `ids` filter (targeted refetch by scanHistoryId)
+
+**Purpose:** When the frontend receives a WS event (`logistic_intention_set`,
+`logistic_item_placed`, `logistic_item_fulfilled`) it refetches only the affected
+items by their `scanHistoryId` instead of re-fetching the full list.
+
+**`src/modules/logistic/contracts/logistic.contract.ts`**
+
+```typescript
+ids: z.string().optional(), // comma-separated scanHistory IDs
+```
+
+**`src/modules/logistic/queries/get-logistic-items.query.ts`**
+
+```typescript
+if (filters.ids) {
+  const idList = filters.ids
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+  if (idList.length > 0) {
+    where.id = { in: idList };
+  }
+}
+```
+
+Usage: `GET /api/logistic/items?ids=abc123,def456`
+
+---
+
+### Change 2 — `noIntention` filter (seller task view)
+
+**Purpose:** The seller task page shows sold items that have not yet had an
+intention set (`intention IS NULL`). The base query normally requires
+`intention IS NOT NULL` — `noIntention=true` inverts this guard.
+
+**`src/modules/logistic/contracts/logistic.contract.ts`**
+
+```typescript
+noIntention: z.preprocess((v) => v === "true" || v === true, z.boolean()).optional(),
+```
+
+**`src/modules/logistic/queries/get-logistic-items.query.ts`**
+
+```typescript
+intention: filters.noIntention
+  ? null                              // IS NULL — items needing intention set
+  : { not: null, notIn: ["customer_took_it"] },
+```
+
+Usage: `GET /api/logistic/items?noIntention=true`
+
+**`src/modules/logistic/controllers/logistic.controller.ts`**
+
+Both `ids` and `noIntention` forwarded from `req.query` through the schema parse.
+
+---
+
+### Compile Status After Filter Additions
+
+`npx tsc --noEmit` — **0 errors**

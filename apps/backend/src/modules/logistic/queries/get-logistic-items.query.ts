@@ -17,10 +17,12 @@ export const getLogisticItemsQuery = async (input: {
   const where: any = {
     shopId,
     isSold: true,
-    intention: {
-      not: null,
-      notIn: ["customer_took_it"],
-    },
+    intention: filters.noIntention
+      ? null
+      : {
+          not: null,
+          notIn: ["customer_took_it"],
+        },
     logisticsCompletedAt: null,
   };
 
@@ -42,6 +44,16 @@ export const getLogisticItemsQuery = async (input: {
 
   if (filters.zoneType) {
     where.logisticLocation = { zoneType: filters.zoneType };
+  }
+
+  if (filters.ids) {
+    const idList = filters.ids
+      .split(",")
+      .map((id) => id.trim())
+      .filter(Boolean);
+    if (idList.length > 0) {
+      where.id = { in: idList };
+    }
   }
 
   const records = await prisma.scanHistory.findMany({

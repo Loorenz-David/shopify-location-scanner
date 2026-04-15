@@ -105,6 +105,8 @@ export const logisticController = {
       zoneType: req.query.zoneType,
       intention: req.query.intention,
       orderId: req.query.orderId,
+      ids: req.query.ids,
+      noIntention: req.query.noIntention,
     });
 
     const page = await getLogisticItemsQuery({
