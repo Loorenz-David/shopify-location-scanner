@@ -32,7 +32,7 @@ export type AuthTokens = {
 export type AuthUserDto = {
   id: string;
   username: string;
-  role: "admin" | "worker";
+  role: "admin" | "manager" | "worker" | "seller";
   shopId: string | null;
 };
 

@@ -8,6 +8,7 @@ export const WS_BROADCAST_CHANNEL = "iss:ws:broadcast";
 
 export type WsBroadcastMessage = {
   shopId: string;
+  targetRoles?: string[];
   event: { type: string } & Record<string, unknown>;
 };
 
@@ -23,8 +24,13 @@ export const createWsBroadcastPublisher = () => {
   const publish = async (
     shopId: string,
     event: WsBroadcastMessage["event"],
+    targetRoles?: string[],
   ): Promise<void> => {
-    const message: WsBroadcastMessage = { shopId, event };
+    const message: WsBroadcastMessage = {
+      shopId,
+      event,
+      ...(targetRoles ? { targetRoles } : {}),
+    };
     await client.publish(WS_BROADCAST_CHANNEL, JSON.stringify(message));
   };
 
@@ -37,7 +43,11 @@ export const createWsBroadcastPublisher = () => {
 // subscribe mode can only run subscribe/unsubscribe commands, so it must be
 // separate from every other connection.
 export const createWsBroadcastSubscriber = (
-  onMessage: (shopId: string, event: WsBroadcastMessage["event"]) => void,
+  onMessage: (
+    shopId: string,
+    event: WsBroadcastMessage["event"],
+    targetRoles?: string[],
+  ) => void,
 ) => {
   const client = new Redis(env.REDIS_URL, { maxRetriesPerRequest: null });
 
@@ -61,7 +71,7 @@ export const createWsBroadcastSubscriber = (
     if (channel !== WS_BROADCAST_CHANNEL) return;
     try {
       const parsed = JSON.parse(rawMessage) as WsBroadcastMessage;
-      onMessage(parsed.shopId, parsed.event);
+      onMessage(parsed.shopId, parsed.event, parsed.targetRoles);
     } catch {
       logger.warn("WS broadcast subscriber received malformed message", {
         rawMessage,

@@ -27,7 +27,9 @@ import { statsRouter } from "./modules/stats/routes/stats.routes.js";
 import { closeWsServer, createWsServer } from "./modules/ws/ws-server.js";
 import { broadcastToShop } from "./modules/ws/ws-broadcaster.js";
 import { createWsBroadcastSubscriber } from "./shared/queue/ws-bridge.js";
+import type { UserRole } from "@prisma/client";
 import { zonesRouter } from "./modules/zones/routes/zones.routes.js";
+import { logisticRouter } from "./modules/logistic/routes/logistic.routes.js";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -121,6 +123,7 @@ app.use("/bootstrap", bootstrapRouter);
 app.use("/scanner", scannerRouter);
 app.use("/stats", statsRouter);
 app.use("/zones", zonesRouter);
+app.use("/logistic", logisticRouter);
 app.use("/internal/webhooks", webhookAdminRouter);
 app.use("/api/auth", authRateLimitMiddleware, authRouter);
 app.use("/api/shopify", shopifyRouter);
@@ -128,6 +131,7 @@ app.use("/api/bootstrap", bootstrapRouter);
 app.use("/api/scanner", scannerRouter);
 app.use("/api/stats", statsRouter);
 app.use("/api/zones", zonesRouter);
+app.use("/api/logistic", logisticRouter);
 app.use("/api/internal/webhooks", webhookAdminRouter);
 
 app.use(notFoundMiddleware);
@@ -142,9 +146,15 @@ createWsServer(httpServer);
 // Subscribe to broadcast events published by the webhook worker process.
 // The worker cannot call broadcastToShop directly (different process, empty
 // in-memory WS registry), so it publishes over Redis and we forward here.
-const wsBroadcastSubscriber = createWsBroadcastSubscriber((shopId, event) => {
-  broadcastToShop(shopId, event as Parameters<typeof broadcastToShop>[1]);
-});
+const wsBroadcastSubscriber = createWsBroadcastSubscriber(
+  (shopId, event, targetRoles) => {
+    broadcastToShop(
+      shopId,
+      event as Parameters<typeof broadcastToShop>[1],
+      targetRoles as UserRole[] | undefined,
+    );
+  },
+);
 
 httpServer.listen(PORT, () => {
   logger.info("Backend started", { port: PORT, env: env.NODE_ENV });

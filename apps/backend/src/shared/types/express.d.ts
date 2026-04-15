@@ -5,7 +5,7 @@ declare global {
       authUser: {
         userId: string;
         username: string;
-        role: "admin" | "worker";
+        role: "admin" | "manager" | "worker" | "seller";
         shopId: string | null;
       };
       webhookContext?: {

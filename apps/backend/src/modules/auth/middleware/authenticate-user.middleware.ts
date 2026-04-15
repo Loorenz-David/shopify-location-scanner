@@ -1,6 +1,7 @@
 import type { NextFunction, Request, Response } from "express";
 import { UnauthorizedError } from "../../../shared/errors/http-errors.js";
 import { tokenService } from "../integrations/token.service.js";
+import { updateUserActivity } from "../../logistic/services/logistic-notification.service.js";
 
 const getBearerToken = (authorizationHeader?: string): string | null => {
   if (!authorizationHeader) {
@@ -30,6 +31,7 @@ export const authenticateUserMiddleware = (
   try {
     const principal = tokenService.verifyAccessToken(token);
     req.authUser = principal;
+    void updateUserActivity(principal.userId);
     next();
   } catch {
     next(new UnauthorizedError("Invalid access token"));

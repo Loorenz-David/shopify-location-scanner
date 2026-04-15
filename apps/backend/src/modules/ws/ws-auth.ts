@@ -1,4 +1,5 @@
 import type WebSocket from "ws";
+import type { UserRole } from "@prisma/client";
 import { tokenService } from "../auth/integrations/token.service.js";
 
 const AUTH_TIMEOUT_MS = 5_000;
@@ -9,6 +10,7 @@ export type WsAuthResult =
       ok: true;
       shopId: string;
       userId: string;
+      role: UserRole;
     }
   | {
       ok: false;
@@ -47,6 +49,7 @@ export const waitForAuth = (ws: WebSocket): Promise<WsAuthResult> => {
           ok: true,
           shopId: principal.shopId,
           userId: principal.userId,
+          role: principal.role as UserRole,
         });
       } catch {
         ws.close(AUTH_FAILED_CLOSE_CODE, "Invalid auth payload");

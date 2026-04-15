@@ -5,7 +5,7 @@ type UserRecord = {
   id: string;
   username: string;
   passwordHash: string;
-  role: "admin" | "worker";
+  role: "admin" | "manager" | "worker" | "seller";
   shopId: string | null;
   createdAt: Date;
   updatedAt: Date;

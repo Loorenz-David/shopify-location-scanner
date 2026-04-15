@@ -9,7 +9,9 @@ datasource db {
 
 enum UserRole {
   admin
+  manager
   worker
+  seller
 }
 
 enum ScanHistoryEventType {
@@ -38,6 +40,25 @@ enum WebhookIntakeStatus {
   failed
 }
 
+enum LogisticIntention {
+  customer_took_it
+  store_pickup
+  local_delivery
+  international_shipping
+}
+
+enum LogisticEventType {
+  marked_intention
+  placed
+  fulfilled
+}
+
+enum LogisticZoneType {
+  for_delivery
+  for_pickup
+  for_fixing
+}
+
 model Shop {
   id            String        @id @default(cuid())
   shopDomain    String        @unique
@@ -49,6 +70,8 @@ model Shop {
   storeZones    StoreZone[]
   webhookDeliveries ShopifyWebhookDelivery[]
   webhookIntakeRecords WebhookIntakeRecord[]
+  logisticLocations LogisticLocation[]
+  scanHistoryLogistics ScanHistoryLogistic[]
 }
 
 model User {
@@ -62,6 +85,7 @@ model User {
   shop          Shop?         @relation(fields: [shopId], references: [id], onDelete: SetNull)
   refreshTokens RefreshToken[]
   scanHistories ScanHistory[]
+  pushSubscriptions PushSubscription[]
 
   @@index([shopId])
 }
@@ -97,6 +121,13 @@ model ScanHistory {
   latestLocation   String?
   isSold           Boolean  @default(false)
   lastSoldChannel  SalesChannel?
+  orderId              String?
+  intention            LogisticIntention?
+  fixItem              Boolean?
+  scheduledDate        DateTime?
+  lastLogisticEventType LogisticEventType?
+  logisticLocationId   String?
+  logisticsCompletedAt DateTime?
   lastModifiedAt   DateTime @default(now())
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -105,6 +136,8 @@ model ScanHistory {
 
   shop Shop  @relation(fields: [shopId], references: [id], onDelete: Restrict)
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  logisticLocation LogisticLocation? @relation("ScanHistoryCurrentLocation", fields: [logisticLocationId], references: [id], onDelete: SetNull)
+  logisticEvents   ScanHistoryLogistic[]
 
   @@unique([shopId, productId])
   @@index([shopId, lastModifiedAt])
@@ -118,6 +151,10 @@ model ScanHistory {
   @@index([shopId, latestLocation])
   @@index([shopId, isSold, lastModifiedAt])
   @@index([shopId, lastSoldChannel, lastModifiedAt])
+  @@index([shopId, intention])
+  @@index([shopId, lastLogisticEventType])
+  @@index([shopId, logisticsCompletedAt])
+  @@index([shopId, orderId])
 }
 
 model ScanHistoryEvent {
@@ -254,4 +291,58 @@ model SalesChannelStatsDaily {
   @@id([date, shopId, salesChannel])
   @@index([shopId, date])
   @@map("sales_channel_stats_daily")
+}
+
+model LogisticLocation {
+  id        String           @id @default(cuid())
+  shopId    String
+  location  String
+  zoneType  LogisticZoneType
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  shop             Shop                  @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  logisticEvents   ScanHistoryLogistic[]
+  currentScanItems ScanHistory[]         @relation("ScanHistoryCurrentLocation")
+
+  @@index([shopId, zoneType])
+  @@index([shopId, location])
+}
+
+model ScanHistoryLogistic {
+  id                 String            @id @default(cuid())
+  scanHistoryId      String
+  shopId             String
+  orderId            String?
+  logisticLocationId String?
+  username           String
+  eventType          LogisticEventType
+  happenedAt         DateTime          @default(now())
+  createdAt          DateTime          @default(now())
+
+  scanHistory      ScanHistory       @relation(fields: [scanHistoryId], references: [id], onDelete: Cascade)
+  shop             Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  logisticLocation LogisticLocation? @relation(fields: [logisticLocationId], references: [id], onDelete: SetNull)
+
+  @@index([scanHistoryId, happenedAt])
+  @@index([scanHistoryId, eventType])
+  @@index([shopId, eventType, happenedAt])
+  @@index([orderId, happenedAt])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  shopId    String
+  endpoint  String
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, endpoint])
+  @@index([shopId])
+  @@index([userId])
 }

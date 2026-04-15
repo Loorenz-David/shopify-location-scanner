@@ -139,6 +139,7 @@ const toDomain = (record: any): ScanHistoryRecord => {
     latestLocation: record.latestLocation,
     isSold: record.isSold,
     lastSoldChannel: record.lastSoldChannel,
+    orderId: record.orderId ?? null,
     lastModifiedAt: record.lastModifiedAt,
     events: record.events.map((entry: any) => ({
       username: entry.username,
@@ -599,6 +600,7 @@ export const scanHistoryRepository = {
             latestLocation: normalizedSoldLocation,
             isSold: true,
             lastSoldChannel: salesChannel,
+            orderId: orderId ?? null,
             lastModifiedAt: happenedAt,
             events: {
               create: [
@@ -711,6 +713,7 @@ export const scanHistoryRepository = {
               : { latestLocation: normalizedSoldLocation }),
             isSold: true,
             lastSoldChannel: salesChannel,
+            orderId: orderId ?? existing.orderId ?? null,
             lastModifiedAt: happenedAt,
           },
         });
@@ -748,6 +751,7 @@ export const scanHistoryRepository = {
             : { latestLocation: normalizedSoldLocation }),
           isSold: true,
           lastSoldChannel: salesChannel,
+          orderId: orderId ?? existing.orderId ?? null,
           lastModifiedAt: happenedAt,
         },
       });
@@ -765,7 +769,8 @@ export const scanHistoryRepository = {
       });
 
       const arrivedTime = arrivedEvent?.happenedAt ?? happenedAt;
-      const arrivedLocation = arrivedEvent?.location ?? normalizedUnknownLocation;
+      const arrivedLocation =
+        arrivedEvent?.location ?? normalizedUnknownLocation;
       const totalTimeToSellSeconds = toDurationSeconds(arrivedTime, happenedAt);
       const statsDate = startOfUtcDay(happenedAt);
       const soldItemCategory = normalizeCategory(
