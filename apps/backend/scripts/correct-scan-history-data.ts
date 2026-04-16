@@ -75,7 +75,11 @@ const warn = (msg: string, data?: Record<string, unknown>): void => {
   }
 };
 
-const logError = (msg: string, err: unknown, extra?: Record<string, unknown>): void => {
+const logError = (
+  msg: string,
+  err: unknown,
+  extra?: Record<string, unknown>,
+): void => {
   const ts = new Date().toISOString();
   console.error(
     `[${ts}] ERROR ${msg}`,
@@ -135,7 +139,8 @@ const shopifyGraphql = async <T>(
       errors.some(
         (e) =>
           e?.message === "Throttled" ||
-          (e?.extensions as Record<string, unknown> | null)?.code === "THROTTLED",
+          (e?.extensions as Record<string, unknown> | null)?.code ===
+            "THROTTLED",
       );
     if (isThrottled && attempt < 5) {
       const delay = Math.min(1_000 * 2 ** attempt, 8_000);
@@ -143,7 +148,9 @@ const shopifyGraphql = async <T>(
       await sleep(delay);
       return shopifyGraphql(query, variables, attempt + 1);
     }
-    throw new Error(`Shopify GraphQL errors: ${JSON.stringify(payload.errors)}`);
+    throw new Error(
+      `Shopify GraphQL errors: ${JSON.stringify(payload.errors)}`,
+    );
   }
 
   if (!payload.data) {
@@ -307,10 +314,10 @@ type ShopifyOrderLineItem = {
 };
 
 type ShopifyOrder = {
-  id: string;          // GID
-  legacyId: string;    // numeric string — used as orderId in the DB
-  name: string;        // #1001
-  orderNumber: number; // 1001
+  id: string; // GID
+  legacyId: string; // numeric string — used as orderId in the DB
+  name: string; // #1001
+  number: number; // 1001
   processedAt: string;
   createdAt: string;
   sourceName: string | null;
@@ -328,7 +335,7 @@ type ListOrdersResponse = {
         id: string;
         legacyResourceId: string;
         name: string;
-        orderNumber: number;
+        number: number;
         processedAt: string | null;
         createdAt: string;
         sourceName: string | null;
@@ -354,7 +361,7 @@ const fetchAllPaidOrders = async (sinceDate: Date): Promise<ShopifyOrder[]> => {
   let hasNextPage = true;
   let cursor: string | null = null;
   const since = sinceDate.toISOString().slice(0, 10);
-  const queryStr = `financial_status:paid created_at:>=${since}`;
+  const queryStr = `financial_status:paid processed_at:>=${since}`;
 
   log(`Querying Shopify orders with: ${queryStr}`);
 
@@ -370,7 +377,7 @@ const fetchAllPaidOrders = async (sinceDate: Date): Promise<ShopifyOrder[]> => {
               id
               legacyResourceId
               name
-              orderNumber
+              number
               processedAt
               createdAt
               sourceName
@@ -404,7 +411,7 @@ const fetchAllPaidOrders = async (sinceDate: Date): Promise<ShopifyOrder[]> => {
         id: n.id,
         legacyId: n.legacyResourceId,
         name: n.name,
-        orderNumber: n.orderNumber,
+        number: n.number,
         processedAt: n.processedAt ?? n.createdAt,
         createdAt: n.createdAt,
         sourceName: n.sourceName,
@@ -492,7 +499,9 @@ const main = async (): Promise<void> => {
   log(`Unique product IDs: ${productIds.length}`);
 
   const productMap = await batchFetchProducts(productIds);
-  log(`Shopify product data resolved: ${productMap.size} / ${productIds.length}`);
+  log(
+    `Shopify product data resolved: ${productMap.size} / ${productIds.length}`,
+  );
 
   // ──────────────────────────────────────────────────────────────────────────
   // Phase 2 — Update dimensions, categories, images
@@ -577,7 +586,9 @@ const main = async (): Promise<void> => {
           e.eventType === "unknown_position",
       );
     const preSoldLocation =
-      preSoldLocationEvent?.location ?? record.latestLocation ?? "UNKNOWN_POSITION";
+      preSoldLocationEvent?.location ??
+      record.latestLocation ??
+      "UNKNOWN_POSITION";
 
     // Events that arrived AFTER the sold terminal
     const postSoldLocationEvents = record.events.filter(
@@ -782,7 +793,7 @@ const main = async (): Promise<void> => {
                 isSold: true,
                 lastSoldChannel: channel,
                 orderId,
-                orderNumber: order.orderNumber,
+                orderNumber: order.number,
                 latestLocation: soldLocation,
                 lastModifiedAt: happenedAt,
               },
@@ -947,11 +958,10 @@ const main = async (): Promise<void> => {
 
       // Sales stats: every sold_terminal event
       if (event.eventType === "sold_terminal") {
-        const channel = (
+        const channel =
           (event.salesChannel as SalesChannel | null) ??
           (record.lastSoldChannel as SalesChannel | null) ??
-          ("unknown" as SalesChannel)
-        );
+          ("unknown" as SalesChannel);
         const statsDate = startOfUtcDay(event.happenedAt);
 
         // Find the price associated with this sale
@@ -980,8 +990,7 @@ const main = async (): Promise<void> => {
                 e.eventType === "unknown_position",
             );
 
-          const arrivedLocation =
-            arrivedEvent?.location ?? "UNKNOWN_POSITION";
+          const arrivedLocation = arrivedEvent?.location ?? "UNKNOWN_POSITION";
           const arrivedTime = arrivedEvent?.happenedAt ?? event.happenedAt;
           const timeToSellSeconds = toDurationSeconds(
             arrivedTime,
@@ -1053,7 +1062,11 @@ const main = async (): Promise<void> => {
     totalRecords: allRecords.length,
     phase2: { updated: p2Updated, skipped: p2Skipped, failed: p2Failed },
     phase3: { echoBugsFixed: p3Fixed, failed: p3Failed },
-    phase4: { missedSalesAdded: p4Added, alreadyPresent: p4AlreadyPresent, failed: p4Failed },
+    phase4: {
+      missedSalesAdded: p4Added,
+      alreadyPresent: p4AlreadyPresent,
+      failed: p4Failed,
+    },
     phase5: {
       locationRows: locationStats.size,
       categoryRows: categoryStats.size,
