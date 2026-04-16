@@ -1,6 +1,7 @@
 import { backendPublicUrl, env } from "../../../config/env.js";
 import { AppError } from "../../../shared/errors/app-error.js";
 import { logger } from "../../../shared/logging/logger.js";
+import { categoryResolverService } from "../../../shared/category/category-resolver.service.js";
 import type {
   ProductLocationData,
   ProductLocationSnapshot,
@@ -244,40 +245,14 @@ const coalesceMetafieldValue = (
   return null;
 };
 
-type ProductCollections = {
-  edges: Array<{
-    node: {
-      title: string;
-    };
-  }>;
-};
-
-const resolveProductCategory = (
-  productType: string,
-  collections: ProductCollections,
-): string | null => {
-  const trimmedType = productType?.trim();
-  if (trimmedType) {
-    return trimmedType;
-  }
-
-  const firstCollection = collections.edges[0]?.node.title?.trim();
-  if (firstCollection) {
-    return firstCollection;
-  }
-
-  return null;
-};
-
 const mapProductNodeToLocationSnapshot = (product: {
   id: string;
   title: string;
-  productType: string;
   updatedAt: string;
   featuredImage: {
     url: string;
   } | null;
-  collections: ProductCollections;
+  itemCategoryMeta: { value: string | null } | null;
   variants: {
     edges: Array<{
       node: {
@@ -325,7 +300,7 @@ const mapProductNodeToLocationSnapshot = (product: {
   return {
     id: product.id,
     title: product.title,
-    itemCategory: resolveProductCategory(product.productType, product.collections),
+    itemCategory: categoryResolverService.resolve(product.itemCategoryMeta?.value, product.title),
     sku: product.variants.edges[0]?.node.sku ?? null,
     barcode: product.variants.edges[0]?.node.barcode ?? null,
     price: product.variants.edges[0]?.node.price ?? null,
@@ -349,12 +324,11 @@ type ListProductsWithLocationResponse = {
       node: {
         id: string;
         title: string;
-        productType: string;
         updatedAt: string;
         featuredImage: {
           url: string;
         } | null;
-        collections: ProductCollections;
+        itemCategoryMeta: { value: string | null } | null;
         variants: {
           edges: Array<{
             node: {
@@ -432,12 +406,11 @@ export const shopifyAdminApi = {
       product: {
         id: string;
         title: string;
-        productType: string;
         updatedAt: string;
         featuredImage: {
           url: string;
         } | null;
-        collections: ProductCollections;
+        itemCategoryMeta: { value: string | null } | null;
         variants: {
           edges: Array<{
             node: {
@@ -480,17 +453,12 @@ export const shopifyAdminApi = {
         product(id: $id) {
           id
           title
-          productType
           updatedAt
           featuredImage {
             url
           }
-          collections(first: 5) {
-            edges {
-              node {
-                title
-              }
-            }
+          itemCategoryMeta: metafield(namespace: "custom", key: "productcategory") {
+            value
           }
           variants(first: 1) {
             edges {
@@ -546,17 +514,17 @@ export const shopifyAdminApi = {
         id: input.productId,
         namespace: env.SHOPIFY_METAFIELD_NAMESPACE,
         locationKey: env.SHOPIFY_METAFIELD_KEY,
-        heightKey: "height",
-        heightKeyAlt: "Height",
+        heightKey: "totalheight",
+        heightKeyAlt: "totalheight",
         dimensionNamespaceFallback: DIMENSION_NAMESPACE_FALLBACK,
-        widthKey: "width",
-        widthKeyAlt: "Width",
-        depthKey: "depth",
-        depthKeyAlt: "Depth",
+        widthKey: "totalwidth",
+        widthKeyAlt: "totalwidth",
+        depthKey: "totaldepth",
+        depthKeyAlt: "totaldepth",
       },
     );
 
-    if (!data.product) {
+if (!data.product) {
       throw new AppError("Shopify product not found", {
         code: "NOT_FOUND",
         statusCode: 404,
@@ -604,17 +572,12 @@ export const shopifyAdminApi = {
               node {
                 id
                 title
-                productType
                 updatedAt
                 featuredImage {
                   url
                 }
-                collections(first: 5) {
-                  edges {
-                    node {
-                      title
-                    }
-                  }
+                itemCategoryMeta: metafield(namespace: "custom", key: "productcategory") {
+                  value
                 }
                 variants(first: 1) {
                   edges {
@@ -673,13 +636,13 @@ export const shopifyAdminApi = {
           after: cursor,
           namespace: env.SHOPIFY_METAFIELD_NAMESPACE,
           locationKey: env.SHOPIFY_METAFIELD_KEY,
-          heightKey: "height",
-          heightKeyAlt: "Height",
+          heightKey: "totalheight",
+          heightKeyAlt: "totalheight",
           dimensionNamespaceFallback: DIMENSION_NAMESPACE_FALLBACK,
-          widthKey: "width",
-          widthKeyAlt: "Width",
-          depthKey: "depth",
-          depthKeyAlt: "Depth",
+          widthKey: "totalwidth",
+          widthKeyAlt: "totalwidth",
+          depthKey: "totaldepth",
+          depthKeyAlt: "totaldepth",
         },
       );
 
