@@ -44,6 +44,7 @@ export type ScanHistoryRecord = {
   itemWidth: number | null;
   itemDepth: number | null;
   volume: number | null;
+  quantity: number;
   latestLocation: string | null;
   isSold: boolean;
   lastSoldChannel: SalesChannel | null;

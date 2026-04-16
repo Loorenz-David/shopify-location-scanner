@@ -1,1 +1,0 @@
-{"version":3,"file":"unlink-shop.command.d.ts","sourceRoot":"","sources":["../../../../../src/modules/shopify/commands/unlink-shop.command.ts"],"names":[],"mappings":"AAGA,OAAO,KAAK,EAAE,oBAAoB,EAAE,MAAM,kCAAkC,CAAC;AAI7E,eAAO,MAAM,iBAAiB,GAAU,OAAO;IAC7C,MAAM,EAAE,MAAM,CAAC;CAChB,KAAG,OAAO,CAAC,oBAAoB,CA4B/B,CAAC"}

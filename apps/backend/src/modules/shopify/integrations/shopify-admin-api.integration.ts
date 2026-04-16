@@ -232,6 +232,33 @@ const resolveDimensions = (input: {
 
 const DIMENSION_NAMESPACE_FALLBACK = "custom";
 
+const inferQuantityFromTitle = (title: string): number | null => {
+  const normalized = title.toLowerCase();
+  const match = normalized.match(/set\s+of\s+(\d+)/);
+  if (!match || !match[1]) return null;
+  const n = Number.parseInt(match[1], 10);
+  return Number.isFinite(n) && n > 0 ? n : null;
+};
+
+const resolveQuantity = (
+  metafieldValue: string | null | undefined,
+  itemCategory: string,
+  title: string,
+): number => {
+  const raw = metafieldValue?.trim();
+  if (raw) {
+    const parsed = Number.parseInt(raw, 10);
+    if (Number.isInteger(parsed) && parsed > 0) return parsed;
+  }
+
+  if (itemCategory === "dining_chair") {
+    const inferred = inferQuantityFromTitle(title);
+    if (inferred !== null) return inferred;
+  }
+
+  return 1;
+};
+
 const coalesceMetafieldValue = (
   ...values: Array<string | null | undefined>
 ): string | null => {
@@ -253,6 +280,7 @@ const mapProductNodeToLocationSnapshot = (product: {
     url: string;
   } | null;
   itemCategoryMeta: { value: string | null } | null;
+  quantityMeta: { value: string | null } | null;
   variants: {
     edges: Array<{
       node: {
@@ -297,10 +325,16 @@ const mapProductNodeToLocationSnapshot = (product: {
     ),
   });
 
+  const itemCategory = categoryResolverService.resolve(
+    product.itemCategoryMeta?.value,
+    product.title,
+  );
+
   return {
     id: product.id,
     title: product.title,
-    itemCategory: categoryResolverService.resolve(product.itemCategoryMeta?.value, product.title),
+    itemCategory,
+    quantity: resolveQuantity(product.quantityMeta?.value, itemCategory, product.title),
     sku: product.variants.edges[0]?.node.sku ?? null,
     barcode: product.variants.edges[0]?.node.barcode ?? null,
     price: product.variants.edges[0]?.node.price ?? null,
@@ -329,6 +363,7 @@ type ListProductsWithLocationResponse = {
           url: string;
         } | null;
         itemCategoryMeta: { value: string | null } | null;
+        quantityMeta: { value: string | null } | null;
         variants: {
           edges: Array<{
             node: {
@@ -411,6 +446,7 @@ export const shopifyAdminApi = {
           url: string;
         } | null;
         itemCategoryMeta: { value: string | null } | null;
+        quantityMeta: { value: string | null } | null;
         variants: {
           edges: Array<{
             node: {
@@ -458,6 +494,9 @@ export const shopifyAdminApi = {
             url
           }
           itemCategoryMeta: metafield(namespace: "custom", key: "productcategory") {
+            value
+          }
+          quantityMeta: metafield(namespace: "custom", key: "quantity") {
             value
           }
           variants(first: 1) {
@@ -577,6 +616,9 @@ if (!data.product) {
                   url
                 }
                 itemCategoryMeta: metafield(namespace: "custom", key: "productcategory") {
+                  value
+                }
+                quantityMeta: metafield(namespace: "custom", key: "quantity") {
                   value
                 }
                 variants(first: 1) {

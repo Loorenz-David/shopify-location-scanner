@@ -120,6 +120,7 @@ model ScanHistory {
   itemDepth        Float?
   volume           Float?
   latestLocation   String?
+  quantity         Int      @default(1)
   isSold           Boolean  @default(false)
   lastSoldChannel  SalesChannel?
   orderId              String?

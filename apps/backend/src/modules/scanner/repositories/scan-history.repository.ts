@@ -19,6 +19,13 @@ const normalizePrice = (price?: string | null): string | null => {
   return trimmed ? trimmed : null;
 };
 
+const normalizeQuantity = (value?: number | null): number => {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 1) {
+    return 1;
+  }
+  return value;
+};
+
 const normalizeVolume = (volume?: number | null): number | null => {
   if (typeof volume !== "number" || !Number.isFinite(volume) || volume <= 0) {
     return null;
@@ -136,6 +143,7 @@ const toDomain = (record: any): ScanHistoryRecord => {
     itemWidth: record.itemWidth,
     itemDepth: record.itemDepth,
     volume: record.volume,
+    quantity: record.quantity ?? 1,
     latestLocation: record.latestLocation,
     isSold: record.isSold,
     lastSoldChannel: record.lastSoldChannel,
@@ -204,6 +212,7 @@ export const scanHistoryRepository = {
     const itemWidth = normalizeDimension(input.itemWidth);
     const itemDepth = normalizeDimension(input.itemDepth);
     const volume = normalizeVolume(input.volume);
+    const quantity = normalizeQuantity(input.quantity);
     let didAppendLocationEvent = false;
 
     if (!normalizedLocation) {
@@ -254,6 +263,7 @@ export const scanHistoryRepository = {
             itemWidth,
             itemDepth,
             volume,
+            quantity,
             latestLocation: normalizedLocation,
             isSold: eventType === "sold_terminal",
             lastModifiedAt: happenedAt,
@@ -359,6 +369,7 @@ export const scanHistoryRepository = {
           ...(itemWidth !== null ? { itemWidth } : {}),
           ...(itemDepth !== null ? { itemDepth } : {}),
           ...(volume !== null ? { volume } : {}),
+          quantity,
           latestLocation: normalizedLocation,
           isSold: eventType === "sold_terminal",
           lastModifiedAt: happenedAt,
@@ -476,6 +487,7 @@ export const scanHistoryRepository = {
     soldLocation: string;
     happenedAt?: Date;
     salesChannel?: SalesChannel;
+    quantity?: number | null;
   }): Promise<ScanHistoryRecord> {
     const happenedAt = input.happenedAt ?? new Date();
     const salesChannel: SalesChannel = input.salesChannel ?? "unknown";
@@ -487,6 +499,7 @@ export const scanHistoryRepository = {
     const orderId = input.orderId ?? null;
     const orderNumber = input.orderNumber ?? null;
     const orderGroupId = input.orderGroupId ?? null;
+    const quantity = normalizeQuantity(input.quantity);
 
     if (!normalizedUnknownLocation || !normalizedSoldLocation) {
       throw new Error("Sold and fallback locations are required");
@@ -519,14 +532,14 @@ export const scanHistoryRepository = {
             create: {
               date: statsDate,
               location: normalizedUnknownLocation,
-              itemsSold: 1,
+              itemsSold: quantity,
               itemsReceived: 0,
               totalTimeToSellSeconds: 0,
               totalValuation: soldValuation,
             },
             update: {
               itemsSold: {
-                increment: 1,
+                increment: quantity,
               },
               totalTimeToSellSeconds: {
                 increment: 0,
@@ -549,13 +562,13 @@ export const scanHistoryRepository = {
               date: statsDate,
               location: normalizedUnknownLocation,
               itemCategory,
-              itemsSold: 1,
+              itemsSold: quantity,
               totalRevenue: soldValuation,
               totalTimeToSellSeconds: 0,
             },
             update: {
               itemsSold: {
-                increment: 1,
+                increment: quantity,
               },
               totalRevenue: {
                 increment: soldValuation,
@@ -579,11 +592,11 @@ export const scanHistoryRepository = {
             date: statsDate,
             shopId: input.shopId,
             salesChannel,
-            itemsSold: 1,
+            itemsSold: quantity,
             totalRevenue: soldValuation,
           },
           update: {
-            itemsSold: { increment: 1 },
+            itemsSold: { increment: quantity },
             totalRevenue: { increment: soldValuation },
           },
         });
@@ -758,9 +771,7 @@ export const scanHistoryRepository = {
       const arrivedEvent = await tx.scanHistoryEvent.findFirst({
         where: {
           scanHistoryId: existing.id,
-          eventType: {
-            in: ["location_update", "unknown_position"],
-          },
+          eventType: "location_update",
         },
         orderBy: {
           happenedAt: "desc",
@@ -813,17 +824,17 @@ export const scanHistoryRepository = {
           create: {
             date: statsDate,
             location: arrivedLocation,
-            itemsSold: 1,
+            itemsSold: quantity,
             itemsReceived: 0,
-            totalTimeToSellSeconds,
+            totalTimeToSellSeconds: quantity * totalTimeToSellSeconds,
             totalValuation: soldValuation,
           },
           update: {
             itemsSold: {
-              increment: 1,
+              increment: quantity,
             },
             totalTimeToSellSeconds: {
-              increment: totalTimeToSellSeconds,
+              increment: quantity * totalTimeToSellSeconds,
             },
             totalValuation: {
               increment: soldValuation,
@@ -843,19 +854,19 @@ export const scanHistoryRepository = {
             date: statsDate,
             location: arrivedLocation,
             itemCategory: soldItemCategory,
-            itemsSold: 1,
+            itemsSold: quantity,
             totalRevenue: soldValuation,
-            totalTimeToSellSeconds,
+            totalTimeToSellSeconds: quantity * totalTimeToSellSeconds,
           },
           update: {
             itemsSold: {
-              increment: 1,
+              increment: quantity,
             },
             totalRevenue: {
               increment: soldValuation,
             },
             totalTimeToSellSeconds: {
-              increment: totalTimeToSellSeconds,
+              increment: quantity * totalTimeToSellSeconds,
             },
           },
         });
@@ -873,11 +884,11 @@ export const scanHistoryRepository = {
           date: statsDate,
           shopId: input.shopId,
           salesChannel,
-          itemsSold: 1,
+          itemsSold: quantity,
           totalRevenue: soldValuation,
         },
         update: {
-          itemsSold: { increment: 1 },
+          itemsSold: { increment: quantity },
           totalRevenue: { increment: soldValuation },
         },
       });

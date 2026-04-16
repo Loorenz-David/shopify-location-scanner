@@ -196,6 +196,29 @@ const normalizeProductId = (raw: number | string): string => {
   return s;
 };
 
+const inferQuantityFromTitle = (title: string): number | null => {
+  const match = /\bset\s+of\s+(\d+)\b/i.exec(title);
+  if (!match || !match[1]) return null;
+  const n = Number.parseInt(match[1], 10);
+  return Number.isInteger(n) && n >= 2 ? n : null;
+};
+
+const resolveQuantity = (
+  metafieldValue: string | null | undefined,
+  itemCategory: string,
+  title: string,
+): number => {
+  if (metafieldValue) {
+    const n = Number.parseInt(metafieldValue.trim(), 10);
+    if (Number.isInteger(n) && n >= 1) return n;
+  }
+  if (itemCategory === "dining_chair") {
+    const inferred = inferQuantityFromTitle(title);
+    if (inferred !== null) return inferred;
+  }
+  return 1;
+};
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Phase 1 — Batch-fetch product data from Shopify
 // ─────────────────────────────────────────────────────────────────────────────
@@ -204,6 +227,7 @@ type ShopifyProductData = {
   id: string;
   imageUrl: string | null;
   itemCategory: string;
+  quantity: number;
   itemHeight: number | null;
   itemWidth: number | null;
   itemDepth: number | null;
@@ -230,6 +254,7 @@ const batchFetchProducts = async (
           title?: string;
           featuredImage?: { url: string } | null;
           itemCategoryMeta?: { value: string | null } | null;
+          quantityMeta?: { value: string | null } | null;
           itemHeight?: { value: string | null } | null;
           itemWidth?: { value: string | null } | null;
           itemDepth?: { value: string | null } | null;
@@ -249,6 +274,7 @@ const batchFetchProducts = async (
               title
               featuredImage { url }
               itemCategoryMeta: metafield(namespace: "custom", key: "productcategory") { value }
+              quantityMeta: metafield(namespace: "custom", key: "quantity") { value }
               itemHeight: metafield(namespace: "custom", key: "totalheight") { value }
               itemWidth: metafield(namespace: "custom", key: "totalwidth") { value }
               itemDepth: metafield(namespace: "custom", key: "totaldepth") { value }
@@ -278,6 +304,7 @@ const batchFetchProducts = async (
           id: node.id,
           imageUrl: node.featuredImage?.url ?? null,
           itemCategory,
+          quantity: resolveQuantity(node.quantityMeta?.value, itemCategory, node.title),
           itemHeight: h,
           itemWidth: w,
           itemDepth: d,
@@ -533,6 +560,7 @@ const main = async (): Promise<void> => {
             itemDepth: shopify.itemDepth ?? record.itemDepth,
             volume: shopify.volume ?? record.volume,
             itemCategory: shopify.itemCategory,
+            quantity: shopify.quantity,
             itemImageUrl: shopify.imageUrl ?? record.itemImageUrl,
             itemSku: shopify.sku ?? record.itemSku,
             itemBarcode: shopify.barcode ?? record.itemBarcode,
@@ -856,9 +884,108 @@ const main = async (): Promise<void> => {
   });
 
   // ──────────────────────────────────────────────────────────────────────────
-  // Phase 5 — Rebuild stats
+  // Phase 5 — Fix SOLD_ORDER: latestLocation
   // ──────────────────────────────────────────────────────────────────────────
-  log("=== Phase 5: Rebuilding stats ===");
+  log("=== Phase 5: Fixing SOLD_ORDER: latestLocation ===");
+
+  const soldOrderRecords = await prisma.scanHistory.findMany({
+    where: {
+      shopId: shop.id,
+      latestLocation: { startsWith: "SOLD_ORDER:" },
+    },
+    include: {
+      events: { orderBy: { happenedAt: "asc" } },
+    },
+  });
+
+  log(`Records with SOLD_ORDER: latestLocation: ${soldOrderRecords.length}`);
+
+  let p5Fixed = 0;
+  let p5Failed = 0;
+
+  for (const record of soldOrderRecords) {
+    const lastRealLocation = [...record.events]
+      .reverse()
+      .find((e) => !e.location.startsWith("SOLD_ORDER:"))
+      ?.location ?? "UNKNOWN_POSITION";
+
+    try {
+      if (!DRY_RUN) {
+        await prisma.scanHistory.update({
+          where: { id: record.id },
+          data: { latestLocation: lastRealLocation },
+        });
+      }
+      log(`Fixed SOLD_ORDER: location`, {
+        productId: record.productId,
+        title: record.itemTitle,
+        newLocation: lastRealLocation,
+      });
+      p5Fixed++;
+    } catch (err) {
+      logError("Failed to fix SOLD_ORDER: location", err, {
+        scanHistoryId: record.id,
+      });
+      p5Failed++;
+    }
+  }
+
+  log(`Phase 5 complete`, { fixed: p5Fixed, failed: p5Failed });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Phase 6 — Fix unknown categories
+  // ──────────────────────────────────────────────────────────────────────────
+  log("=== Phase 6: Fixing unknown categories ===");
+
+  const unknownCategoryRecords = await prisma.scanHistory.findMany({
+    where: { shopId: shop.id, itemCategory: "unknown" },
+    select: { id: true, itemTitle: true },
+  });
+
+  log(`Records with unknown category: ${unknownCategoryRecords.length}`);
+
+  let p6Fixed = 0;
+  let p6Unresolved = 0;
+  let p6Failed = 0;
+
+  for (const record of unknownCategoryRecords) {
+    const resolved = categoryParserService.parse(record.itemTitle);
+
+    if (!resolved || resolved === "unknown") {
+      p6Unresolved++;
+      continue;
+    }
+
+    try {
+      if (!DRY_RUN) {
+        await prisma.scanHistory.update({
+          where: { id: record.id },
+          data: { itemCategory: resolved },
+        });
+      }
+      log(`Resolved category`, {
+        title: record.itemTitle,
+        category: resolved,
+      });
+      p6Fixed++;
+    } catch (err) {
+      logError("Failed to fix unknown category", err, {
+        scanHistoryId: record.id,
+      });
+      p6Failed++;
+    }
+  }
+
+  log(`Phase 6 complete`, {
+    fixed: p6Fixed,
+    unresolved: p6Unresolved,
+    failed: p6Failed,
+  });
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Phase 7 — Rebuild stats
+  // ──────────────────────────────────────────────────────────────────────────
+  log("=== Phase 7: Rebuilding stats ===");
 
   // Reload all records with corrected events
   const correctedRecords = await prisma.scanHistory.findMany({
@@ -985,21 +1112,21 @@ const main = async (): Promise<void> => {
         );
         const soldValuation = parsePriceValue(priceRecord?.price);
 
+        const qty = typeof record.quantity === "number" && record.quantity >= 1 ? record.quantity : 1;
+
         // Sales channel stats — all channels
-        getChanStat(statsDate, channel).itemsSold += 1;
+        getChanStat(statsDate, channel).itemsSold += qty;
         getChanStat(statsDate, channel).totalRevenue += soldValuation;
 
         // Location + category stats — physical channel only
         if (channel === "physical") {
-          // Last location_update or unknown_position before this sold event
+          // Last real physical scan before this sold event
+          // unknown_position is intentionally excluded — it is created at sale
+          // time and would overwrite a real location_update from earlier
           const arrivedEvent = record.events
             .slice(0, idx)
             .reverse()
-            .find(
-              (e) =>
-                e.eventType === "location_update" ||
-                e.eventType === "unknown_position",
-            );
+            .find((e) => e.eventType === "location_update");
 
           const arrivedLocation = arrivedEvent?.location ?? "UNKNOWN_POSITION";
           const arrivedTime = arrivedEvent?.happenedAt ?? event.happenedAt;
@@ -1009,14 +1136,14 @@ const main = async (): Promise<void> => {
           );
 
           const locStat = getLocStat(statsDate, arrivedLocation);
-          locStat.itemsSold += 1;
-          locStat.totalTimeToSellSeconds += timeToSellSeconds;
+          locStat.itemsSold += qty;
+          locStat.totalTimeToSellSeconds += qty * timeToSellSeconds;
           locStat.totalValuation += soldValuation;
 
           const catStat = getCatStat(statsDate, arrivedLocation, itemCategory);
-          catStat.itemsSold += 1;
+          catStat.itemsSold += qty;
           catStat.totalRevenue += soldValuation;
-          catStat.totalTimeToSellSeconds += timeToSellSeconds;
+          catStat.totalTimeToSellSeconds += qty * timeToSellSeconds;
         }
       }
     }
@@ -1050,13 +1177,13 @@ const main = async (): Promise<void> => {
       }
     });
 
-    log(`Phase 5 complete — stats tables cleared and rebuilt`, {
+    log(`Phase 7 complete — stats tables cleared and rebuilt`, {
       locationRows: locationStats.size,
       categoryRows: categoryStats.size,
       channelRows: channelStats.size,
     });
   } else {
-    log(`Phase 5 complete (DRY_RUN — no writes)`, {
+    log(`Phase 7 complete (DRY_RUN — no writes)`, {
       wouldWrite: {
         locationRows: locationStats.size,
         categoryRows: categoryStats.size,
@@ -1078,7 +1205,9 @@ const main = async (): Promise<void> => {
       alreadyPresent: p4AlreadyPresent,
       failed: p4Failed,
     },
-    phase5: {
+    phase5: { soldOrderLocationsFixed: p5Fixed, failed: p5Failed },
+    phase6: { unknownCategoriesFixed: p6Fixed, unresolved: p6Unresolved, failed: p6Failed },
+    phase7: {
       locationRows: locationStats.size,
       categoryRows: categoryStats.size,
       channelRows: channelStats.size,
