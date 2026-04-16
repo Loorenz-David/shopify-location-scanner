@@ -259,7 +259,11 @@ export const getCategoriesOverview = async (
 
   const bestLocationByCategory = new Map<string, string>();
   for (const row of byLocation) {
-    if (!bestLocationByCategory.has(row.itemCategory)) {
+    if (
+      !bestLocationByCategory.has(row.itemCategory) &&
+      row.location !== "UNKNOWN_POSITION" &&
+      !row.location.startsWith("SOLD_ORDER:")
+    ) {
       bestLocationByCategory.set(row.itemCategory, row.location);
     }
   }

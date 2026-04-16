@@ -1112,7 +1112,7 @@ const main = async (): Promise<void> => {
         );
         const soldValuation = parsePriceValue(priceRecord?.price);
 
-        const qty = typeof record.quantity === "number" && record.quantity >= 1 ? record.quantity : 1;
+        const qty = (() => { const q = (record as { quantity?: number | null }).quantity; return typeof q === "number" && q >= 1 ? q : 1; })();
 
         // Sales channel stats — all channels
         getChanStat(statsDate, channel).itemsSold += qty;
