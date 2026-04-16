@@ -29,11 +29,21 @@ const BAR_MAX_VISIBLE_HEIGHT = 320;
 const ACTIVE_SLICE_FILTER = "drop-shadow(0 0 10px rgba(59,130,246,0.28))";
 const ACTIVE_BAR_FILTER = "drop-shadow(0 0 6px rgba(147,197,253,0.85))";
 
+const formatValue = (value: number, metric: "itemsSold" | "totalRevenue"): string => {
+  if (metric === "totalRevenue") {
+    if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
+    if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
+    return String(value);
+  }
+  return `${value} sold`;
+};
+
 export type CategoryOverviewChartMode = "pie" | "bar";
 
 interface CategoryOverviewChartProps {
   data: CategoryOverviewItem[];
   mode: CategoryOverviewChartMode;
+  metric?: "itemsSold" | "totalRevenue";
   activeCategory?: string | null;
   onSelectCategory?: (category: string | null) => void;
 }
@@ -41,24 +51,55 @@ interface CategoryOverviewChartProps {
 export function CategoryOverviewChart({
   data,
   mode,
+  metric = "itemsSold",
   activeCategory = null,
   onSelectCategory,
 }: CategoryOverviewChartProps) {
   const [hoveredBarCategory, setHoveredBarCategory] = useState<string | null>(
     null,
   );
-  const chartData = [...data]
-    .filter((item) => item.itemsSold > 0)
-    .sort((left, right) => right.itemsSold - left.itemsSold)
-    .map((item, index) => ({
+
+  // Assign colors once by itemsSold rank so the same category always gets the
+  // same color regardless of which metric is currently selected.
+  const colorMap = useMemo(() => {
+    const stable = [...data]
+      .filter((item) => item.itemsSold > 0 || item.totalRevenue > 0)
+      .sort((a, b) => b.itemsSold - a.itemsSold);
+    return new Map(stable.map((item, i) => [item.category, COLORS[i % COLORS.length]]));
+  }, [data]);
+
+  // Stable order for pie animation — Recharts tweens arcs when only `value`
+  // changes, rather than jumping when dataKey or sort order changes.
+  const stablePieData = useMemo(() => {
+    const stable = [...data]
+      .filter((item) => item.itemsSold > 0 || item.totalRevenue > 0)
+      .sort((a, b) => b.itemsSold - a.itemsSold);
+    return stable.map((item) => ({
       category: item.category,
-      itemsSold: item.itemsSold,
-      bestLocation: item.bestLocation,
-      fill: COLORS[index % COLORS.length],
+      value: item[metric],
+      fill: colorMap.get(item.category) ?? COLORS[0],
     }));
-  const totalItems = useMemo(
-    () => chartData.reduce((sum, item) => sum + item.itemsSold, 0),
-    [chartData],
+  }, [data, metric, colorMap]);
+
+  // Sorted by active metric for legend list and bar chart
+  const chartData = useMemo(
+    () =>
+      [...data]
+        .filter((item) => item.itemsSold > 0 || item.totalRevenue > 0)
+        .sort((left, right) => right[metric] - left[metric])
+        .map((item) => ({
+          category: item.category,
+          itemsSold: item.itemsSold,
+          totalRevenue: item.totalRevenue,
+          bestLocation: item.bestLocation,
+          fill: colorMap.get(item.category) ?? COLORS[0],
+        })),
+    [data, metric, colorMap],
+  );
+
+  const total = useMemo(
+    () => chartData.reduce((sum, item) => sum + item[metric], 0),
+    [chartData, metric],
   );
 
   if (chartData.length === 0) {
@@ -75,14 +116,18 @@ export function CategoryOverviewChart({
         <ResponsiveContainer width="100%" height={240}>
           <PieChart accessibilityLayer={false}>
             <Pie
-              data={chartData}
-              dataKey="itemsSold"
+              data={stablePieData}
+              dataKey="value"
               nameKey="category"
               cx="50%"
               cy="50%"
               innerRadius={44}
               outerRadius={82}
               paddingAngle={3}
+              isAnimationActive
+              animationBegin={0}
+              animationDuration={500}
+              animationEasing="ease-out"
               onClick={(entry) => {
                 const category = (
                   entry as { payload?: { category?: string } } | undefined
@@ -92,7 +137,7 @@ export function CategoryOverviewChart({
                 }
               }}
             >
-              {chartData.map((entry) => {
+              {stablePieData.map((entry) => {
                 const isActive =
                   activeCategory === null || activeCategory === entry.category;
 
@@ -115,7 +160,7 @@ export function CategoryOverviewChart({
             </Pie>
             <Tooltip
               cursor={false}
-              formatter={(value) => [`${Number(value ?? 0)} sold`, "Items"]}
+              formatter={(value) => [formatValue(Number(value ?? 0), metric), metric === "itemsSold" ? "Items" : "Revenue"]}
             />
           </PieChart>
         </ResponsiveContainer>
@@ -138,8 +183,8 @@ export function CategoryOverviewChart({
               const isActive =
                 activeCategory === null || activeCategory === entry.category;
               const percentage =
-                totalItems > 0
-                  ? Math.round((entry.itemsSold / totalItems) * 100)
+                total > 0
+                  ? Math.round((entry[metric] / total) * 100)
                   : 0;
 
               return (
@@ -164,7 +209,7 @@ export function CategoryOverviewChart({
                     {entry.category}
                   </span>
                   <span className="shrink-0 text-xs text-slate-400">
-                    {entry.itemsSold} sold · {percentage}% · best:{" "}
+                    {formatValue(entry[metric], metric)} · {percentage}% · best:{" "}
                     {entry.bestLocation ?? "—"}
                   </span>
                 </button>
@@ -215,11 +260,15 @@ export function CategoryOverviewChart({
             />
             <Tooltip
               cursor={false}
-              formatter={(value) => [`${Number(value ?? 0)} sold`, "Items"]}
+              formatter={(value) => [formatValue(Number(value ?? 0), metric), metric === "itemsSold" ? "Items" : "Revenue"]}
             />
             <Bar
-              dataKey="itemsSold"
+              dataKey={metric}
               radius={[0, 4, 4, 0]}
+              isAnimationActive
+              animationBegin={0}
+              animationDuration={400}
+              animationEasing="ease-out"
             >
               {chartData.map((entry) => (
                 <Cell

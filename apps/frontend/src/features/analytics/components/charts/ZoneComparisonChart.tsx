@@ -48,7 +48,31 @@ export function ZoneComparisonChart({
   const [hoveredBarLocation, setHoveredBarLocation] = useState<string | null>(
     null,
   );
-  const sortedData = [...data].sort((left, right) => right[metric] - left[metric]);
+
+  // Stable color assignment by itemsSold rank so zone colors never shift when
+  // switching between the Items and Revenue metrics.
+  const colorMap = useMemo(() => {
+    const stable = [...data].sort((a, b) => b.itemsSold - a.itemsSold);
+    return new Map(stable.map((item, i) => [item.location, COLORS[i % COLORS.length]]));
+  }, [data]);
+
+  // Stable order for the pie — Recharts tweens arcs smoothly when only `value`
+  // changes, rather than jumping when dataKey or sort order changes.
+  const stablePieData = useMemo(() => {
+    const stable = [...data]
+      .filter((item) => item.itemsSold > 0 || item.revenue > 0)
+      .sort((a, b) => b.itemsSold - a.itemsSold);
+    return stable.map((item) => ({
+      location: item.location,
+      value: item[metric],
+      fill: colorMap.get(item.location) ?? COLORS[0],
+    }));
+  }, [data, metric, colorMap]);
+
+  const sortedData = useMemo(
+    () => [...data].sort((left, right) => right[metric] - left[metric]),
+    [data, metric],
+  );
   const totalValue = useMemo(
     () => sortedData.reduce((sum, item) => sum + item[metric], 0),
     [metric, sortedData],
@@ -60,14 +84,18 @@ export function ZoneComparisonChart({
         <ResponsiveContainer width="100%" height={240}>
           <PieChart accessibilityLayer={false}>
             <Pie
-              data={sortedData}
-              dataKey={metric}
+              data={stablePieData}
+              dataKey="value"
               nameKey="location"
               cx="50%"
               cy="50%"
               innerRadius={42}
               outerRadius={84}
               paddingAngle={3}
+              isAnimationActive
+              animationBegin={0}
+              animationDuration={500}
+              animationEasing="ease-out"
               onClick={(entry) => {
                 const location = (
                   entry as { payload?: { location?: string } } | undefined
@@ -84,14 +112,14 @@ export function ZoneComparisonChart({
               }}
               cursor="pointer"
             >
-              {sortedData.map((entry, index) => {
+              {stablePieData.map((entry) => {
                 const isActive =
                   activeLocation === null || activeLocation === entry.location;
 
                 return (
                   <Cell
                     key={entry.location}
-                    fill={COLORS[index % COLORS.length]}
+                    fill={entry.fill}
                     fillOpacity={isActive ? 1 : 0.28}
                     stroke={activeLocation === entry.location ? "#dbeafe" : "none"}
                     strokeWidth={activeLocation === entry.location ? 3 : 0}
@@ -105,7 +133,15 @@ export function ZoneComparisonChart({
                 );
               })}
             </Pie>
-            <Tooltip cursor={false} />
+            <Tooltip
+              cursor={false}
+              formatter={(value) => [
+                metric === "revenue"
+                  ? `$${Math.round(Number(value ?? 0))}`
+                  : `${Number(value ?? 0)} sold`,
+                metric === "revenue" ? "Revenue" : "Items",
+              ]}
+            />
           </PieChart>
         </ResponsiveContainer>
 
@@ -123,7 +159,7 @@ export function ZoneComparisonChart({
 
         <div className="mt-3 max-h-40 overflow-y-auto">
           <div className="flex flex-col divide-y divide-slate-100">
-            {sortedData.map((entry, index) => {
+            {sortedData.map((entry) => {
               const isActive =
                 activeLocation === null || activeLocation === entry.location;
               const percentage =
@@ -153,7 +189,7 @@ export function ZoneComparisonChart({
                 >
                   <span
                     className="h-3 w-3 shrink-0 rounded-full"
-                    style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                    style={{ backgroundColor: colorMap.get(entry.location) ?? COLORS[0] }}
                     aria-hidden="true"
                   />
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">
@@ -228,6 +264,10 @@ export function ZoneComparisonChart({
             <Bar
               dataKey={metric}
               radius={[0, 4, 4, 0]}
+              isAnimationActive
+              animationBegin={0}
+              animationDuration={400}
+              animationEasing="ease-out"
               cursor="pointer"
             >
               {sortedData.map((entry) => (

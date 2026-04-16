@@ -428,28 +428,78 @@ export const getSmartInsights = async (
     return insights;
   }
 
-  const sortedZones = [...zones].sort((left, right) => {
-    return right.itemsSold - left.itemsSold;
-  });
-  const topZone = sortedZones[0];
-  const bottomZone = sortedZones[sortedZones.length - 1];
+  // Exclude sentinel locations from all insight calculations
+  const realZones = zones.filter(
+    (z) =>
+      z.location !== "UNKNOWN_POSITION" &&
+      !z.location.startsWith("SOLD_ORDER:"),
+  );
 
-  if (topZone && topZone.itemsSold > 0) {
+  if (realZones.length === 0) {
+    return insights;
+  }
+
+  const sortedByVolume = [...realZones].sort(
+    (a, b) => b.itemsSold - a.itemsSold,
+  );
+  const topVolumeZone = sortedByVolume[0];
+  const bottomZone = sortedByVolume[sortedByVolume.length - 1];
+
+  // Best volume zone
+  if (topVolumeZone && topVolumeZone.itemsSold > 0) {
     insights.push({
       type: "positive",
-      message: `${topZone.location} is your best performing zone with ${topZone.itemsSold} items sold.`,
+      message: `${topVolumeZone.location} is your best performing zone with ${topVolumeZone.itemsSold} items sold.`,
     });
   }
 
-  if (bottomZone && bottomZone.itemsSold === 0 && sortedZones.length > 1) {
+  // Warning: zones with no sales
+  const emptyZones = sortedByVolume.filter((z) => z.itemsSold === 0);
+  if (emptyZones.length > 0 && sortedByVolume.some((z) => z.itemsSold > 0)) {
+    const message =
+      emptyZones.length <= 3
+        ? `${emptyZones.map((z) => z.location).join(", ")} had no sales in this period. Consider reorganising.`
+        : `${emptyZones.length} zones had no sales this period (e.g. ${emptyZones.slice(0, 3).map((z) => z.location).join(", ")}). Consider reorganising.`;
+
+    insights.push({ type: "warning", message });
+  }
+
+  // Best revenue zone — only surfaced when it differs from the volume leader
+  const soldZones = realZones.filter((z) => z.itemsSold > 0);
+  const topRevenueZone = [...soldZones].sort((a, b) => b.revenue - a.revenue)[0];
+
+  if (
+    topRevenueZone &&
+    topVolumeZone &&
+    topRevenueZone.location !== topVolumeZone.location
+  ) {
     insights.push({
-      type: "warning",
-      message: `${bottomZone.location} had no sales in this period. Consider reorganising.`,
+      type: "positive",
+      message: `${topRevenueZone.location} generated the most revenue (${topRevenueZone.revenue.toLocaleString()}) despite fewer items sold than ${topVolumeZone.location}.`,
     });
   }
 
-  const totalSold = zones.reduce((sum, zone) => sum + zone.itemsSold, 0);
-  const totalSeconds = zones.reduce((sum, zone) => {
+  // Best revenue-per-item zone — requires at least 2 items to be meaningful,
+  // and must differ from both leaders above to avoid repetition
+  const topValueZone = soldZones
+    .filter((z) => z.itemsSold >= 2)
+    .map((z) => ({ ...z, revenuePerItem: z.revenue / z.itemsSold }))
+    .sort((a, b) => b.revenuePerItem - a.revenuePerItem)[0];
+
+  if (
+    topValueZone &&
+    topValueZone.location !== topVolumeZone?.location &&
+    topValueZone.location !== topRevenueZone?.location
+  ) {
+    insights.push({
+      type: "positive",
+      message: `${topValueZone.location} has the highest average item value at ${Math.round(topValueZone.revenuePerItem).toLocaleString()} per item.`,
+    });
+  }
+
+  // Speed insight — uses real zones only so UNKNOWN_POSITION (avgTime=0) doesn't drag down the average
+  const totalSold = realZones.reduce((sum, zone) => sum + zone.itemsSold, 0);
+  const totalSeconds = realZones.reduce((sum, zone) => {
     return sum + (zone.avgTimeToSellSeconds ?? 0) * zone.itemsSold;
   }, 0);
   const overallAverage = totalSold > 0 ? totalSeconds / totalSold : null;
@@ -457,16 +507,17 @@ export const getSmartInsights = async (
   if (
     overallAverage !== null &&
     overallAverage > 0 &&
-    topZone?.avgTimeToSellSeconds !== null &&
-    topZone?.avgTimeToSellSeconds !== undefined
+    topVolumeZone?.avgTimeToSellSeconds !== null &&
+    topVolumeZone?.avgTimeToSellSeconds !== undefined
   ) {
     const percentageFaster =
-      ((overallAverage - topZone.avgTimeToSellSeconds) / overallAverage) * 100;
+      ((overallAverage - topVolumeZone.avgTimeToSellSeconds) / overallAverage) *
+      100;
 
     if (percentageFaster > 20) {
       insights.push({
         type: "positive",
-        message: `Items sell ${percentageFaster.toFixed(0)}% faster in ${topZone.location} than average.`,
+        message: `Items sell ${percentageFaster.toFixed(0)}% faster in ${topVolumeZone.location} than average.`,
       });
     }
   }
@@ -476,11 +527,12 @@ export const getSmartInsights = async (
   const physical = channels.find((entry) => entry.salesChannel === "physical");
 
   if (webshop && physical && webshop.itemsSold > 0 && physical.itemsSold > 0) {
-    const ratio = (webshop.itemsSold / physical.itemsSold).toFixed(1);
-    insights.push({
-      type: "neutral",
-      message: `Webshop sold ${ratio}x the volume of physical locations in this period.`,
-    });
+    const message =
+      webshop.itemsSold >= physical.itemsSold
+        ? `Webshop sold ${(webshop.itemsSold / physical.itemsSold).toFixed(1)}x the volume of physical locations in this period.`
+        : `Physical locations sold ${(physical.itemsSold / webshop.itemsSold).toFixed(1)}x the volume of the webshop in this period.`;
+
+    insights.push({ type: "neutral", message });
   }
 
   return insights;

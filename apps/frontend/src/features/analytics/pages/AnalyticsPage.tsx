@@ -8,6 +8,8 @@ import { FloorMapLegend } from "../components/floor-map/FloorMapLegend";
 import { CategoryStatsPanel } from "../components/panels/CategoryStatsPanel";
 import { ZoneStatsPanel } from "../components/panels/ZoneStatsPanel";
 import { ZoneComparisonChart } from "../components/charts/ZoneComparisonChart";
+import { ZoneRankingComparison } from "../components/charts/ZoneRankingComparison";
+import { CategoryRankingComparison } from "../components/charts/CategoryRankingComparison";
 import { SalesTimelineChart } from "../components/charts/SalesTimelineChart";
 import { SalesChannelChart } from "../components/charts/SalesChannelChart";
 import {
@@ -43,8 +45,14 @@ export function AnalyticsPage() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [categoryChartMode, setCategoryChartMode] =
     useState<CategoryOverviewChartMode>("pie");
+  const [categoryRankingTab, setCategoryRankingTab] = useState<
+    "itemsSold" | "totalRevenue" | "compare"
+  >("itemsSold");
   const [zoneComparisonChartMode, setZoneComparisonChartMode] =
     useState<ZoneComparisonChartMode>("pie");
+  const [zoneRankingTab, setZoneRankingTab] = useState<
+    "itemsSold" | "revenue" | "compare"
+  >("itemsSold");
   const [activeCategoryOverview, setActiveCategoryOverview] = useState<
     string | null
   >(null);
@@ -143,55 +151,65 @@ export function AnalyticsPage() {
             />
           </div>
           <div className="flex gap-1">
-            <button
-              type="button"
-              onClick={() => setZoneComparisonMetric("itemsSold")}
-              className={`rounded-full border px-2 py-1 text-xs font-semibold transition-colors ${
-                zoneComparisonMetric === "itemsSold"
-                  ? "border-sky-600 bg-sky-600 text-white"
-                  : "border-slate-200 text-slate-500"
-              }`}
-            >
-              Items
-            </button>
-            <button
-              type="button"
-              onClick={() => setZoneComparisonMetric("revenue")}
-              className={`rounded-full border px-2 py-1 text-xs font-semibold transition-colors ${
-                zoneComparisonMetric === "revenue"
-                  ? "border-sky-600 bg-sky-600 text-white"
-                  : "border-slate-200 text-slate-500"
-              }`}
-            >
-              Revenue
-            </button>
+            {(
+              [
+                { key: "itemsSold", label: "Items" },
+                { key: "revenue", label: "Revenue" },
+                { key: "compare", label: "Compare" },
+              ] as const
+            ).map(({ key, label }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => {
+                  setZoneRankingTab(key);
+                  if (key !== "compare") setZoneComparisonMetric(key);
+                }}
+                className={`rounded-full border px-2 py-1 text-xs font-semibold transition-colors ${
+                  zoneRankingTab === key
+                    ? "border-sky-600 bg-sky-600 text-white"
+                    : "border-slate-200 text-slate-500"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </div>
         <div className="rounded-2xl border border-slate-900/10 bg-white/90 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
-          <div className="mb-3 flex justify-end">
-            <div className="flex gap-1 rounded-full border border-slate-200 bg-slate-50 p-1">
-              {(["pie", "bar"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setZoneComparisonChartMode(mode)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                    zoneComparisonChartMode === mode
-                      ? "bg-sky-600 text-white"
-                      : "text-slate-500 hover:bg-white hover:text-sky-700"
-                  }`}
-                >
-                  {mode === "pie" ? "Pie" : "Bar"}
-                </button>
-              ))}
-            </div>
-          </div>
-          <ZoneComparisonChart
-            data={zonesOverview}
-            metric={zoneComparisonMetric}
-            mode={zoneComparisonChartMode}
-            onBarClick={setSelectedZone}
-          />
+          {zoneRankingTab === "compare" ? (
+            <ZoneRankingComparison
+              data={zonesOverview}
+              onZoneClick={setSelectedZone}
+            />
+          ) : (
+            <>
+              <div className="mb-3 flex justify-end">
+                <div className="flex gap-1 rounded-full border border-slate-200 bg-slate-50 p-1">
+                  {(["pie", "bar"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setZoneComparisonChartMode(mode)}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                        zoneComparisonChartMode === mode
+                          ? "bg-sky-600 text-white"
+                          : "text-slate-500 hover:bg-white hover:text-sky-700"
+                      }`}
+                    >
+                      {mode === "pie" ? "Pie" : "Bar"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <ZoneComparisonChart
+                data={zonesOverview}
+                metric={zoneComparisonMetric}
+                mode={zoneComparisonChartMode}
+                onBarClick={setSelectedZone}
+              />
+            </>
+          )}
         </div>
       </div>
 
@@ -309,44 +327,81 @@ export function AnalyticsPage() {
       />
 
       <div className="pb-4">
-        <div className="mb-2 flex items-center gap-2">
-          <p className="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-            Categories
-          </p>
-          <InfoButton
-            onClick={() => setIsCategoriesInfoOpen(true)}
-            label="Learn more about categories overview"
-            className="h-6 w-6 bg-white/80 text-[10px] text-slate-500"
-          />
+        <div className="mb-2 flex items-start justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <p className="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+              Categories
+            </p>
+            <InfoButton
+              onClick={() => setIsCategoriesInfoOpen(true)}
+              label="Learn more about categories overview"
+              className="h-6 w-6 bg-white/80 text-[10px] text-slate-500"
+            />
+          </div>
+          <div className="flex gap-1">
+            {(
+              [
+                { key: "itemsSold", label: "Items" },
+                { key: "totalRevenue", label: "Revenue" },
+                { key: "compare", label: "Compare" },
+              ] as const
+            ).map(({ key, label }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setCategoryRankingTab(key)}
+                className={`rounded-full border px-2 py-1 text-xs font-semibold transition-colors ${
+                  categoryRankingTab === key
+                    ? "border-sky-600 bg-sky-600 text-white"
+                    : "border-slate-200 text-slate-500"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
         <div className="rounded-2xl border border-slate-900/10 bg-white/90 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
-          <div className="mb-3 flex items-center justify-end gap-2">
-            <div className="flex gap-1 rounded-full border border-slate-200 bg-slate-50 p-1">
-              {(["pie", "bar"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  onClick={() => setCategoryChartMode(mode)}
-                  className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-                    categoryChartMode === mode
-                      ? "bg-sky-600 text-white"
-                      : "text-slate-500 hover:bg-white hover:text-sky-700"
-                  }`}
-                >
-                  {mode === "pie" ? "Pie" : "Bar"}
-                </button>
-              ))}
-            </div>
-          </div>
-          <CategoryOverviewChart
-            data={categories}
-            mode={categoryChartMode}
-            activeCategory={activeCategoryOverview}
-            onSelectCategory={(category) => {
-              setActiveCategoryOverview(category);
-              setSelectedCategory(category);
-            }}
-          />
+          {categoryRankingTab === "compare" ? (
+            <CategoryRankingComparison
+              data={categories}
+              onCategoryClick={(category) => {
+                setActiveCategoryOverview(category);
+                setSelectedCategory(category);
+              }}
+            />
+          ) : (
+            <>
+              <div className="mb-3 flex items-center justify-end gap-2">
+                <div className="flex gap-1 rounded-full border border-slate-200 bg-slate-50 p-1">
+                  {(["pie", "bar"] as const).map((mode) => (
+                    <button
+                      key={mode}
+                      type="button"
+                      onClick={() => setCategoryChartMode(mode)}
+                      className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                        categoryChartMode === mode
+                          ? "bg-sky-600 text-white"
+                          : "text-slate-500 hover:bg-white hover:text-sky-700"
+                      }`}
+                    >
+                      {mode === "pie" ? "Pie" : "Bar"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <CategoryOverviewChart
+                data={categories}
+                mode={categoryChartMode}
+                metric={categoryRankingTab}
+                activeCategory={activeCategoryOverview}
+                onSelectCategory={(category) => {
+                  setActiveCategoryOverview(category);
+                  setSelectedCategory(category);
+                }}
+              />
+            </>
+          )}
         </div>
       </div>
 
