@@ -760,6 +760,17 @@ const main = async (): Promise<void> => {
         happenedAt: happenedAt.toISOString(),
       });
 
+      // Last real physical location before this sale
+      const p4PreSoldEvent = [...scanHistory.events]
+        .reverse()
+        .find(
+          (e) =>
+            e.eventType === "location_update" ||
+            e.eventType === "unknown_position",
+        );
+      const p4PreSoldLocation =
+        p4PreSoldEvent?.location ?? scanHistory.latestLocation ?? "UNKNOWN_POSITION";
+
       try {
         if (!DRY_RUN) {
           await prisma.$transaction(async (tx) => {
@@ -794,7 +805,7 @@ const main = async (): Promise<void> => {
                 lastSoldChannel: channel,
                 orderId,
                 orderNumber: order.number,
-                latestLocation: soldLocation,
+                latestLocation: p4PreSoldLocation,
                 lastModifiedAt: happenedAt,
               },
             });
