@@ -30,6 +30,15 @@ function buildPresetRange(days: number): DateRange {
   };
 }
 
+function buildTodayRange(): DateRange {
+  const today = toIsoDate(new Date());
+
+  return {
+    from: today,
+    to: today,
+  };
+}
+
 export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
   const [isCustomOpen, setIsCustomOpen] = useState(false);
   const [draftRange, setDraftRange] = useState(value);
@@ -67,6 +76,10 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
   const handleClearCustomRange = () => {
     onChange(buildPresetRange(30));
     setIsCustomOpen(false);
+  };
+
+  const handleSelectToday = () => {
+    setDraftRange(buildTodayRange());
   };
 
   return (
@@ -135,6 +148,16 @@ export function DateRangePicker({ value, onChange }: DateRangePickerProps) {
             </header>
 
             <div className="flex flex-col gap-4 px-4 py-4">
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-semibold text-sky-700 transition-colors hover:border-sky-300 hover:bg-sky-100"
+                  onClick={handleSelectToday}
+                >
+                  Today
+                </button>
+              </div>
+
               <label className="rounded-2xl border border-slate-900/10 bg-slate-50/80 px-3 py-3">
                 <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
                   From

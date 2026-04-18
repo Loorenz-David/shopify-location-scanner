@@ -29,8 +29,7 @@ import { ScannerFeature } from "../scanner/ScannerFeature";
 import { ScannerOverlayHost } from "../scanner/ScannerOverlayHost";
 import { PlacementItemFixedPopup } from "../scanner/ui/PlacementItemFixedPopup";
 import { PlacementZoneMismatchPopup } from "../scanner/ui/PlacementZoneMismatchPopup";
-import { LocationOptionsSettingsPage } from "../location-options/ui/LocationOptionsSettingsPage";
-import { LogisticLocationsSettingsPage } from "../logistic-locations/ui/LogisticLocationsSettingsPage";
+import { LocationsSettingsPage } from "../locations-settings/ui/LocationsSettingsPage";
 import { LogisticTasksOverlayHost } from "../logistic-tasks/LogisticTasksOverlayHost";
 import { useLogisticTasksRealtimeFlow } from "../logistic-tasks/flows/use-logistic-tasks-realtime.flow";
 import { LogisticTasksPage } from "../logistic-tasks/ui/LogisticTasksPage";
@@ -140,15 +139,9 @@ export function HomeFeature({ onLogout }: HomeFeatureProps) {
         presentation: "full-overlay",
       },
       {
-        id: "settings-location-options",
-        title: "Location options",
-        component: LocationOptionsSettingsPage,
-        presentation: "full-overlay",
-      },
-      {
-        id: "settings-logistic-locations",
-        title: "Logistic locations",
-        component: LogisticLocationsSettingsPage,
+        id: "settings-locations",
+        title: "Locations",
+        component: LocationsSettingsPage,
         presentation: "full-overlay",
       },
       {

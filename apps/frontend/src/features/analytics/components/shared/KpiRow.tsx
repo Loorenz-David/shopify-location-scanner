@@ -1,3 +1,4 @@
+import { formatKr } from "../../domain/format-currency.domain";
 import { KpiCard } from "./KpiCard";
 
 interface KpiRowProps {
@@ -5,10 +6,6 @@ interface KpiRowProps {
   revenue: number;
   avgTimeToSellSeconds: number | null;
   itemsReceived?: number;
-}
-
-function formatRevenue(value: number): string {
-  return `${Math.round(value)} kr`;
 }
 
 function formatAvgTimeToSell(value: number | null): string {
@@ -39,7 +36,7 @@ export function KpiRow({
   return (
     <div className="grid grid-cols-2 gap-2 py-1">
       <KpiCard label="Sold" value={itemsSold} />
-      <KpiCard label="Revenue" value={formatRevenue(revenue)} />
+      <KpiCard label="Revenue" value={formatKr(revenue)} />
       <KpiCard
         label="Avg sell time"
         value={formatAvgTimeToSell(avgTimeToSellSeconds)}

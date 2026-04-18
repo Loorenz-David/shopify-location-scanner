@@ -9,6 +9,7 @@ const defaultFrom = (): Date => {
 const parseDateRangeValue = (
   value: string | undefined,
   fallback: () => Date,
+  endOfDay = false,
 ): Date => {
   if (!value) {
     return fallback();
@@ -22,9 +23,9 @@ const parseDateRangeValue = (
   const dateOnlyMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (dateOnlyMatch) {
     const [, year, month, day] = dateOnlyMatch;
-    return new Date(
-      Date.UTC(Number(year), Number(month) - 1, Number(day)),
-    );
+    return endOfDay
+      ? new Date(Date.UTC(Number(year), Number(month) - 1, Number(day), 23, 59, 59, 999))
+      : new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)));
   }
 
   return new Date(trimmed);
@@ -70,7 +71,7 @@ export const DateRangeSchema = z.object({
 
       return !Number.isNaN(new Date(trimmed).getTime());
     }, "Invalid ISO datetime or YYYY-MM-DD date")
-    .transform((value) => parseDateRangeValue(value, () => new Date())),
+    .transform((value) => parseDateRangeValue(value, () => new Date(), true)),
 });
 
 export type DateRangeInput = z.infer<typeof DateRangeSchema>;

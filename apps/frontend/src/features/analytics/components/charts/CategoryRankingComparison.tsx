@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { formatKr } from "../../domain/format-currency.domain";
 import type { CategoryOverviewItem } from "../../types/analytics.types";
 
 type SortKey = "itemsSold" | "totalRevenue";
@@ -8,12 +9,6 @@ interface CategoryRankingComparisonProps {
   data: CategoryOverviewItem[];
   onCategoryClick?: (category: string) => void;
 }
-
-const formatRevenue = (value: number): string => {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
-  return String(value);
-};
 
 function SortArrowsIcon({ sortKey }: { sortKey: SortKey }) {
   return (
@@ -150,7 +145,7 @@ export function CategoryRankingComparison({
                 />
               </div>
               <span className="text-[10px] font-medium text-emerald-600">
-                {formatRevenue(cat.totalRevenue)}
+                {formatKr(cat.totalRevenue)}
               </span>
             </div>
           </button>

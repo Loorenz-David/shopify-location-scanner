@@ -66,6 +66,19 @@ export function normalizeItemScanHistoryItem(
       happenedAtLabel: formatShortFriendlyDateTime(entry.happenedAt),
     }));
 
+  const isSold =
+    item.lastSoldChannel != null ||
+    events[0]?.eventType === "sold_terminal";
+  const soldEvent = events.find((e) => e.eventType === "sold_terminal");
+  const timeToSellSeconds =
+    isSold && soldEvent
+      ? Math.floor(
+          (new Date(soldEvent.happenedAt).getTime() -
+            new Date(item.createdAt).getTime()) /
+            1000,
+        )
+      : null;
+
   return {
     id: item.id,
     categoryLabel: item.itemCategory,
@@ -79,6 +92,9 @@ export function normalizeItemScanHistoryItem(
     itemWidth: item.itemWidth,
     itemDepth: item.itemDepth,
     volume: item.volume,
+    createdAt: item.createdAt,
+    isSold,
+    timeToSellSeconds,
     lastModifiedAt: item.lastModifiedAt,
     lastModifiedLabel: formatLongFriendlyDateTime(item.lastModifiedAt),
     latestLocationLabel:
@@ -88,6 +104,30 @@ export function normalizeItemScanHistoryItem(
     events,
     priceHistory,
   };
+}
+
+export function formatTimeInStock(createdAt: string): string {
+  const seconds = Math.floor(
+    (Date.now() - new Date(createdAt).getTime()) / 1000,
+  );
+  const days = Math.floor(seconds / 86400);
+  if (days >= 365)
+    return `${Math.floor(days / 365)}y ${Math.floor((days % 365) / 30)}mo`;
+  if (days >= 30) return `${Math.floor(days / 30)}mo ${days % 30}d`;
+  if (days > 0) return `${days}d`;
+  const hours = Math.floor(seconds / 3600);
+  if (hours > 0) return `${hours}h`;
+  return `${Math.floor(seconds / 60)}m`;
+}
+
+export function formatSecondsToHumanDuration(seconds: number | null): string {
+  if (seconds === null) return "—";
+  const days = Math.floor(seconds / 86400);
+  if (days > 0) return `${days}d`;
+  const hours = Math.floor(seconds / 3600);
+  if (hours > 0) return `${hours}h`;
+  const minutes = Math.floor(seconds / 60);
+  return `${minutes}m`;
 }
 
 export function formatShortFriendlyDateTime(value: string): string {

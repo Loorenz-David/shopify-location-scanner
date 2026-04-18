@@ -17,9 +17,10 @@ export const locationOptionsSettingsActions = {
     const store = useLocationOptionsSettingsStore.getState();
     store.setExpandedValue(store.expandedValue === value ? null : value);
   },
-  async addOption(): Promise<void> {
-    const query = useLocationOptionsSettingsStore.getState().query;
-    await addLocationOptionController(query);
+  async addOption(query?: string): Promise<void> {
+    const resolvedQuery =
+      query ?? useLocationOptionsSettingsStore.getState().query;
+    await addLocationOptionController(resolvedQuery);
   },
   async removeOption(value: string): Promise<void> {
     await removeLocationOptionController(value);

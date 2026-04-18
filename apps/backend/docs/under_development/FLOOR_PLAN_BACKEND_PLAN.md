@@ -14,6 +14,20 @@ remain unchanged. They describe position *within* the floor plan canvas as 0–1
 `widthCm` and `depthCm` on a zone are the actual physical size of that rectangle in the
 real world — entered manually by staff, not derived from percentages.
 
+### Floor shape
+
+A `FloorPlan` has a `widthCm` × `depthCm` bounding box that defines the coordinate
+space for zone percentages. In addition it carries an optional `shape` JSON field — an
+ordered array of `{ xCm, yCm }` vertices describing the actual floor outline as a polygon.
+
+- `shape: null` — the floor is a plain rectangle (the bounding box). Backward-compatible default.
+- `shape: [...]` — the floor has an irregular outline (L-shape, alcove, etc.). The frontend
+  renders this as an SVG `<polygon>` and clips zone rectangles to it.
+
+Vertices are in centimetres relative to the top-left corner `(0, 0)` of the bounding box.
+They must form a closed polygon with at least 3 points. The frontend connects the last
+vertex back to the first automatically.
+
 No existing endpoints are removed. All changes are additive and backward-compatible.
 
 ---
@@ -31,6 +45,7 @@ model FloorPlan {
   name      String      @default("Ground Floor")
   widthCm   Float       @map("width_cm")
   depthCm   Float       @map("depth_cm")
+  shape     Json?       // null = rectangle; otherwise [{xCm, yCm}, ...] polygon vertices
   sortOrder Int         @default(0)
   createdAt DateTime    @default(now())
   updatedAt DateTime    @updatedAt
@@ -93,12 +108,18 @@ Create the following files. The module pattern matches the existing `zones` modu
 ### B1 — `src/modules/floor-plan/domain/floor-plan.ts`
 
 ```typescript
+export type FloorPlanVertex = {
+  xCm: number;
+  yCm: number;
+};
+
 export type FloorPlan = {
   id: string;
   shopId: string;
   name: string;
   widthCm: number;
   depthCm: number;
+  shape: FloorPlanVertex[] | null; // null = plain rectangle
   sortOrder: number;
 };
 ```
@@ -108,10 +129,16 @@ export type FloorPlan = {
 ```typescript
 import { z } from "zod";
 
+export const FloorPlanVertexSchema = z.object({
+  xCm: z.number(),
+  yCm: z.number(),
+});
+
 export const CreateFloorPlanSchema = z.object({
   name: z.string().trim().min(1).max(100).default("Ground Floor"),
   widthCm: z.number().positive("Width must be greater than 0"),
   depthCm: z.number().positive("Depth must be greater than 0"),
+  shape: z.array(FloorPlanVertexSchema).min(3).nullable().optional(), // null or omitted = rectangle
   sortOrder: z.number().int().default(0),
 });
 
@@ -138,6 +165,7 @@ const toDomain = (record: {
   name: string;
   widthCm: number;
   depthCm: number;
+  shape: unknown;
   sortOrder: number;
 }): FloorPlan => ({
   id: record.id,
@@ -145,6 +173,7 @@ const toDomain = (record: {
   name: record.name,
   widthCm: record.widthCm,
   depthCm: record.depthCm,
+  shape: record.shape as FloorPlan["shape"], // Prisma returns Json as unknown; safe cast after Zod validation on write
   sortOrder: record.sortOrder,
 });
 
@@ -488,12 +517,29 @@ export const listZonesController = asyncHandler(
 
 ### `POST /api/floor-plans`
 
-Request body:
+**Rectangular floor (shape omitted or null):**
 ```json
 {
   "name": "Ground Floor",
   "widthCm": 1200,
   "depthCm": 800
+}
+```
+
+**Irregular floor (L-shape example):**
+```json
+{
+  "name": "Ground Floor",
+  "widthCm": 1200,
+  "depthCm": 800,
+  "shape": [
+    { "xCm": 0,    "yCm": 0   },
+    { "xCm": 1200, "yCm": 0   },
+    { "xCm": 1200, "yCm": 400 },
+    { "xCm": 600,  "yCm": 400 },
+    { "xCm": 600,  "yCm": 800 },
+    { "xCm": 0,    "yCm": 800 }
+  ]
 }
 ```
 
@@ -506,10 +552,20 @@ Response `201`:
     "name": "Ground Floor",
     "widthCm": 1200,
     "depthCm": 800,
+    "shape": [
+      { "xCm": 0,    "yCm": 0   },
+      { "xCm": 1200, "yCm": 0   },
+      { "xCm": 1200, "yCm": 400 },
+      { "xCm": 600,  "yCm": 400 },
+      { "xCm": 600,  "yCm": 800 },
+      { "xCm": 0,    "yCm": 800 }
+    ],
     "sortOrder": 0
   }
 }
 ```
+
+`shape` is always present in the response — `null` for rectangular floors, vertex array for irregular ones.
 
 ### `POST /api/zones` (updated shape)
 
@@ -535,12 +591,12 @@ Response `201` — same shape as input plus `id`.
 
 ## Checklist
 
-- [ ] A1 — Add `FloorPlan` model to schema.prisma
+- [ ] A1 — Add `FloorPlan` model to schema.prisma (including `shape Json?`)
 - [ ] A2 — Add `floorPlans FloorPlan[]` to `Shop` model
 - [ ] A3 — Add `floorPlanId`, `widthCm`, `depthCm` to `StoreZone` model
 - [ ] A4 — Run migration: `add_floor_plan_and_zone_dimensions`
-- [ ] B1 — Create `src/modules/floor-plan/domain/floor-plan.ts`
-- [ ] B2 — Create `src/modules/floor-plan/contracts/floor-plan.contract.ts`
+- [ ] B1 — Create `src/modules/floor-plan/domain/floor-plan.ts` (includes `FloorPlanVertex` type)
+- [ ] B2 — Create `src/modules/floor-plan/contracts/floor-plan.contract.ts` (includes `FloorPlanVertexSchema`)
 - [ ] B3 — Create `src/modules/floor-plan/repositories/floor-plan.repository.ts`
 - [ ] B4 — Create `src/modules/floor-plan/queries/get-floor-plans.query.ts`
 - [ ] B5 — Create three command files (create / update / delete)

@@ -2,8 +2,7 @@ import type { AuthUserDto } from "../../auth/types/auth.dto";
 
 export type SettingsOptionPageId =
   | "settings-shopify"
-  | "settings-location-options"
-  | "settings-logistic-locations"
+  | "settings-locations"
   | "settings-users"
   | "settings-store-map";
 

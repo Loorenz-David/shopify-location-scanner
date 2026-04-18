@@ -313,13 +313,13 @@ export const scanHistoryRepository = {
             create: {
               date: statsDate,
               location: normalizedLocation,
-              itemsReceived: 1,
+              itemsReceived: quantity,
               itemsSold: 0,
               totalTimeToSellSeconds: 0,
               totalValuation: 0,
             },
             update: {
-              itemsReceived: { increment: 1 },
+              itemsReceived: { increment: quantity },
             },
           });
         }
@@ -399,13 +399,13 @@ export const scanHistoryRepository = {
           create: {
             date: statsDate,
             location: normalizedLocation,
-            itemsReceived: 1,
+            itemsReceived: quantity,
             itemsSold: 0,
             totalTimeToSellSeconds: 0,
             totalValuation: 0,
           },
           update: {
-            itemsReceived: { increment: 1 },
+            itemsReceived: { increment: quantity },
           },
         });
       }
@@ -613,7 +613,7 @@ export const scanHistoryRepository = {
             itemImageUrl: input.itemImageUrl ?? null,
             itemType: input.itemType,
             itemTitle: input.itemTitle,
-            latestLocation: normalizedSoldLocation,
+            latestLocation: null,
             isSold: true,
             lastSoldChannel: salesChannel,
             orderId: orderId ?? null,

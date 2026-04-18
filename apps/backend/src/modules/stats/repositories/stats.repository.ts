@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../../../shared/database/prisma-client.js";
 import type {
   CategoryOverviewItem,
@@ -5,10 +6,26 @@ import type {
   DimensionBucket,
   SalesChannelOverviewItem,
   SmartInsight,
+  TimePatternHourPoint,
+  TimePatternWeekdayPoint,
+  TimePatterns,
   VelocityPoint,
   ZoneDetail,
+  ZoneLevelBreakdown,
   ZoneOverviewItem,
 } from "../domain/stats.js";
+
+// Matches "H1:2" — zone prefix + colon + numeric level only.
+// Intentionally does NOT match sentinels like "SOLD_ORDER:abc123".
+const LEVEL_LOCATION_RE = /^(.+):(\d+)$/;
+
+const parseZonePrefix = (location: string): string => {
+  const match = LEVEL_LOCATION_RE.exec(location);
+  return match ? (match[1] as string) : location;
+};
+
+const isLevelLocation = (location: string): boolean =>
+  LEVEL_LOCATION_RE.test(location);
 
 type Bucket = {
   min: number;
@@ -86,17 +103,13 @@ export const getZonesOverview = async (
   to: Date,
 ): Promise<ZoneOverviewItem[]> => {
   const locations = await getKnownLocationsForShop(shopId);
-  if (locations.length === 0) {
-    return [];
-  }
+  if (locations.length === 0) return [];
 
   const rows = await prisma.locationStatsDaily.groupBy({
     by: ["location"],
     where: {
       date: { gte: from, lte: to },
-      location: {
-        in: locations,
-      },
+      location: { in: locations },
     },
     _sum: {
       itemsSold: true,
@@ -104,51 +117,83 @@ export const getZonesOverview = async (
       totalTimeToSellSeconds: true,
       totalValuation: true,
     },
-    orderBy: {
-      _sum: {
-        itemsSold: "desc",
-      },
-    },
   });
 
-  return rows.map((row) => {
-    const itemsSold = row._sum.itemsSold ?? 0;
-    const totalSeconds = row._sum.totalTimeToSellSeconds ?? 0;
+  // Cluster raw location rows by zone prefix.
+  // "H1:1" + "H1:2" + "H1:3" → zone "H1" with levelCount 3.
+  // "H2" (no colon) → zone "H2" with levelCount 1.
+  // Sentinels like "SOLD_ORDER:abc" are not matched by LEVEL_LOCATION_RE and stay as-is.
+  type ZoneAccum = {
+    itemsSold: number;
+    itemsReceived: number;
+    totalTimeToSellSeconds: number;
+    totalValuation: number;
+    rawLocations: Set<string>;
+  };
 
-    return {
-      location: row.location,
-      itemsSold,
-      itemsReceived: row._sum.itemsReceived ?? 0,
-      revenue: row._sum.totalValuation ?? 0,
-      avgTimeToSellSeconds: itemsSold > 0 ? totalSeconds / itemsSold : null,
+  const zoneMap = new Map<string, ZoneAccum>();
+
+  for (const row of rows) {
+    const zone = parseZonePrefix(row.location);
+    const acc = zoneMap.get(zone) ?? {
+      itemsSold: 0,
+      itemsReceived: 0,
+      totalTimeToSellSeconds: 0,
+      totalValuation: 0,
+      rawLocations: new Set(),
     };
-  });
+    acc.itemsSold += row._sum.itemsSold ?? 0;
+    acc.itemsReceived += row._sum.itemsReceived ?? 0;
+    acc.totalTimeToSellSeconds += row._sum.totalTimeToSellSeconds ?? 0;
+    acc.totalValuation += row._sum.totalValuation ?? 0;
+    acc.rawLocations.add(row.location);
+    zoneMap.set(zone, acc);
+  }
+
+  return Array.from(zoneMap.entries())
+    .map(([location, acc]) => ({
+      location,
+      itemsSold: acc.itemsSold,
+      itemsReceived: acc.itemsReceived,
+      revenue: acc.totalValuation,
+      avgTimeToSellSeconds:
+        acc.itemsSold > 0 ? acc.totalTimeToSellSeconds / acc.itemsSold : null,
+      levelCount: acc.rawLocations.size,
+    }))
+    .sort((a, b) => b.itemsSold - a.itemsSold);
 };
 
 export const getZoneDetail = async (
   shopId: string,
-  location: string,
+  location: string, // "H1" → zone view (aggregates all H1:* levels); "H1:2" → specific level view
   from: Date,
   to: Date,
 ): Promise<Omit<ZoneDetail, "location">> => {
-  const locations = await getKnownLocationsForShop(shopId);
-  if (!locations.includes(location)) {
-    return {
-      kpis: {
-        itemsSold: 0,
-        itemsReceived: 0,
-        revenue: 0,
-        avgTimeToSellSeconds: null,
-      },
-      categories: [],
-      dailySeries: [],
-    };
-  }
+  const isLevel = isLevelLocation(location);
+  const knownLocations = await getKnownLocationsForShop(shopId);
+
+  // For a zone request ("H1") match exact + all levels ("H1:1", "H1:2", ...).
+  // For a level request ("H1:2") match only that exact string.
+  const matchingLocations = isLevel
+    ? knownLocations.filter((l) => l === location)
+    : knownLocations.filter(
+        (l) => l === location || l.startsWith(`${location}:`),
+      );
+
+  const empty: Omit<ZoneDetail, "location"> = {
+    isLevelView: isLevel,
+    kpis: { itemsSold: 0, itemsReceived: 0, revenue: 0, avgTimeToSellSeconds: null },
+    categories: [],
+    dailySeries: [],
+    levels: null,
+  };
+
+  if (matchingLocations.length === 0) return empty;
 
   const [daily, categories] = await Promise.all([
     prisma.locationStatsDaily.findMany({
       where: {
-        location,
+        location: { in: matchingLocations },
         date: { gte: from, lte: to },
       },
       orderBy: { date: "asc" },
@@ -156,7 +201,7 @@ export const getZoneDetail = async (
     prisma.locationCategoryStatsDaily.groupBy({
       by: ["itemCategory"],
       where: {
-        location,
+        location: { in: matchingLocations },
         date: { gte: from, lte: to },
       },
       _sum: {
@@ -164,48 +209,118 @@ export const getZoneDetail = async (
         totalRevenue: true,
         totalTimeToSellSeconds: true,
       },
-      orderBy: {
-        _sum: {
-          itemsSold: "desc",
-        },
-      },
+      orderBy: { _sum: { itemsSold: "desc" } },
     }),
   ]);
 
-  const totalSold = daily.reduce((sum, row) => sum + row.itemsSold, 0);
-  const totalReceived = daily.reduce((sum, row) => sum + row.itemsReceived, 0);
-  const totalRevenue = daily.reduce((sum, row) => sum + row.totalValuation, 0);
-  const totalSeconds = daily.reduce(
-    (sum, row) => sum + row.totalTimeToSellSeconds,
-    0,
-  );
+  const totalSold = daily.reduce((s, r) => s + r.itemsSold, 0);
+  const totalReceived = daily.reduce((s, r) => s + r.itemsReceived, 0);
+  const totalRevenue = daily.reduce((s, r) => s + r.totalValuation, 0);
+  const totalSeconds = daily.reduce((s, r) => s + r.totalTimeToSellSeconds, 0);
+
+  // Aggregate daily series across all matching locations by date key.
+  const dateMap = new Map<string, { itemsSold: number; revenue: number }>();
+  for (const row of daily) {
+    const key = toIsoDate(row.date);
+    const acc = dateMap.get(key) ?? { itemsSold: 0, revenue: 0 };
+    dateMap.set(key, {
+      itemsSold: acc.itemsSold + row.itemsSold,
+      revenue: acc.revenue + row.totalValuation,
+    });
+  }
+
+  // Level breakdown — only for zone view with more than one matching location.
+  let levels: ZoneLevelBreakdown[] | null = null;
+  if (!isLevel && matchingLocations.length > 1) {
+    type LevelAccum = { itemsSold: number; itemsReceived: number; revenue: number; totalSeconds: number };
+    const levelMap = new Map<string, LevelAccum>();
+    for (const row of daily) {
+      const acc = levelMap.get(row.location) ?? { itemsSold: 0, itemsReceived: 0, revenue: 0, totalSeconds: 0 };
+      levelMap.set(row.location, {
+        itemsSold: acc.itemsSold + row.itemsSold,
+        itemsReceived: acc.itemsReceived + row.itemsReceived,
+        revenue: acc.revenue + row.totalValuation,
+        totalSeconds: acc.totalSeconds + row.totalTimeToSellSeconds,
+      });
+    }
+    levels = Array.from(levelMap.entries()).map(([level, acc]) => ({
+      level,
+      itemsSold: acc.itemsSold,
+      itemsReceived: acc.itemsReceived,
+      revenue: acc.revenue,
+      avgTimeToSellSeconds: acc.itemsSold > 0 ? acc.totalSeconds / acc.itemsSold : null,
+    }));
+  }
 
   return {
+    isLevelView: isLevel,
     kpis: {
       itemsSold: totalSold,
       itemsReceived: totalReceived,
       revenue: totalRevenue,
       avgTimeToSellSeconds: totalSold > 0 ? totalSeconds / totalSold : null,
     },
-    categories: categories.map((category) => {
-      const itemsSold = category._sum.itemsSold ?? 0;
-      const totalTimeToSellSeconds =
-        category._sum.totalTimeToSellSeconds ?? 0;
-
+    categories: categories.map((cat) => {
+      const itemsSold = cat._sum.itemsSold ?? 0;
+      const catSeconds = cat._sum.totalTimeToSellSeconds ?? 0;
       return {
-        category: category.itemCategory,
+        category: cat.itemCategory,
         itemsSold,
-        revenue: category._sum.totalRevenue ?? 0,
-        avgTimeToSellSeconds:
-          itemsSold > 0 ? totalTimeToSellSeconds / itemsSold : null,
+        revenue: cat._sum.totalRevenue ?? 0,
+        avgTimeToSellSeconds: itemsSold > 0 ? catSeconds / itemsSold : null,
       };
     }),
-    dailySeries: daily.map((row) => ({
-      date: toIsoDate(row.date),
-      itemsSold: row.itemsSold,
-      revenue: row.totalValuation,
-    })),
+    dailySeries: Array.from(dateMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, data]) => ({ date, ...data })),
+    levels,
   };
+};
+
+export const getCategoryByLocation = async (
+  shopId: string,
+  category: string,
+  from: Date,
+  to: Date,
+): Promise<{ location: string; itemsSold: number; revenue: number; avgTimeToSellSeconds: number | null }[]> => {
+  const locations = await getKnownLocationsForShop(shopId);
+  if (locations.length === 0) return [];
+
+  const rows = await prisma.locationCategoryStatsDaily.groupBy({
+    by: ["location"],
+    where: {
+      itemCategory: category,
+      date: { gte: from, lte: to },
+      location: { in: locations },
+    },
+    _sum: {
+      itemsSold: true,
+      totalRevenue: true,
+      totalTimeToSellSeconds: true,
+    },
+  });
+
+  // Cluster by zone prefix so "H1:1" + "H1:2" merge into "H1".
+  type ZoneAccum = { itemsSold: number; revenue: number; totalSeconds: number };
+  const zoneMap = new Map<string, ZoneAccum>();
+  for (const row of rows) {
+    const zone = parseZonePrefix(row.location);
+    const acc = zoneMap.get(zone) ?? { itemsSold: 0, revenue: 0, totalSeconds: 0 };
+    zoneMap.set(zone, {
+      itemsSold: acc.itemsSold + (row._sum.itemsSold ?? 0),
+      revenue: acc.revenue + (row._sum.totalRevenue ?? 0),
+      totalSeconds: acc.totalSeconds + (row._sum.totalTimeToSellSeconds ?? 0),
+    });
+  }
+
+  return Array.from(zoneMap.entries())
+    .map(([location, acc]) => ({
+      location,
+      itemsSold: acc.itemsSold,
+      revenue: acc.revenue,
+      avgTimeToSellSeconds: acc.itemsSold > 0 ? acc.totalSeconds / acc.itemsSold : null,
+    }))
+    .sort((a, b) => b.itemsSold - a.itemsSold);
 };
 
 export const getCategoriesOverview = async (
@@ -264,7 +379,7 @@ export const getCategoriesOverview = async (
       row.location !== "UNKNOWN_POSITION" &&
       !row.location.startsWith("SOLD_ORDER:")
     ) {
-      bestLocationByCategory.set(row.itemCategory, row.location);
+      bestLocationByCategory.set(row.itemCategory, parseZonePrefix(row.location));
     }
   }
 
@@ -538,12 +653,112 @@ export const getSmartInsights = async (
   return insights;
 };
 
+// ---------------------------------------------------------------------------
+// Sales time patterns — hour-of-day and day-of-week distributions
+// ---------------------------------------------------------------------------
+
+const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
+
+function padHour(h: number): string {
+  return `${String(h).padStart(2, "0")}:00`;
+}
+
+function markPeak<T extends { itemsSold: number }>(
+  rows: T[],
+): (T & { isPeak: boolean })[] {
+  if (rows.length === 0) return [];
+  const maxSold = Math.max(...rows.map((r) => r.itemsSold));
+  let peakMarked = false;
+  return rows.map((r) => {
+    const isPeak = !peakMarked && r.itemsSold === maxSold && maxSold > 0;
+    if (isPeak) peakMarked = true;
+    return { ...r, isPeak };
+  });
+}
+
+export const getTimePatterns = async (
+  shopId: string,
+  from: Date,
+  to: Date,
+  salesChannel?: "webshop" | "physical" | "imported" | "unknown",
+  latestLocation?: string,
+  itemCategory?: string,
+): Promise<TimePatterns> => {
+  // Use Prisma ORM for filtering (avoids raw SQL datetime format uncertainty)
+  // then aggregate in JS — consistent with how the rest of the stats repo works.
+  const records = await prisma.scanHistory.findMany({
+    where: {
+      AND: [
+        { shopId },
+        { isSold: true },
+        { lastModifiedAt: { gte: from, lte: to } },
+        ...(salesChannel ? [{ lastSoldChannel: salesChannel as Prisma.EnumSalesChannelFilter }] : []),
+        ...(latestLocation ? [{ latestLocation }] : []),
+        ...(itemCategory ? [{ itemCategory }] : []),
+      ],
+    },
+    select: {
+      lastModifiedAt: true,
+      quantity: true,
+      priceHistory: {
+        orderBy: { happenedAt: "desc" as const },
+        take: 1,
+        select: { price: true },
+      },
+    },
+  });
+
+  const hourMap = new Map<number, { itemsSold: number; revenue: number }>();
+  const weekdayMap = new Map<number, { itemsSold: number; revenue: number }>();
+
+  for (const record of records) {
+    const dt = record.lastModifiedAt;
+    const hour = dt.getUTCHours();
+    const weekday = dt.getUTCDay();
+    const qty = record.quantity ?? 1;
+    const price = parseFloat(record.priceHistory[0]?.price ?? "0") || 0;
+
+    const h = hourMap.get(hour) ?? { itemsSold: 0, revenue: 0 };
+    hourMap.set(hour, { itemsSold: h.itemsSold + qty, revenue: h.revenue + price * qty });
+
+    const w = weekdayMap.get(weekday) ?? { itemsSold: 0, revenue: 0 };
+    weekdayMap.set(weekday, { itemsSold: w.itemsSold + qty, revenue: w.revenue + price * qty });
+  }
+
+  const allHours: Omit<TimePatternHourPoint, "isPeak">[] = Array.from(
+    { length: 24 },
+    (_, h) => ({
+      hour: h,
+      label: padHour(h),
+      itemsSold: hourMap.get(h)?.itemsSold ?? 0,
+      revenue: hourMap.get(h)?.revenue ?? 0,
+    }),
+  );
+
+  const allWeekdays: Omit<TimePatternWeekdayPoint, "isPeak">[] = Array.from(
+    { length: 7 },
+    (_, d) => ({
+      weekday: d,
+      label: WEEKDAY_LABELS[d] as string,
+      itemsSold: weekdayMap.get(d)?.itemsSold ?? 0,
+      revenue: weekdayMap.get(d)?.revenue ?? 0,
+    }),
+  );
+
+  return {
+    byHour: markPeak(allHours),
+    byWeekday: markPeak(allWeekdays),
+  };
+};
+
 export const statsRepository = {
   getZonesOverview,
   getZoneDetail,
   getCategoriesOverview,
+  getCategoryByLocation,
   getDimensionsStats,
   getSalesVelocity,
   getSalesChannelOverview,
   getSmartInsights,
+  getTimePatterns,
 };

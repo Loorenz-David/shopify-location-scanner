@@ -6,12 +6,8 @@ export const settingsOptionSubscriptions: SettingsOptionSubscription[] = [
     label: "Shopify integration",
   },
   {
-    id: "settings-location-options",
-    label: "Shop locations",
-  },
-  {
-    id: "settings-logistic-locations",
-    label: "Logistic locations",
+    id: "settings-locations",
+    label: "Locations",
   },
   {
     id: "settings-users",

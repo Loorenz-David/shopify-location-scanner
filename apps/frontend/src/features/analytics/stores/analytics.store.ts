@@ -7,8 +7,10 @@ import type {
   SalesChannel,
   SalesChannelOverviewItem,
   SmartInsight,
+  TimePatterns,
   VelocityPoint,
   ZoneDetail,
+  ZoneLevelBreakdown,
   ZoneOverviewItem,
 } from "../types/analytics.types";
 
@@ -28,11 +30,18 @@ export type VelocityCompareSeries = {
 interface AnalyticsStoreState {
   dateRange: DateRange;
   zoneDateRange: DateRange;
+  categoryDateRange: DateRange;
   channelOverview: SalesChannelOverviewItem[];
   velocityChannel: VelocityChannel;
   velocityCompareSeries: VelocityCompareSeries | null;
+  timePatterns: TimePatterns | null;
+  timePatternsCompare: { physical: TimePatterns; webshop: TimePatterns } | null;
+  zoneTimePatterns: TimePatterns | null;
+  categoryTimePatterns: TimePatterns | null;
   zonesOverview: ZoneOverviewItem[];
   selectedZone: string | null;
+  selectedZoneLevel: string | null; // null = "All levels"; "H1:2" = specific level drill-down
+  zoneLevels: ZoneLevelBreakdown[] | null; // persisted tab list; survives level drill-down
   zoneDetail: ZoneDetail | null;
   selectedCategory: string | null;
   categoryDetail: CategoryLocationRow[] | null;
@@ -47,10 +56,17 @@ interface AnalyticsStoreState {
   isLoadingCategoryDetail: boolean;
   setDateRange: (range: DateRange) => void;
   setZoneDateRange: (range: DateRange) => void;
+  setCategoryDateRange: (range: DateRange) => void;
   setChannelOverview: (data: SalesChannelOverviewItem[]) => void;
   setVelocityChannel: (channel: VelocityChannel) => void;
   setVelocityCompareSeries: (series: VelocityCompareSeries | null) => void;
+  setTimePatterns: (data: TimePatterns | null) => void;
+  setTimePatternsCompare: (data: { physical: TimePatterns; webshop: TimePatterns } | null) => void;
+  setZoneTimePatterns: (data: TimePatterns | null) => void;
+  setCategoryTimePatterns: (data: TimePatterns | null) => void;
   setSelectedZone: (location: string | null) => void;
+  setSelectedZoneLevel: (level: string | null) => void;
+  setZoneLevels: (levels: ZoneLevelBreakdown[] | null) => void;
   setSelectedCategory: (category: string | null) => void;
   setZoneComparisonMetric: (metric: ZoneComparisonMetric) => void;
   setZonesOverview: (data: ZoneOverviewItem[]) => void;
@@ -81,11 +97,18 @@ function defaultDateRange(): DateRange {
 const initialState = {
   dateRange: defaultDateRange(),
   zoneDateRange: defaultDateRange(),
+  categoryDateRange: defaultDateRange(),
   channelOverview: [],
   velocityChannel: "compare" as VelocityChannel,
   velocityCompareSeries: null,
+  timePatterns: null,
+  timePatternsCompare: null,
+  zoneTimePatterns: null,
+  categoryTimePatterns: null,
   zonesOverview: [],
   selectedZone: null,
+  selectedZoneLevel: null,
+  zoneLevels: null,
   zoneDetail: null,
   selectedCategory: null,
   categoryDetail: null,
@@ -113,18 +136,38 @@ export const useAnalyticsStore = create<AnalyticsStoreState>((set) => ({
       velocityCompareSeries: null,
     }),
   setZoneDateRange: (zoneDateRange) => set({ zoneDateRange, zoneDetail: null }),
+  setCategoryDateRange: (categoryDateRange) =>
+    set({ categoryDateRange, categoryDetail: null }),
   setChannelOverview: (channelOverview) => set({ channelOverview }),
   setVelocityChannel: (velocityChannel) => set({ velocityChannel }),
   setVelocityCompareSeries: (velocityCompareSeries) =>
     set({ velocityCompareSeries }),
+  setTimePatterns: (timePatterns) => set({ timePatterns }),
+  setTimePatternsCompare: (timePatternsCompare) => set({ timePatternsCompare }),
+  setZoneTimePatterns: (zoneTimePatterns) => set({ zoneTimePatterns }),
+  setCategoryTimePatterns: (categoryTimePatterns) =>
+    set({ categoryTimePatterns }),
   setSelectedZone: (selectedZone) =>
     set((state) => ({
       selectedZone,
+      selectedZoneLevel: null,
+      zoneLevels: null,
       zoneDetail: null,
+      zoneTimePatterns: null,
       zoneDateRange: selectedZone ? state.dateRange : state.zoneDateRange,
     })),
+  setSelectedZoneLevel: (selectedZoneLevel) =>
+    set({ selectedZoneLevel, zoneDetail: null, zoneTimePatterns: null }),
+  setZoneLevels: (zoneLevels) => set({ zoneLevels }),
   setSelectedCategory: (selectedCategory) =>
-    set({ selectedCategory, categoryDetail: null }),
+    set((state) => ({
+      selectedCategory,
+      categoryDetail: null,
+      categoryTimePatterns: null,
+      categoryDateRange: selectedCategory
+        ? state.dateRange
+        : state.categoryDateRange,
+    })),
   setZoneComparisonMetric: (zoneComparisonMetric) =>
     set({ zoneComparisonMetric }),
   setZonesOverview: (zonesOverview) => set({ zonesOverview }),
@@ -146,6 +189,8 @@ export const selectAnalyticsDateRange = (state: AnalyticsStoreState) =>
   state.dateRange;
 export const selectAnalyticsZoneDateRange = (state: AnalyticsStoreState) =>
   state.zoneDateRange;
+export const selectAnalyticsCategoryDateRange = (state: AnalyticsStoreState) =>
+  state.categoryDateRange;
 export const selectAnalyticsChannelOverview = (state: AnalyticsStoreState) =>
   state.channelOverview;
 export const selectAnalyticsVelocityChannel = (state: AnalyticsStoreState) =>
@@ -153,10 +198,23 @@ export const selectAnalyticsVelocityChannel = (state: AnalyticsStoreState) =>
 export const selectAnalyticsVelocityCompareSeries = (
   state: AnalyticsStoreState,
 ) => state.velocityCompareSeries;
+export const selectAnalyticsTimePatterns = (state: AnalyticsStoreState) =>
+  state.timePatterns;
+export const selectAnalyticsTimePatternsCompare = (state: AnalyticsStoreState) =>
+  state.timePatternsCompare;
+export const selectAnalyticsZoneTimePatterns = (state: AnalyticsStoreState) =>
+  state.zoneTimePatterns;
+export const selectAnalyticsCategoryTimePatterns = (
+  state: AnalyticsStoreState,
+) => state.categoryTimePatterns;
 export const selectAnalyticsZonesOverview = (state: AnalyticsStoreState) =>
   state.zonesOverview;
 export const selectAnalyticsSelectedZone = (state: AnalyticsStoreState) =>
   state.selectedZone;
+export const selectAnalyticsSelectedZoneLevel = (state: AnalyticsStoreState) =>
+  state.selectedZoneLevel;
+export const selectAnalyticsZoneLevels = (state: AnalyticsStoreState) =>
+  state.zoneLevels;
 export const selectAnalyticsZoneDetail = (state: AnalyticsStoreState) =>
   state.zoneDetail;
 export const selectAnalyticsSelectedCategory = (state: AnalyticsStoreState) =>
@@ -174,9 +232,8 @@ export const selectAnalyticsInsights = (state: AnalyticsStoreState) =>
 export const selectAnalyticsZoneComparisonMetric = (
   state: AnalyticsStoreState,
 ) => state.zoneComparisonMetric;
-export const selectAnalyticsIsLoadingOverview = (
-  state: AnalyticsStoreState,
-) => state.isLoadingOverview;
+export const selectAnalyticsIsLoadingOverview = (state: AnalyticsStoreState) =>
+  state.isLoadingOverview;
 export const selectAnalyticsIsLoadingZoneDetail = (
   state: AnalyticsStoreState,
 ) => state.isLoadingZoneDetail;

@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { formatKr } from "../../domain/format-currency.domain";
 import type { ZoneOverviewItem } from "../../types/analytics.types";
 
 type SortKey = "itemsSold" | "revenue";
@@ -8,12 +9,6 @@ interface ZoneRankingComparisonProps {
   data: ZoneOverviewItem[];
   onZoneClick?: (location: string) => void;
 }
-
-const formatRevenue = (value: number): string => {
-  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)}M`;
-  if (value >= 1_000) return `${(value / 1_000).toFixed(1)}k`;
-  return String(value);
-};
 
 function SortArrowsIcon({ sortKey }: { sortKey: SortKey }) {
   return (
@@ -73,7 +68,9 @@ export function ZoneRankingComparison({
         <button
           type="button"
           onClick={() =>
-            setSortKey((prev) => (prev === "itemsSold" ? "revenue" : "itemsSold"))
+            setSortKey((prev) =>
+              prev === "itemsSold" ? "revenue" : "itemsSold",
+            )
           }
           className="flex w-20 shrink-0 items-center gap-1 text-left"
           aria-label={`Sort by ${sortKey === "itemsSold" ? "revenue" : "items sold"}`}
@@ -147,7 +144,7 @@ export function ZoneRankingComparison({
                 />
               </div>
               <span className="text-[10px] font-medium text-emerald-600">
-                {formatRevenue(zone.revenue)}
+                {formatKr(zone.revenue)}
               </span>
             </div>
           </button>

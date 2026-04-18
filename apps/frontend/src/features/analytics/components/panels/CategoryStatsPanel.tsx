@@ -1,28 +1,45 @@
+import { useState } from "react";
+
 import { AnimatePresence, motion } from "framer-motion";
 
 import { CloseIcon } from "../../../../assets/icons";
+import { statsItemsOverlayActions } from "../../actions/stats-items-overlay.actions";
+import { formatKr } from "../../domain/format-currency.domain";
 import { useCategoryDetailFlow } from "../../flows/use-category-detail.flow";
 import {
   selectAnalyticsCategories,
+  selectAnalyticsCategoryDateRange,
   selectAnalyticsCategoryDetail,
+  selectAnalyticsCategoryTimePatterns,
   selectAnalyticsIsLoadingCategoryDetail,
   selectAnalyticsSelectedCategory,
   useAnalyticsStore,
 } from "../../stores/analytics.store";
 import { CategoryByLocationChart } from "../charts/CategoryByLocationChart";
-import { KpiRow } from "../shared/KpiRow";
+import { SalesTimePatternsChart } from "../charts/SalesTimePatternsChart";
+import { DateRangePicker } from "../shared/DateRangePicker";
 
 export function CategoryStatsPanel() {
   useCategoryDetailFlow();
+  const [categoryPatternsMetric, setCategoryPatternsMetric] = useState<
+    "itemsSold" | "revenue"
+  >("itemsSold");
 
   const selectedCategory = useAnalyticsStore(selectAnalyticsSelectedCategory);
   const categoryDetail = useAnalyticsStore(selectAnalyticsCategoryDetail);
+  const categoryDateRange = useAnalyticsStore(selectAnalyticsCategoryDateRange);
+  const categoryTimePatterns = useAnalyticsStore(
+    selectAnalyticsCategoryTimePatterns,
+  );
   const isLoadingCategoryDetail = useAnalyticsStore(
     selectAnalyticsIsLoadingCategoryDetail,
   );
   const categories = useAnalyticsStore(selectAnalyticsCategories);
   const setSelectedCategory = useAnalyticsStore(
     (state) => state.setSelectedCategory,
+  );
+  const setCategoryDateRange = useAnalyticsStore(
+    (state) => state.setCategoryDateRange,
   );
 
   const overview = categories.find(
@@ -59,6 +76,13 @@ export function CategoryStatsPanel() {
             </button>
           </header>
 
+          <div className="border-b border-slate-900/10 px-4 py-3">
+            <DateRangePicker
+              value={categoryDateRange}
+              onChange={setCategoryDateRange}
+            />
+          </div>
+
           {isLoadingCategoryDetail ? (
             <div className="flex flex-1 items-center justify-center px-4 text-sm font-medium text-slate-500">
               Loading category stats...
@@ -66,10 +90,10 @@ export function CategoryStatsPanel() {
           ) : (
             <div className="flex flex-col gap-5 px-4 py-4">
               {overview ? (
-                <KpiRow
-                  itemsSold={overview.itemsSold}
-                  revenue={overview.totalRevenue}
-                  avgTimeToSellSeconds={overview.avgTimeToSellSeconds}
+                <CategoryKpiRow
+                  category={selectedCategory}
+                  overview={overview}
+                  categoryDateRange={categoryDateRange}
                 />
               ) : null}
 
@@ -94,10 +118,183 @@ export function CategoryStatsPanel() {
                   No per-location data is available for this category yet.
                 </p>
               )}
+
+              {categoryTimePatterns ? (
+                <div>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <p className="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                      Time patterns
+                    </p>
+                    <div className="flex gap-1">
+                      {(["itemsSold", "revenue"] as const).map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setCategoryPatternsMetric(m)}
+                          className={`rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors ${
+                            categoryPatternsMetric === m
+                              ? "border-sky-500 bg-sky-500 text-white"
+                              : "border-slate-200 text-slate-500"
+                          }`}
+                        >
+                          {m === "itemsSold" ? "Items" : "Revenue"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-900/10 bg-white/90 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
+                    <SalesTimePatternsChart
+                      data={categoryTimePatterns}
+                      metric={categoryPatternsMetric}
+                      onHourClick={(hour, label) =>
+                        statsItemsOverlayActions.open({
+                          query: {
+                            isSold: true,
+                            itemCategory: selectedCategory,
+                            from: categoryDateRange.from,
+                            to: categoryDateRange.to,
+                            hourOfDay: hour,
+                            sortBy: "lastModifiedAt",
+                            sortDir: "desc",
+                          },
+                          cardMode: "sold-default",
+                          title: `${selectedCategory} — Sales at ${label}`,
+                        })
+                      }
+                      onWeekdayClick={(weekday, label) =>
+                        statsItemsOverlayActions.open({
+                          query: {
+                            isSold: true,
+                            itemCategory: selectedCategory,
+                            from: categoryDateRange.from,
+                            to: categoryDateRange.to,
+                            weekday,
+                            sortBy: "lastModifiedAt",
+                            sortDir: "desc",
+                          },
+                          cardMode: "sold-default",
+                          title: `${selectedCategory} — Sales on ${label}s`,
+                        })
+                      }
+                    />
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
         </motion.aside>
       ) : null}
     </AnimatePresence>
   );
+}
+
+interface CategoryKpiRowProps {
+  category: string;
+  overview: {
+    itemsSold: number;
+    totalRevenue: number;
+    avgTimeToSellSeconds: number | null;
+  };
+  categoryDateRange: { from: string; to: string };
+}
+
+function CategoryKpiRow({
+  category,
+  overview,
+  categoryDateRange,
+}: CategoryKpiRowProps) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <button
+        type="button"
+        className="flex flex-col items-start rounded-2xl border border-slate-900/10 bg-white/90 p-3 text-left shadow-sm transition-colors hover:border-sky-300 hover:bg-sky-50/50"
+        onClick={() => {
+          statsItemsOverlayActions.open({
+            title: `${category} — Sold`,
+            cardMode: "sold-default",
+            query: {
+              isSold: true,
+              itemCategory: category,
+              from: categoryDateRange.from,
+              to: categoryDateRange.to,
+              sortBy: "lastModifiedAt",
+              sortDir: "desc",
+              groupByOrder: false,
+            },
+          });
+        }}
+      >
+        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+          Sold
+        </span>
+        <span className="mt-1 text-lg font-bold text-slate-900">
+          {overview.itemsSold}
+        </span>
+      </button>
+
+      <button
+        type="button"
+        className="flex flex-col items-start rounded-2xl border border-slate-900/10 bg-white/90 p-3 text-left shadow-sm transition-colors hover:border-sky-300 hover:bg-sky-50/50"
+        onClick={() => {
+          statsItemsOverlayActions.open({
+            title: `${category} — Revenue`,
+            cardMode: "sold-default",
+            query: {
+              isSold: true,
+              itemCategory: category,
+              from: categoryDateRange.from,
+              to: categoryDateRange.to,
+              sortBy: "lastKnownPrice",
+              sortDir: "desc",
+              groupByOrder: false,
+            },
+          });
+        }}
+      >
+        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+          Revenue
+        </span>
+        <span className="mt-1 text-lg font-bold text-slate-900">
+          {formatKr(overview.totalRevenue)}
+        </span>
+      </button>
+
+      <button
+        type="button"
+        className="col-span-2 flex flex-col items-start rounded-2xl border border-slate-900/10 bg-white/90 p-3 text-left shadow-sm transition-colors hover:border-sky-300 hover:bg-sky-50/50"
+        onClick={() => {
+          statsItemsOverlayActions.open({
+            title: `${category} — Avg sell time`,
+            cardMode: "avg-sell-time",
+            query: {
+              isSold: true,
+              itemCategory: category,
+              from: categoryDateRange.from,
+              to: categoryDateRange.to,
+              sortBy: "timeToSell",
+              sortDir: "asc",
+              groupByOrder: false,
+            },
+          });
+        }}
+      >
+        <span className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+          Avg sell time
+        </span>
+        <span className="mt-1 text-lg font-bold text-slate-900">
+          {overview.avgTimeToSellSeconds !== null
+            ? formatSeconds(overview.avgTimeToSellSeconds)
+            : "—"}
+        </span>
+      </button>
+    </div>
+  );
+}
+
+function formatSeconds(seconds: number): string {
+  const days = Math.floor(seconds / 86400);
+  if (days > 0) return `${days}d`;
+  const hours = Math.floor(seconds / 3600);
+  if (hours > 0) return `${hours}h`;
+  return `${Math.floor(seconds / 60)}m`;
 }

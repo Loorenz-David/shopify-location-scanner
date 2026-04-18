@@ -1,4 +1,8 @@
 import { BoldArrowIcon } from "../../../assets/icons";
+import {
+  formatSecondsToHumanDuration,
+  formatTimeInStock,
+} from "../domain/item-scan-history.domain";
 import type { ItemScanHistoryItem } from "../types/item-scan-history.types";
 import { ItemScanHistoryTimeline } from "./ItemScanHistoryTimeline";
 
@@ -48,7 +52,9 @@ export function ItemScanHistoryCard({
               {item.skuLabel}
             </p>
             <p className="m-0 mt-1 truncate text-xs text-slate-600">
-              Updated {item.lastModifiedLabel}
+              {item.isSold && item.timeToSellSeconds !== null
+                ? `Sold in ${formatSecondsToHumanDuration(item.timeToSellSeconds)}`
+                : `In stock ${formatTimeInStock(item.createdAt)}`}
             </p>
           </div>
 

@@ -38,6 +38,9 @@ export interface ItemScanHistoryItem {
   itemWidth: number | null;
   itemDepth: number | null;
   volume: number | null;
+  createdAt: string;
+  isSold: boolean;
+  timeToSellSeconds: number | null;
   lastModifiedAt: string;
   lastModifiedLabel: string;
   latestLocationLabel: string;

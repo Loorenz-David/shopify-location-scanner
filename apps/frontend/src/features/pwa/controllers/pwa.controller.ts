@@ -7,7 +7,7 @@ import type { RegisterPwaControllerArgs } from "../types/pwa.types";
 const SERVICE_WORKER_URL = "/service-worker.js";
 
 // Set to true when you are ready to re-enable the service worker.
-const SERVICE_WORKER_ENABLED = true;
+const SERVICE_WORKER_ENABLED = false;
 
 async function unregisterAllServiceWorkers(): Promise<void> {
   if (!canUseServiceWorkers()) return;

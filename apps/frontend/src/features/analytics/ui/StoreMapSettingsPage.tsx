@@ -3,6 +3,7 @@ import type { KonvaEventObject } from "konva/lib/Node";
 import { Group, Layer, Rect, Stage, Text } from "react-konva";
 
 import { BackArrowIcon, CloseIcon } from "../../../assets/icons";
+import { homeShellActions } from "../../home/actions/home-shell.actions";
 import { useFloorMapFlow } from "../flows/use-floor-map.flow";
 import { useMapTouchControlsFlow } from "../flows/use-map-touch-controls.flow";
 import {
@@ -190,39 +191,40 @@ export function StoreMapSettingsPage() {
 
   return (
     <section className="mx-auto flex h-full min-h-full w-full max-w-[1040px] flex-col gap-4 overflow-y-auto bg-[linear-gradient(180deg,#f8fafc_0%,#eef4ff_55%,#eef2f7_100%)] px-4 pb-10 pt-6 text-slate-900">
-      <header className="flex items-center justify-between">
-        <div>
-          <p className="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-            Settings
-          </p>
-          <h1 className="m-0 mt-1 text-2xl font-black text-slate-900">
-            Store Map Editor
-          </h1>
-          <p className="m-0 mt-1 text-sm text-slate-500">
-            Preview your map and enter fullscreen touch navigation mode.
-          </p>
-        </div>
-
+      <header className="flex items-center gap-3">
         <button
           type="button"
-          className="rounded-full border border-sky-600 bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white"
-          onClick={() => setEditorMode(true)}
+          className="grid h-9 w-9 flex-shrink-0 place-items-center"
+          onClick={() => homeShellActions.selectNavigationPage("settings")}
+          aria-label="Back to settings"
         >
-          Edit
+          <BackArrowIcon
+            className="h-4 w-4 text-green-700"
+            aria-hidden="true"
+          />
         </button>
+        <h1 className="m-0 text-2xl font-black text-slate-900">
+          Store Map Editor
+        </h1>
       </header>
 
       <div className="rounded-2xl border border-slate-900/10 bg-white/85 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
         <p className="m-0 text-sm font-medium text-slate-600">
-          The map below is a static preview. Tap edit to pan and zoom the map in
-          fullscreen. Zone creation and editing controls will be added next.
+          Tap edit to pan and zoom the map in fullscreen.
         </p>
       </div>
 
       <div
         ref={isEditorMode ? undefined : containerRef}
-        className="rounded-[24px] border border-slate-900/10 bg-slate-900/90 p-3 shadow-[0_16px_38px_rgba(15,23,42,0.16)]"
+        className="relative rounded-[24px] border border-slate-900/10 bg-slate-900/90 p-3 shadow-[0_16px_38px_rgba(15,23,42,0.16)]"
       >
+        <button
+          type="button"
+          className="absolute right-3 top-3 z-10 rounded-full border border-sky-600 bg-sky-600 px-3 py-1.5 text-xs font-semibold text-white shadow-sm"
+          onClick={() => setEditorMode(true)}
+        >
+          Edit
+        </button>
         <MapEditorStage
           zones={zones}
           stageWidth={stageWidth}
@@ -232,6 +234,8 @@ export function StoreMapSettingsPage() {
           renameZone={renameZone}
           viewportTransform={null}
         />
+        {/* Transparent overlay prevents Konva canvas from swallowing scroll touch events */}
+        <div className="absolute inset-0 z-[5] [touch-action:pan-y]" aria-hidden="true" />
       </div>
 
       <div className="rounded-2xl border border-slate-900/10 bg-white/90 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
@@ -430,9 +434,7 @@ export function StoreMapSettingsPage() {
                     onClick={() => {
                       if (
                         hasPendingShapeChanges &&
-                        !window.confirm(
-                          "Discard the current shape changes?",
-                        )
+                        !window.confirm("Discard the current shape changes?")
                       ) {
                         return;
                       }
