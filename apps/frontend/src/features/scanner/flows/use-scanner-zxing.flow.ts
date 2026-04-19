@@ -13,6 +13,7 @@ import {
   getScannerGuideRect,
   SCANNER_GUIDE_DEFAULT_ROI_PADDING_PX,
 } from "../domain/scanner-guide.domain";
+import { loadBrowserMultiFormatReader } from "../domain/zxing-loader.domain";
 import { useScannerStore } from "../stores/scanner.store";
 import type { ScannerEngineFlowResult } from "../types/scanner-engine.types";
 import type { ScannerFrozenFrame } from "../types/scanner.types";
@@ -446,7 +447,7 @@ export function useScannerZxingFlow(
         // then notify the session manager so it tracks the stream.
         // This keeps full ROI gate support while still benefiting from
         // prewarm (the manager has already started the stream).
-        const { BrowserMultiFormatReader } = await import("@zxing/browser");
+        const BrowserMultiFormatReader = await loadBrowserMultiFormatReader();
         const reader = new BrowserMultiFormatReader();
         readerRef.current = reader;
 

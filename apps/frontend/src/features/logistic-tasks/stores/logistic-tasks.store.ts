@@ -32,11 +32,23 @@ interface LogisticTasksStoreState {
   activeIntentionTab: LogisticIntention | null;
   batchNotification: { count: number; message: string } | null;
   isLoading: boolean;
+  isLoadingMore: boolean;
   hasLoaded: boolean;
+  hasMore: boolean;
+  nextCursor: string | null;
   errorMessage: string | null;
   activeRequestId: number;
   hydrate: (items: LogisticTaskItem[]) => void;
-  hydrateAndFinish: (items: LogisticTaskItem[]) => void;
+  hydrateAndFinish: (
+    items: LogisticTaskItem[],
+    hasMore: boolean,
+    nextCursor: string | null,
+  ) => void;
+  appendAndFinish: (
+    items: LogisticTaskItem[],
+    hasMore: boolean,
+    nextCursor: string | null,
+  ) => void;
   finishWithError: (msg: string) => void;
   upsertItem: (item: LogisticTaskItem) => void;
   removeItem: (id: string) => void;
@@ -55,7 +67,10 @@ const initialState = {
   activeIntentionTab: readStoredActiveTab(),
   batchNotification: null as { count: number; message: string } | null,
   isLoading: false,
+  isLoadingMore: false,
   hasLoaded: false,
+  hasMore: false,
+  nextCursor: null as string | null,
   errorMessage: null as string | null,
   activeRequestId: 0,
 };
@@ -64,10 +79,24 @@ export const useLogisticTasksStore = create<LogisticTasksStoreState>(
   (set, get) => ({
     ...initialState,
     hydrate: (items) => set({ items, isLoading: false }),
-    hydrateAndFinish: (items) =>
-      set({ items, isLoading: false, hasLoaded: true, errorMessage: null }),
+    hydrateAndFinish: (items, hasMore, nextCursor) =>
+      set({
+        items,
+        isLoading: false,
+        hasLoaded: true,
+        errorMessage: null,
+        hasMore,
+        nextCursor,
+      }),
+    appendAndFinish: (newItems, hasMore, nextCursor) =>
+      set((state) => ({
+        items: [...state.items, ...newItems],
+        isLoadingMore: false,
+        hasMore,
+        nextCursor,
+      })),
     finishWithError: (msg) =>
-      set({ isLoading: false, hasLoaded: true, errorMessage: msg }),
+      set({ isLoading: false, isLoadingMore: false, hasLoaded: true, errorMessage: msg }),
     upsertItem: (item) =>
       set((state) => {
         const index = state.items.findIndex((i) => i.id === item.id);
@@ -133,3 +162,10 @@ export const selectLogisticTasksActiveIntentionTab = (
 export const selectLogisticTasksBatchNotification = (
   state: LogisticTasksStoreState,
 ) => state.batchNotification;
+
+export const selectLogisticTasksHasMore = (state: LogisticTasksStoreState) =>
+  state.hasMore;
+
+export const selectLogisticTasksIsLoadingMore = (
+  state: LogisticTasksStoreState,
+) => state.isLoadingMore;

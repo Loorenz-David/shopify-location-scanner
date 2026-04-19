@@ -100,7 +100,6 @@ export function ItemScanHistoryPage() {
               <ItemScanHistoryList
                 items={items}
                 expandedItemIds={expandedItemIds}
-                scrollContainerRef={scrollContainerRef}
               />
             </div>
           ) : null}

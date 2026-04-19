@@ -62,4 +62,6 @@ export type LogisticItemsPage = {
     orderId: string | null;
     items: LogisticItemSummary[];
   }>;
+  hasMore: boolean;
+  nextCursor: string | null;
 };

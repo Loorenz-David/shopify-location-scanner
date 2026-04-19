@@ -51,6 +51,8 @@ export interface ItemScanHistoryPayloadDto {
   page: number;
   pageSize: number;
   total: number;
+  hasMore: boolean;
+  nextCursor: string | null;
 }
 
 export interface ItemScanHistoryResponseDto {

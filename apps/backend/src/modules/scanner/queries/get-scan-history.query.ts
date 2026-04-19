@@ -15,6 +15,7 @@ export const getScanHistoryQuery = async (input: {
   salesChannel?: "webshop" | "physical" | "imported" | "unknown";
   from?: Date;
   to?: Date;
+  cursor?: string;
 }): Promise<ScanHistoryPage> => {
   return scanHistoryRepository.listByShopPaginated({
     shopId: input.shopId,
@@ -30,5 +31,6 @@ export const getScanHistoryQuery = async (input: {
     ...(input.salesChannel ? { salesChannel: input.salesChannel } : {}),
     ...(input.from ? { from: input.from } : {}),
     ...(input.to ? { to: input.to } : {}),
+    ...(input.cursor ? { cursor: input.cursor } : {}),
   });
 };

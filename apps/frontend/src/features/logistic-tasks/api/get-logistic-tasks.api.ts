@@ -6,11 +6,16 @@ import type { LogisticTaskFilters } from "../types/logistic-tasks.types";
 export async function getLogisticTasksApi(
   filters: LogisticTaskFilters,
   ids?: string[],
+  cursor?: string,
 ): Promise<GetLogisticTasksResponseDto> {
   const params = buildApiQueryParams(filters);
 
   if (ids && ids.length > 0) {
     params.set("ids", ids.join(","));
+  }
+
+  if (cursor) {
+    params.set("cursor", cursor);
   }
 
   const queryString = params.toString();

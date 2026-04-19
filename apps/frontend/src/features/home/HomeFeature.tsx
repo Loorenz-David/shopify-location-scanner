@@ -20,8 +20,6 @@ import {
 import type { HomePageRegistration } from "./types/home-shell.types";
 import { HomeLayout } from "./ui/HomeLayout";
 import { HomePage } from "./ui/HomePage";
-import { AnalyticsPage } from "../analytics/pages/AnalyticsPage";
-import { StoreMapSettingsPage } from "../analytics/ui/StoreMapSettingsPage";
 import { useItemScanHistoryRealtimeFlow } from "../item-scan-history/flows/use-item-scan-history.flow";
 import { ItemScanHistoryPage } from "../item-scan-history/ui/ItemScanHistoryPage";
 import { ItemScanHistoryOverlayHost } from "../item-scan-history/ItemScanHistoryOverlayHost";
@@ -29,15 +27,19 @@ import { ScannerFeature } from "../scanner/ScannerFeature";
 import { ScannerOverlayHost } from "../scanner/ScannerOverlayHost";
 import { PlacementItemFixedPopup } from "../scanner/ui/PlacementItemFixedPopup";
 import { PlacementZoneMismatchPopup } from "../scanner/ui/PlacementZoneMismatchPopup";
-import { LocationsSettingsPage } from "../locations-settings/ui/LocationsSettingsPage";
 import { LogisticTasksOverlayHost } from "../logistic-tasks/LogisticTasksOverlayHost";
 import { useLogisticTasksRealtimeFlow } from "../logistic-tasks/flows/use-logistic-tasks-realtime.flow";
 import { LogisticTasksPage } from "../logistic-tasks/ui/LogisticTasksPage";
 import { useRoleCapabilities } from "../role-context/hooks/use-role-capabilities";
-import { ScannerLogisticPlacementPage } from "../scanner/ui/ScannerLogisticPlacementPage";
 import { SettingsFeature } from "../settings/SettingsFeature";
-import { ShopifySettingsPage } from "../shopify/ui/ShopifySettingsPage";
-import { UsersSettingsPage } from "../users/ui/UsersSettingsPage";
+import {
+  LazyAnalyticsPage,
+  LazyLocationsSettingsPage,
+  LazyScannerLogisticPlacementPage,
+  LazyShopifySettingsPage,
+  LazyStoreMapSettingsPage,
+  LazyUsersSettingsPage,
+} from "./lazy-pages";
 import {
   HomeIcon,
   SettingsIcon,
@@ -98,7 +100,7 @@ export function HomeFeature({ onLogout }: HomeFeatureProps) {
       {
         id: "analytics",
         title: "Stats",
-        component: AnalyticsPage,
+        component: LazyAnalyticsPage,
         bottomMenu: {
           label: "Stats",
           icon: StatsIcon,
@@ -135,31 +137,31 @@ export function HomeFeature({ onLogout }: HomeFeatureProps) {
       {
         id: "settings-shopify",
         title: "Shopify integration",
-        component: ShopifySettingsPage,
+        component: LazyShopifySettingsPage,
         presentation: "full-overlay",
       },
       {
         id: "settings-locations",
         title: "Locations",
-        component: LocationsSettingsPage,
+        component: LazyLocationsSettingsPage,
         presentation: "full-overlay",
       },
       {
         id: "scanner-logistic-placement",
         title: "Logistic Placement",
-        component: ScannerLogisticPlacementPage,
+        component: LazyScannerLogisticPlacementPage,
         presentation: "full-overlay",
       },
       {
         id: "settings-users",
         title: "Users",
-        component: UsersSettingsPage,
+        component: LazyUsersSettingsPage,
         presentation: "full-overlay",
       },
       {
         id: "settings-store-map",
         title: "Store Map",
-        component: StoreMapSettingsPage,
+        component: LazyStoreMapSettingsPage,
         presentation: "full-overlay",
       },
     ],

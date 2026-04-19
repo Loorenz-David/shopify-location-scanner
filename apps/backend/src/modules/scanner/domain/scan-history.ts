@@ -62,4 +62,6 @@ export type ScanHistoryPage = {
   page: number;
   pageSize: number;
   total: number;
+  hasMore: boolean;
+  nextCursor: string | null;
 };

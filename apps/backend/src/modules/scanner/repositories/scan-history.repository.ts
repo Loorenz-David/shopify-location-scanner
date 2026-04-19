@@ -1165,14 +1165,12 @@ export const scanHistoryRepository = {
     salesChannel?: SalesChannel;
     from?: Date;
     to?: Date;
+    cursor?: string; // format: "<lastModifiedAt ISO>|<id>"
   }): Promise<ScanHistoryPage> {
-    const skip = (input.page - 1) * input.pageSize;
     const trimmedQuery = input.q?.trim();
 
     const whereAnd: Prisma.ScanHistoryWhereInput[] = [
-      {
-        shopId: input.shopId,
-      },
+      { shopId: input.shopId },
     ];
 
     if (input.from || input.to) {
@@ -1210,39 +1208,54 @@ export const scanHistoryRepository = {
       });
     }
 
-    const where: Prisma.ScanHistoryWhereInput = {
-      AND: whereAnd,
-    };
+    // Cursor-based pagination: sort is lastModifiedAt DESC, id ASC.
+    // Next page: lastModifiedAt < cursorDate OR (lastModifiedAt = cursorDate AND id > cursorId)
+    if (input.cursor) {
+      const separatorIndex = input.cursor.indexOf("|");
+      const isoStr = input.cursor.slice(0, separatorIndex);
+      const cursorId = input.cursor.slice(separatorIndex + 1);
+      const cursorDate = new Date(isoStr);
+      whereAnd.push({
+        OR: [
+          { lastModifiedAt: { lt: cursorDate } },
+          {
+            AND: [
+              { lastModifiedAt: cursorDate },
+              { id: { gt: cursorId } },
+            ],
+          },
+        ],
+      });
+    }
 
-    const [total, records] = await Promise.all([
-      prisma.scanHistory.count({
-        where,
-      }),
-      prisma.scanHistory.findMany({
-        where,
-        orderBy: { lastModifiedAt: "desc" },
-        skip,
-        take: input.pageSize,
-        include: {
-          events: {
-            orderBy: {
-              happenedAt: "desc",
-            },
-          },
-          priceHistory: {
-            orderBy: {
-              happenedAt: "desc",
-            },
-          },
-        },
-      }),
-    ]);
+    const where: Prisma.ScanHistoryWhereInput = { AND: whereAnd };
+
+    // Fetch one extra record to determine if there is a next page
+    const records = await prisma.scanHistory.findMany({
+      where,
+      orderBy: [{ lastModifiedAt: "desc" }, { id: "asc" }],
+      take: input.pageSize + 1,
+      include: {
+        events: { orderBy: { happenedAt: "desc" } },
+        priceHistory: { orderBy: { happenedAt: "desc" } },
+      },
+    });
+
+    const hasMore = records.length > input.pageSize;
+    const pageRecords = hasMore ? records.slice(0, input.pageSize) : records;
+    const lastRecord = pageRecords[pageRecords.length - 1];
+    const nextCursor =
+      hasMore && lastRecord
+        ? `${lastRecord.lastModifiedAt.toISOString()}|${lastRecord.id}`
+        : null;
 
     return {
-      items: records.map(toDomain),
-      total,
+      items: pageRecords.map(toDomain),
+      total: 0, // not computed with cursor pagination
       page: input.page,
       pageSize: input.pageSize,
+      hasMore,
+      nextCursor,
     };
   },
 };

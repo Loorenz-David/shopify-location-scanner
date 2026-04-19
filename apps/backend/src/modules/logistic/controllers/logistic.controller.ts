@@ -112,6 +112,8 @@ export const logisticController = {
       orderId: req.query.orderId,
       ids: req.query.ids,
       noIntention: req.query.noIntention,
+      limit: req.query.limit,
+      cursor: req.query.cursor,
     });
 
     const page = await getLogisticItemsQuery({

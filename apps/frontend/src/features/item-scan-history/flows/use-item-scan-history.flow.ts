@@ -14,6 +14,11 @@ import {
   selectItemScanHistoryFiltersRequestKey,
   useItemScanHistoryStore,
 } from "../stores/item-scan-history.store";
+import {
+  selectHomeShellCurrentPageId,
+  selectHomeShellIsFullFeatureOpen,
+  useHomeShellStore,
+} from "../../home/stores/home-shell.store";
 
 const SEARCH_DEBOUNCE_MS = 300;
 const INITIAL_LOADING_VISIBILITY_DELAY_MS = 180;
@@ -54,8 +59,15 @@ export function useItemScanHistoryRealtimeFlow(): void {
 }
 
 export function useItemScanHistoryFlow(): void {
+  const currentPageId = useHomeShellStore(selectHomeShellCurrentPageId);
+  const isFullFeatureOpen = useHomeShellStore(selectHomeShellIsFullFeatureOpen);
+
   // Prewarm the main scanner camera so it's ready when the user taps scan.
-  useCameraPrewarm("main-scanner");
+  useCameraPrewarm(
+    "main-scanner",
+    0,
+    currentPageId === "item-scan-history" && !isFullFeatureOpen,
+  );
 
   const hasLoaded = useItemScanHistoryStore((state) => state.hasLoaded);
   const query = useItemScanHistoryStore((state) => state.query);

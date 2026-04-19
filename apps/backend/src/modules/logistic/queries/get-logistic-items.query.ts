@@ -8,6 +8,8 @@ import type {
   LogisticZoneType,
 } from "../domain/logistic.domain.js";
 
+const DEFAULT_PAGE_SIZE = 20;
+
 export const getLogisticItemsQuery = async (input: {
   shopId: string;
   filters: GetLogisticItemsQuery;
@@ -60,9 +62,33 @@ export const getLogisticItemsQuery = async (input: {
     }
   }
 
+  // Cursor-based pagination: cursor format is "<updatedAt ISO>|<id>"
+  // Sort is updatedAt DESC, id ASC — next page has updatedAt < cursorDate
+  // OR (updatedAt = cursorDate AND id > cursorId)
+  if (filters.cursor) {
+    const separatorIndex = filters.cursor.indexOf("|");
+    const isoStr = filters.cursor.slice(0, separatorIndex);
+    const cursorId = filters.cursor.slice(separatorIndex + 1);
+    const cursorDate = new Date(isoStr);
+    where.AND = [
+      ...(where.AND ?? []),
+      {
+        OR: [
+          { updatedAt: { lt: cursorDate } },
+          { AND: [{ updatedAt: cursorDate }, { id: { gt: cursorId } }] },
+        ],
+      },
+    ];
+  }
+
+  const limit = filters.ids
+    ? undefined // no pagination limit for targeted id refetches
+    : (filters.limit ?? DEFAULT_PAGE_SIZE);
+
   const records = await prisma.scanHistory.findMany({
     where,
-    orderBy: { updatedAt: "desc" },
+    orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+    ...(limit !== undefined ? { take: limit + 1 } : {}),
     include: {
       logisticEvents: {
         orderBy: { happenedAt: "desc" },
@@ -72,7 +98,10 @@ export const getLogisticItemsQuery = async (input: {
     },
   });
 
-  const items: LogisticItemSummary[] = records.map((record) => {
+  const hasMore = limit !== undefined && records.length > limit;
+  const pageRecords = hasMore ? records.slice(0, limit) : records;
+
+  const items: LogisticItemSummary[] = pageRecords.map((record) => {
     const latestEvent = record.logisticEvents[0] ?? null;
     return {
       id: record.id,
@@ -131,5 +160,11 @@ export const getLogisticItemsQuery = async (input: {
     orders.push({ orderId: null, items: nullGroup });
   }
 
-  return { orders };
+  const lastRecord = pageRecords[pageRecords.length - 1];
+  const nextCursor =
+    hasMore && lastRecord
+      ? `${lastRecord.updatedAt.toISOString()}|${lastRecord.id}`
+      : null;
+
+  return { orders, hasMore, nextCursor };
 };

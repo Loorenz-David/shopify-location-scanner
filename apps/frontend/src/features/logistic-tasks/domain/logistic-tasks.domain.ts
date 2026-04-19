@@ -52,6 +52,8 @@ export function normalizeLogisticTaskItem(
 export function normalizeLogisticTasksPage(dto: GetLogisticTasksResponseDto): {
   items: LogisticTaskItem[];
   groups: LogisticOrderGroup[];
+  hasMore: boolean;
+  nextCursor: string | null;
 } {
   const groups: LogisticOrderGroup[] = dto.orders.map((orderGroup) => ({
     orderId: orderGroup.orderId,
@@ -60,7 +62,7 @@ export function normalizeLogisticTasksPage(dto: GetLogisticTasksResponseDto): {
 
   const items = groups.flatMap((g) => g.items);
 
-  return { items, groups };
+  return { items, groups, hasMore: dto.hasMore, nextCursor: dto.nextCursor };
 }
 
 export function flattenOrderGroups(

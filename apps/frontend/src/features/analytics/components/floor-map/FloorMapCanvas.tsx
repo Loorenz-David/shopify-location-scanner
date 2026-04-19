@@ -4,9 +4,9 @@ import { Group, Layer, Rect, Stage, Text } from "react-konva";
 
 import {
   buildDefaultFloorBoundaryVertices,
-  buildEditorViewportTransform,
   pct,
-} from "../../domain/store-map-editor.domain";
+  buildFloorMapViewportTransform,
+} from "../../domain/floor-map.domain";
 import { cmVerticesToWorldPx } from "../../utils/grid-utils";
 import type {
   FloorPlan,
@@ -29,6 +29,7 @@ const JOYSTICK_RADIUS_PX = 34;
 const JOYSTICK_KNOB_RADIUS_PX = 17;
 const JOYSTICK_MOVE_SPEED = 1;
 const JOYSTICK_INPUT_RADIUS_PX = 110;
+const JOYSTICK_PAN_PX_PER_MS = 0.0015;
 const MIN_VIEWER_ZOOM = 0.75;
 const MAX_VIEWER_ZOOM = 3;
 
@@ -61,23 +62,10 @@ export function FloorMapCanvas({
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [joystickVector, setJoystickVector] = useState({ x: 0, y: 0 });
+  const [isJoystickActive, setIsJoystickActive] = useState(false);
   const joystickCenterRef = useRef<{ x: number; y: number } | null>(null);
   const activeJoystickPointerIdRef = useRef<number | null>(null);
-
-  const updateJoystickVector = (
-    clientX: number,
-    clientY: number,
-    radiusPx = JOYSTICK_INPUT_RADIUS_PX,
-  ) => {
-    const center = joystickCenterRef.current;
-    if (!center) {
-      return;
-    }
-
-    setJoystickVector(
-      clampVectorToRadius(clientX - center.x, clientY - center.y, radiusPx),
-    );
-  };
+  const joystickVectorRef = useRef({ x: 0, y: 0 });
 
   const boundaryWorldVertices = useMemo(() => {
     if (!activeFloorPlan) {
@@ -105,7 +93,7 @@ export function FloorMapCanvas({
 
   const baseViewportTransform = useMemo(
     () =>
-      buildEditorViewportTransform({
+      buildFloorMapViewportTransform({
         zones,
         stageWidth,
         stageHeight,
@@ -122,21 +110,40 @@ export function FloorMapCanvas({
     setZoom(1);
     setPanOffset({ x: 0, y: 0 });
     setJoystickVector({ x: 0, y: 0 });
+    setIsJoystickActive(false);
+    joystickVectorRef.current = { x: 0, y: 0 };
     joystickCenterRef.current = null;
+    activeJoystickPointerIdRef.current = null;
   }, [activeFloorPlan?.id, stageHeight, stageWidth]);
 
   useEffect(() => {
-    if (joystickVector.x === 0 && joystickVector.y === 0) {
+    if (!isJoystickActive) {
       return;
     }
 
     let frameId = 0;
+    let lastTimestamp = 0;
 
-    const tick = () => {
-      setPanOffset((current) => ({
-        x: current.x - joystickVector.x * 0.08 * JOYSTICK_MOVE_SPEED,
-        y: current.y - joystickVector.y * 0.08 * JOYSTICK_MOVE_SPEED,
-      }));
+    const tick = (timestamp: number) => {
+      if (activeJoystickPointerIdRef.current === null) {
+        return;
+      }
+
+      if (lastTimestamp === 0) {
+        lastTimestamp = timestamp;
+      }
+
+      const deltaMs = timestamp - lastTimestamp;
+      lastTimestamp = timestamp;
+      const currentVector = joystickVectorRef.current;
+
+      if (currentVector.x !== 0 || currentVector.y !== 0) {
+        setPanOffset((current) => ({
+          x: current.x - currentVector.x * JOYSTICK_MOVE_SPEED * deltaMs * JOYSTICK_PAN_PX_PER_MS,
+          y: current.y - currentVector.y * JOYSTICK_MOVE_SPEED * deltaMs * JOYSTICK_PAN_PX_PER_MS,
+        }));
+      }
+
       frameId = window.requestAnimationFrame(tick);
     };
 
@@ -145,7 +152,7 @@ export function FloorMapCanvas({
     return () => {
       window.cancelAnimationFrame(frameId);
     };
-  }, [joystickVector.x, joystickVector.y]);
+  }, [isJoystickActive]);
 
   if (zones.length === 0) {
     return (
@@ -322,12 +329,19 @@ export function FloorMapCanvas({
             event.stopPropagation();
             const rect = event.currentTarget.getBoundingClientRect();
             activeJoystickPointerIdRef.current = event.pointerId;
+            setIsJoystickActive(true);
             event.currentTarget.setPointerCapture?.(event.pointerId);
             joystickCenterRef.current = {
               x: rect.left + rect.width / 2,
               y: rect.top + rect.height / 2,
             };
-            updateJoystickVector(event.clientX, event.clientY);
+            const nextVector = clampVectorToRadius(
+              event.clientX - joystickCenterRef.current.x,
+              event.clientY - joystickCenterRef.current.y,
+              JOYSTICK_INPUT_RADIUS_PX,
+            );
+            joystickVectorRef.current = nextVector;
+            setJoystickVector(nextVector);
           }}
           onPointerMove={(event) => {
             if (activeJoystickPointerIdRef.current !== event.pointerId) {
@@ -336,7 +350,18 @@ export function FloorMapCanvas({
 
             event.preventDefault();
             event.stopPropagation();
-            updateJoystickVector(event.clientX, event.clientY);
+            const center = joystickCenterRef.current;
+            if (!center) {
+              return;
+            }
+
+            const nextVector = clampVectorToRadius(
+              event.clientX - center.x,
+              event.clientY - center.y,
+              JOYSTICK_INPUT_RADIUS_PX,
+            );
+            joystickVectorRef.current = nextVector;
+            setJoystickVector(nextVector);
           }}
           onPointerUp={(event) => {
             if (activeJoystickPointerIdRef.current !== event.pointerId) {
@@ -346,7 +371,9 @@ export function FloorMapCanvas({
             event.preventDefault();
             event.stopPropagation();
             activeJoystickPointerIdRef.current = null;
+            setIsJoystickActive(false);
             joystickCenterRef.current = null;
+            joystickVectorRef.current = { x: 0, y: 0 };
             setJoystickVector({ x: 0, y: 0 });
           }}
           onPointerCancel={(event) => {
@@ -357,7 +384,9 @@ export function FloorMapCanvas({
             event.preventDefault();
             event.stopPropagation();
             activeJoystickPointerIdRef.current = null;
+            setIsJoystickActive(false);
             joystickCenterRef.current = null;
+            joystickVectorRef.current = { x: 0, y: 0 };
             setJoystickVector({ x: 0, y: 0 });
           }}
           onLostPointerCapture={(event: ReactPointerEvent<HTMLButtonElement>) => {
@@ -366,13 +395,15 @@ export function FloorMapCanvas({
             }
 
             activeJoystickPointerIdRef.current = null;
+            setIsJoystickActive(false);
             joystickCenterRef.current = null;
+            joystickVectorRef.current = { x: 0, y: 0 };
             setJoystickVector({ x: 0, y: 0 });
           }}
           aria-label="Pan floor map"
         >
           <span
-            className="block rounded-full border border-white/30 bg-white/80 transition-transform"
+            className="block rounded-full border border-white/30 bg-white/80"
             style={{
               width: `${JOYSTICK_KNOB_RADIUS_PX * 2}px`,
               height: `${JOYSTICK_KNOB_RADIUS_PX * 2}px`,

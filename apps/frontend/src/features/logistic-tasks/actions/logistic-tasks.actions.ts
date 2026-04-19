@@ -7,6 +7,7 @@ import { markPlacementApi } from "../api/mark-placement.api";
 import { updateFixNotesApi } from "../api/update-fix-notes.api";
 import {
   loadLogisticTasksController,
+  loadMoreLogisticTasksController,
   refreshLogisticTasksByIdsController,
 } from "../controllers/logistic-tasks.controller";
 import {
@@ -25,6 +26,10 @@ import type {
 export const logisticTasksActions = {
   async loadTasks(filters: LogisticTaskFilters): Promise<void> {
     await loadLogisticTasksController(filters);
+  },
+
+  async loadMoreTasks(): Promise<void> {
+    await loadMoreLogisticTasksController();
   },
 
   setFilters(partial: Partial<LogisticTaskFilters>): void {

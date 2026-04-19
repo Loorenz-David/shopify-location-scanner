@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-
+import { logisticTasksActions } from "../actions/logistic-tasks.actions";
+import {
+  selectLogisticTasksHasMore,
+  selectLogisticTasksIsLoadingMore,
+  useLogisticTasksStore,
+} from "../stores/logistic-tasks.store";
 import type { LogisticTaskCardAction } from "../../role-context/types/role-context.types";
 import { LogisticTasksCard } from "./LogisticTasksCard";
 import type { LogisticOrderGroup } from "../types/logistic-tasks.types";
-
-const INITIAL_BATCH = 12;
-const BATCH_SIZE = 10;
 
 interface LogisticTasksListProps {
   groups: LogisticOrderGroup[];
@@ -16,66 +17,20 @@ export function LogisticTasksList({
   groups,
   cardAction,
 }: LogisticTasksListProps) {
-  const allItems = groups.flatMap((g) => g.items);
-  const [visibleCount, setVisibleCount] = useState(INITIAL_BATCH);
-  const bottomRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    setVisibleCount(INITIAL_BATCH);
-  }, [groups]);
-
-  useEffect(() => {
-    const el = bottomRef.current;
-    if (!el) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting) {
-          setVisibleCount((prev) =>
-            Math.min(prev + BATCH_SIZE, allItems.length),
-          );
-        }
-      },
-      { threshold: 0.1 },
-    );
-
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [allItems.length]);
+  const hasMore = useLogisticTasksStore(selectLogisticTasksHasMore);
+  const isLoadingMore = useLogisticTasksStore(selectLogisticTasksIsLoadingMore);
 
   if (groups.length === 0) return null;
 
-  // Build flattened visible list with group headers
-  let seenCount = 0;
-  const visibleGroups: {
-    orderId: string | null;
-    orderNumber: number | null;
-    items: typeof allItems;
-  }[] = [];
-
-  for (const group of groups) {
-    if (seenCount >= visibleCount) break;
-    const remaining = visibleCount - seenCount;
-    const sliced = group.items.slice(0, remaining);
-    if (sliced.length > 0) {
-      visibleGroups.push({
-        orderId: group.orderId,
-        orderNumber: group.items[0]?.orderNumber ?? null,
-        items: sliced,
-      });
-      seenCount += sliced.length;
-    }
-  }
-
   return (
     <div className="flex flex-col gap-4 px-5 pt-4 pb-8">
-      {visibleGroups.map((group, index) => (
+      {groups.map((group, index) => (
         <div key={group.orderId ?? `no-order-${index}`}>
           {index > 0 && <div className="h-4" />}
 
           {group.orderId && (
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Order #{group.orderNumber ?? group.orderId}
+              Order #{group.items[0]?.orderNumber ?? group.orderId}
             </p>
           )}
 
@@ -91,7 +46,17 @@ export function LogisticTasksList({
         </div>
       ))}
 
-      <div ref={bottomRef} className="h-1" />
+      {hasMore && (
+        <div className="flex justify-center pt-2 pb-2">
+          <button
+            onClick={() => void logisticTasksActions.loadMoreTasks()}
+            disabled={isLoadingMore}
+            className="rounded-full border border-slate-300 bg-white px-5 py-2 text-sm font-semibold text-slate-700 shadow-sm active:bg-slate-50 disabled:opacity-50"
+          >
+            {isLoadingMore ? "Loading…" : "Show more"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

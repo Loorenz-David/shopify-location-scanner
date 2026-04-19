@@ -15,6 +15,8 @@ interface HydratedHistoryPayload {
   page: number;
   pageSize: number;
   total: number;
+  hasMore: boolean;
+  nextCursor: string | null;
 }
 
 interface ItemScanHistoryStoreState {
@@ -22,8 +24,11 @@ interface ItemScanHistoryStoreState {
   filters: ItemScanHistoryFilters;
   items: ItemScanHistoryItem[];
   isLoading: boolean;
+  isLoadingMore: boolean;
   errorMessage: string | null;
   hasLoaded: boolean;
+  hasMore: boolean;
+  nextCursor: string | null;
   expandedItemIds: string[];
   total: number;
   page: number;
@@ -38,6 +43,7 @@ interface ItemScanHistoryStoreState {
   setActiveRequestId: (activeRequestId: number) => void;
   hydrate: (payload: HydratedHistoryPayload) => void;
   hydrateAndFinish: (payload: HydratedHistoryPayload) => void;
+  appendAndFinish: (payload: HydratedHistoryPayload) => void;
   finishWithError: (errorMessage: string) => void;
   toggleExpandedItem: (itemId: string) => void;
   reset: () => void;
@@ -48,8 +54,11 @@ const initialState = {
   filters: defaultItemScanHistoryFilters,
   items: [],
   isLoading: false,
+  isLoadingMore: false,
   errorMessage: null,
   hasLoaded: false,
+  hasMore: false,
+  nextCursor: null as string | null,
   expandedItemIds: [],
   total: 0,
   page: 1,
@@ -73,22 +82,26 @@ export const useItemScanHistoryStore = create<ItemScanHistoryStoreState>(
     setErrorMessage: (errorMessage) => set({ errorMessage }),
     setHasLoaded: (hasLoaded) => set({ hasLoaded }),
     setActiveRequestId: (activeRequestId) => set({ activeRequestId }),
-    hydrate: ({ items, page, pageSize, total }) =>
+    hydrate: ({ items, page, pageSize, total, hasMore, nextCursor }) =>
       set((state) => ({
         items,
         page,
         pageSize,
         total,
+        hasMore,
+        nextCursor,
         expandedItemIds: state.expandedItemIds.filter((itemId) =>
           items.some((item) => item.id === itemId),
         ),
       })),
-    hydrateAndFinish: ({ items, page, pageSize, total }) =>
+    hydrateAndFinish: ({ items, page, pageSize, total, hasMore, nextCursor }) =>
       set((state) => ({
         items,
         page,
         pageSize,
         total,
+        hasMore,
+        nextCursor,
         isLoading: false,
         hasLoaded: true,
         errorMessage: null,
@@ -96,8 +109,15 @@ export const useItemScanHistoryStore = create<ItemScanHistoryStoreState>(
           items.some((item) => item.id === itemId),
         ),
       })),
+    appendAndFinish: ({ items: newItems, hasMore, nextCursor }) =>
+      set((state) => ({
+        items: [...state.items, ...newItems],
+        hasMore,
+        nextCursor,
+        isLoadingMore: false,
+      })),
     finishWithError: (errorMessage) =>
-      set({ isLoading: false, hasLoaded: true, errorMessage }),
+      set({ isLoading: false, isLoadingMore: false, hasLoaded: true, errorMessage }),
     toggleExpandedItem: (itemId) =>
       set((state) => ({
         expandedItemIds: state.expandedItemIds.includes(itemId)
@@ -136,3 +156,11 @@ export const selectItemScanHistoryHasLoaded = (
 export const selectItemScanHistoryExpandedItemIds = (
   state: ItemScanHistoryStoreState,
 ) => state.expandedItemIds;
+
+export const selectItemScanHistoryHasMore = (
+  state: ItemScanHistoryStoreState,
+) => state.hasMore;
+
+export const selectItemScanHistoryIsLoadingMore = (
+  state: ItemScanHistoryStoreState,
+) => state.isLoadingMore;

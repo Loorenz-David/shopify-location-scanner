@@ -34,6 +34,8 @@ export function normalizeItemScanHistoryPayload(
     page: payload.page,
     pageSize: payload.pageSize,
     total: payload.total,
+    hasMore: payload.hasMore,
+    nextCursor: payload.nextCursor,
   };
 }
 

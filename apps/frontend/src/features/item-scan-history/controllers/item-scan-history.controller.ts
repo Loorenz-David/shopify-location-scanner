@@ -22,6 +22,8 @@ export async function loadItemScanHistoryController(
   store.setLoading(true);
   store.setErrorMessage(null);
 
+  useItemScanHistoryStore.setState({ hasMore: false, nextCursor: null });
+
   try {
     const response = await getItemScanHistoryApi({
       page: 1,
@@ -43,6 +45,28 @@ export async function loadItemScanHistoryController(
     useItemScanHistoryStore
       .getState()
       .finishWithError("Unable to load item scan history.");
+  }
+}
+
+export async function loadMoreItemScanHistoryController(): Promise<void> {
+  const store = useItemScanHistoryStore.getState();
+  const { query, filters, nextCursor, hasMore, isLoadingMore } = store;
+
+  if (!hasMore || isLoadingMore || !nextCursor) return;
+
+  useItemScanHistoryStore.setState({ isLoadingMore: true });
+
+  try {
+    const response = await getItemScanHistoryApi({
+      query,
+      filters,
+      cursor: nextCursor,
+    });
+
+    const normalizedPayload = normalizeItemScanHistoryPayload(response.history);
+    useItemScanHistoryStore.getState().appendAndFinish(normalizedPayload);
+  } catch {
+    useItemScanHistoryStore.setState({ isLoadingMore: false });
   }
 }
 

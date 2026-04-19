@@ -1,5 +1,6 @@
 import {
   loadItemScanHistoryController,
+  loadMoreItemScanHistoryController,
   refreshItemScanHistoryItemController,
 } from "../controllers/item-scan-history.controller";
 import {
@@ -20,6 +21,9 @@ export const itemScanHistoryActions = {
   async loadHistory(): Promise<void> {
     const state = useItemScanHistoryStore.getState();
     await loadItemScanHistoryController(state.query, state.filters);
+  },
+  async loadMoreHistory(): Promise<void> {
+    await loadMoreItemScanHistoryController();
   },
   async refreshHistoryItem(productId: string): Promise<void> {
     await refreshItemScanHistoryItemController(productId);

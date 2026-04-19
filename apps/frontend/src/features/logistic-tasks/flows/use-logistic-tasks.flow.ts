@@ -2,6 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useRoleCapabilities } from "../../role-context/hooks/use-role-capabilities";
 import { useCameraPrewarm } from "../../scanner/flows/use-camera-prewarm";
+import {
+  selectHomeShellCurrentPageId,
+  selectHomeShellIsFullFeatureOpen,
+  useHomeShellStore,
+} from "../../home/stores/home-shell.store";
 import { buildFiltersFromRoleDefaults } from "../domain/logistic-tasks.domain";
 import { logisticTasksActions } from "../actions/logistic-tasks.actions";
 import {
@@ -15,8 +20,15 @@ const INITIAL_LOADING_VISIBILITY_DELAY_MS = 180;
 const REFRESH_LOADING_VISIBILITY_DELAY_MS = 400;
 
 export function useLogisticTasksFlow(): void {
+  const currentPageId = useHomeShellStore(selectHomeShellCurrentPageId);
+  const isFullFeatureOpen = useHomeShellStore(selectHomeShellIsFullFeatureOpen);
+
   // Prewarm the logistic placement camera so it's ready when the user taps place.
-  useCameraPrewarm("logistic-placement");
+  useCameraPrewarm(
+    "logistic-placement",
+    0,
+    currentPageId === "logistic-tasks" && !isFullFeatureOpen,
+  );
 
   const { task_page_default_filters } = useRoleCapabilities();
   const hasLoaded = useLogisticTasksStore(selectLogisticTasksHasLoaded);

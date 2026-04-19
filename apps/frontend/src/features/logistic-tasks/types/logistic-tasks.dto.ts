@@ -41,6 +41,8 @@ export interface LogisticOrderGroupDto {
 
 export interface GetLogisticTasksResponseDto {
   orders: LogisticOrderGroupDto[];
+  hasMore: boolean;
+  nextCursor: string | null;
 }
 
 export interface MarkIntentionRequestDto {

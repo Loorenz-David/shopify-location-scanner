@@ -167,6 +167,7 @@ export const GetScanHistoryQuerySchema = z
     salesChannel: SalesChannelFilterSchema.optional(),
     from: OptionalDateQuerySchema,
     to: OptionalDateQuerySchema,
+    cursor: z.string().optional(), // format: "<lastModifiedAt ISO>|<id>"
   })
   .refine((input) => !(input.sold && input.inStore), {
     message: "sold and inStore filters are mutually exclusive",
@@ -199,6 +200,7 @@ export const GetScanHistoryQuerySchema = z
       salesChannel: input.salesChannel,
       from: input.from,
       to: input.to,
+      cursor: input.cursor,
     };
   });
 

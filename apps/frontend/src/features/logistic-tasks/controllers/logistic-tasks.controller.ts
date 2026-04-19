@@ -14,6 +14,8 @@ export async function loadLogisticTasksController(
     isLoading: true,
     errorMessage: null,
     filters,
+    hasMore: false,
+    nextCursor: null,
   });
 
   try {
@@ -24,14 +26,32 @@ export async function loadLogisticTasksController(
       return;
     }
 
-    const { items } = normalizeLogisticTasksPage(response);
-    useLogisticTasksStore.getState().hydrateAndFinish(items);
+    const { items, hasMore, nextCursor } = normalizeLogisticTasksPage(response);
+    useLogisticTasksStore.getState().hydrateAndFinish(items, hasMore, nextCursor);
   } catch {
     const currentRequestId = useLogisticTasksStore.getState().activeRequestId;
     if (requestId !== currentRequestId) return;
     useLogisticTasksStore
       .getState()
       .finishWithError("Unable to load logistic tasks.");
+  }
+}
+
+export async function loadMoreLogisticTasksController(): Promise<void> {
+  const store = useLogisticTasksStore.getState();
+  const { filters, nextCursor, isLoadingMore, hasMore } = store;
+
+  if (!hasMore || isLoadingMore || !nextCursor) return;
+
+  useLogisticTasksStore.setState({ isLoadingMore: true });
+
+  try {
+    const response = await getLogisticTasksApi(filters, undefined, nextCursor);
+    const { items, hasMore: nextHasMore, nextCursor: newCursor } =
+      normalizeLogisticTasksPage(response);
+    useLogisticTasksStore.getState().appendAndFinish(items, nextHasMore, newCursor);
+  } catch {
+    useLogisticTasksStore.setState({ isLoadingMore: false });
   }
 }
 

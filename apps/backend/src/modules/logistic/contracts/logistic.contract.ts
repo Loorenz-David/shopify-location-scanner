@@ -69,6 +69,8 @@ export const GetLogisticItemsQuerySchema = z.object({
   noIntention: z
     .preprocess((v) => v === "true" || v === true, z.boolean())
     .optional(),
+  limit: z.coerce.number().int().min(1).max(100).optional(),
+  cursor: z.string().optional(), // format: "<updatedAt ISO>|<id>"
 });
 
 export const CreateLogisticLocationInputSchema = z.object({

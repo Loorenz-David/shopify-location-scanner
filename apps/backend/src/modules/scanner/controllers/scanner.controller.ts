@@ -47,6 +47,7 @@ export const scannerController = {
       salesChannel: req.query.salesChannel,
       from: req.query.from,
       to: req.query.to,
+      cursor: req.query.cursor,
     });
 
     const history = await getScanHistoryQuery({
@@ -62,6 +63,7 @@ export const scannerController = {
       ...(query.salesChannel ? { salesChannel: query.salesChannel } : {}),
       ...(query.from ? { from: query.from } : {}),
       ...(query.to ? { to: query.to } : {}),
+      ...(query.cursor ? { cursor: query.cursor } : {}),
     });
 
     res.status(200).json({ history });

@@ -26,7 +26,7 @@
  *  - Nobody calls anything else; all teardown is internal.
  */
 
-import { BrowserMultiFormatReader } from "@zxing/browser";
+import { loadBrowserMultiFormatReader } from "./zxing-loader.domain";
 
 // ─── Tunables ────────────────────────────────────────────────────────────────
 
@@ -275,7 +275,6 @@ export function attachDecodeSession(
   const session = sessions[id];
 
   let cancelled = false;
-  const reader = new BrowserMultiFormatReader();
 
   cancelIdleTimer(session);
   // Mark decoding immediately so the idle timer won't fire between phases.
@@ -286,6 +285,8 @@ export function attachDecodeSession(
     try {
       const container = getContainerElement(id);
       if (!container || cancelled) return;
+      const BrowserMultiFormatReader = await loadBrowserMultiFormatReader();
+      const reader = new BrowserMultiFormatReader();
 
       const video = ensureVideoElement(container);
 

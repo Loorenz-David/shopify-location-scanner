@@ -10,6 +10,7 @@ interface GetItemScanHistoryParams {
   page?: number;
   query?: string;
   filters?: ItemScanHistoryFilters;
+  cursor?: string;
 }
 
 export async function getItemScanHistoryApi(
@@ -48,6 +49,10 @@ export async function getItemScanHistoryApi(
 
   if (filters.to) {
     queryParams.set("to", filters.to);
+  }
+
+  if (params.cursor) {
+    queryParams.set("cursor", params.cursor);
   }
 
   return apiClient.get<ItemScanHistoryResponseDto>(
