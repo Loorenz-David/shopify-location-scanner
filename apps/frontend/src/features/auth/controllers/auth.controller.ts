@@ -1,4 +1,6 @@
 import { tokenAuthController } from "../../../core/api-client";
+import { appEnterApi } from "../api/app-presence.api";
+import { appLeaveApi } from "../api/app-presence.api";
 import { getCurrentUserApi } from "../api/get-current-user.api";
 import { loginApi } from "../api/login.api";
 import { logoutApi } from "../api/logout.api";
@@ -72,4 +74,12 @@ export async function logoutController(): Promise<void> {
   } finally {
     clearAuthSessionController();
   }
+}
+
+export async function appEnterController(): Promise<void> {
+  await appEnterApi();
+}
+
+export async function appLeaveController(): Promise<void> {
+  await appLeaveApi();
 }

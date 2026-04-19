@@ -68,6 +68,7 @@ model Shop {
   users         User[]
   scanHistories ScanHistory[]
   storeZones    StoreZone[]
+  floorPlans    FloorPlan[]
   webhookDeliveries ShopifyWebhookDelivery[]
   webhookIntakeRecords WebhookIntakeRecord[]
   logisticLocations LogisticLocation[]
@@ -81,6 +82,7 @@ model User {
   role          UserRole      @default(worker)
   shopId        String?
   tokenVersion  Int           @default(0)
+  lastOnline    DateTime?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   shop          Shop?         @relation(fields: [shopId], references: [id], onDelete: SetNull)
@@ -272,20 +274,43 @@ model LocationCategoryStatsDaily {
 model StoreZone {
   id        String   @id @default(cuid())
   shopId    String
+  floorPlanId String? @map("floor_plan_id")
   label     String
   type      String   @default("zone")
   xPct      Float    @map("x_pct")
   yPct      Float    @map("y_pct")
   widthPct  Float    @map("width_pct")
   heightPct Float    @map("height_pct")
+  widthCm   Float?   @map("width_cm")
+  depthCm   Float?   @map("depth_cm")
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  shop      Shop       @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  floorPlan FloorPlan? @relation(fields: [floorPlanId], references: [id], onDelete: SetNull)
 
   @@index([shopId, sortOrder])
   @@index([shopId, type])
+  @@index([floorPlanId, sortOrder])
+}
+
+model FloorPlan {
+  id        String   @id @default(cuid())
+  shopId    String
+  name      String   @default("Ground Floor")
+  widthCm   Float    @map("width_cm")
+  depthCm   Float    @map("depth_cm")
+  shape     Json?
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop  Shop        @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  zones StoreZone[]
+
+  @@index([shopId, sortOrder])
+  @@map("floor_plan")
 }
 
 model SalesChannelStatsDaily {

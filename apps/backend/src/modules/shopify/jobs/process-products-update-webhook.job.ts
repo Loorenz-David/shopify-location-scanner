@@ -59,6 +59,7 @@ export const processProductsUpdateWebhookJob = async (
   const happenedAt = parseHappenedAt(payload);
   let priceUpdated = false;
   let locationUpdated = false;
+  let productSnapshotUpdated = false;
 
   if (price) {
     priceUpdated = await scanHistoryRepository.appendPriceChangeIfHistoryExists({
@@ -88,6 +89,23 @@ export const processProductsUpdateWebhookJob = async (
       const normalizedLocation = product.location?.trim() || null;
       const previousLocation = existingHistory.latestLocation?.trim() || null;
 
+      productSnapshotUpdated =
+        await scanHistoryRepository.syncProductSnapshotIfHistoryExists({
+          shopId: intake.shopId,
+          productId,
+          itemCategory: product.itemCategory,
+          itemSku: product.sku,
+          itemBarcode: product.barcode,
+          itemImageUrl: product.imageUrl,
+          itemType: "product_id",
+          itemTitle: product.title,
+          itemHeight: product.itemHeight,
+          itemWidth: product.itemWidth,
+          itemDepth: product.itemDepth,
+          volume: product.volume,
+          emitBroadcast: false,
+        });
+
       if (normalizedLocation && normalizedLocation !== previousLocation) {
         await scanHistoryRepository.appendLocationEvent({
           shopId: intake.shopId,
@@ -114,7 +132,7 @@ export const processProductsUpdateWebhookJob = async (
     }
   }
 
-  if (priceUpdated || locationUpdated) {
+  if (priceUpdated || locationUpdated || productSnapshotUpdated) {
     await broadcast(intake.shopId, {
       type: "scan_history_updated",
       productId,

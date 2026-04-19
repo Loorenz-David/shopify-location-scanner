@@ -9,6 +9,8 @@ import {
   loginController,
   logoutController,
   registerController,
+  appEnterController,
+  appLeaveController,
 } from "../controllers/auth.controller";
 import type {
   AuthUserDto,
@@ -45,5 +47,11 @@ export const authActions = {
   clearSession(): void {
     clearAuthSessionController();
     disconnectWsClient();
+  },
+  async appEnter(): Promise<void> {
+    await appEnterController();
+  },
+  async appLeave(): Promise<void> {
+    await appLeaveController();
   },
 };

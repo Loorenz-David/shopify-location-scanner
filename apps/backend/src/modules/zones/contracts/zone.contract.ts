@@ -8,6 +8,9 @@ export const CreateZoneSchema = z.object({
   widthPct: z.number().min(0.1).max(100),
   heightPct: z.number().min(0.1).max(100),
   sortOrder: z.number().int().default(0),
+  floorPlanId: z.string().trim().min(1).nullable().optional(),
+  widthCm: z.number().positive().nullable().optional(),
+  depthCm: z.number().positive().nullable().optional(),
 });
 
 export const UpdateZoneSchema = CreateZoneSchema.partial();

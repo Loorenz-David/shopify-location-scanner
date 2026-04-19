@@ -43,7 +43,8 @@ export type CategoryOverviewItem = {
   itemsSold: number;
   totalRevenue: number;
   avgTimeToSellSeconds: number | null;
-  bestLocation: string | null;
+  bestLocationByVolume: string | null;
+  bestLocationByRevenue: string | null;
 };
 
 export type DimensionBucket = {

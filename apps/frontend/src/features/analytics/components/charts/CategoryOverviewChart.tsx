@@ -91,7 +91,8 @@ export function CategoryOverviewChart({
           category: item.category,
           itemsSold: item.itemsSold,
           totalRevenue: item.totalRevenue,
-          bestLocation: item.bestLocation,
+          bestLocationByVolume: item.bestLocationByVolume,
+          bestLocationByRevenue: item.bestLocationByRevenue,
           fill: colorMap.get(item.category) ?? COLORS[0],
         })),
     [data, metric, colorMap],
@@ -209,8 +210,7 @@ export function CategoryOverviewChart({
                     {entry.category}
                   </span>
                   <span className="shrink-0 text-xs text-slate-400">
-                    {formatValue(entry[metric], metric)} · {percentage}% · best:{" "}
-                    {entry.bestLocation ?? "—"}
+                    {formatValue(entry[metric], metric)} · {percentage}%
                   </span>
                 </button>
               );
@@ -269,6 +269,19 @@ export function CategoryOverviewChart({
               animationBegin={0}
               animationDuration={400}
               animationEasing="ease-out"
+              cursor="pointer"
+              onMouseDown={(entry) => {
+                const category = (entry as { payload?: { category?: string } }).payload?.category;
+                if (category) onSelectCategory?.(category);
+              }}
+              onTouchStart={(entry) => {
+                const category = (entry as { payload?: { category?: string } }).payload?.category;
+                if (category) onSelectCategory?.(category);
+              }}
+              onClick={(entry) => {
+                const category = (entry as { payload?: { category?: string } }).payload?.category;
+                if (category) onSelectCategory?.(category);
+              }}
             >
               {chartData.map((entry) => (
                 <Cell

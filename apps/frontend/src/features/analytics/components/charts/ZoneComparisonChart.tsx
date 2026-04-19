@@ -238,20 +238,6 @@ export function ZoneComparisonChart({
               setHoveredBarLocation(location ?? null);
             }}
             onMouseLeave={() => setHoveredBarLocation(null)}
-            onClick={(event) => {
-              const location = (
-                event as
-                  | {
-                      activePayload?: Array<{
-                        payload?: { location?: string };
-                      }>;
-                    }
-                  | undefined
-              )?.activePayload?.[0]?.payload?.location;
-              if (location && onBarClick) {
-                onBarClick(location);
-              }
-            }}
           >
             <XAxis type="number" tick={{ fontSize: 11 }} />
             <YAxis
@@ -269,6 +255,18 @@ export function ZoneComparisonChart({
               animationDuration={400}
               animationEasing="ease-out"
               cursor="pointer"
+              onMouseDown={(entry) => {
+                const location = (entry as { payload?: { location?: string } }).payload?.location;
+                if (location && onBarClick) onBarClick(location);
+              }}
+              onTouchStart={(entry) => {
+                const location = (entry as { payload?: { location?: string } }).payload?.location;
+                if (location && onBarClick) onBarClick(location);
+              }}
+              onClick={(entry) => {
+                const location = (entry as { payload?: { location?: string } }).payload?.location;
+                if (location && onBarClick) onBarClick(location);
+              }}
             >
               {sortedData.map((entry) => (
                 <Cell

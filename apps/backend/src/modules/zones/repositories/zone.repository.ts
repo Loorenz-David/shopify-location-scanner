@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../shared/database/prisma-client.js";
 import { NotFoundError } from "../../../shared/errors/http-errors.js";
 import type {
@@ -16,6 +17,9 @@ const toDomain = (record: {
   widthPct: number;
   heightPct: number;
   sortOrder: number;
+  floorPlanId: string | null;
+  widthCm: number | null;
+  depthCm: number | null;
 }): StoreZone => ({
   id: record.id,
   shopId: record.shopId,
@@ -26,12 +30,18 @@ const toDomain = (record: {
   widthPct: record.widthPct,
   heightPct: record.heightPct,
   sortOrder: record.sortOrder,
+  floorPlanId: record.floorPlanId,
+  widthCm: record.widthCm,
+  depthCm: record.depthCm,
 });
 
 export const zoneRepository = {
-  async list(shopId: string): Promise<StoreZone[]> {
+  async list(shopId: string, floorPlanId?: string | null): Promise<StoreZone[]> {
     const rows = await prisma.storeZone.findMany({
-      where: { shopId },
+      where: {
+        shopId,
+        ...(floorPlanId !== undefined ? { floorPlanId } : {}),
+      },
       orderBy: { sortOrder: "asc" },
     });
 
@@ -39,11 +49,22 @@ export const zoneRepository = {
   },
 
   async create(shopId: string, data: CreateZoneInput): Promise<StoreZone> {
+    const createData: Prisma.StoreZoneUncheckedCreateInput = {
+      shopId,
+      label: data.label,
+      type: data.type,
+      xPct: data.xPct,
+      yPct: data.yPct,
+      widthPct: data.widthPct,
+      heightPct: data.heightPct,
+      sortOrder: data.sortOrder,
+      ...(data.floorPlanId !== undefined ? { floorPlanId: data.floorPlanId } : {}),
+      ...(data.widthCm !== undefined ? { widthCm: data.widthCm } : {}),
+      ...(data.depthCm !== undefined ? { depthCm: data.depthCm } : {}),
+    };
+
     const row = await prisma.storeZone.create({
-      data: {
-        shopId,
-        ...data,
-      },
+      data: createData,
     });
 
     return toDomain(row);

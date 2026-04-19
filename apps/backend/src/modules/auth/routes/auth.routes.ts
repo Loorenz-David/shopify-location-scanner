@@ -18,3 +18,13 @@ authRouter.get(
   authenticateUserMiddleware,
   asyncHandler(authController.me),
 );
+authRouter.post(
+  "/app-enter",
+  authenticateUserMiddleware,
+  asyncHandler(authController.appEnter),
+);
+authRouter.post(
+  "/app-leave",
+  authenticateUserMiddleware,
+  asyncHandler(authController.appLeave),
+);

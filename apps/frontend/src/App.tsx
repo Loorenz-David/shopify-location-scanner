@@ -10,6 +10,7 @@ import { usePwaFlow } from "./features/pwa/flows/use-pwa.flow";
 import { usePwaStore } from "./features/pwa/stores/pwa.store";
 import { PwaUpdatePrompt } from "./features/pwa/ui/PwaUpdatePrompt";
 import { useWsEvent } from "./core/ws-client/use-ws-event";
+import { useAppPresenceFlow } from "./features/auth/flows/use-app-presence.flow";
 
 function App() {
   usePwaFlow();
@@ -21,6 +22,8 @@ function App() {
   const [authErrorMessage, setAuthErrorMessage] = useState<string | null>(null);
   const isPwaUpdateVisible = usePwaStore((state) => state.updateAvailable);
   const isApplyingPwaUpdate = usePwaStore((state) => state.isApplyingUpdate);
+
+  useAppPresenceFlow(authenticatedUser);
 
   useEffect(() => {
     let isDisposed = false;

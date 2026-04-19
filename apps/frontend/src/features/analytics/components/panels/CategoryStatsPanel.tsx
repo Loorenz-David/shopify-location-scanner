@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { AnimatePresence, motion } from "framer-motion";
 
@@ -21,9 +21,16 @@ import { DateRangePicker } from "../shared/DateRangePicker";
 
 export function CategoryStatsPanel() {
   useCategoryDetailFlow();
+  const [chartsReady, setChartsReady] = useState(false);
   const [categoryPatternsMetric, setCategoryPatternsMetric] = useState<
     "itemsSold" | "revenue"
   >("itemsSold");
+  const [categoryLocationMetric, setCategoryLocationMetric] = useState<
+    "itemsSold" | "revenue"
+  >("itemsSold");
+  const [categoryLocationMode, setCategoryLocationMode] = useState<
+    "bar" | "pie"
+  >("bar");
 
   const selectedCategory = useAnalyticsStore(selectAnalyticsSelectedCategory);
   const categoryDetail = useAnalyticsStore(selectAnalyticsCategoryDetail);
@@ -41,6 +48,16 @@ export function CategoryStatsPanel() {
   const setCategoryDateRange = useAnalyticsStore(
     (state) => state.setCategoryDateRange,
   );
+
+  // Delay chart mounting until after the 240ms slide animation completes
+  useEffect(() => {
+    if (!selectedCategory) {
+      setChartsReady(false);
+      return;
+    }
+    const id = setTimeout(() => setChartsReady(true), 260);
+    return () => clearTimeout(id);
+  }, [selectedCategory]);
 
   const overview = categories.find(
     (category) => category.category === selectedCategory,
@@ -97,88 +114,163 @@ export function CategoryStatsPanel() {
                 />
               ) : null}
 
-              {overview?.bestLocation ? (
-                <p className="rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-medium text-sky-800">
-                  Best location: <strong>{overview.bestLocation}</strong>
-                </p>
+              {overview?.bestLocationByVolume || overview?.bestLocationByRevenue ? (
+                <div className="rounded-2xl border border-sky-200 bg-sky-50 px-3 py-2 text-xs font-medium text-sky-800">
+                  {overview.bestLocationByVolume === overview.bestLocationByRevenue ? (
+                    <p className="m-0">
+                      Best location: <strong>{overview.bestLocationByVolume}</strong>
+                    </p>
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      {overview.bestLocationByVolume ? (
+                        <p className="m-0">
+                          Best for volume: <strong>{overview.bestLocationByVolume}</strong>
+                        </p>
+                      ) : null}
+                      {overview.bestLocationByRevenue ? (
+                        <p className="m-0">
+                          Best for value: <strong>{overview.bestLocationByRevenue}</strong>
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
               ) : null}
 
-              {categoryDetail && categoryDetail.length > 0 ? (
-                <section className="rounded-2xl border border-slate-900/10 bg-slate-50/70 p-3">
-                  <p className="m-0 mb-2 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                    Performance by location
-                  </p>
-                  <CategoryByLocationChart
-                    data={categoryDetail}
-                    metric="itemsSold"
-                  />
-                </section>
-              ) : (
-                <p className="text-sm text-slate-500">
-                  No per-location data is available for this category yet.
-                </p>
-              )}
-
-              {categoryTimePatterns ? (
-                <div>
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <p className="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
-                      Time patterns
-                    </p>
-                    <div className="flex gap-1">
-                      {(["itemsSold", "revenue"] as const).map((m) => (
-                        <button
-                          key={m}
-                          type="button"
-                          onClick={() => setCategoryPatternsMetric(m)}
-                          className={`rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors ${
-                            categoryPatternsMetric === m
-                              ? "border-sky-500 bg-sky-500 text-white"
-                              : "border-slate-200 text-slate-500"
-                          }`}
-                        >
-                          {m === "itemsSold" ? "Items" : "Revenue"}
-                        </button>
-                      ))}
+              {chartsReady ? (
+                <>
+                  {categoryDetail && categoryDetail.length > 0 ? (
+                    <div>
+                      <div className="mb-2 flex items-start justify-between gap-3">
+                        <p className="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                          Performance by location
+                        </p>
+                        <div className="flex gap-1">
+                          {(["itemsSold", "revenue"] as const).map((m) => (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => setCategoryLocationMetric(m)}
+                              className={`rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors ${
+                                categoryLocationMetric === m
+                                  ? "border-sky-500 bg-sky-500 text-white"
+                                  : "border-slate-200 text-slate-500"
+                              }`}
+                            >
+                              {m === "itemsSold" ? "Items" : "Revenue"}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-slate-900/10 bg-white/90 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
+                        <div className="mb-3 flex justify-end">
+                          <div className="flex gap-1 rounded-full border border-slate-200 bg-slate-50 p-1">
+                            {(["pie", "bar"] as const).map((m) => (
+                              <button
+                                key={m}
+                                type="button"
+                                onClick={() => setCategoryLocationMode(m)}
+                                className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                                  categoryLocationMode === m
+                                    ? "bg-sky-600 text-white"
+                                    : "text-slate-500 hover:bg-white hover:text-sky-700"
+                                }`}
+                              >
+                                {m === "pie" ? "Pie" : "Bar"}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <CategoryByLocationChart
+                          data={categoryDetail}
+                          metric={categoryLocationMetric}
+                          mode={categoryLocationMode}
+                          onLocationClick={(location) =>
+                            statsItemsOverlayActions.open({
+                              query: {
+                                isSold: true,
+                                itemCategory: selectedCategory ?? undefined,
+                                latestLocation: location,
+                                from: categoryDateRange.from,
+                                to: categoryDateRange.to,
+                                sortBy: "lastModifiedAt",
+                                sortDir: "desc",
+                              },
+                              cardMode: "sold-default",
+                              title: `${selectedCategory} — ${location}`,
+                            })
+                          }
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <div className="rounded-2xl border border-slate-900/10 bg-white/90 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
-                    <SalesTimePatternsChart
-                      data={categoryTimePatterns}
-                      metric={categoryPatternsMetric}
-                      onHourClick={(hour, label) =>
-                        statsItemsOverlayActions.open({
-                          query: {
-                            isSold: true,
-                            itemCategory: selectedCategory,
-                            from: categoryDateRange.from,
-                            to: categoryDateRange.to,
-                            hourOfDay: hour,
-                            sortBy: "lastModifiedAt",
-                            sortDir: "desc",
-                          },
-                          cardMode: "sold-default",
-                          title: `${selectedCategory} — Sales at ${label}`,
-                        })
-                      }
-                      onWeekdayClick={(weekday, label) =>
-                        statsItemsOverlayActions.open({
-                          query: {
-                            isSold: true,
-                            itemCategory: selectedCategory,
-                            from: categoryDateRange.from,
-                            to: categoryDateRange.to,
-                            weekday,
-                            sortBy: "lastModifiedAt",
-                            sortDir: "desc",
-                          },
-                          cardMode: "sold-default",
-                          title: `${selectedCategory} — Sales on ${label}s`,
-                        })
-                      }
-                    />
-                  </div>
-                </div>
+                  ) : (
+                    <p className="text-sm text-slate-500">
+                      No per-location data is available for this category yet.
+                    </p>
+                  )}
+
+                  {categoryTimePatterns ? (
+                    <div>
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <p className="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+                          Time patterns
+                        </p>
+                        <div className="flex gap-1">
+                          {(["itemsSold", "revenue"] as const).map((m) => (
+                            <button
+                              key={m}
+                              type="button"
+                              onClick={() => setCategoryPatternsMetric(m)}
+                              className={`rounded-full border px-2 py-0.5 text-xs font-semibold transition-colors ${
+                                categoryPatternsMetric === m
+                                  ? "border-sky-500 bg-sky-500 text-white"
+                                  : "border-slate-200 text-slate-500"
+                              }`}
+                            >
+                              {m === "itemsSold" ? "Items" : "Revenue"}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-slate-900/10 bg-white/90 p-3 shadow-[0_10px_24px_rgba(15,23,42,0.08)]">
+                        <SalesTimePatternsChart
+                          data={categoryTimePatterns}
+                          metric={categoryPatternsMetric}
+                          onHourClick={(hour, label) =>
+                            statsItemsOverlayActions.open({
+                              query: {
+                                isSold: true,
+                                itemCategory: selectedCategory,
+                                from: categoryDateRange.from,
+                                to: categoryDateRange.to,
+                                hourOfDay: hour,
+                                sortBy: "lastModifiedAt",
+                                sortDir: "desc",
+                              },
+                              cardMode: "sold-default",
+                              title: `${selectedCategory} — Sales at ${label}`,
+                            })
+                          }
+                          onWeekdayClick={(weekday, label) =>
+                            statsItemsOverlayActions.open({
+                              query: {
+                                isSold: true,
+                                itemCategory: selectedCategory,
+                                from: categoryDateRange.from,
+                                to: categoryDateRange.to,
+                                weekday,
+                                sortBy: "lastModifiedAt",
+                                sortDir: "desc",
+                              },
+                              cardMode: "sold-default",
+                              title: `${selectedCategory} — Sales on ${label}s`,
+                            })
+                          }
+                        />
+                      </div>
+                    </div>
+                  ) : null}
+                </>
               ) : null}
             </div>
           )}

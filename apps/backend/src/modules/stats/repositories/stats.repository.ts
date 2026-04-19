@@ -27,6 +27,56 @@ const parseZonePrefix = (location: string): string => {
 const isLevelLocation = (location: string): boolean =>
   LEVEL_LOCATION_RE.test(location);
 
+// Resolve which DB location strings to query for a given request.
+//
+// Zone query ("H1"):  match bare "H1" + any "H1:N" entries.
+//
+// Level query ("H1:2"): exact match only.
+//
+// Level query for level 1 ("H1:1"): prefer exact "H1:1" if it exists;
+// otherwise fall back to bare "H1" — because a bare zone label that
+// coexists with higher-numbered levels IS implicitly level 1.
+const resolveMatchingLocations = (
+  knownLocations: string[],
+  query: string,
+): string[] => {
+  if (!isLevelLocation(query)) {
+    // Zone-level request: bare + all levelled siblings
+    return knownLocations.filter(
+      (l) => l === query || l.startsWith(`${query}:`),
+    );
+  }
+
+  // Exact level exists → use it directly
+  if (knownLocations.includes(query)) return [query];
+
+  // "H1:1" not in DB → fall back to bare "H1" (implicit level 1)
+  const match = LEVEL_LOCATION_RE.exec(query);
+  if (match && match[2] === "1") {
+    const bareZone = match[1] as string;
+    if (knownLocations.includes(bareZone)) return [bareZone];
+  }
+
+  return [];
+};
+
+// When a zone has BOTH a bare label ("H1") AND levelled siblings ("H1:2"),
+// the bare label is shown as "H1:1" in the level breakdown so tabs are
+// consistent ("H1:1", "H1:2") rather than showing the confusing mix
+// ("H1", "H1:2").
+const normalizeLevelLabel = (
+  rawLocation: string,
+  matchingLocations: string[],
+): string => {
+  if (!isLevelLocation(rawLocation)) {
+    const hasLevelledSiblings = matchingLocations.some(
+      (l) => l !== rawLocation && isLevelLocation(l),
+    );
+    if (hasLevelledSiblings) return `${rawLocation}:1`;
+  }
+  return rawLocation;
+};
+
 type Bucket = {
   min: number;
   max: number | null;
@@ -171,14 +221,7 @@ export const getZoneDetail = async (
 ): Promise<Omit<ZoneDetail, "location">> => {
   const isLevel = isLevelLocation(location);
   const knownLocations = await getKnownLocationsForShop(shopId);
-
-  // For a zone request ("H1") match exact + all levels ("H1:1", "H1:2", ...).
-  // For a level request ("H1:2") match only that exact string.
-  const matchingLocations = isLevel
-    ? knownLocations.filter((l) => l === location)
-    : knownLocations.filter(
-        (l) => l === location || l.startsWith(`${location}:`),
-      );
+  const matchingLocations = resolveMatchingLocations(knownLocations, location);
 
   const empty: Omit<ZoneDetail, "location"> = {
     isLevelView: isLevel,
@@ -243,8 +286,8 @@ export const getZoneDetail = async (
         totalSeconds: acc.totalSeconds + row.totalTimeToSellSeconds,
       });
     }
-    levels = Array.from(levelMap.entries()).map(([level, acc]) => ({
-      level,
+    levels = Array.from(levelMap.entries()).map(([rawLevel, acc]) => ({
+      level: normalizeLevelLabel(rawLevel, matchingLocations),
       itemsSold: acc.itemsSold,
       itemsReceived: acc.itemsReceived,
       revenue: acc.revenue,
@@ -333,60 +376,60 @@ export const getCategoriesOverview = async (
     return [];
   }
 
-  const [categoryTotals, byLocation] = await Promise.all([
+  const [categoryTotals, byVolume, byRevenue] = await Promise.all([
     prisma.locationCategoryStatsDaily.groupBy({
       by: ["itemCategory"],
       where: {
         date: { gte: from, lte: to },
-        location: {
-          in: locations,
-        },
+        location: { in: locations },
       },
       _sum: {
         itemsSold: true,
         totalRevenue: true,
         totalTimeToSellSeconds: true,
       },
-      orderBy: {
-        _sum: {
-          itemsSold: "desc",
-        },
-      },
+      orderBy: { _sum: { itemsSold: "desc" } },
     }),
     prisma.locationCategoryStatsDaily.groupBy({
       by: ["itemCategory", "location"],
       where: {
         date: { gte: from, lte: to },
-        location: {
-          in: locations,
-        },
+        location: { in: locations },
       },
-      _sum: {
-        itemsSold: true,
+      _sum: { itemsSold: true },
+      orderBy: { _sum: { itemsSold: "desc" } },
+    }),
+    prisma.locationCategoryStatsDaily.groupBy({
+      by: ["itemCategory", "location"],
+      where: {
+        date: { gte: from, lte: to },
+        location: { in: locations },
       },
-      orderBy: {
-        _sum: {
-          itemsSold: "desc",
-        },
-      },
+      _sum: { totalRevenue: true },
+      orderBy: { _sum: { totalRevenue: "desc" } },
     }),
   ]);
 
-  const bestLocationByCategory = new Map<string, string>();
-  for (const row of byLocation) {
-    if (
-      !bestLocationByCategory.has(row.itemCategory) &&
-      row.location !== "UNKNOWN_POSITION" &&
-      !row.location.startsWith("SOLD_ORDER:")
-    ) {
-      bestLocationByCategory.set(row.itemCategory, parseZonePrefix(row.location));
+  const isSentinel = (loc: string) =>
+    loc === "UNKNOWN_POSITION" || loc.startsWith("SOLD_ORDER:");
+
+  const bestVolumeByCategory = new Map<string, string>();
+  for (const row of byVolume) {
+    if (!bestVolumeByCategory.has(row.itemCategory) && !isSentinel(row.location)) {
+      bestVolumeByCategory.set(row.itemCategory, parseZonePrefix(row.location));
+    }
+  }
+
+  const bestRevenueByCategory = new Map<string, string>();
+  for (const row of byRevenue) {
+    if (!bestRevenueByCategory.has(row.itemCategory) && !isSentinel(row.location)) {
+      bestRevenueByCategory.set(row.itemCategory, parseZonePrefix(row.location));
     }
   }
 
   return categoryTotals.map((category) => {
     const itemsSold = category._sum.itemsSold ?? 0;
-    const totalTimeToSellSeconds =
-      category._sum.totalTimeToSellSeconds ?? 0;
+    const totalTimeToSellSeconds = category._sum.totalTimeToSellSeconds ?? 0;
 
     return {
       category: category.itemCategory,
@@ -394,7 +437,8 @@ export const getCategoriesOverview = async (
       totalRevenue: category._sum.totalRevenue ?? 0,
       avgTimeToSellSeconds:
         itemsSold > 0 ? totalTimeToSellSeconds / itemsSold : null,
-      bestLocation: bestLocationByCategory.get(category.itemCategory) ?? null,
+      bestLocationByVolume: bestVolumeByCategory.get(category.itemCategory) ?? null,
+      bestLocationByRevenue: bestRevenueByCategory.get(category.itemCategory) ?? null,
     };
   });
 };
@@ -407,7 +451,7 @@ export const getDimensionsStats = async (
   const items = await prisma.scanHistory.findMany({
     where: {
       shopId,
-      createdAt: {
+      lastModifiedAt: {
         gte: from,
         lte: to,
       },
@@ -693,7 +737,18 @@ export const getTimePatterns = async (
         { isSold: true },
         { lastModifiedAt: { gte: from, lte: to } },
         ...(salesChannel ? [{ lastSoldChannel: salesChannel as Prisma.EnumSalesChannelFilter }] : []),
-        ...(latestLocation ? [{ latestLocation }] : []),
+        ...(latestLocation
+          ? (() => {
+              const levelMatch = LEVEL_LOCATION_RE.exec(latestLocation);
+              if (!levelMatch) {
+                return [{ OR: [{ latestLocation }, { latestLocation: { startsWith: `${latestLocation}:` } }] }];
+              }
+              if (levelMatch[2] === "1") {
+                return [{ OR: [{ latestLocation }, { latestLocation: levelMatch[1] as string }] }];
+              }
+              return [{ latestLocation }];
+            })()
+          : []),
         ...(itemCategory ? [{ itemCategory }] : []),
       ],
     },
@@ -719,10 +774,10 @@ export const getTimePatterns = async (
     const price = parseFloat(record.priceHistory[0]?.price ?? "0") || 0;
 
     const h = hourMap.get(hour) ?? { itemsSold: 0, revenue: 0 };
-    hourMap.set(hour, { itemsSold: h.itemsSold + qty, revenue: h.revenue + price * qty });
+    hourMap.set(hour, { itemsSold: h.itemsSold + qty, revenue: h.revenue + price });
 
     const w = weekdayMap.get(weekday) ?? { itemsSold: 0, revenue: 0 };
-    weekdayMap.set(weekday, { itemsSold: w.itemsSold + qty, revenue: w.revenue + price * qty });
+    weekdayMap.set(weekday, { itemsSold: w.itemsSold + qty, revenue: w.revenue + price });
   }
 
   const allHours: Omit<TimePatternHourPoint, "isPeak">[] = Array.from(

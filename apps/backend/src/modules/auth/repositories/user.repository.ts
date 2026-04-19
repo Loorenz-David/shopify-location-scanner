@@ -126,4 +126,11 @@ export const userRepository = {
       data: { tokenVersion: { increment: 1 } },
     });
   },
+
+  async updateLastOnline(userId: string, date: Date): Promise<void> {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { lastOnline: date },
+    });
+  },
 };

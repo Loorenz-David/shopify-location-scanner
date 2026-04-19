@@ -28,7 +28,11 @@ const getRequiredIdParam = (value: string | string[] | undefined): string => {
 export const listZonesController = asyncHandler(
   async (req: Request, res: Response) => {
     const shopId = req.authUser.shopId as string;
-    const data = await getZonesQuery(shopId);
+    const floorPlanId =
+      typeof req.query.floorPlanId === "string"
+        ? req.query.floorPlanId
+        : undefined;
+    const data = await getZonesQuery(shopId, floorPlanId);
     res.status(200).json({ data });
   },
 );

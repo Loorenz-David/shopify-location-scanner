@@ -45,7 +45,29 @@ function buildWhere(
   }
 
   if (filters.latestLocation) {
-    and.push({ latestLocation: filters.latestLocation });
+    const loc = filters.latestLocation;
+    const levelMatch = /^(.+):(\d+)$/.exec(loc);
+
+    if (!levelMatch) {
+      // Zone-level query ("H1"): match bare "H1" AND any "H1:N" levels.
+      and.push({
+        OR: [
+          { latestLocation: loc },
+          { latestLocation: { startsWith: `${loc}:` } },
+        ],
+      });
+    } else if (levelMatch[2] === "1") {
+      // Level-1 query ("H1:1"): match exact "H1:1" OR bare "H1" (implicit level 1).
+      and.push({
+        OR: [
+          { latestLocation: loc },
+          { latestLocation: levelMatch[1] as string },
+        ],
+      });
+    } else {
+      // Specific level query ("H1:2"): exact match only.
+      and.push({ latestLocation: loc });
+    }
   }
 
   if (filters.itemCategory) {

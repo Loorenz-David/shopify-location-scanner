@@ -134,15 +134,39 @@ export const FloorPlanVertexSchema = z.object({
   yCm: z.number(),
 });
 
-export const CreateFloorPlanSchema = z.object({
-  name: z.string().trim().min(1).max(100).default("Ground Floor"),
-  widthCm: z.number().positive("Width must be greater than 0"),
-  depthCm: z.number().positive("Depth must be greater than 0"),
-  shape: z.array(FloorPlanVertexSchema).min(3).nullable().optional(), // null or omitted = rectangle
-  sortOrder: z.number().int().default(0),
-});
+export const CreateFloorPlanSchema = z
+  .object({
+    name: z.string().trim().min(1).max(100).default("Ground Floor"),
+    widthCm: z.number().positive("Width must be greater than 0"),
+    depthCm: z.number().positive("Depth must be greater than 0"),
+    shape: z.array(FloorPlanVertexSchema).min(3).nullable().optional(), // null or omitted = rectangle
+    sortOrder: z.number().int().default(0),
+  })
+  .superRefine((data, ctx) => {
+    // Validate that all polygon vertices fall within the bounding box.
+    // Only checked on create; the update partial schema does not inherit this
+    // refine, so vertex bounds on partial updates are trusted from the frontend.
+    if (data.shape) {
+      data.shape.forEach((v, i) => {
+        if (v.xCm < 0 || v.xCm > data.widthCm) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["shape", i, "xCm"],
+            message: `xCm must be between 0 and widthCm (${data.widthCm})`,
+          });
+        }
+        if (v.yCm < 0 || v.yCm > data.depthCm) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["shape", i, "yCm"],
+            message: `yCm must be between 0 and depthCm (${data.depthCm})`,
+          });
+        }
+      });
+    }
+  });
 
-export const UpdateFloorPlanSchema = CreateFloorPlanSchema.partial();
+export const UpdateFloorPlanSchema = CreateFloorPlanSchema.innerType().partial();
 
 export type CreateFloorPlanInput = z.infer<typeof CreateFloorPlanSchema>;
 export type UpdateFloorPlanInput = z.infer<typeof UpdateFloorPlanSchema>;
@@ -150,9 +174,16 @@ export type UpdateFloorPlanInput = z.infer<typeof UpdateFloorPlanSchema>;
 
 ### B3 — `src/modules/floor-plan/repositories/floor-plan.repository.ts`
 
+> **`onDelete: SetNull` behaviour** — when a floor plan is deleted, all its zones
+> have `floorPlanId` set to null by the DB cascade. They are NOT deleted — they
+> become "unassigned" zones. The `delete` method below guards against accidental
+> deletes by refusing if any zones are still assigned to that floor plan (HTTP 400
+> from the controller). If the frontend wants to allow force-delete it can first
+> reassign or unlink zones, then delete the plan.
+
 ```typescript
 import { prisma } from "../../../shared/database/prisma-client.js";
-import { NotFoundError } from "../../../shared/errors/http-errors.js";
+import { NotFoundError, ValidationError } from "../../../shared/errors/http-errors.js";
 import type {
   CreateFloorPlanInput,
   UpdateFloorPlanInput,
@@ -203,6 +234,8 @@ export const floorPlanRepository = {
     const existing = await prisma.floorPlan.findFirst({ where: { id, shopId } });
     if (!existing) throw new NotFoundError("Floor plan not found");
 
+    // Object.fromEntries strips `undefined` fields (omitted in partial update)
+    // but preserves `null` fields (e.g. shape: null to clear a polygon).
     const updateData = Object.fromEntries(
       Object.entries(data).filter(([, v]) => v !== undefined),
     );
@@ -215,13 +248,25 @@ export const floorPlanRepository = {
   },
 
   async delete(id: string, shopId: string): Promise<void> {
-    const deleted = await prisma.floorPlan.deleteMany({ where: { id, shopId } });
-    if (deleted.count === 0) throw new NotFoundError("Floor plan not found");
+    const existing = await prisma.floorPlan.findFirst({ where: { id, shopId } });
+    if (!existing) throw new NotFoundError("Floor plan not found");
+
+    // Guard: refuse if zones are still assigned to prevent silent detach.
+    const assignedCount = await prisma.storeZone.count({ where: { floorPlanId: id } });
+    if (assignedCount > 0) {
+      throw new ValidationError(
+        `Cannot delete floor plan — ${assignedCount} zone(s) are still assigned to it. Reassign or remove them first.`,
+      );
+    }
+
+    await prisma.floorPlan.delete({ where: { id } });
   },
 };
 ```
 
-### B4 — `src/modules/floor-plan/queries/get-floor-plans.query.ts`
+### B4 — Queries
+
+**`src/modules/floor-plan/queries/get-floor-plans.query.ts`**
 
 ```typescript
 import { floorPlanRepository } from "../repositories/floor-plan.repository.js";
@@ -229,6 +274,16 @@ import type { FloorPlan } from "../domain/floor-plan.js";
 
 export const getFloorPlansQuery = async (shopId: string): Promise<FloorPlan[]> =>
   floorPlanRepository.list(shopId);
+```
+
+**`src/modules/floor-plan/queries/get-floor-plan.query.ts`**
+
+```typescript
+import { floorPlanRepository } from "../repositories/floor-plan.repository.js";
+import type { FloorPlan } from "../domain/floor-plan.js";
+
+export const getFloorPlanQuery = async (id: string, shopId: string): Promise<FloorPlan> =>
+  floorPlanRepository.findById(id, shopId);
 ```
 
 ### B5 — Commands
@@ -282,6 +337,7 @@ import {
   UpdateFloorPlanSchema,
 } from "../contracts/floor-plan.contract.js";
 import { getFloorPlansQuery } from "../queries/get-floor-plans.query.js";
+import { getFloorPlanQuery } from "../queries/get-floor-plan.query.js";
 import { createFloorPlanCommand } from "../commands/create-floor-plan.command.js";
 import { updateFloorPlanCommand } from "../commands/update-floor-plan.command.js";
 import { deleteFloorPlanCommand } from "../commands/delete-floor-plan.command.js";
@@ -297,6 +353,15 @@ export const listFloorPlansController = asyncHandler(
   async (req: Request, res: Response) => {
     const shopId = req.authUser.shopId as string;
     const data = await getFloorPlansQuery(shopId);
+    res.status(200).json({ data });
+  },
+);
+
+export const getFloorPlanController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const shopId = req.authUser.shopId as string;
+    const id = getRequiredIdParam(req.params.id);
+    const data = await getFloorPlanQuery(id, shopId);
     res.status(200).json({ data });
   },
 );
@@ -350,19 +415,19 @@ floorPlanRouter.use(requireShopLinkMiddleware);
 
 floorPlanRouter.get("/", listFloorPlansController);
 floorPlanRouter.post("/", createFloorPlanController);
+floorPlanRouter.get("/:id", getFloorPlanController);
 floorPlanRouter.patch("/:id", updateFloorPlanController);
 floorPlanRouter.delete("/:id", deleteFloorPlanController);
 ```
 
 ### B8 — Wire into app router
 
-Find the file that registers all routers (likely `src/app.ts` or `src/modules/index.ts`
-or similar — look for where `zonesRouter` is used). Add:
+Add to `apps/backend/src/server.ts` alongside line ~135 where `zonesRouter` is registered:
 
 ```typescript
 import { floorPlanRouter } from "./modules/floor-plan/routes/floor-plan.routes.js";
 
-// alongside the other router registrations:
+// Add after the zonesRouter line:
 app.use("/api/floor-plans", floorPlanRouter);
 ```
 
@@ -371,6 +436,15 @@ app.use("/api/floor-plans", floorPlanRouter);
 ## Part C — Update Zones Module
 
 ### C1 — Update `src/modules/zones/domain/zone.ts`
+
+> **Naming note** — `StoreZone.widthCm` / `depthCm` are the **physical size of the
+> shelf unit** (entered manually by staff). They are distinct from
+> `FloorPlan.widthCm` / `depthCm`, which are the **floor bounding box** that defines
+> the percentage coordinate space. Do not confuse them.
+>
+> Also note: `StoreZone.label` is the link to the stats system. A zone with
+> `label: "H1"` maps to all `locationStatsDaily` rows where `location` starts with
+> `"H1"` (e.g. `H1`, `H1:2`). Never change `label` without considering the stats impact.
 
 ```typescript
 export type StoreZoneType = "zone" | "corridor";
@@ -385,9 +459,9 @@ export type StoreZone = {
   widthPct: number;
   heightPct: number;
   sortOrder: number;
-  floorPlanId: string | null;   // ADD
-  widthCm: number | null;       // ADD
-  depthCm: number | null;       // ADD
+  floorPlanId: string | null;   // ADD — which floor plan this zone belongs to
+  widthCm: number | null;       // ADD — physical shelf width in cm (NOT floor canvas size)
+  depthCm: number | null;       // ADD — physical shelf depth in cm (NOT floor canvas size)
 };
 ```
 
@@ -452,10 +526,12 @@ fields automatically.
 
 ---
 
-## Part D — GET /zones filter by floorPlanId (optional enhancement)
+## Part D — GET /zones filter by floorPlanId (required for multi-floor stores)
 
-The `list` query in `zone.repository.ts` can optionally filter by `floorPlanId`.
-This enables the frontend to load zones for a specific floor without loading all floors.
+The `list` query in `zone.repository.ts` must support filtering by `floorPlanId`.
+Without this, `GET /zones` returns ALL zones across all floor plans. The frontend map
+renders one floor at a time, so mixing zones from different floors on one canvas is
+incorrect. This filter is required as soon as more than one floor plan exists.
 
 Update the `list` method signature:
 
@@ -505,9 +581,10 @@ export const listZonesController = asyncHandler(
 |--------|------|-------------|
 | GET | `/api/floor-plans` | List all floor plans for the shop |
 | POST | `/api/floor-plans` | Create a floor plan |
-| PATCH | `/api/floor-plans/:id` | Update name / dimensions |
-| DELETE | `/api/floor-plans/:id` | Delete a floor plan |
-| GET | `/api/zones?floorPlanId=...` | List zones, optionally filtered by floor |
+| GET | `/api/floor-plans/:id` | Get a single floor plan by id |
+| PATCH | `/api/floor-plans/:id` | Update name / dimensions / shape |
+| DELETE | `/api/floor-plans/:id` | Delete a floor plan (fails if zones still assigned) |
+| GET | `/api/zones?floorPlanId=...` | List zones, filtered by floor plan (required for multi-floor) |
 | POST | `/api/zones` | Create zone — now accepts `floorPlanId`, `widthCm`, `depthCm` |
 | PATCH | `/api/zones/:id` | Update zone — now accepts `widthCm`, `depthCm` |
 
@@ -598,12 +675,12 @@ Response `201` — same shape as input plus `id`.
 - [ ] B1 — Create `src/modules/floor-plan/domain/floor-plan.ts` (includes `FloorPlanVertex` type)
 - [ ] B2 — Create `src/modules/floor-plan/contracts/floor-plan.contract.ts` (includes `FloorPlanVertexSchema`)
 - [ ] B3 — Create `src/modules/floor-plan/repositories/floor-plan.repository.ts`
-- [ ] B4 — Create `src/modules/floor-plan/queries/get-floor-plans.query.ts`
+- [ ] B4 — Create `get-floor-plans.query.ts` and `get-floor-plan.query.ts` (list + single)
 - [ ] B5 — Create three command files (create / update / delete)
-- [ ] B6 — Create `src/modules/floor-plan/controllers/floor-plan.controller.ts`
-- [ ] B7 — Create `src/modules/floor-plan/routes/floor-plan.routes.ts`
-- [ ] B8 — Register `floorPlanRouter` at `/api/floor-plans` in app router
+- [ ] B6 — Create `src/modules/floor-plan/controllers/floor-plan.controller.ts` (includes `getFloorPlanController`)
+- [ ] B7 — Create `src/modules/floor-plan/routes/floor-plan.routes.ts` (includes `GET /:id`)
+- [ ] B8 — Register `floorPlanRouter` at `/api/floor-plans` in `apps/backend/src/server.ts`
 - [ ] C1 — Update `zone.ts` domain type with three new fields
 - [ ] C2 — Update `zone.contract.ts` with optional `floorPlanId`, `widthCm`, `depthCm`
 - [ ] C3 — Update `zone.repository.ts` `toDomain` function
-- [ ] D — Optional: add `floorPlanId` filter to zone list query and controller
+- [ ] D — Add `floorPlanId` filter to zone list query and controller (required for multi-floor)

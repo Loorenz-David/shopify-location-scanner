@@ -142,7 +142,6 @@ export function useAnalyticsPageFlow() {
   useWsEvent("scan_history_updated", handleScanHistoryUpdated);
 
   return {
-    store: useAnalyticsStore(),
     reload: load,
     loadTimePatternsForChannel,
   };

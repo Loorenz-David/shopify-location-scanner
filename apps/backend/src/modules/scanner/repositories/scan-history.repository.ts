@@ -47,6 +47,31 @@ const normalizeCategory = (category?: string | null): string => {
   return trimmed ? trimmed : "unknown";
 };
 
+const resolveStringForUpdate = (
+  inputValue: string | null | undefined,
+  existingValue: string | null,
+  fallback: string | null = null,
+): string | null => {
+  const trimmed = inputValue?.trim();
+  if (trimmed) {
+    return trimmed;
+  }
+
+  const persisted = existingValue?.trim();
+  if (persisted) {
+    return persisted;
+  }
+
+  return fallback;
+};
+
+const resolveCategoryForUpdate = (
+  inputCategory: string | null | undefined,
+  existingCategory: string | null,
+): string => {
+  return resolveStringForUpdate(inputCategory, existingCategory, "unknown") ?? "unknown";
+};
+
 const normalizeLocation = (location?: string | null): string | null => {
   const trimmed = location?.trim();
   return trimmed ? trimmed : null;
@@ -65,6 +90,13 @@ const parsePriceValue = (price?: string | null): number => {
 const toDurationSeconds = (from: Date, to: Date): number => {
   const seconds = (to.getTime() - from.getTime()) / 1000;
   return seconds > 0 ? seconds : 0;
+};
+
+const sameNullableString = (
+  left: string | null | undefined,
+  right: string | null | undefined,
+): boolean => {
+  return (left?.trim() || null) === (right?.trim() || null);
 };
 
 const ALL_STRING_FILTER_COLUMNS: ScanHistoryStringFilterColumn[] = [
@@ -479,6 +511,10 @@ export const scanHistoryRepository = {
     itemType: string;
     itemTitle: string;
     itemCategory?: string | null;
+    itemHeight?: number | null;
+    itemWidth?: number | null;
+    itemDepth?: number | null;
+    volume?: number | null;
     soldPrice?: string | null;
     orderId?: string | null;
     orderNumber?: number | null;
@@ -500,6 +536,10 @@ export const scanHistoryRepository = {
     const orderNumber = input.orderNumber ?? null;
     const orderGroupId = input.orderGroupId ?? null;
     const quantity = normalizeQuantity(input.quantity);
+    const itemHeight = normalizeDimension(input.itemHeight);
+    const itemWidth = normalizeDimension(input.itemWidth);
+    const itemDepth = normalizeDimension(input.itemDepth);
+    const volume = normalizeVolume(input.volume);
 
     if (!normalizedUnknownLocation || !normalizedSoldLocation) {
       throw new Error("Sold and fallback locations are required");
@@ -613,6 +653,10 @@ export const scanHistoryRepository = {
             itemImageUrl: input.itemImageUrl ?? null,
             itemType: input.itemType,
             itemTitle: input.itemTitle,
+            ...(itemHeight !== null ? { itemHeight } : {}),
+            ...(itemWidth !== null ? { itemWidth } : {}),
+            ...(itemDepth !== null ? { itemDepth } : {}),
+            ...(volume !== null ? { volume } : {}),
             latestLocation: null,
             isSold: true,
             lastSoldChannel: salesChannel,
@@ -674,6 +718,25 @@ export const scanHistoryRepository = {
         });
       }
 
+      const resolvedItemCategory = resolveCategoryForUpdate(
+        input.itemCategory,
+        existing.itemCategory,
+      );
+      const resolvedItemSku = resolveStringForUpdate(
+        input.itemSku,
+        existing.itemSku,
+      );
+      const resolvedItemBarcode = resolveStringForUpdate(
+        input.itemBarcode,
+        existing.itemBarcode,
+      );
+      const resolvedItemTitle =
+        resolveStringForUpdate(input.itemTitle, existing.itemTitle) ??
+        input.itemTitle;
+      const resolvedItemType =
+        resolveStringForUpdate(input.itemType, existing.itemType) ??
+        input.itemType;
+
       if (orderId) {
         const alreadyProcessedForOrder = await tx.scanHistoryEvent.findFirst({
           where: {
@@ -719,12 +782,12 @@ export const scanHistoryRepository = {
           data: {
             userId: input.userId ?? null,
             username: input.username,
-            itemCategory,
-            itemSku: input.itemSku ?? null,
-            itemBarcode: input.itemBarcode ?? null,
+            itemCategory: resolvedItemCategory,
+            itemSku: resolvedItemSku,
+            itemBarcode: resolvedItemBarcode,
             itemImageUrl: input.itemImageUrl ?? existing.itemImageUrl ?? null,
-            itemType: input.itemType,
-            itemTitle: input.itemTitle,
+            itemType: resolvedItemType,
+            itemTitle: resolvedItemTitle,
             isSold: true,
             lastSoldChannel: salesChannel,
             orderId: orderId ?? existing.orderId ?? null,
@@ -755,15 +818,16 @@ export const scanHistoryRepository = {
         data: {
           userId: input.userId ?? null,
           username: input.username,
-          itemCategory,
-          itemSku: input.itemSku ?? null,
-          itemBarcode: input.itemBarcode ?? null,
+          itemCategory: resolvedItemCategory,
+          itemSku: resolvedItemSku,
+          itemBarcode: resolvedItemBarcode,
           itemImageUrl: input.itemImageUrl ?? existing.itemImageUrl ?? null,
-          itemType: input.itemType,
-          itemTitle: input.itemTitle,
+          itemType: resolvedItemType,
+          itemTitle: resolvedItemTitle,
           isSold: true,
           lastSoldChannel: salesChannel,
           orderId: orderId ?? existing.orderId ?? null,
+          orderNumber: orderNumber ?? existing.orderNumber ?? null,
           lastModifiedAt: happenedAt,
         },
       });
@@ -784,7 +848,7 @@ export const scanHistoryRepository = {
       const totalTimeToSellSeconds = toDurationSeconds(arrivedTime, happenedAt);
       const statsDate = startOfUtcDay(happenedAt);
       const soldItemCategory = normalizeCategory(
-        existing.itemCategory ?? itemCategory,
+        resolvedItemCategory,
       );
 
       if (!latestLocationUnchanged) {
@@ -971,6 +1035,111 @@ export const scanHistoryRepository = {
         price: normalizedPrice,
         terminalType: "price_update",
         happenedAt,
+      },
+    });
+
+    if (input.emitBroadcast !== false) {
+      broadcastToShop(input.shopId, {
+        type: "scan_history_updated",
+        productId: input.productId,
+      });
+    }
+
+    return true;
+  },
+
+  async syncProductSnapshotIfHistoryExists(input: {
+    shopId: string;
+    productId: string;
+    itemCategory?: string | null;
+    itemSku?: string | null;
+    itemBarcode?: string | null;
+    itemImageUrl?: string | null;
+    itemType: string;
+    itemTitle: string;
+    itemHeight?: number | null;
+    itemWidth?: number | null;
+    itemDepth?: number | null;
+    volume?: number | null;
+    emitBroadcast?: boolean;
+  }): Promise<boolean> {
+    const existing = await prisma.scanHistory.findUnique({
+      where: {
+        shopId_productId: {
+          shopId: input.shopId,
+          productId: input.productId,
+        },
+      },
+      select: {
+        id: true,
+        itemCategory: true,
+        itemSku: true,
+        itemBarcode: true,
+        itemImageUrl: true,
+        itemType: true,
+        itemTitle: true,
+        itemHeight: true,
+        itemWidth: true,
+        itemDepth: true,
+        volume: true,
+      },
+    });
+
+    if (!existing) {
+      return false;
+    }
+
+    const nextItemCategory = resolveCategoryForUpdate(
+      input.itemCategory,
+      existing.itemCategory,
+    );
+    const nextItemSku = resolveStringForUpdate(input.itemSku, existing.itemSku);
+    const nextItemBarcode = resolveStringForUpdate(
+      input.itemBarcode,
+      existing.itemBarcode,
+    );
+    const nextItemImageUrl = resolveStringForUpdate(
+      input.itemImageUrl,
+      existing.itemImageUrl,
+    );
+    const nextItemType =
+      resolveStringForUpdate(input.itemType, existing.itemType) ?? input.itemType;
+    const nextItemTitle =
+      resolveStringForUpdate(input.itemTitle, existing.itemTitle) ?? input.itemTitle;
+    const nextItemHeight = normalizeDimension(input.itemHeight);
+    const nextItemWidth = normalizeDimension(input.itemWidth);
+    const nextItemDepth = normalizeDimension(input.itemDepth);
+    const nextVolume = normalizeVolume(input.volume);
+
+    const hasChanges =
+      !sameNullableString(existing.itemCategory, nextItemCategory) ||
+      !sameNullableString(existing.itemSku, nextItemSku) ||
+      !sameNullableString(existing.itemBarcode, nextItemBarcode) ||
+      !sameNullableString(existing.itemImageUrl, nextItemImageUrl) ||
+      !sameNullableString(existing.itemType, nextItemType) ||
+      !sameNullableString(existing.itemTitle, nextItemTitle) ||
+      existing.itemHeight !== nextItemHeight ||
+      existing.itemWidth !== nextItemWidth ||
+      existing.itemDepth !== nextItemDepth ||
+      existing.volume !== nextVolume;
+
+    if (!hasChanges) {
+      return false;
+    }
+
+    await prisma.scanHistory.update({
+      where: { id: existing.id },
+      data: {
+        itemCategory: nextItemCategory,
+        itemSku: nextItemSku,
+        itemBarcode: nextItemBarcode,
+        itemImageUrl: nextItemImageUrl,
+        itemType: nextItemType,
+        itemTitle: nextItemTitle,
+        itemHeight: nextItemHeight,
+        itemWidth: nextItemWidth,
+        itemDepth: nextItemDepth,
+        volume: nextVolume,
       },
     });
 

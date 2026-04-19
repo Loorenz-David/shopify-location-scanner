@@ -28,9 +28,9 @@ const optionalBoolean = z.preprocess((v) => {
   return v;
 }, z.boolean().optional());
 
-const optionalPositiveNumber = z.preprocess(
+const optionalNonNegativeNumber = z.preprocess(
   (v) => (v === undefined || v === "" ? undefined : v),
-  z.coerce.number().positive().optional(),
+  z.coerce.number().min(0).optional(),
 );
 
 const optionalDate = z.preprocess(
@@ -72,12 +72,12 @@ export const StatsItemsQuerySchema = z.object({
   lastSoldChannel: z.enum(["webshop", "physical", "imported", "unknown"]).optional(),
 
   // Dimension range filters (cm)
-  heightMin: optionalPositiveNumber,
-  heightMax: optionalPositiveNumber,
-  widthMin:  optionalPositiveNumber,
-  widthMax:  optionalPositiveNumber,
-  depthMin:  optionalPositiveNumber,
-  depthMax:  optionalPositiveNumber,
+  heightMin: optionalNonNegativeNumber,
+  heightMax: optionalNonNegativeNumber,
+  widthMin:  optionalNonNegativeNumber,
+  widthMax:  optionalNonNegativeNumber,
+  depthMin:  optionalNonNegativeNumber,
+  depthMax:  optionalNonNegativeNumber,
 
   // Volume: accept either a named label OR explicit numeric range
   volumeLabel: z.enum(["tiny", "small", "medium", "large", "extra_large"]).optional(),

@@ -5,18 +5,21 @@ import { createZoneApi } from "../apis/create-zone.api";
 import { deleteZoneApi } from "../apis/delete-zone.api";
 import { reorderZonesApi } from "../apis/reorder-zones.api";
 import { updateZoneApi } from "../apis/update-zone.api";
+import type { StoreMapEditorViewportTransform } from "../domain/store-map-editor.domain";
+import { useFloorPlanStore } from "../stores/floor-plan.store";
 import { useFloorMapStore } from "../stores/floor-map.store";
 import type {
   CreateStoreZoneInput,
   StoreZone,
   StoreZoneType,
 } from "../types/analytics.types";
+import {
+  computeGridSpacingCm,
+  gridStepPx,
+  snapToGridPx,
+} from "../utils/grid-utils";
 
-export interface EditorViewportTransform {
-  scale: number;
-  offsetX: number;
-  offsetY: number;
-}
+export type EditorViewportTransform = StoreMapEditorViewportTransform;
 
 function clampPercent(value: number): number {
   return Math.max(0, Math.min(100, value));
@@ -28,6 +31,14 @@ function pxToPct(valuePx: number, axisPx: number): number {
   }
 
   return clampPercent((valuePx / axisPx) * 100);
+}
+
+function getActiveFloorPlan() {
+  const { floorPlans, selectedFloorPlanId } = useFloorPlanStore.getState();
+
+  return (
+    floorPlans.find((plan) => plan.id === selectedFloorPlanId) ?? null
+  );
 }
 
 function getPointerPosition(
@@ -137,6 +148,9 @@ export function useZoneEditorFlow(viewportTransform?: EditorViewportTransform | 
       widthPct: pxToPct(draft.width, stageWidth),
       heightPct: pxToPct(draft.height, stageHeight),
       sortOrder: zones.length,
+      floorPlanId: getActiveFloorPlan()?.id ?? null,
+      widthCm: null,
+      depthCm: null,
     };
 
     const createdZone = await createZoneApi(payload);
@@ -164,33 +178,84 @@ export function useZoneEditorFlow(viewportTransform?: EditorViewportTransform | 
   }, [upsertZone]);
 
   const saveZoneShape = useCallback(
-    async (zone: StoreZone, shape: Pick<StoreZone, "xPct" | "yPct" | "widthPct" | "heightPct">) => {
-      await updateZoneApi(zone.id, shape);
-      upsertZone({ ...zone, ...shape });
+    async (
+      zone: StoreZone,
+      shape: Pick<StoreZone, "xPct" | "yPct" | "widthPct" | "heightPct">,
+    ) => {
+      const activeFloorPlan = getActiveFloorPlan();
+      const patch = {
+        ...shape,
+        widthCm: activeFloorPlan
+          ? Math.round((shape.widthPct / 100) * activeFloorPlan.widthCm)
+          : zone.widthCm,
+        depthCm: activeFloorPlan
+          ? Math.round((shape.heightPct / 100) * activeFloorPlan.depthCm)
+          : zone.depthCm,
+      };
+
+      await updateZoneApi(zone.id, patch);
+      upsertZone({ ...zone, ...patch });
     },
     [upsertZone],
   );
 
   const createZone = useCallback(async (input: CreateStoreZoneInput) => {
-    const createdZone = await createZoneApi(input);
+    const activeFloorPlan = getActiveFloorPlan();
+    const payload: CreateStoreZoneInput = {
+      ...input,
+      floorPlanId: activeFloorPlan?.id ?? input.floorPlanId ?? null,
+      widthCm: activeFloorPlan
+        ? Math.round((input.widthPct / 100) * activeFloorPlan.widthCm)
+        : input.widthCm,
+      depthCm: activeFloorPlan
+        ? Math.round((input.heightPct / 100) * activeFloorPlan.depthCm)
+        : input.depthCm,
+    };
+
+    const createdZone = await createZoneApi(payload);
     upsertZone(createdZone);
     return createdZone;
   }, [upsertZone]);
 
-  const moveZone = useCallback(async (zone: StoreZone, xPx: number, yPx: number) => {
-    const nextZone: StoreZone = {
-      ...zone,
-      xPct: pxToPct(xPx, stageWidth),
-      yPct: pxToPct(yPx, stageHeight),
-    };
+  const moveZone = useCallback(
+    async (zone: StoreZone, xPx: number, yPx: number) => {
+      const activeFloorPlan = getActiveFloorPlan();
+      const viewportScale = viewportTransform?.scale ?? 1;
 
-    await updateZoneApi(zone.id, {
-      xPct: nextZone.xPct,
-      yPct: nextZone.yPct,
-    });
+      let snappedX = xPx;
+      let snappedY = yPx;
 
-    upsertZone(nextZone);
-  }, [stageHeight, stageWidth, upsertZone]);
+      if (activeFloorPlan) {
+        const spacingCm = computeGridSpacingCm(
+          viewportScale,
+          stageWidth,
+          activeFloorPlan.widthCm,
+        );
+        snappedX = snapToGridPx(
+          xPx,
+          gridStepPx(spacingCm, stageWidth, activeFloorPlan.widthCm),
+        );
+        snappedY = snapToGridPx(
+          yPx,
+          gridStepPx(spacingCm, stageHeight, activeFloorPlan.depthCm),
+        );
+      }
+
+      const nextZone: StoreZone = {
+        ...zone,
+        xPct: pxToPct(snappedX, stageWidth),
+        yPct: pxToPct(snappedY, stageHeight),
+      };
+
+      await updateZoneApi(zone.id, {
+        xPct: nextZone.xPct,
+        yPct: nextZone.yPct,
+      });
+
+      upsertZone(nextZone);
+    },
+    [stageHeight, stageWidth, upsertZone, viewportTransform?.scale],
+  );
 
   const removeZoneById = useCallback(async (zone: StoreZone) => {
     const confirmed = window.confirm(`Delete zone "${zone.label}"?`);

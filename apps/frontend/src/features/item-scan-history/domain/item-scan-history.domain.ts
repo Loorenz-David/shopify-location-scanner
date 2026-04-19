@@ -67,8 +67,7 @@ export function normalizeItemScanHistoryItem(
     }));
 
   const isSold =
-    item.lastSoldChannel != null ||
-    events[0]?.eventType === "sold_terminal";
+    item.lastSoldChannel != null || events[0]?.eventType === "sold_terminal";
   const soldEvent = events.find((e) => e.eventType === "sold_terminal");
   const timeToSellSeconds =
     isSold && soldEvent

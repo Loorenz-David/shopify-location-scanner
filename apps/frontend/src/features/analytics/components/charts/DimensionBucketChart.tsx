@@ -2,6 +2,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import {
   Bar,
   BarChart,
+  Cell,
   Legend,
   ResponsiveContainer,
   Tooltip,
@@ -33,6 +34,7 @@ export function DimensionBucketChart({
       <p className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
         {title}
       </p>
+      <div className="analytics-chart-shell">
       <ResponsiveContainer width="100%" height={170}>
         <BarChart
           accessibilityLayer={false}
@@ -62,7 +64,16 @@ export function DimensionBucketChart({
               const bucket = getBucketFromBarEntry(entry);
               if (bucket) onBucketClick?.(bucket);
             }}
-          />
+          >
+            {data.map((bucket) => (
+              <Cell
+                key={bucket.bucket}
+                fill="#22c55e"
+                stroke={selectedBucket?.bucket === bucket.bucket ? "#0ea5e9" : "transparent"}
+                strokeWidth={2}
+              />
+            ))}
+          </Bar>
           <Bar
             dataKey="totalCount"
             name="Total"
@@ -81,9 +92,19 @@ export function DimensionBucketChart({
               const bucket = getBucketFromBarEntry(entry);
               if (bucket) onBucketClick?.(bucket);
             }}
-          />
+          >
+            {data.map((bucket) => (
+              <Cell
+                key={bucket.bucket}
+                fill="#cbd5e1"
+                stroke={selectedBucket?.bucket === bucket.bucket ? "#0ea5e9" : "transparent"}
+                strokeWidth={2}
+              />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
+      </div>
 
       <AnimatePresence initial={false}>
         {selectedBucket ? (

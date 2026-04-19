@@ -9,6 +9,8 @@ import { registerCommand } from "../commands/register.command.js";
 import { loginCommand } from "../commands/login.command.js";
 import { refreshAccessTokenCommand } from "../commands/refresh-access-token.command.js";
 import { logoutCommand } from "../commands/logout.command.js";
+import { appEnterCommand } from "../commands/app-enter.command.js";
+import { appLeaveCommand } from "../commands/app-leave.command.js";
 import { getCurrentUserQuery } from "../queries/get-current-user.query.js";
 
 export const authController = {
@@ -39,5 +41,15 @@ export const authController = {
   me: async (req: Request, res: Response): Promise<void> => {
     const user = await getCurrentUserQuery(req.authUser.userId);
     res.status(200).json({ user });
+  },
+
+  appEnter: async (req: Request, res: Response): Promise<void> => {
+    await appEnterCommand(req.authUser.userId);
+    res.status(200).json({ ok: true });
+  },
+
+  appLeave: async (req: Request, res: Response): Promise<void> => {
+    await appLeaveCommand(req.authUser.userId);
+    res.status(200).json({ ok: true });
   },
 };

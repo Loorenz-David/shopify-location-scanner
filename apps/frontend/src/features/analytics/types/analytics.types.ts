@@ -50,7 +50,8 @@ export type CategoryOverviewItem = {
   itemsSold: number;
   totalRevenue: number;
   avgTimeToSellSeconds: number | null;
-  bestLocation: string | null;
+  bestLocationByVolume: string | null;
+  bestLocationByRevenue: string | null;
 };
 
 export type DimensionBucket = {
@@ -89,6 +90,9 @@ export type StoreZone = {
   widthPct: number;
   heightPct: number;
   sortOrder: number;
+  floorPlanId: string | null;
+  widthCm: number | null;
+  depthCm: number | null;
 };
 
 export type CreateStoreZoneInput = Omit<StoreZone, "id">;
@@ -106,6 +110,31 @@ export type DateRange = {
   from: string;
   to: string;
 };
+
+export type FloorPlanVertex = {
+  xCm: number;
+  yCm: number;
+};
+
+export type FloorPlan = {
+  id: string;
+  shopId: string;
+  name: string;
+  widthCm: number;
+  depthCm: number;
+  shape: FloorPlanVertex[] | null;
+  sortOrder: number;
+};
+
+export type CreateFloorPlanInput = {
+  name: string;
+  widthCm: number;
+  depthCm: number;
+  shape?: FloorPlanVertex[] | null;
+  sortOrder?: number;
+};
+
+export type UpdateFloorPlanInput = Partial<CreateFloorPlanInput>;
 
 export type TimePatternHourPoint = {
   hour: number;

@@ -10,4 +10,7 @@ export type StoreZone = {
   widthPct: number;
   heightPct: number;
   sortOrder: number;
+  floorPlanId: string | null;
+  widthCm: number | null;
+  depthCm: number | null;
 };

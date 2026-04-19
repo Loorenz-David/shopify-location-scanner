@@ -6,6 +6,7 @@ import {
 } from "../../../shared/sales-channel/classify-sales-channel.js";
 import { scanHistoryRepository } from "../../scanner/repositories/scan-history.repository.js";
 import type { ShopifyOrdersCreateWebhookPayload } from "../contracts/shopify.contract.js";
+import { loadProductSnapshotsForOrderService } from "../services/load-product-snapshots-for-order.service.js";
 
 const WEBHOOK_ACTOR = "system:shopify-webhook";
 const UNKNOWN_POSITION_LOCATION = "UNKNOWN_POSITION";
@@ -120,18 +121,29 @@ export const handleOrdersCreateWebhookCommand = async (input: {
   }
 
   let processedProducts = 0;
+  const productSnapshots = await loadProductSnapshotsForOrderService({
+    shopId: input.shopId,
+    shopDomain: input.shopDomain,
+    productIds: [...lineItemsByProduct.keys()],
+  });
 
   for (const [productId, lineItem] of lineItemsByProduct.entries()) {
+    const productSnapshot = productSnapshots.get(productId);
     await scanHistoryRepository.appendSoldTerminalEventWithFallback({
       shopId: input.shopId,
       userId: null,
       username: WEBHOOK_ACTOR,
       productId,
-      itemSku: lineItem.sku,
-      itemBarcode: lineItem.barcode,
-      itemImageUrl: null,
+      itemSku: productSnapshot?.sku ?? lineItem.sku,
+      itemBarcode: productSnapshot?.barcode ?? lineItem.barcode,
+      itemImageUrl: productSnapshot?.imageUrl ?? null,
       itemType: "product_id",
-      itemTitle: lineItem.title,
+      itemTitle: productSnapshot?.title ?? lineItem.title,
+      itemCategory: productSnapshot?.itemCategory ?? null,
+      itemHeight: productSnapshot?.itemHeight ?? null,
+      itemWidth: productSnapshot?.itemWidth ?? null,
+      itemDepth: productSnapshot?.itemDepth ?? null,
+      volume: productSnapshot?.volume ?? null,
       soldPrice: lineItem.price,
       orderId,
       orderNumber,

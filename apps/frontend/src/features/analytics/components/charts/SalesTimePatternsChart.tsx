@@ -101,7 +101,9 @@ export function SalesTimePatternsChart({
         <p className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
           Hour of day
         </p>
-        <div className={onHourClick && !compareData ? "cursor-pointer" : ""}>
+        <div
+          className={`analytics-chart-shell${onHourClick && !compareData ? " cursor-pointer" : ""}`}
+        >
           <ResponsiveContainer width="100%" height={160}>
             <BarChart
               accessibilityLayer={false}
@@ -269,7 +271,9 @@ export function SalesTimePatternsChart({
         <p className="mb-1 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
           Day of week
         </p>
-        <div className={onWeekdayClick && !compareData ? "cursor-pointer" : ""}>
+        <div
+          className={`analytics-chart-shell${onWeekdayClick && !compareData ? " cursor-pointer" : ""}`}
+        >
           <ResponsiveContainer width="100%" height={140}>
             <BarChart
               accessibilityLayer={false}
