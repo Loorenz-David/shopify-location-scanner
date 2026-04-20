@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { BackArrowIcon } from "../../../assets/icons";
 import {
   buildEditorViewportTransform,
+  clampZoneShapeToBounds,
+  findNearestNonOverlappingZoneShape,
   formatShapeMetric,
+  hasZoneOverlap,
+  resolveCollisionAwareDraft,
 } from "../domain/store-map-editor.domain";
 import { useFloorBoundaryEditorFlow } from "../flows/use-floor-boundary-editor.flow";
 import { useFloorMapFlow } from "../flows/use-floor-map.flow";
@@ -31,6 +35,7 @@ import {
   selectShapeEditCanUndo,
   useShapeEditHistoryStore,
 } from "../stores/shape-edit-history.store";
+import type { StoreZone } from "../types/analytics.types";
 import { formatCm } from "../utils/cm-format";
 import {
   cmVerticesToWorldPx,
@@ -205,6 +210,7 @@ export function StoreMapSettingsPage() {
 
   const {
     viewportTransform: interactiveViewportTransform,
+    isGestureActive,
     handleTouchStart,
     handleTouchMove,
     handleTouchEnd,
@@ -223,11 +229,10 @@ export function StoreMapSettingsPage() {
 
   const labelSuggestions = useZoneLabelSuggestions(session.labelDraft);
   const {
-    moveZone,
     removeZoneById,
     renameZone,
     saveZoneLabel,
-    saveZoneShape,
+    saveZoneShapesBatch,
     createZone,
   } = useZoneEditorFlow(interactiveViewportTransform);
 
@@ -269,6 +274,41 @@ export function StoreMapSettingsPage() {
       zones,
     ],
   );
+  const hasShapeDraftCollision = useMemo(() => {
+    if (!session.shapeDraft) {
+      return false;
+    }
+
+    return hasZoneOverlap(
+      session.shapeDraft,
+      zones,
+      session.shapeDraft.id,
+    );
+  }, [session.shapeDraft, zones]);
+
+  const handleShapeDraftChange = useCallback(
+    (
+      nextShapeDraft:
+        | StoreZone
+        | null
+        | ((current: StoreZone | null) => StoreZone | null),
+    ) => {
+      session.setShapeDraft((current) => {
+        const resolvedDraft =
+          typeof nextShapeDraft === "function"
+            ? nextShapeDraft(current)
+            : nextShapeDraft;
+
+        if (!resolvedDraft) {
+          return null;
+        }
+
+        const boundedDraft = clampZoneShapeToBounds(resolvedDraft);
+        return resolveCollisionAwareDraft(current, boundedDraft, zones);
+      });
+    },
+    [session, zones],
+  );
 
   return (
     <section className="mx-auto flex h-full min-h-full w-full max-w-[1040px] flex-col gap-4 overflow-y-auto bg-[linear-gradient(180deg,#f8fafc_0%,#eef4ff_55%,#eef2f7_100%)] px-4 pb-10 pt-6 text-slate-900">
@@ -291,7 +331,7 @@ export function StoreMapSettingsPage() {
 
       {/* <PreviewHelpCard hasActiveFloor={!!activeFloorPlan} /> */}
 
-      {activeFloorPlan ? (
+      {!isEditorMode && activeFloorPlan ? (
         <div
           ref={previewContainerRef}
           className="relative mx-auto h-[600px] w-full max-w-[400px] shrink-0 overflow-hidden rounded-[24px] border border-slate-900/10 bg-slate-900/90 shadow-[0_16px_38px_rgba(15,23,42,0.16)]"
@@ -309,7 +349,6 @@ export function StoreMapSettingsPage() {
               stageWidth={previewStageSize.width}
               stageHeight={previewStageSize.height}
               isInteractive={false}
-              moveZone={moveZone}
               renameZone={renameZone}
               viewportTransform={previewViewportTransform}
               floorBoundaryVertices={previewFloorBoundaryVerticesWorld}
@@ -317,30 +356,33 @@ export function StoreMapSettingsPage() {
               showGrid={false}
               gridStepPxX={gridStepPxX}
               gridStepPxY={gridStepPxY}
+              labelRenderMode="full"
             />
           </div>
         </div>
-      ) : (
+      ) : !isEditorMode ? (
         <EmptyFloorPreviewCard
           onCreateFloor={() => session.setIsCreateFloorPlanOpen(true)}
         />
-      )}
+      ) : null}
 
-      <FloorSelectorCard
-        floorNames={floorPlans.map((floorPlan) => ({
-          id: floorPlan.id,
-          name: floorPlan.name,
-        }))}
-        selectedFloorPlanId={selectedFloorPlanId}
-        activeFloorSizeText={
-          activeFloorPlan
-            ? `${formatCm(activeFloorPlan.widthCm)} × ${formatCm(activeFloorPlan.depthCm)}`
-            : null
-        }
-        isEditorMode={isEditorMode}
-        onSelectFloor={setSelectedFloorPlanId}
-        onCreateFloor={() => session.setIsCreateFloorPlanOpen(true)}
-      />
+      {!isEditorMode ? (
+        <FloorSelectorCard
+          floorNames={floorPlans.map((floorPlan) => ({
+            id: floorPlan.id,
+            name: floorPlan.name,
+          }))}
+          selectedFloorPlanId={selectedFloorPlanId}
+          activeFloorSizeText={
+            activeFloorPlan
+              ? `${formatCm(activeFloorPlan.widthCm)} × ${formatCm(activeFloorPlan.depthCm)}`
+              : null
+          }
+          isEditorMode={isEditorMode}
+          onSelectFloor={setSelectedFloorPlanId}
+          onCreateFloor={() => session.setIsCreateFloorPlanOpen(true)}
+        />
+      ) : null}
 
       {isEditorMode ? (
         <div className="fixed inset-0 z-70 bg-[linear-gradient(180deg,#f8fafc_0%,#eef4ff_55%,#eef2f7_100%)]">
@@ -353,27 +395,27 @@ export function StoreMapSettingsPage() {
               stageWidth={stageWidth}
               stageHeight={stageHeight}
               isInteractive
-              moveZone={moveZone}
               renameZone={renameZone}
               viewportTransform={interactiveViewportTransform}
               onStageTouchStart={handleTouchStart}
               onStageTouchMove={handleTouchMove}
               onStageTouchEnd={handleTouchEnd}
-              onSelectZone={session.setSelectedZone}
+              onSelectZone={session.handleSelectZone}
               consumeLastTouchTapIntent={consumeLastTouchTapIntent}
               shapeDraft={
                 session.activeZoneEditorMode === "shape"
                   ? session.shapeDraft
                   : null
               }
-              onShapeDraftChange={session.setShapeDraft}
+              onShapeDraftChange={handleShapeDraftChange}
               onShapeHandleActiveChange={session.setIsShapeHandleActive}
               onShapeInteractionStart={pushShapeSnapshot}
               floorBoundaryVertices={floorBoundaryVerticesWorld}
               isFloorBoundaryEditMode={isFloorBoundaryEditMode}
-              showGrid={!!activeFloorPlan}
+              showGrid={!!activeFloorPlan && !isGestureActive}
               gridStepPxX={gridStepPxX}
               gridStepPxY={gridStepPxY}
+              labelRenderMode={isGestureActive ? "gesture-lite" : "full"}
               onFloorBoundaryDraftChange={(vertices) => {
                 if (!activeFloorPlan) {
                   return;
@@ -498,7 +540,7 @@ export function StoreMapSettingsPage() {
                   ),
                 )}
                 canUndo={canUndoShapeEdit}
-                saveDisabled={!session.shapeDraft}
+                saveDisabled={!session.shapeDraft || hasShapeDraftCollision}
                 onCancel={session.handleShapeCancel}
                 onUndo={() => {
                   const previousShape = undoShapeEdit();
@@ -518,18 +560,30 @@ export function StoreMapSettingsPage() {
                       return;
                     }
 
+                    const resolvedShapeDraft = hasZoneOverlap(
+                      shapeDraft,
+                      zones,
+                      shapeDraft.id,
+                    )
+                      ? findNearestNonOverlappingZoneShape(shapeDraft, zones)
+                      : shapeDraft;
+                    if (!resolvedShapeDraft) {
+                      window.alert("Zone blocks cannot overlap.");
+                      return;
+                    }
+
                     if (session.isDraftZone) {
                       await createZone({
-                        label: shapeDraft.label.trim() || "Zone",
-                        type: shapeDraft.type,
-                        xPct: shapeDraft.xPct,
-                        yPct: shapeDraft.yPct,
-                        widthPct: shapeDraft.widthPct,
-                        heightPct: shapeDraft.heightPct,
+                        label: resolvedShapeDraft.label.trim() || "Zone",
+                        type: resolvedShapeDraft.type,
+                        xPct: resolvedShapeDraft.xPct,
+                        yPct: resolvedShapeDraft.yPct,
+                        widthPct: resolvedShapeDraft.widthPct,
+                        heightPct: resolvedShapeDraft.heightPct,
                         sortOrder: zones.length,
-                        floorPlanId: shapeDraft.floorPlanId,
-                        widthCm: shapeDraft.widthCm,
-                        depthCm: shapeDraft.depthCm,
+                        floorPlanId: resolvedShapeDraft.floorPlanId,
+                        widthCm: resolvedShapeDraft.widthCm,
+                        depthCm: resolvedShapeDraft.depthCm,
                       });
                       resetShapeEditHistory();
                       session.setShapeDraft(null);
@@ -538,12 +592,67 @@ export function StoreMapSettingsPage() {
                       return;
                     }
 
-                    await saveZoneShape(selectedZone, {
-                      xPct: shapeDraft.xPct,
-                      yPct: shapeDraft.yPct,
-                      widthPct: shapeDraft.widthPct,
-                      heightPct: shapeDraft.heightPct,
-                    });
+                    const stagedExistingShapes = Object.values(
+                      session.stagedZoneEdits,
+                    ).filter((zone) => zone.id !== selectedZone.id);
+                    const batchItems = [
+                      ...stagedExistingShapes.map((stagedZone) => {
+                        const resolvedStagedZone = hasZoneOverlap(
+                          stagedZone,
+                          zones,
+                          stagedZone.id,
+                        )
+                          ? findNearestNonOverlappingZoneShape(stagedZone, zones)
+                          : stagedZone;
+
+                        if (!resolvedStagedZone) {
+                          return null;
+                        }
+
+                        return {
+                          zone:
+                            zones.find((zone) => zone.id === stagedZone.id) ??
+                            stagedZone,
+                          shape: {
+                            xPct: resolvedStagedZone.xPct,
+                            yPct: resolvedStagedZone.yPct,
+                            widthPct: resolvedStagedZone.widthPct,
+                            heightPct: resolvedStagedZone.heightPct,
+                          },
+                        };
+                      }),
+                      {
+                        zone: selectedZone,
+                        shape: {
+                          xPct: resolvedShapeDraft.xPct,
+                          yPct: resolvedShapeDraft.yPct,
+                          widthPct: resolvedShapeDraft.widthPct,
+                          heightPct: resolvedShapeDraft.heightPct,
+                        },
+                      },
+                    ].filter(
+                      (
+                        item,
+                      ): item is {
+                        zone: StoreZone;
+                        shape: Pick<
+                          StoreZone,
+                          "xPct" | "yPct" | "widthPct" | "heightPct"
+                        >;
+                      } => item !== null,
+                    );
+
+                    if (
+                      batchItems.length !== stagedExistingShapes.length + 1
+                    ) {
+                      window.alert("Zone blocks cannot overlap.");
+                      return;
+                    }
+
+                    await saveZoneShapesBatch(batchItems);
+                    for (const item of batchItems) {
+                      session.clearStagedZoneEdit(item.zone.id);
+                    }
                     resetShapeEditHistory();
                     session.setSelectedZone(null);
                     session.setActiveZoneEditorMode(null);

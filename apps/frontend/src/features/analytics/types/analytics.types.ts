@@ -106,6 +106,11 @@ export type ReorderStoreZonesInput = Array<{
   sortOrder: number;
 }>;
 
+export type BatchUpdateStoreZonesInput = Array<{
+  id: string;
+  patch: UpdateStoreZoneInput;
+}>;
+
 export type DateRange = {
   from: string;
   to: string;

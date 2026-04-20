@@ -1,25 +1,30 @@
-import { memo, useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KonvaEventObject } from "konva/lib/Node";
+import type { Group as KonvaGroup } from "konva/lib/Group";
 import { Group, Layer, Rect, Shape, Stage, Text } from "react-konva";
 
 import {
+  clampZoneShapeToBounds,
+  findNearestNonOverlappingZoneShape,
+  hasZoneOverlap,
   pct,
   pxToPercent,
   type StoreMapEditorViewportTransform,
 } from "../domain/store-map-editor.domain";
 import {
   resolveAdaptiveSnapStepPx,
-  snapToGridPx,
   snapToGridPxWithinThreshold,
 } from "../utils/grid-utils";
+import { useGesturePerformanceDebug } from "../hooks/use-gesture-performance-debug";
 import type { StoreZone } from "../types/analytics.types";
+
+type ZoneLabelRenderMode = "full" | "gesture-lite";
 
 interface StoreMapEditorStageProps {
   zones: StoreZone[];
   stageWidth: number;
   stageHeight: number;
   isInteractive: boolean;
-  moveZone: (zone: StoreZone, xPx: number, yPx: number) => Promise<void>;
   renameZone: (zone: StoreZone) => Promise<void>;
   viewportTransform: StoreMapEditorViewportTransform | null;
   onStageTouchStart?: (event: KonvaEventObject<TouchEvent>) => void;
@@ -39,6 +44,7 @@ interface StoreMapEditorStageProps {
   onFloorBoundaryDraftChange?: (
     vertices: Array<{ xPx: number; yPx: number }>,
   ) => void;
+  labelRenderMode?: ZoneLabelRenderMode;
 }
 
 export function StoreMapEditorStage({
@@ -46,7 +52,6 @@ export function StoreMapEditorStage({
   stageWidth,
   stageHeight,
   isInteractive,
-  moveZone,
   renameZone,
   viewportTransform,
   onStageTouchStart,
@@ -64,7 +69,76 @@ export function StoreMapEditorStage({
   gridStepPxX = 0,
   gridStepPxY = 0,
   onFloorBoundaryDraftChange,
+  labelRenderMode = "full",
 }: StoreMapEditorStageProps) {
+  const staticWorldGroupRef = useRef<KonvaGroup | null>(null);
+  const activeShapeDraftId = shapeDraft?.id ?? null;
+  const cachePixelRatio = Math.min(
+    2,
+    Math.max(1, viewportTransform?.scale ?? 1),
+  );
+  const staticZones = useMemo(
+    () =>
+      activeShapeDraftId
+        ? zones.filter((zone) => zone.id !== activeShapeDraftId)
+        : zones,
+    [activeShapeDraftId, zones],
+  );
+  const staticVisualSignature = useMemo(
+    () =>
+      [
+        activeShapeDraftId ?? "no-draft",
+        cachePixelRatio.toFixed(2),
+        floorBoundaryVertices
+          .map((vertex) => `${vertex.xPx}:${vertex.yPx}`)
+          .join("|"),
+        isFloorBoundaryEditMode ? "boundary-edit" : "boundary-view",
+        labelRenderMode,
+        staticZones
+          .map(
+            (zone) =>
+              `${zone.id}:${zone.label}:${zone.type}:${zone.xPct}:${zone.yPct}:${zone.widthPct}:${zone.heightPct}`,
+          )
+          .join("|"),
+      ].join("::"),
+    [
+      activeShapeDraftId,
+      cachePixelRatio,
+      floorBoundaryVertices,
+      isFloorBoundaryEditMode,
+      labelRenderMode,
+      staticZones,
+    ],
+  );
+
+  useGesturePerformanceDebug(
+    "store-map-editor",
+    labelRenderMode === "gesture-lite",
+  );
+
+  useEffect(() => {
+    const group = staticWorldGroupRef.current;
+    if (!group) {
+      return;
+    }
+
+    let frameId = window.requestAnimationFrame(() => {
+      group.clearCache();
+      group.cache({ pixelRatio: cachePixelRatio });
+      group.getLayer()?.batchDraw();
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frameId);
+      group.clearCache();
+    };
+  }, [
+    cachePixelRatio,
+    staticVisualSignature,
+    stageHeight,
+    stageWidth,
+  ]);
+
   return (
     <Stage
       width={stageWidth}
@@ -85,8 +159,10 @@ export function StoreMapEditorStage({
           gridStepPxY={gridStepPxY}
         />
       ) : null}
-      <Layer>
+      <Layer listening={false}>
         <Group
+          id="store-map-static-world-group"
+          ref={staticWorldGroupRef}
           x={viewportTransform?.offsetX ?? 0}
           y={viewportTransform?.offsetY ?? 0}
           scaleX={viewportTransform?.scale ?? 1}
@@ -95,22 +171,53 @@ export function StoreMapEditorStage({
           {floorBoundaryVertices.length > 0 ? (
             <FloorBoundaryShape
               vertices={floorBoundaryVertices}
-              isEditMode={isFloorBoundaryEditMode}
+              isEditMode={false}
               isPreview={!isInteractive}
+              scale={viewportTransform?.scale ?? 1}
+              gridStepPxX={gridStepPxX}
+              gridStepPxY={gridStepPxY}
+              renderHandles={false}
+            />
+          ) : null}
+          {staticZones.map((zone) => (
+            <ZoneVisual
+              key={zone.id}
+              zone={zone}
+              stageWidth={stageWidth}
+              stageHeight={stageHeight}
+              labelRenderMode={labelRenderMode}
+            />
+          ))}
+        </Group>
+      </Layer>
+      <Layer>
+        <Group
+          id="store-map-world-group"
+          x={viewportTransform?.offsetX ?? 0}
+          y={viewportTransform?.offsetY ?? 0}
+          scaleX={viewportTransform?.scale ?? 1}
+          scaleY={viewportTransform?.scale ?? 1}
+        >
+          {floorBoundaryVertices.length > 0 && isFloorBoundaryEditMode ? (
+            <FloorBoundaryShape
+              vertices={floorBoundaryVertices}
+              isEditMode
+              isPreview={false}
               scale={viewportTransform?.scale ?? 1}
               onDraftChange={onFloorBoundaryDraftChange}
               onHandleActiveChange={onShapeHandleActiveChange}
               gridStepPxX={gridStepPxX}
               gridStepPxY={gridStepPxY}
+              renderHandles
             />
           ) : null}
           {zones.map((zone) => (
-            <EditableZone
+            <EditableZoneOverlay
               key={zone.id}
               zone={shapeDraft?.id === zone.id ? shapeDraft : zone}
+              zones={zones}
               stageWidth={stageWidth}
               stageHeight={stageHeight}
-              onDragEnd={moveZone}
               onRename={renameZone}
               isInteractive={isInteractive}
               onSelectZone={onSelectZone}
@@ -131,11 +238,75 @@ export function StoreMapEditorStage({
   );
 }
 
-interface EditableZoneProps {
+interface ZoneVisualProps {
   zone: StoreZone;
   stageWidth: number;
   stageHeight: number;
-  onDragEnd: (zone: StoreZone, xPx: number, yPx: number) => Promise<void>;
+  labelRenderMode?: ZoneLabelRenderMode;
+  overrideXPx?: number;
+  overrideYPx?: number;
+  fillOverride?: string;
+  strokeOverride?: string;
+  opacityOverride?: number;
+}
+
+const ZoneVisual = memo(function ZoneVisual({
+  zone,
+  stageWidth,
+  stageHeight,
+  labelRenderMode = "full",
+  overrideXPx,
+  overrideYPx,
+  fillOverride,
+  strokeOverride,
+  opacityOverride,
+}: ZoneVisualProps) {
+  const x = overrideXPx ?? pct(zone.xPct, stageWidth);
+  const y = overrideYPx ?? pct(zone.yPct, stageHeight);
+  const width = pct(zone.widthPct, stageWidth);
+  const height = pct(zone.heightPct, stageHeight);
+  const fill =
+    fillOverride ?? (zone.type === "corridor" ? "#475569" : "#0ea5e9");
+  const stroke = strokeOverride ?? "#ffffff";
+  const opacity = opacityOverride ?? 0.55;
+
+  return (
+    <>
+      <Rect
+        x={x}
+        y={y}
+        width={width}
+        height={height}
+        fill={fill}
+        opacity={opacity}
+        stroke={stroke}
+        strokeWidth={1}
+        cornerRadius={6}
+        listening={false}
+        perfectDrawEnabled={false}
+        shadowForStrokeEnabled={false}
+      />
+      <Text
+        x={x + 6}
+        y={y + 6}
+        text={zone.label}
+        fontSize={11}
+        fontStyle="bold"
+        fill="#ffffff"
+        listening={false}
+        perfectDrawEnabled={false}
+        shadowEnabled={false}
+        opacity={labelRenderMode === "full" ? 1 : 0.92}
+      />
+    </>
+  );
+});
+
+interface EditableZoneOverlayProps {
+  zone: StoreZone;
+  zones: StoreZone[];
+  stageWidth: number;
+  stageHeight: number;
   onRename: (zone: StoreZone) => Promise<void>;
   isInteractive: boolean;
   onSelectZone?: (zone: StoreZone) => void;
@@ -150,11 +321,11 @@ interface EditableZoneProps {
   gridStepPxY?: number;
 }
 
-function EditableZone({
+const EditableZoneOverlay = memo(function EditableZoneOverlay({
   zone,
+  zones,
   stageWidth,
   stageHeight,
-  onDragEnd,
   onRename,
   isInteractive,
   onSelectZone,
@@ -167,7 +338,7 @@ function EditableZone({
   isLocked = false,
   gridStepPxX = 0,
   gridStepPxY = 0,
-}: EditableZoneProps) {
+}: EditableZoneOverlayProps) {
   const x = pct(zone.xPct, stageWidth);
   const y = pct(zone.yPct, stageHeight);
   const width = pct(zone.widthPct, stageWidth);
@@ -181,16 +352,15 @@ function EditableZone({
     gridStepPxY,
     shapeReferenceSizePx,
   );
-  const fill = zone.type === "corridor" ? "#475569" : "#0ea5e9";
   const viewportScale = viewportTransform?.scale ?? 1;
   const snapThresholdScreenPx = 12;
   const snapThresholdWorldPx = snapThresholdScreenPx / viewportScale;
-  const wasDraggedRef = useRef(false);
   const [dragGhostRect, setDragGhostRect] = useState<{
     x: number;
     y: number;
     width: number;
     height: number;
+    isValid: boolean;
   } | null>(null);
   const [dragOriginRect, setDragOriginRect] = useState<{
     x: number;
@@ -206,45 +376,247 @@ function EditableZone({
     startZoneXPx: number;
     startZoneYPx: number;
   } | null>(null);
+  const trackedTouchIdRef = useRef<number | null>(null);
+  const stageContainerRef = useRef<HTMLElement | null>(null);
   const activeTouchDraftRef = useRef<{
     xPx: number;
     yPx: number;
   } | null>(null);
+  const hasDetachedGhost =
+    !!dragGhostRect &&
+    !dragGhostRect.isValid &&
+    (Math.abs(dragGhostRect.x - x) > 0.5 || Math.abs(dragGhostRect.y - y) > 0.5);
+
+  const clearLongPressState = useCallback(
+    (shouldDeactivateHandles: boolean) => {
+      if (longPressTimeoutRef.current !== null) {
+        window.clearTimeout(longPressTimeoutRef.current);
+        longPressTimeoutRef.current = null;
+      }
+
+      if (shouldDeactivateHandles && longPressDragRef.current?.active) {
+        onShapeHandleActiveChange?.(false);
+      }
+
+      setDragGhostRect(null);
+      setDragOriginRect(null);
+      activeTouchDraftRef.current = null;
+      longPressDragRef.current = null;
+      trackedTouchIdRef.current = null;
+      stageContainerRef.current = null;
+    },
+    [onShapeHandleActiveChange],
+  );
+
+  const handleTrackedTouchMove = useCallback(
+    (touch: Touch) => {
+      const dragState = longPressDragRef.current;
+      const stageContainer = stageContainerRef.current;
+
+      if (!dragState || !stageContainer) {
+        return;
+      }
+
+      const rect = stageContainer.getBoundingClientRect();
+      const touchX = touch.clientX - rect.left;
+      const touchY = touch.clientY - rect.top;
+
+      if (!dragState.active) {
+        const deltaX = Math.abs(touchX - dragState.startTouchX);
+        const deltaY = Math.abs(touchY - dragState.startTouchY);
+
+        if (deltaX > 8 || deltaY > 8) {
+          clearLongPressState(false);
+        }
+        return;
+      }
+
+      const scale = viewportTransform?.scale ?? 1;
+      const deltaWorldX = (touchX - dragState.startTouchX) / scale;
+      const deltaWorldY = (touchY - dragState.startTouchY) / scale;
+      const nextXPx = dragState.startZoneXPx + deltaWorldX;
+      const nextYPx = dragState.startZoneYPx + deltaWorldY;
+
+      activeTouchDraftRef.current = {
+        xPx: nextXPx,
+        yPx: nextYPx,
+      };
+      const candidateDraft = clampZoneShapeToBounds({
+        ...zone,
+        xPct: pxToPercent(nextXPx, stageWidth),
+        yPct: pxToPercent(nextYPx, stageHeight),
+      });
+      const isValidPosition = !hasZoneOverlap(
+        candidateDraft,
+        zones,
+        candidateDraft.id,
+      );
+      setDragGhostRect({
+        x: nextXPx,
+        y: nextYPx,
+        width,
+        height,
+        isValid: isValidPosition,
+      });
+
+      onShapeDraftChange?.(candidateDraft);
+    },
+    [
+      clearLongPressState,
+      height,
+      onShapeDraftChange,
+      stageHeight,
+      stageWidth,
+      viewportTransform?.scale,
+      width,
+      zone,
+      zones,
+    ],
+  );
+
+  const finalizeTrackedTouchDrag = useCallback(() => {
+    const touchDraft = activeTouchDraftRef.current;
+
+    if (longPressDragRef.current?.active && touchDraft) {
+      const snappedDraft = clampZoneShapeToBounds({
+        ...zone,
+        xPct: pxToPercent(
+          snapToGridPxWithinThreshold(
+            touchDraft.xPx,
+            dragSnapStepPxX,
+            snapThresholdWorldPx,
+          ),
+          stageWidth,
+        ),
+        yPct: pxToPercent(
+          snapToGridPxWithinThreshold(
+            touchDraft.yPx,
+            dragSnapStepPxY,
+            snapThresholdWorldPx,
+          ),
+          stageHeight,
+        ),
+      });
+      const resolvedDroppedDraft = hasZoneOverlap(
+        snappedDraft,
+        zones,
+        snappedDraft.id,
+      )
+        ? findNearestNonOverlappingZoneShape(snappedDraft, zones)
+        : snappedDraft;
+      if (resolvedDroppedDraft) {
+        onShapeDraftChange?.(resolvedDroppedDraft);
+      }
+    }
+
+    clearLongPressState(true);
+  }, [
+    clearLongPressState,
+    dragSnapStepPxX,
+    dragSnapStepPxY,
+    onShapeDraftChange,
+    snapThresholdWorldPx,
+    stageHeight,
+    stageWidth,
+    zone,
+    zones,
+  ]);
+
+  useEffect(() => {
+    if (!shapeDraftMode || isLocked) {
+      return;
+    }
+
+    const handleWindowTouchMove = (event: TouchEvent) => {
+      const trackedTouchId = trackedTouchIdRef.current;
+      if (trackedTouchId === null) {
+        return;
+      }
+
+      const touch = Array.from(event.touches).find(
+        (candidate) => candidate.identifier === trackedTouchId,
+      );
+      if (!touch) {
+        return;
+      }
+
+      event.preventDefault();
+      handleTrackedTouchMove(touch);
+    };
+
+    const handleWindowTouchEnd = (event: TouchEvent) => {
+      const trackedTouchId = trackedTouchIdRef.current;
+      if (trackedTouchId === null) {
+        return;
+      }
+
+      const stillActive = Array.from(event.touches).some(
+        (candidate) => candidate.identifier === trackedTouchId,
+      );
+      if (stillActive) {
+        return;
+      }
+
+      event.preventDefault();
+      finalizeTrackedTouchDrag();
+    };
+
+    window.addEventListener("touchmove", handleWindowTouchMove, {
+      passive: false,
+    });
+    window.addEventListener("touchend", handleWindowTouchEnd, {
+      passive: false,
+    });
+    window.addEventListener("touchcancel", handleWindowTouchEnd, {
+      passive: false,
+    });
+
+    return () => {
+      window.removeEventListener("touchmove", handleWindowTouchMove);
+      window.removeEventListener("touchend", handleWindowTouchEnd);
+      window.removeEventListener("touchcancel", handleWindowTouchEnd);
+    };
+  }, [
+    finalizeTrackedTouchDrag,
+    handleTrackedTouchMove,
+    isLocked,
+    shapeDraftMode,
+  ]);
 
   return (
     <>
+      {shapeDraftMode ? (
+        <ZoneVisual
+          zone={zone}
+          stageWidth={stageWidth}
+          stageHeight={stageHeight}
+          labelRenderMode="full"
+        />
+      ) : null}
+      {shapeDraftMode && dragGhostRect && hasDetachedGhost ? (
+        <ZoneVisual
+          zone={zone}
+          stageWidth={stageWidth}
+          stageHeight={stageHeight}
+          labelRenderMode="full"
+          overrideXPx={dragGhostRect.x}
+          overrideYPx={dragGhostRect.y}
+          fillOverride={
+            dragGhostRect.isValid ? undefined : "rgba(239,68,68,0.32)"
+          }
+          strokeOverride={
+            dragGhostRect.isValid ? "#ffffff" : "rgba(248,113,113,0.95)"
+          }
+          opacityOverride={dragGhostRect.isValid ? 0.55 : 0.72}
+        />
+      ) : null}
       <Rect
         x={x}
         y={y}
         width={width}
         height={height}
-        fill={fill}
-        opacity={0.55}
-        stroke="#ffffff"
-        strokeWidth={1}
+        fill="rgba(255,255,255,0.001)"
         cornerRadius={6}
-        draggable={isInteractive && !shapeDraftMode && !isLocked}
-        onDragStart={(event) => {
-          wasDraggedRef.current = true;
-          if (event.evt.type.startsWith("touch")) {
-            event.target.stopDrag();
-            wasDraggedRef.current = false;
-          }
-        }}
-        onDragEnd={
-          isInteractive
-            ? (event) => {
-                void onDragEnd(
-                  zone,
-                  snapToGridPx(event.target.x(), gridStepPxX),
-                  snapToGridPx(event.target.y(), gridStepPxY),
-                );
-                window.setTimeout(() => {
-                  wasDraggedRef.current = false;
-                }, 0);
-              }
-            : undefined
-        }
         onDblClick={
           isInteractive && !shapeDraftMode && !isLocked
             ? () => void onRename(zone)
@@ -253,11 +625,6 @@ function EditableZone({
         onClick={
           isInteractive && onSelectZone && !shapeDraftMode && !isLocked
             ? () => {
-                if (wasDraggedRef.current) {
-                  wasDraggedRef.current = false;
-                  return;
-                }
-
                 onSelectZone(zone);
               }
             : undefined
@@ -265,11 +632,6 @@ function EditableZone({
         onTap={
           isInteractive && onSelectZone && !shapeDraftMode && !isLocked
             ? () => {
-                if (wasDraggedRef.current) {
-                  wasDraggedRef.current = false;
-                  return;
-                }
-
                 if (consumeLastTouchTapIntent && !consumeLastTouchTapIntent()) {
                   return;
                 }
@@ -288,6 +650,8 @@ function EditableZone({
                 }
 
                 const rect = stage.container().getBoundingClientRect();
+                stageContainerRef.current = stage.container();
+                trackedTouchIdRef.current = touch.identifier;
                 longPressDragRef.current = {
                   active: false,
                   startTouchX: touch.clientX - rect.left,
@@ -308,6 +672,7 @@ function EditableZone({
                     y: longPressDragRef.current.startZoneYPx,
                     width,
                     height,
+                    isValid: true,
                   });
                   setDragOriginRect({
                     x: longPressDragRef.current.startZoneXPx,
@@ -327,125 +692,6 @@ function EditableZone({
                     navigator.vibrate(45);
                   }
                 }, 350);
-              }
-            : undefined
-        }
-        onTouchMove={
-          shapeDraftMode && !isLocked
-            ? (event) => {
-                const dragState = longPressDragRef.current;
-                const stage = event.target.getStage();
-                const touch = event.evt.touches[0];
-
-                if (!dragState || !stage || !touch) {
-                  return;
-                }
-
-                const rect = stage.container().getBoundingClientRect();
-                const touchX = touch.clientX - rect.left;
-                const touchY = touch.clientY - rect.top;
-
-                if (!dragState.active) {
-                  const deltaX = Math.abs(touchX - dragState.startTouchX);
-                  const deltaY = Math.abs(touchY - dragState.startTouchY);
-
-                  if (deltaX > 8 || deltaY > 8) {
-                    if (longPressTimeoutRef.current !== null) {
-                      window.clearTimeout(longPressTimeoutRef.current);
-                      longPressTimeoutRef.current = null;
-                    }
-                    setDragGhostRect(null);
-                    setDragOriginRect(null);
-                    longPressDragRef.current = null;
-                  }
-                  return;
-                }
-
-                event.cancelBubble = true;
-                const scale = viewportTransform?.scale ?? 1;
-                const deltaWorldX = (touchX - dragState.startTouchX) / scale;
-                const deltaWorldY = (touchY - dragState.startTouchY) / scale;
-                const nextXPx = dragState.startZoneXPx + deltaWorldX;
-                const nextYPx = dragState.startZoneYPx + deltaWorldY;
-
-                activeTouchDraftRef.current = {
-                  xPx: nextXPx,
-                  yPx: nextYPx,
-                };
-                setDragGhostRect({
-                  x: nextXPx,
-                  y: nextYPx,
-                  width,
-                  height,
-                });
-
-                onShapeDraftChange?.({
-                  ...zone,
-                  xPct: pxToPercent(nextXPx, stageWidth),
-                  yPct: pxToPercent(nextYPx, stageHeight),
-                });
-              }
-            : undefined
-        }
-        onTouchEnd={
-          shapeDraftMode && !isLocked
-            ? (event) => {
-                if (longPressTimeoutRef.current !== null) {
-                  window.clearTimeout(longPressTimeoutRef.current);
-                  longPressTimeoutRef.current = null;
-                }
-
-                if (longPressDragRef.current?.active) {
-                  event.cancelBubble = true;
-                  const touchDraft = activeTouchDraftRef.current;
-                  if (touchDraft) {
-                    onShapeDraftChange?.({
-                      ...zone,
-                      xPct: pxToPercent(
-                        snapToGridPxWithinThreshold(
-                          touchDraft.xPx,
-                          dragSnapStepPxX,
-                          snapThresholdWorldPx,
-                        ),
-                        stageWidth,
-                      ),
-                      yPct: pxToPercent(
-                        snapToGridPxWithinThreshold(
-                          touchDraft.yPx,
-                          dragSnapStepPxY,
-                          snapThresholdWorldPx,
-                        ),
-                        stageHeight,
-                      ),
-                    });
-                  }
-                  onShapeHandleActiveChange?.(false);
-                }
-
-                setDragGhostRect(null);
-                setDragOriginRect(null);
-                activeTouchDraftRef.current = null;
-                longPressDragRef.current = null;
-              }
-            : undefined
-        }
-        onTouchCancel={
-          shapeDraftMode && !isLocked
-            ? (event: KonvaEventObject<TouchEvent>) => {
-                if (longPressTimeoutRef.current !== null) {
-                  window.clearTimeout(longPressTimeoutRef.current);
-                  longPressTimeoutRef.current = null;
-                }
-
-                if (longPressDragRef.current?.active) {
-                  event.cancelBubble = true;
-                  onShapeHandleActiveChange?.(false);
-                }
-
-                setDragGhostRect(null);
-                setDragOriginRect(null);
-                activeTouchDraftRef.current = null;
-                longPressDragRef.current = null;
               }
             : undefined
         }
@@ -470,8 +716,16 @@ function EditableZone({
           y={dragGhostRect.y}
           width={dragGhostRect.width}
           height={dragGhostRect.height}
-          fill="rgba(255,255,255,0.08)"
-          stroke="rgba(255,255,255,0.48)"
+          fill={
+            dragGhostRect.isValid
+              ? "rgba(255,255,255,0.08)"
+              : "rgba(239,68,68,0.14)"
+          }
+          stroke={
+            dragGhostRect.isValid
+              ? "rgba(255,255,255,0.48)"
+              : "rgba(248,113,113,0.85)"
+          }
           strokeWidth={1.5}
           dash={[7, 5]}
           cornerRadius={6}
@@ -489,19 +743,11 @@ function EditableZone({
           gridStepPxX={gridStepPxX}
           gridStepPxY={gridStepPxY}
           viewportScale={viewportScale}
-        />
-      ) : null}
-      <Text
-        x={x + 6}
-        y={y + 6}
-        text={zone.label}
-        fontSize={11}
-        fontStyle="bold"
-        fill="#ffffff"
-      />
+            />
+          ) : null}
     </>
   );
-}
+});
 
 interface ShapeHandlesProps {
   zone: StoreZone;
@@ -758,6 +1004,7 @@ function FloorBoundaryShape({
   onHandleActiveChange,
   gridStepPxX,
   gridStepPxY,
+  renderHandles,
 }: {
   vertices: Array<{ xPx: number; yPx: number }>;
   isEditMode: boolean;
@@ -767,6 +1014,7 @@ function FloorBoundaryShape({
   onHandleActiveChange?: (active: boolean) => void;
   gridStepPxX: number;
   gridStepPxY: number;
+  renderHandles?: boolean;
 }) {
   const [localVertices, setLocalVertices] = useState(vertices);
 
@@ -827,7 +1075,7 @@ function FloorBoundaryShape({
         strokeWidth={2 / scale}
         listening={false}
       />
-      {isEditMode
+      {isEditMode && renderHandles
         ? (
             [
               { key: "nw", x, y },

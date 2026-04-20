@@ -24,6 +24,14 @@ export const ReorderZonesSchema = z.object({
   ),
 });
 
+export const BatchUpdateZonesSchema = z.array(
+  z.object({
+    id: z.string().trim().min(1),
+    patch: UpdateZoneSchema,
+  }),
+);
+
 export type CreateZoneInput = z.infer<typeof CreateZoneSchema>;
 export type UpdateZoneInput = z.infer<typeof UpdateZoneSchema>;
 export type ReorderZonesInput = z.infer<typeof ReorderZonesSchema>;
+export type BatchUpdateZonesInput = z.infer<typeof BatchUpdateZonesSchema>;

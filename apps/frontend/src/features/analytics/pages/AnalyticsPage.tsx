@@ -52,6 +52,7 @@ import {
 import type { ZoneComparisonChartMode } from "../components/charts/ZoneComparisonChart";
 import type { VelocityChannel } from "../stores/analytics.store";
 import type { DimensionBucket } from "../types/analytics.types";
+import type { FloorMapMetric } from "../components/floor-map/FloorMapHeatOverlay";
 
 // ---------------------------------------------------------------------------
 // Lazy mount hook — mounts once the sentinel div scrolls into view
@@ -95,6 +96,7 @@ function AnalyticsDataLoader() {
 // FloorMapSection
 // ---------------------------------------------------------------------------
 const FloorMapSection = memo(function FloorMapSection() {
+  const [metric, setMetric] = useState<FloorMapMetric>("itemsSold");
   const containerRef = useRef<HTMLDivElement | null>(null);
   const floorMap = useFloorMapFlow(containerRef);
   const activeFloorPlan = useFloorPlanStore(selectActiveFloorPlan);
@@ -104,6 +106,32 @@ const FloorMapSection = memo(function FloorMapSection() {
 
   return (
     <>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="m-0 text-xs font-semibold uppercase tracking-[0.08em] text-slate-500">
+          Floor map
+        </p>
+        <div className="flex gap-1">
+          {(
+            [
+              { key: "itemsSold", label: "Items sold" },
+              { key: "revenue", label: "Revenue" },
+            ] as const
+          ).map(({ key, label }) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setMetric(key)}
+              className={`rounded-full border px-2 py-1 text-xs font-semibold transition-colors ${
+                metric === key
+                  ? "border-sky-600 bg-sky-600 text-white"
+                  : "border-slate-200 text-slate-500"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
       <div ref={containerRef} className="pb-2" style={{ minHeight: "70svh" }}>
         <FloorMapCanvas
           zones={floorMap.zones}
@@ -113,10 +141,11 @@ const FloorMapSection = memo(function FloorMapSection() {
           selectedZone={selectedZone}
           onZoneTap={setSelectedZone}
           activeFloorPlan={activeFloorPlan}
+          metric={metric}
         />
       </div>
       <div className="pb-8">
-        <FloorMapLegend />
+        <FloorMapLegend metric={metric} />
       </div>
     </>
   );

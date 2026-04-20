@@ -2,10 +2,12 @@ import type { Request, Response } from "express";
 import { asyncHandler } from "../../../shared/http/async-handler.js";
 import { ValidationError } from "../../../shared/errors/http-errors.js";
 import {
+  BatchUpdateZonesSchema,
   CreateZoneSchema,
   ReorderZonesSchema,
   UpdateZoneSchema,
 } from "../contracts/zone.contract.js";
+import { batchUpdateZonesCommand } from "../commands/batch-update-zones.command.js";
 import { createZoneCommand } from "../commands/create-zone.command.js";
 import { deleteZoneCommand } from "../commands/delete-zone.command.js";
 import { reorderZonesCommand } from "../commands/reorder-zones.command.js";
@@ -62,6 +64,15 @@ export const deleteZoneController = asyncHandler(
     const zoneId = getRequiredIdParam(req.params.id);
     await deleteZoneCommand(zoneId, shopId);
     res.status(200).json({ ok: true });
+  },
+);
+
+export const batchUpdateZonesController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const shopId = req.authUser.shopId as string;
+    const body = BatchUpdateZonesSchema.parse(req.body);
+    const data = await batchUpdateZonesCommand(shopId, body);
+    res.status(200).json({ data });
   },
 );
 

@@ -1,10 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { KonvaEventObject } from "konva/lib/Node";
+import type { Group as KonvaGroup } from "konva/lib/Group";
 
 import type { EditorViewportTransform } from "./use-zone-editor.flow";
 
 const MIN_SCALE = 0.75;
 const MAX_SCALE = 4;
+const WORLD_GROUP_ID = "store-map-world-group";
+const STATIC_WORLD_GROUP_ID = "store-map-static-world-group";
 
 type TouchPoint = { x: number; y: number };
 type TouchGestureState =
@@ -54,7 +57,14 @@ export function useMapTouchControlsFlow(
   isEnabled: boolean,
   baseTransform: EditorViewportTransform | null,
 ) {
-  const [gestureTransform, setGestureTransform] = useState<EditorViewportTransform>({
+  const [committedGestureTransform, setCommittedGestureTransform] =
+    useState<EditorViewportTransform>({
+      scale: 1,
+      offsetX: 0,
+      offsetY: 0,
+    });
+  const [isGestureActive, setIsGestureActive] = useState(false);
+  const gestureTransformRef = useRef<EditorViewportTransform>({
     scale: 1,
     offsetX: 0,
     offsetY: 0,
@@ -79,11 +89,41 @@ export function useMapTouchControlsFlow(
 
   const resolvedTransform = useMemo<EditorViewportTransform>(
     () => ({
-      scale: resolvedBaseTransform.scale * gestureTransform.scale,
-      offsetX: resolvedBaseTransform.offsetX + gestureTransform.offsetX,
-      offsetY: resolvedBaseTransform.offsetY + gestureTransform.offsetY,
+      scale: resolvedBaseTransform.scale * committedGestureTransform.scale,
+      offsetX: resolvedBaseTransform.offsetX + committedGestureTransform.offsetX,
+      offsetY: resolvedBaseTransform.offsetY + committedGestureTransform.offsetY,
     }),
-    [gestureTransform, resolvedBaseTransform],
+    [committedGestureTransform, resolvedBaseTransform],
+  );
+
+  const applyLiveTransform = useCallback(
+    (
+      event: KonvaEventObject<TouchEvent>,
+      liveGestureTransform: EditorViewportTransform,
+    ) => {
+      const stage = event.target.getStage();
+      const worldGroups: KonvaGroup[] = stage
+        ? [
+            stage.findOne(`#${STATIC_WORLD_GROUP_ID}`),
+            stage.findOne(`#${WORLD_GROUP_ID}`),
+          ].filter((group): group is KonvaGroup => group !== undefined)
+        : [];
+
+      if (worldGroups.length === 0) {
+        return;
+      }
+
+      const nextScale = resolvedBaseTransform.scale * liveGestureTransform.scale;
+      for (const worldGroup of worldGroups) {
+        worldGroup.position({
+          x: resolvedBaseTransform.offsetX + liveGestureTransform.offsetX,
+          y: resolvedBaseTransform.offsetY + liveGestureTransform.offsetY,
+        });
+        worldGroup.scale({ x: nextScale, y: nextScale });
+        worldGroup.getLayer()?.batchDraw();
+      }
+    },
+    [resolvedBaseTransform],
   );
 
   const handleTouchStart = useCallback(
@@ -96,6 +136,7 @@ export function useMapTouchControlsFlow(
       const touchPoints = getTouchPoints(event);
       didGestureMoveRef.current = false;
       lastTouchWasTapRef.current = false;
+      setIsGestureActive(true);
 
       if (touchPoints.length >= 2) {
         const [first, second] = touchPoints;
@@ -176,11 +217,13 @@ export function useMapTouchControlsFlow(
         const nextTotalOffsetY =
           midpoint.y - gestureState.worldAnchor.y * nextTotalScale;
 
-        setGestureTransform({
+        const nextGestureTransform = {
           scale: nextTotalScale / resolvedBaseTransform.scale,
           offsetX: nextTotalOffsetX - resolvedBaseTransform.offsetX,
           offsetY: nextTotalOffsetY - resolvedBaseTransform.offsetY,
-        });
+        };
+        gestureTransformRef.current = nextGestureTransform;
+        applyLiveTransform(event, nextGestureTransform);
         return;
       }
 
@@ -192,11 +235,13 @@ export function useMapTouchControlsFlow(
           didGestureMoveRef.current = true;
         }
 
-        setGestureTransform((current) => ({
-          ...current,
-          offsetX: current.offsetX + deltaX,
-          offsetY: current.offsetY + deltaY,
-        }));
+        const nextGestureTransform = {
+          ...gestureTransformRef.current,
+          offsetX: gestureTransformRef.current.offsetX + deltaX,
+          offsetY: gestureTransformRef.current.offsetY + deltaY,
+        };
+        gestureTransformRef.current = nextGestureTransform;
+        applyLiveTransform(event, nextGestureTransform);
 
         gestureStateRef.current = {
           type: "pan",
@@ -245,15 +290,20 @@ export function useMapTouchControlsFlow(
       lastTouchWasTapRef.current = !didGestureMoveRef.current;
       didGestureMoveRef.current = false;
       gestureStateRef.current = null;
+      setCommittedGestureTransform({ ...gestureTransformRef.current });
+      setIsGestureActive(false);
     },
     [isEnabled, resolvedTransform],
   );
 
   const resetTouchTransform = useCallback(() => {
-    setGestureTransform({ scale: 1, offsetX: 0, offsetY: 0 });
+    const resetTransform = { scale: 1, offsetX: 0, offsetY: 0 };
+    setCommittedGestureTransform(resetTransform);
+    gestureTransformRef.current = resetTransform;
     gestureStateRef.current = null;
     didGestureMoveRef.current = false;
     lastTouchWasTapRef.current = false;
+    setIsGestureActive(false);
   }, []);
 
   const consumeLastTouchTapIntent = useCallback(() => {
@@ -264,6 +314,7 @@ export function useMapTouchControlsFlow(
 
   return {
     viewportTransform: resolvedTransform,
+    isGestureActive,
     handleTouchStart,
     handleTouchMove,
     handleTouchEnd,

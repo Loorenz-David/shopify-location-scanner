@@ -2,6 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../shared/database/prisma-client.js";
 import { NotFoundError } from "../../../shared/errors/http-errors.js";
 import type {
+  BatchUpdateZonesInput,
   CreateZoneInput,
   UpdateZoneInput,
 } from "../contracts/zone.contract.js";
@@ -103,6 +104,36 @@ export const zoneRepository = {
     if (deleted.count === 0) {
       throw new NotFoundError("Zone not found");
     }
+  },
+
+  async batchUpdate(
+    shopId: string,
+    updates: BatchUpdateZonesInput,
+  ): Promise<StoreZone[]> {
+    const ids = updates.map((u) => u.id);
+
+    const existing = await prisma.storeZone.findMany({
+      where: { id: { in: ids }, shopId },
+      select: { id: true },
+    });
+
+    if (existing.length !== ids.length) {
+      throw new NotFoundError("One or more zones not found");
+    }
+
+    const results = await prisma.$transaction(
+      updates.map(({ id, patch }) => {
+        const updateData = Object.fromEntries(
+          Object.entries(patch).filter(([, value]) => value !== undefined),
+        );
+        return prisma.storeZone.update({
+          where: { id },
+          data: updateData,
+        });
+      }),
+    );
+
+    return results.map(toDomain);
   },
 
   async reorder(

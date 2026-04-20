@@ -29,3 +29,17 @@ export function formatKrCompact(value: number): string {
     return `${(value / 1_000).toFixed(1).replace(".", ",")}k kr`;
   return `${Math.round(value)} kr`;
 }
+
+/**
+ * Compact version without currency suffix for tight UI surfaces where the
+ * currency context is already clear.
+ *   formatKrCompactValue(1200)   → "1,2k"
+ *   formatKrCompactValue(1200000) → "1,2M"
+ */
+export function formatKrCompactValue(value: number): string {
+  if (value >= 1_000_000)
+    return `${(value / 1_000_000).toFixed(1).replace(".", ",")}M`;
+  if (value >= 1_000)
+    return `${(value / 1_000).toFixed(1).replace(".", ",")}k`;
+  return `${Math.round(value)}`;
+}

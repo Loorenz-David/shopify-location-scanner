@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
+import type { Group as KonvaGroupNode } from "konva/lib/Group";
 import { Group, Layer, Rect, Stage, Text } from "react-konva";
 
 import {
@@ -7,13 +8,15 @@ import {
   pct,
   buildFloorMapViewportTransform,
 } from "../../domain/floor-map.domain";
+import { formatKrCompactValue } from "../../domain/format-currency.domain";
 import { cmVerticesToWorldPx } from "../../utils/grid-utils";
+import { useGesturePerformanceDebug } from "../../hooks/use-gesture-performance-debug";
 import type {
   FloorPlan,
   StoreZone,
   ZoneOverviewItem,
 } from "../../types/analytics.types";
-import { getZoneHeatColor } from "./FloorMapHeatOverlay";
+import { getZoneHeatColor, type FloorMapMetric } from "./FloorMapHeatOverlay";
 
 interface FloorMapCanvasProps {
   zones: StoreZone[];
@@ -23,6 +26,7 @@ interface FloorMapCanvasProps {
   selectedZone: string | null;
   onZoneTap: (location: string) => void;
   activeFloorPlan: FloorPlan | null;
+  metric?: FloorMapMetric;
 }
 
 const JOYSTICK_RADIUS_PX = 34;
@@ -32,6 +36,9 @@ const JOYSTICK_INPUT_RADIUS_PX = 110;
 const JOYSTICK_PAN_PX_PER_MS = 0.0015;
 const MIN_VIEWER_ZOOM = 0.75;
 const MAX_VIEWER_ZOOM = 3;
+const GESTURE_VISUAL_IDLE_MS = 120;
+
+type MapLabelRenderMode = "full" | "gesture-lite";
 
 function clampVectorToRadius(x: number, y: number, radiusPx: number) {
   const magnitude = Math.hypot(x, y);
@@ -58,14 +65,26 @@ export function FloorMapCanvas({
   selectedZone,
   onZoneTap,
   activeFloorPlan,
+  metric = "itemsSold",
 }: FloorMapCanvasProps) {
   const [zoom, setZoom] = useState(1);
   const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [joystickVector, setJoystickVector] = useState({ x: 0, y: 0 });
   const [isJoystickActive, setIsJoystickActive] = useState(false);
+  const [labelRenderMode, setLabelRenderMode] =
+    useState<MapLabelRenderMode>("full");
+  const worldGroupRef = useRef<KonvaGroupNode | null>(null);
   const joystickCenterRef = useRef<{ x: number; y: number } | null>(null);
   const activeJoystickPointerIdRef = useRef<number | null>(null);
   const joystickVectorRef = useRef({ x: 0, y: 0 });
+  const panOffsetRef = useRef({ x: 0, y: 0 });
+  const zoomRef = useRef(1);
+  const baseViewportTransformRef = useRef({
+    scale: 1,
+    offsetX: 0,
+    offsetY: 0,
+  });
+  const gestureVisualTimeoutRef = useRef<number | null>(null);
 
   const boundaryWorldVertices = useMemo(() => {
     if (!activeFloorPlan) {
@@ -106,20 +125,102 @@ export function FloorMapCanvas({
     [boundaryWorldVertices, stageHeight, stageWidth, zones],
   );
 
+  const zoneOverviewByLocation = useMemo(
+    () =>
+      new Map(zonesOverview.map((overview) => [overview.location, overview])),
+    [zonesOverview],
+  );
+
+  const zoneDrawModels = useMemo(
+    () =>
+      zones.map((zone) => ({
+        zone,
+        x: pct(zone.xPct, stageWidth),
+        y: pct(zone.yPct, stageHeight),
+        width: pct(zone.widthPct, stageWidth),
+        height: pct(zone.heightPct, stageHeight),
+        zoneOverview: zoneOverviewByLocation.get(zone.label) ?? null,
+        heatColor: getZoneHeatColor(zone.label, zonesOverview, metric),
+        isSelected: selectedZone === zone.label,
+      })),
+    [metric, selectedZone, stageHeight, stageWidth, zoneOverviewByLocation, zones, zonesOverview],
+  );
+
+  useGesturePerformanceDebug("analytics-map-preview", isJoystickActive);
+
+  const applyWorldTransform = useCallback(
+    (nextPanOffset = panOffsetRef.current) => {
+      const group = worldGroupRef.current;
+      if (!group) {
+        return;
+      }
+
+      const nextScale = baseViewportTransformRef.current.scale * zoomRef.current;
+      group.position({
+        x: baseViewportTransformRef.current.offsetX + nextPanOffset.x,
+        y: baseViewportTransformRef.current.offsetY + nextPanOffset.y,
+      });
+      group.scale({ x: nextScale, y: nextScale });
+      group.getLayer()?.batchDraw();
+    },
+    [],
+  );
+
+  const clearGestureVisualReleaseTimer = useCallback(() => {
+    if (gestureVisualTimeoutRef.current !== null) {
+      window.clearTimeout(gestureVisualTimeoutRef.current);
+      gestureVisualTimeoutRef.current = null;
+    }
+  }, []);
+
+  const beginGestureVisualReduction = useCallback(() => {
+    clearGestureVisualReleaseTimer();
+    setLabelRenderMode("gesture-lite");
+  }, [clearGestureVisualReleaseTimer]);
+
+  const releaseGestureVisualReduction = useCallback(() => {
+    clearGestureVisualReleaseTimer();
+    gestureVisualTimeoutRef.current = window.setTimeout(() => {
+      setLabelRenderMode("full");
+      gestureVisualTimeoutRef.current = null;
+    }, GESTURE_VISUAL_IDLE_MS);
+  }, [clearGestureVisualReleaseTimer]);
+
   useEffect(() => {
     setZoom(1);
     setPanOffset({ x: 0, y: 0 });
+    panOffsetRef.current = { x: 0, y: 0 };
+    zoomRef.current = 1;
     setJoystickVector({ x: 0, y: 0 });
     setIsJoystickActive(false);
+    setLabelRenderMode("full");
     joystickVectorRef.current = { x: 0, y: 0 };
     joystickCenterRef.current = null;
     activeJoystickPointerIdRef.current = null;
-  }, [activeFloorPlan?.id, stageHeight, stageWidth]);
+    clearGestureVisualReleaseTimer();
+  }, [activeFloorPlan?.id, clearGestureVisualReleaseTimer, stageHeight, stageWidth]);
+
+  useEffect(() => {
+    baseViewportTransformRef.current = baseViewportTransform;
+    applyWorldTransform();
+  }, [applyWorldTransform, baseViewportTransform]);
+
+  useEffect(() => {
+    zoomRef.current = zoom;
+    applyWorldTransform();
+  }, [applyWorldTransform, zoom]);
+
+  useEffect(() => {
+    panOffsetRef.current = panOffset;
+    applyWorldTransform();
+  }, [applyWorldTransform, panOffset]);
 
   useEffect(() => {
     if (!isJoystickActive) {
       return;
     }
+
+    beginGestureVisualReduction();
 
     let frameId = 0;
     let lastTimestamp = 0;
@@ -138,10 +239,15 @@ export function FloorMapCanvas({
       const currentVector = joystickVectorRef.current;
 
       if (currentVector.x !== 0 || currentVector.y !== 0) {
-        setPanOffset((current) => ({
-          x: current.x - currentVector.x * JOYSTICK_MOVE_SPEED * deltaMs * JOYSTICK_PAN_PX_PER_MS,
-          y: current.y - currentVector.y * JOYSTICK_MOVE_SPEED * deltaMs * JOYSTICK_PAN_PX_PER_MS,
-        }));
+        panOffsetRef.current = {
+          x:
+            panOffsetRef.current.x -
+            currentVector.x * JOYSTICK_MOVE_SPEED * deltaMs * JOYSTICK_PAN_PX_PER_MS,
+          y:
+            panOffsetRef.current.y -
+            currentVector.y * JOYSTICK_MOVE_SPEED * deltaMs * JOYSTICK_PAN_PX_PER_MS,
+        };
+        applyWorldTransform(panOffsetRef.current);
       }
 
       frameId = window.requestAnimationFrame(tick);
@@ -151,8 +257,16 @@ export function FloorMapCanvas({
 
     return () => {
       window.cancelAnimationFrame(frameId);
+      releaseGestureVisualReduction();
     };
-  }, [isJoystickActive]);
+  }, [applyWorldTransform, beginGestureVisualReduction, isJoystickActive, releaseGestureVisualReduction]);
+
+  useEffect(
+    () => () => {
+      clearGestureVisualReleaseTimer();
+    },
+    [clearGestureVisualReleaseTimer],
+  );
 
   if (zones.length === 0) {
     return (
@@ -175,16 +289,26 @@ export function FloorMapCanvas({
     );
   }
 
-  const resolvedTransform = {
-    scale: baseViewportTransform.scale * zoom,
-    offsetX: baseViewportTransform.offsetX + panOffset.x,
-    offsetY: baseViewportTransform.offsetY + panOffset.y,
-  };
   const joystickKnobOffset = clampVectorToRadius(
     joystickVector.x,
     joystickVector.y,
     JOYSTICK_RADIUS_PX,
   );
+
+  const formatZoneMetricValue = (
+    zoneOverview: ZoneOverviewItem | null,
+    options?: { compact?: boolean },
+  ) => {
+    if (!zoneOverview) {
+      return null;
+    }
+
+    return metric === "revenue"
+      ? formatKrCompactValue(zoneOverview.revenue)
+      : options?.compact
+        ? String(zoneOverview.itemsSold)
+        : `${zoneOverview.itemsSold} sold`;
+  };
 
   return (
     <div className="relative">
@@ -198,10 +322,11 @@ export function FloorMapCanvas({
       >
         <Layer>
           <Group
-            x={resolvedTransform.offsetX}
-            y={resolvedTransform.offsetY}
-            scaleX={resolvedTransform.scale}
-            scaleY={resolvedTransform.scale}
+            ref={worldGroupRef}
+            x={baseViewportTransform.offsetX + panOffset.x}
+            y={baseViewportTransform.offsetY + panOffset.y}
+            scaleX={baseViewportTransform.scale * zoom}
+            scaleY={baseViewportTransform.scale * zoom}
           >
             {boundaryWorldVertices.length > 0 ? (
               <Rect
@@ -217,17 +342,51 @@ export function FloorMapCanvas({
                 opacity={0.35}
                 dash={[8, 6]}
                 fill="transparent"
-                strokeWidth={2 / resolvedTransform.scale}
+                strokeWidth={2 / (baseViewportTransform.scale * zoom)}
                 listening={false}
+                perfectDrawEnabled={false}
+                shadowForStrokeEnabled={false}
               />
             ) : null}
-            {zones.map((zone) => {
-              const x = pct(zone.xPct, stageWidth);
-              const y = pct(zone.yPct, stageHeight);
-              const width = pct(zone.widthPct, stageWidth);
-              const height = pct(zone.heightPct, stageHeight);
+            {zoneDrawModels.map(
+              ({
+                zone,
+                x,
+                y,
+                width,
+                height,
+                zoneOverview,
+                heatColor,
+                isSelected,
+              }) => {
+                const canShowSecondaryLabel = width >= 56 && height >= 34;
+                const shouldUseCompactSoldLabel =
+                  metric === "itemsSold" && (width < 72 || height < 40);
+                const fullSecondaryValue = formatZoneMetricValue(zoneOverview);
+                const compactSecondaryValue = formatZoneMetricValue(
+                  zoneOverview,
+                  {
+                    compact: shouldUseCompactSoldLabel,
+                  },
+                );
+                const canShowCompactUprightLabel =
+                  metric === "itemsSold" &&
+                  shouldUseCompactSoldLabel &&
+                  !!compactSecondaryValue &&
+                  !canShowSecondaryLabel &&
+                  width >= 22 &&
+                  height >= 44;
+                const canShowVerticalSecondaryLabel =
+                  !!fullSecondaryValue &&
+                  !canShowSecondaryLabel &&
+                  !canShowCompactUprightLabel &&
+                  width >= 18 &&
+                  height >= 72;
+                const secondaryValue = canShowVerticalSecondaryLabel
+                  ? fullSecondaryValue
+                  : compactSecondaryValue;
 
-              if (zone.type === "corridor") {
+                if (zone.type === "corridor") {
                 return (
                   <Group key={zone.id}>
                     <Rect
@@ -240,23 +399,24 @@ export function FloorMapCanvas({
                       stroke="#475569"
                       strokeWidth={1}
                       cornerRadius={4}
+                      perfectDrawEnabled={false}
+                      shadowForStrokeEnabled={false}
                     />
-                    <Text
-                      x={x + 6}
-                      y={y + 6}
-                      text={zone.label}
-                      fontSize={9}
-                      fill="#94a3b8"
-                    />
+                    {labelRenderMode === "full" ? (
+                      <Text
+                        x={x + 6}
+                        y={y + 6}
+                        text={zone.label}
+                        fontSize={9}
+                        fill="#94a3b8"
+                        listening={false}
+                        perfectDrawEnabled={false}
+                        shadowEnabled={false}
+                      />
+                    ) : null}
                   </Group>
                 );
               }
-
-              const heatColor = getZoneHeatColor(zone.label, zonesOverview);
-              const isSelected = selectedZone === zone.label;
-              const zoneOverview = zonesOverview.find(
-                (overview) => overview.location === zone.label,
-              );
 
               return (
                 <Group
@@ -274,6 +434,8 @@ export function FloorMapCanvas({
                     stroke={isSelected ? "#ffffff" : "#475569"}
                     strokeWidth={isSelected ? 2 : 1}
                     cornerRadius={6}
+                    perfectDrawEnabled={false}
+                    shadowForStrokeEnabled={false}
                   />
                   <Text
                     x={x + 6}
@@ -283,24 +445,67 @@ export function FloorMapCanvas({
                     fontStyle="bold"
                     fill="#ffffff"
                     shadowColor="#0f172a"
-                    shadowBlur={4}
-                    shadowOpacity={0.6}
+                    shadowBlur={labelRenderMode === "full" ? 4 : 0}
+                    shadowOpacity={labelRenderMode === "full" ? 0.6 : 0}
+                    listening={false}
+                    perfectDrawEnabled={false}
+                    shadowEnabled={labelRenderMode === "full"}
                   />
-                  {zoneOverview ? (
+                  {secondaryValue &&
+                  canShowSecondaryLabel &&
+                  labelRenderMode === "full" ? (
                     <Text
                       x={x + 6}
                       y={y + 22}
-                      text={`${zoneOverview.itemsSold} sold`}
+                      text={secondaryValue}
                       fontSize={10}
                       fill="#ffffff"
                       shadowColor="#0f172a"
                       shadowBlur={3}
                       shadowOpacity={0.5}
+                      listening={false}
+                      perfectDrawEnabled={false}
+                      shadowEnabled
+                    />
+                  ) : null}
+                  {secondaryValue &&
+                  canShowCompactUprightLabel &&
+                  labelRenderMode === "full" ? (
+                    <Text
+                      x={x + 6}
+                      y={y + 22}
+                      text={secondaryValue}
+                      fontSize={10}
+                      fill="#ffffff"
+                      shadowColor="#0f172a"
+                      shadowBlur={3}
+                      shadowOpacity={0.5}
+                      listening={false}
+                      perfectDrawEnabled={false}
+                      shadowEnabled
+                    />
+                  ) : null}
+                  {canShowVerticalSecondaryLabel &&
+                  labelRenderMode === "full" ? (
+                    <Text
+                      x={x + width / 2 + 5}
+                      y={y + 24}
+                      text={secondaryValue ?? undefined}
+                      fontSize={10}
+                      fill="#ffffff"
+                      rotation={90}
+                      shadowColor="#0f172a"
+                      shadowBlur={3}
+                      shadowOpacity={0.5}
+                      listening={false}
+                      perfectDrawEnabled={false}
+                      shadowEnabled
                     />
                   ) : null}
                 </Group>
               );
-            })}
+            },
+            )}
           </Group>
         </Layer>
       </Stage>
@@ -375,6 +580,7 @@ export function FloorMapCanvas({
             joystickCenterRef.current = null;
             joystickVectorRef.current = { x: 0, y: 0 };
             setJoystickVector({ x: 0, y: 0 });
+            setPanOffset({ ...panOffsetRef.current });
           }}
           onPointerCancel={(event) => {
             if (activeJoystickPointerIdRef.current !== event.pointerId) {
@@ -388,6 +594,7 @@ export function FloorMapCanvas({
             joystickCenterRef.current = null;
             joystickVectorRef.current = { x: 0, y: 0 };
             setJoystickVector({ x: 0, y: 0 });
+            setPanOffset({ ...panOffsetRef.current });
           }}
           onLostPointerCapture={(event: ReactPointerEvent<HTMLButtonElement>) => {
             if (activeJoystickPointerIdRef.current !== event.pointerId) {
@@ -399,6 +606,7 @@ export function FloorMapCanvas({
             joystickCenterRef.current = null;
             joystickVectorRef.current = { x: 0, y: 0 };
             setJoystickVector({ x: 0, y: 0 });
+            setPanOffset({ ...panOffsetRef.current });
           }}
           aria-label="Pan floor map"
         >

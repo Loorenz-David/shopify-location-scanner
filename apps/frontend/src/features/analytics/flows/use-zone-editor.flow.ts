@@ -1,15 +1,21 @@
 import { useCallback, useRef } from "react";
 import type { KonvaEventObject } from "konva/lib/Node";
 
+import { batchUpdateZonesApi } from "../apis/batch-update-zones.api";
 import { createZoneApi } from "../apis/create-zone.api";
 import { deleteZoneApi } from "../apis/delete-zone.api";
 import { reorderZonesApi } from "../apis/reorder-zones.api";
 import { updateZoneApi } from "../apis/update-zone.api";
-import type { StoreMapEditorViewportTransform } from "../domain/store-map-editor.domain";
+import {
+  clampZoneShapeToBounds,
+  hasZoneOverlap,
+  type StoreMapEditorViewportTransform,
+} from "../domain/store-map-editor.domain";
 import { useFloorPlanStore } from "../stores/floor-plan.store";
 import { useFloorMapStore } from "../stores/floor-map.store";
 import type {
   CreateStoreZoneInput,
+  BatchUpdateStoreZonesInput,
   StoreZone,
   StoreZoneType,
 } from "../types/analytics.types";
@@ -153,9 +159,14 @@ export function useZoneEditorFlow(viewportTransform?: EditorViewportTransform | 
       depthCm: null,
     };
 
+    if (hasZoneOverlap(payload, zones)) {
+      window.alert("Zone blocks cannot overlap.");
+      return;
+    }
+
     const createdZone = await createZoneApi(payload);
     upsertZone(createdZone);
-  }, [setDraftZonePx, stageHeight, stageWidth, upsertZone, zones.length]);
+  }, [setDraftZonePx, stageHeight, stageWidth, upsertZone, zones]);
 
   const renameZone = useCallback(async (zone: StoreZone) => {
     const nextLabel = window.prompt("Rename zone", zone.label)?.trim();
@@ -183,13 +194,26 @@ export function useZoneEditorFlow(viewportTransform?: EditorViewportTransform | 
       shape: Pick<StoreZone, "xPct" | "yPct" | "widthPct" | "heightPct">,
     ) => {
       const activeFloorPlan = getActiveFloorPlan();
-      const patch = {
+      const boundedShape = clampZoneShapeToBounds({
+        ...zone,
         ...shape,
+      });
+
+      if (hasZoneOverlap(boundedShape, zones, zone.id)) {
+        window.alert("Zone blocks cannot overlap.");
+        return;
+      }
+
+      const patch = {
+        xPct: boundedShape.xPct,
+        yPct: boundedShape.yPct,
+        widthPct: boundedShape.widthPct,
+        heightPct: boundedShape.heightPct,
         widthCm: activeFloorPlan
-          ? Math.round((shape.widthPct / 100) * activeFloorPlan.widthCm)
+          ? Math.round((boundedShape.widthPct / 100) * activeFloorPlan.widthCm)
           : zone.widthCm,
         depthCm: activeFloorPlan
-          ? Math.round((shape.heightPct / 100) * activeFloorPlan.depthCm)
+          ? Math.round((boundedShape.heightPct / 100) * activeFloorPlan.depthCm)
           : zone.depthCm,
       };
 
@@ -199,23 +223,89 @@ export function useZoneEditorFlow(viewportTransform?: EditorViewportTransform | 
     [upsertZone],
   );
 
+  const saveZoneShapesBatch = useCallback(
+    async (
+      items: Array<{
+        zone: StoreZone;
+        shape: Pick<StoreZone, "xPct" | "yPct" | "widthPct" | "heightPct">;
+      }>,
+    ) => {
+      if (items.length === 0) {
+        return;
+      }
+
+      const activeFloorPlan = getActiveFloorPlan();
+      const payload: BatchUpdateStoreZonesInput = items.map(({ zone, shape }) => {
+        const boundedShape = clampZoneShapeToBounds({
+          ...zone,
+          ...shape,
+        });
+
+        return {
+          id: zone.id,
+          patch: {
+            xPct: boundedShape.xPct,
+            yPct: boundedShape.yPct,
+            widthPct: boundedShape.widthPct,
+            heightPct: boundedShape.heightPct,
+            widthCm: activeFloorPlan
+              ? Math.round((boundedShape.widthPct / 100) * activeFloorPlan.widthCm)
+              : zone.widthCm,
+            depthCm: activeFloorPlan
+              ? Math.round((boundedShape.heightPct / 100) * activeFloorPlan.depthCm)
+              : zone.depthCm,
+          },
+        };
+      });
+
+      await batchUpdateZonesApi(payload);
+
+      for (const { id, patch } of payload) {
+        const zone = items.find((item) => item.zone.id === id)?.zone;
+        if (!zone) {
+          continue;
+        }
+
+        upsertZone({
+          ...zone,
+          ...patch,
+        });
+      }
+    },
+    [upsertZone],
+  );
+
   const createZone = useCallback(async (input: CreateStoreZoneInput) => {
     const activeFloorPlan = getActiveFloorPlan();
+    const boundedInput = clampZoneShapeToBounds({
+      id: "__new-zone__",
+      ...input,
+    });
+
+    if (hasZoneOverlap(boundedInput, zones)) {
+      window.alert("Zone blocks cannot overlap.");
+      return null;
+    }
+
     const payload: CreateStoreZoneInput = {
       ...input,
+      xPct: boundedInput.xPct,
+      yPct: boundedInput.yPct,
+      widthPct: boundedInput.widthPct,
+      heightPct: boundedInput.heightPct,
       floorPlanId: activeFloorPlan?.id ?? input.floorPlanId ?? null,
       widthCm: activeFloorPlan
-        ? Math.round((input.widthPct / 100) * activeFloorPlan.widthCm)
+        ? Math.round((boundedInput.widthPct / 100) * activeFloorPlan.widthCm)
         : input.widthCm,
       depthCm: activeFloorPlan
-        ? Math.round((input.heightPct / 100) * activeFloorPlan.depthCm)
+        ? Math.round((boundedInput.heightPct / 100) * activeFloorPlan.depthCm)
         : input.depthCm,
     };
 
     const createdZone = await createZoneApi(payload);
     upsertZone(createdZone);
     return createdZone;
-  }, [upsertZone]);
+  }, [upsertZone, zones]);
 
   const moveZone = useCallback(
     async (zone: StoreZone, xPx: number, yPx: number) => {
@@ -292,6 +382,7 @@ export function useZoneEditorFlow(viewportTransform?: EditorViewportTransform | 
     renameZone,
     saveZoneLabel,
     saveZoneShape,
+    saveZoneShapesBatch,
     createZone,
     moveZone,
     removeZoneById,

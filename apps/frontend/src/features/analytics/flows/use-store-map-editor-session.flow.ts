@@ -6,6 +6,7 @@ import {
   buildCenteredDraftZone,
   buildDefaultFloorBoundaryVertices,
   buildEditorViewportTransform,
+  findNonOverlappingDraftZone,
   hasShapeDraftChanges,
   hasUnsavedEditorChanges,
   type StoreMapEditorViewportTransform,
@@ -65,6 +66,9 @@ export function useStoreMapEditorSessionFlow({
   >(null);
   const [labelDraft, setLabelDraft] = useState("");
   const [shapeDraft, setShapeDraft] = useState<StoreZone | null>(null);
+  const [stagedZoneEdits, setStagedZoneEdits] = useState<
+    Record<string, StoreZone>
+  >({});
   const [isShapeHandleActive, setIsShapeHandleActive] = useState(false);
   const [isCreateMenuOpen, setIsCreateMenuOpen] = useState(false);
   const [isCreateFloorPlanOpen, setIsCreateFloorPlanOpen] = useState(false);
@@ -131,6 +135,7 @@ export function useStoreMapEditorSessionFlow({
     setActiveZoneEditorMode(null);
     setLabelDraft("");
     setShapeDraft(null);
+    setStagedZoneEdits({});
     setIsShapeHandleActive(false);
     setIsCreateMenuOpen(false);
     setEditorBaseTransform(null);
@@ -170,13 +175,21 @@ export function useStoreMapEditorSessionFlow({
     zones,
   ]);
 
+  const resolvedSelectedZone = useMemo(
+    () =>
+      selectedZone
+        ? (stagedZoneEdits[selectedZone.id] ?? selectedZone)
+        : null,
+    [selectedZone, stagedZoneEdits],
+  );
+
   useEffect(() => {
-    setLabelDraft(selectedZone?.label ?? "");
+    setLabelDraft(resolvedSelectedZone?.label ?? "");
     setActiveZoneEditorMode((current) =>
-      selectedZone ? (current ?? "menu") : null,
+      resolvedSelectedZone ? (current ?? "menu") : null,
     );
-    setShapeDraft(selectedZone ? { ...selectedZone } : null);
-  }, [selectedZone]);
+    setShapeDraft(resolvedSelectedZone ? { ...resolvedSelectedZone } : null);
+  }, [resolvedSelectedZone]);
 
   useEffect(() => {
     if (selectedZone || activeZoneEditorMode) {
@@ -193,9 +206,18 @@ export function useStoreMapEditorSessionFlow({
   }, [resetSessionState, selectedFloorPlanId]);
 
   const isDraftZone = selectedZone?.id === "__draft-zone__";
+  const editorZonesBase = useMemo(
+    () => zones.map((zone) => stagedZoneEdits[zone.id] ?? zone),
+    [stagedZoneEdits, zones],
+  );
   const editorZones =
-    isDraftZone && selectedZone ? [...zones, selectedZone] : zones;
-  const hasPendingShapeChanges = hasShapeDraftChanges(selectedZone, shapeDraft);
+    isDraftZone && resolvedSelectedZone
+      ? [...editorZonesBase, resolvedSelectedZone]
+      : editorZonesBase;
+  const hasPendingShapeChanges = hasShapeDraftChanges(
+    resolvedSelectedZone,
+    shapeDraft,
+  );
   const hasUnsavedChanges = hasUnsavedEditorChanges({
     hasPendingShapeChanges,
     hasPendingBoundaryChanges,
@@ -252,23 +274,26 @@ export function useStoreMapEditorSessionFlow({
 
   const beginCreateZone = useCallback(
     (viewportTransform: StoreMapEditorViewportTransform | null) => {
-    const nextDraft = buildCenteredDraftZone({
-      stageWidth,
-      stageHeight,
-      scale: viewportTransform?.scale ?? 1,
-      offsetX: viewportTransform?.offsetX ?? 0,
-      offsetY: viewportTransform?.offsetY ?? 0,
-      zonesLength: zones.length,
-      floorPlanId: activeFloorPlan?.id ?? null,
-    });
+      const nextDraft = findNonOverlappingDraftZone(
+        buildCenteredDraftZone({
+          stageWidth,
+          stageHeight,
+          scale: viewportTransform?.scale ?? 1,
+          offsetX: viewportTransform?.offsetX ?? 0,
+          offsetY: viewportTransform?.offsetY ?? 0,
+          zonesLength: zones.length,
+          floorPlanId: activeFloorPlan?.id ?? null,
+        }),
+        zones,
+      );
 
-    setIsCreateMenuOpen(false);
-    setSelectedZone(nextDraft);
-    setLabelDraft("");
-    setShapeDraft(nextDraft);
-    setActiveZoneEditorMode("rename");
+      setIsCreateMenuOpen(false);
+      setSelectedZone(nextDraft);
+      setLabelDraft("");
+      setShapeDraft(nextDraft);
+      setActiveZoneEditorMode("rename");
     },
-    [activeFloorPlan?.id, stageHeight, stageWidth, zones.length],
+    [activeFloorPlan?.id, stageHeight, stageWidth, zones],
   );
 
   useEffect(() => () => setEditorMode(false), [setEditorMode]);
@@ -305,7 +330,7 @@ export function useStoreMapEditorSessionFlow({
   ]);
 
   const handleRenameCancel = useCallback(() => {
-    setLabelDraft(selectedZone?.label ?? "");
+    setLabelDraft(resolvedSelectedZone?.label ?? "");
     if (isDraftZone) {
       setShapeDraft(null);
       setActiveZoneEditorMode(null);
@@ -314,7 +339,23 @@ export function useStoreMapEditorSessionFlow({
     }
 
     setActiveZoneEditorMode("menu");
-  }, [isDraftZone, selectedZone?.label]);
+  }, [isDraftZone, resolvedSelectedZone?.label]);
+
+  const clearStagedZoneEdit = useCallback((zoneId: string | null | undefined) => {
+    if (!zoneId) {
+      return;
+    }
+
+    setStagedZoneEdits((current) => {
+      if (!(zoneId in current)) {
+        return current;
+      }
+
+      const next = { ...current };
+      delete next[zoneId];
+      return next;
+    });
+  }, []);
 
   const handleShapeCancel = useCallback(() => {
     if (
@@ -326,21 +367,50 @@ export function useStoreMapEditorSessionFlow({
 
     resetShapeEditHistory();
     if (isDraftZone) {
-      setShapeDraft(selectedZone);
-      setLabelDraft(selectedZone?.label ?? "");
+      setShapeDraft(resolvedSelectedZone);
+      setLabelDraft(resolvedSelectedZone?.label ?? "");
       setActiveZoneEditorMode("rename");
       return true;
     }
 
+    clearStagedZoneEdit(selectedZone?.id);
     setShapeDraft(selectedZone);
     setActiveZoneEditorMode("menu");
     return true;
   }, [
+    clearStagedZoneEdit,
     hasPendingShapeChanges,
     isDraftZone,
     resetShapeEditHistory,
+    resolvedSelectedZone,
     selectedZone,
   ]);
+
+  const handleSelectZone = useCallback(
+    (nextZone: StoreZone) => {
+      if (
+        activeZoneEditorMode === "shape" &&
+        selectedZone &&
+        shapeDraft &&
+        hasPendingShapeChanges &&
+        !isDraftZone
+      ) {
+        setStagedZoneEdits((current) => ({
+          ...current,
+          [selectedZone.id]: shapeDraft,
+        }));
+      }
+
+      setSelectedZone(nextZone);
+    },
+    [
+      activeZoneEditorMode,
+      hasPendingShapeChanges,
+      isDraftZone,
+      selectedZone,
+      shapeDraft,
+    ],
+  );
 
   const handleBoundaryCancel = useCallback(() => {
     if (
@@ -357,7 +427,10 @@ export function useStoreMapEditorSessionFlow({
 
   return {
     selectedZone,
+    resolvedSelectedZone,
+    stagedZoneEdits,
     setSelectedZone,
+    handleSelectZone,
     activeZoneEditorMode,
     setActiveZoneEditorMode,
     labelDraft,
@@ -383,6 +456,7 @@ export function useStoreMapEditorSessionFlow({
     hasUnsavedChanges,
     isDraftZone,
     editorZones,
+    clearStagedZoneEdit,
     handleExitEditor,
     handleNavigateBack,
     beginCreateZone,
