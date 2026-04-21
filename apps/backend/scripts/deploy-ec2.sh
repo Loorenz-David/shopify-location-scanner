@@ -134,6 +134,31 @@ pm2_app_status() {
   '
 }
 
+wait_for_no_online_backend_apps() {
+  local expected_json
+  local attempt
+  expected_json="$(printf '%s\n' "${BACKEND_APPS[@]}" "${LEGACY_BACKEND_APPS[@]}" | node -e 'const fs = require("fs"); const items = fs.readFileSync(0, "utf8").trim().split(/\n+/).filter(Boolean); process.stdout.write(JSON.stringify(items));')"
+
+  for attempt in $(seq 1 20); do
+    if TARGET_APPS="${expected_json}" pm2 jlist | node -e '
+      const fs = require("fs");
+      const targetApps = new Set(JSON.parse(process.env.TARGET_APPS || "[]"));
+      const apps = JSON.parse(fs.readFileSync(0, "utf8"));
+      const online = apps.filter((app) => targetApps.has(app.name) && app?.pm2_env?.status === "online");
+      if (online.length > 0) {
+        console.error(online.map((app) => `${app.name}:${app.pm2_env.status}`).join(", "));
+        process.exit(1);
+      }
+    '; then
+      return
+    fi
+
+    sleep 1
+  done
+
+  fail "Backend PM2 apps are still online after stop attempts"
+}
+
 wait_for_pm2_status() {
   local app="$1"
   local expected="$2"
@@ -157,30 +182,17 @@ wait_for_pm2_status() {
 }
 
 stop_pm2_app_if_present() {
-  local app
-  app="$1"
-  local status
-  status="$(pm2_app_status "${app}")"
-  if [[ "${status}" == "missing" ]]; then
-    return
-  fi
+  local app="$1"
 
   log "Stopping PM2 app ${app}"
   pm2 stop "${app}" || true
-  wait_for_pm2_status "${app}" "stopped"
 }
 
 delete_pm2_app_if_present() {
   local app="$1"
-  local status
-  status="$(pm2_app_status "${app}")"
-  if [[ "${status}" == "missing" ]]; then
-    return
-  fi
 
   log "Deleting PM2 app ${app}"
   pm2 delete "${app}" || true
-  wait_for_pm2_status "${app}" "missing"
 }
 
 stop_backend_apps() {
@@ -188,6 +200,7 @@ stop_backend_apps() {
   for app in "${BACKEND_APPS[@]}" "${LEGACY_BACKEND_APPS[@]}"; do
     stop_pm2_app_if_present "${app}"
   done
+  wait_for_no_online_backend_apps
 }
 
 delete_legacy_backend_apps() {
@@ -195,6 +208,7 @@ delete_legacy_backend_apps() {
   for app in "${LEGACY_BACKEND_APPS[@]}"; do
     delete_pm2_app_if_present "${app}"
   done
+  wait_for_no_online_backend_apps
 }
 
 assert_pm2_online() {
