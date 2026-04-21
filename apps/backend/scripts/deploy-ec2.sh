@@ -190,10 +190,10 @@ main() {
   log "Repository updated ${previous_sha} -> ${current_sha}"
 
   load_backend_env
-  export NODE_ENV="${NODE_ENV:-production}"
+  local runtime_node_env="${NODE_ENV:-production}"
 
   log "Installing backend dependencies"
-  npm --prefix "${BACKEND_DIR}" ci
+  npm --prefix "${BACKEND_DIR}" ci --include=dev
 
   log "Generating Prisma client"
   npm --prefix "${BACKEND_DIR}" run prisma:generate
@@ -202,7 +202,7 @@ main() {
   npm --prefix "${BACKEND_DIR}" run build
 
   log "Installing frontend dependencies"
-  npm --prefix "${FRONTEND_DIR}" ci
+  npm --prefix "${FRONTEND_DIR}" ci --include=dev
 
   log "Building frontend"
   npm --prefix "${FRONTEND_DIR}" run build
@@ -214,6 +214,7 @@ main() {
   npm --prefix "${BACKEND_DIR}" run prisma:migrate:deploy
 
   log "Reloading PM2 ecosystem"
+  export NODE_ENV="${runtime_node_env}"
   pm2 startOrReload "${ECOSYSTEM_FILE}" --env production
   pm2 save
 
