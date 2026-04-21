@@ -125,22 +125,24 @@ sync_repo() {
 
 pm2_app_status() {
   local app="$1"
-  PM2_APP_NAME="${app}" pm2 jlist | node -e '
+  local pm2_json
+  pm2_json="$(pm2 jlist)"
+  PM2_APP_NAME="${app}" node -e '
     const fs = require("fs");
     const name = process.env.PM2_APP_NAME;
     const apps = JSON.parse(fs.readFileSync(0, "utf8"));
     const app = apps.find((entry) => entry.name === name);
     process.stdout.write(app?.pm2_env?.status || "missing");
-  '
+  ' <<< "${pm2_json}"
 }
 
 wait_for_no_online_backend_apps() {
-  local expected_json
   local attempt
-  expected_json="$(printf '%s\n' "${BACKEND_APPS[@]}" "${LEGACY_BACKEND_APPS[@]}" | node -e 'const fs = require("fs"); const items = fs.readFileSync(0, "utf8").trim().split(/\n+/).filter(Boolean); process.stdout.write(JSON.stringify(items));')"
+  local pm2_json
 
   for attempt in $(seq 1 20); do
-    if TARGET_APPS="${expected_json}" pm2 jlist | node -e '
+    pm2_json="$(pm2 jlist)"
+    if TARGET_APPS="$(printf '%s\n' "${BACKEND_APPS[@]}" "${LEGACY_BACKEND_APPS[@]}" | node -e 'const fs = require("fs"); const items = fs.readFileSync(0, "utf8").trim().split(/\n+/).filter(Boolean); process.stdout.write(JSON.stringify(items));')" node -e '
       const fs = require("fs");
       const targetApps = new Set(JSON.parse(process.env.TARGET_APPS || "[]"));
       const apps = JSON.parse(fs.readFileSync(0, "utf8"));
@@ -149,7 +151,7 @@ wait_for_no_online_backend_apps() {
         console.error(online.map((app) => `${app.name}:${app.pm2_env.status}`).join(", "));
         process.exit(1);
       }
-    '; then
+    ' <<< "${pm2_json}"; then
       return
     fi
 
@@ -159,56 +161,56 @@ wait_for_no_online_backend_apps() {
   fail "Backend PM2 apps are still online after stop attempts"
 }
 
-wait_for_pm2_status() {
-  local app="$1"
-  local expected="$2"
+database_file_path() {
+  local database_url="${DATABASE_URL:-}"
+  if [[ "${database_url}" != file:* ]]; then
+    return
+  fi
+
+  local raw_path="${database_url#file:}"
+  if [[ "${raw_path}" == /* ]]; then
+    printf '%s\n' "${raw_path}"
+    return
+  fi
+
+  printf '%s\n' "${BACKEND_DIR}/${raw_path}"
+}
+
+wait_for_database_unlock() {
+  local db_path
+  db_path="$(database_file_path)"
+  if [[ -z "${db_path}" ]]; then
+    return
+  fi
+
+  if ! command -v lsof >/dev/null 2>&1; then
+    warn "lsof not available; skipping direct database lock inspection"
+    return
+  fi
+
   local attempt
-  local status
-
-  for attempt in $(seq 1 15); do
-    status="$(pm2_app_status "${app}")"
-    if [[ "${status}" == "${expected}" ]]; then
+  for attempt in $(seq 1 20); do
+    if ! lsof "${db_path}" >/dev/null 2>&1; then
       return
     fi
-
-    if [[ "${expected}" == "missing" && "${status}" == "missing" ]]; then
-      return
-    fi
-
     sleep 1
   done
 
-  fail "PM2 app ${app} did not reach status ${expected}"
-}
-
-stop_pm2_app_if_present() {
-  local app="$1"
-
-  log "Stopping PM2 app ${app}"
-  pm2 stop "${app}" || true
-}
-
-delete_pm2_app_if_present() {
-  local app="$1"
-
-  log "Deleting PM2 app ${app}"
-  pm2 delete "${app}" || true
+  warn "Processes still hold ${db_path}"
+  lsof "${db_path}" || true
+  fail "Database file is still in use after PM2 stop"
 }
 
 stop_backend_apps() {
-  local app
-  for app in "${BACKEND_APPS[@]}" "${LEGACY_BACKEND_APPS[@]}"; do
-    stop_pm2_app_if_present "${app}"
-  done
+  log "Stopping PM2 backend apps"
+  pm2 stop "${BACKEND_APPS[@]}" "${LEGACY_BACKEND_APPS[@]}" || true
   wait_for_no_online_backend_apps
+  wait_for_database_unlock
 }
 
 delete_legacy_backend_apps() {
-  local app
-  for app in "${LEGACY_BACKEND_APPS[@]}"; do
-    delete_pm2_app_if_present "${app}"
-  done
-  wait_for_no_online_backend_apps
+  log "Deleting legacy PM2 apps"
+  pm2 delete "${LEGACY_BACKEND_APPS[@]}" || true
 }
 
 assert_pm2_online() {
