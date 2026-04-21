@@ -65,6 +65,14 @@ require_command() {
   command -v "${cmd}" >/dev/null 2>&1 || fail "Required command not found: ${cmd}"
 }
 
+install_with_dev_dependencies() {
+  local target_dir="$1"
+  env -u NODE_ENV \
+    NPM_CONFIG_PRODUCTION=false \
+    NPM_CONFIG_OMIT= \
+    npm --prefix "${target_dir}" ci --include=dev
+}
+
 acquire_lock() {
   if mkdir "${LOCK_DIR}" 2>/dev/null; then
     return
@@ -193,7 +201,7 @@ main() {
   local runtime_node_env="${NODE_ENV:-production}"
 
   log "Installing backend dependencies"
-  npm --prefix "${BACKEND_DIR}" ci --include=dev
+  install_with_dev_dependencies "${BACKEND_DIR}"
 
   log "Generating Prisma client"
   npm --prefix "${BACKEND_DIR}" run prisma:generate
@@ -202,7 +210,7 @@ main() {
   npm --prefix "${BACKEND_DIR}" run build
 
   log "Installing frontend dependencies"
-  npm --prefix "${FRONTEND_DIR}" ci --include=dev
+  install_with_dev_dependencies "${FRONTEND_DIR}"
 
   log "Building frontend"
   npm --prefix "${FRONTEND_DIR}" run build
