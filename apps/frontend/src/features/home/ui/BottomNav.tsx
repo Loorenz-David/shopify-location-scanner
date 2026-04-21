@@ -26,7 +26,7 @@ export function BottomNav({ items, onSelectPage }: BottomNavProps) {
       <button
         key={item.id}
         type="button"
-        className={`flex flex-col items-center justify-center rounded-full bg-transparent px-3 py-2 text-[8px] font-semibold leading-none gap-1 ${
+        className={`relative flex flex-col items-center justify-center rounded-full bg-transparent px-3 py-2 text-[8px] font-semibold leading-none gap-1 ${
           item.isActive ? "text-blue-400" : "text-slate-700"
         }`}
         onClick={() => onSelectPage(item.id)}
@@ -35,10 +35,17 @@ export function BottomNav({ items, onSelectPage }: BottomNavProps) {
           ? (() => {
               const IconComponent = item.icon;
               return (
-                <IconComponent
-                  className={`h-4 w-4 ${item.isActive ? "text-blue-400" : "text-slate-700"}`}
-                  aria-hidden="true"
-                />
+                <span className="relative inline-flex">
+                  <IconComponent
+                    className={`h-4 w-4 ${item.isActive ? "text-blue-400" : "text-slate-700"}`}
+                    aria-hidden="true"
+                  />
+                  {item.count && item.count > 0 ? (
+                    <span className="absolute -top-1.5 -right-2 flex h-[14px] min-w-[14px] items-center justify-center rounded-full bg-rose-500 px-[3px] text-[8px] font-bold leading-none text-white">
+                      {item.count > 99 ? "99+" : item.count}
+                    </span>
+                  ) : null}
+                </span>
               );
             })()
           : null}

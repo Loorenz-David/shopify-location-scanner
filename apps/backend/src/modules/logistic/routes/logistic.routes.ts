@@ -27,6 +27,10 @@ logisticRouter.delete(
 );
 
 // Task list
+logisticRouter.get(
+  "/items/active-task-ids",
+  asyncHandler(logisticController.getActiveTaskIds),
+);
 logisticRouter.get("/items", asyncHandler(logisticController.getItems));
 
 // Actions

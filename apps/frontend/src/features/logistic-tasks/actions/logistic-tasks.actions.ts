@@ -18,6 +18,7 @@ import {
   selectLogisticTasksFiltersRequestKey,
   useLogisticTasksStore,
 } from "../stores/logistic-tasks.store";
+import { useTaskCountStore } from "../stores/task-count.store";
 import type {
   LogisticIntention,
   LogisticTaskFilters,
@@ -161,6 +162,7 @@ export const logisticTasksActions = {
         .getState()
         .upsertItem({ ...existing, isItemFixed: true });
     }
+    useTaskCountStore.getState().removeId(scanHistoryId);
 
     try {
       await markItemFixedApi({ scanHistoryId });

@@ -39,6 +39,7 @@ export interface BottomMenuItem {
   slot: BottomMenuSlot;
   isActive: boolean;
   isHidden: boolean;
+  count?: number;
 }
 
 export interface OverlayState {

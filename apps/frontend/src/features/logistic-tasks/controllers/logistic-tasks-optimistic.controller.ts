@@ -1,4 +1,5 @@
 import { useLogisticTasksStore } from "../stores/logistic-tasks.store";
+import { useTaskCountStore } from "../stores/task-count.store";
 import { itemMatchesFilters } from "../domain/logistic-tasks.domain";
 import type {
   LogisticIntention,
@@ -33,6 +34,7 @@ export function optimisticMarkIntention(
   const { filters } = store;
   if (!itemMatchesFilters(updatedItem, filters)) {
     store.removeItem(scanHistoryId);
+    useTaskCountStore.getState().removeId(scanHistoryId);
   }
 
   return item;
@@ -59,6 +61,7 @@ export function optimisticMarkPlacement(
   const { filters } = store;
   if (!itemMatchesFilters(updatedItem, filters)) {
     store.removeItem(scanHistoryId);
+    useTaskCountStore.getState().removeId(scanHistoryId);
   }
 
   return item;

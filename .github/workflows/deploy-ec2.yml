@@ -1,0 +1,73 @@
+name: Deploy To EC2
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Git branch to deploy
+        required: false
+        default: main
+
+concurrency:
+  group: deploy-ec2-${{ github.workflow }}-${{ github.event.inputs.branch || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: Deploy application
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    steps:
+      - name: Prepare SSH key
+        shell: bash
+        env:
+          EC2_SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/.ssh"
+          chmod 700 "$HOME/.ssh"
+          printf '%s\n' "$EC2_SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+
+      - name: Configure known hosts
+        shell: bash
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_PORT: ${{ secrets.EC2_PORT }}
+          EC2_KNOWN_HOSTS: ${{ secrets.EC2_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          touch "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          if [ -n "${EC2_KNOWN_HOSTS}" ]; then
+            printf '%s\n' "$EC2_KNOWN_HOSTS" >> "$HOME/.ssh/known_hosts"
+          else
+            echo "EC2_KNOWN_HOSTS not set; using ssh-keyscan during workflow runtime"
+            ssh-keyscan -p "${EC2_PORT:-22}" -H "$EC2_HOST" >> "$HOME/.ssh/known_hosts"
+          fi
+
+      - name: Deploy over SSH
+        shell: bash
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_PORT: ${{ secrets.EC2_PORT }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_REPO_PATH: ${{ secrets.EC2_REPO_PATH }}
+          EC2_BACKEND_ENV_FILE: ${{ secrets.EC2_BACKEND_ENV_FILE }}
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          INPUT_BRANCH: ${{ github.event.inputs.branch }}
+        run: |
+          set -euo pipefail
+
+          deploy_branch="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ -n "${INPUT_BRANCH}" ]; then
+            deploy_branch="${INPUT_BRANCH}"
+          fi
+
+          ssh -p "${EC2_PORT:-22}" "${EC2_USER}@${EC2_HOST}" \
+            "cd '${EC2_REPO_PATH}' && DEPLOY_BRANCH='${deploy_branch}' ENV_FILE='${EC2_BACKEND_ENV_FILE:-/etc/item-scanner/backend.env}' bash ./apps/backend/scripts/deploy-ec2.sh"

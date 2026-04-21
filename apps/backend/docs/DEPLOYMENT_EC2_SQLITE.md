@@ -70,6 +70,30 @@ This script:
 4. runs `prisma migrate deploy`,
 5. restarts service.
 
+### GitHub Actions Deployment
+
+The repository now includes `.github/workflows/deploy-ec2.yml` for automated EC2 deploys on
+push to `main` and manual `workflow_dispatch`.
+
+Required GitHub repository secrets:
+
+- `EC2_HOST` - public DNS name or IP of the EC2 instance
+- `EC2_PORT` - SSH port, usually `22`
+- `EC2_USER` - SSH user on the instance
+- `EC2_SSH_KEY` - private key used by GitHub Actions to SSH into the instance
+- `EC2_REPO_PATH` - absolute path to the checked-out repository on EC2
+- `EC2_BACKEND_ENV_FILE` - optional override for backend env file path
+- `EC2_KNOWN_HOSTS` - optional pinned host key entry; preferred over runtime `ssh-keyscan`
+
+The workflow SSHes into the instance and runs `apps/backend/scripts/deploy-ec2.sh`, which now:
+
+1. refuses to deploy from a dirty EC2 worktree,
+2. fetches and hard-resets to the remote branch head,
+3. builds backend and frontend before downtime,
+4. stops PM2 apps only just before Prisma migrations,
+5. reloads the PM2 ecosystem,
+6. verifies PM2 process state and `/health` + `/health/db`.
+
 ## 4) systemd Service
 
 Create `/etc/systemd/system/item-scanner-backend.service`:

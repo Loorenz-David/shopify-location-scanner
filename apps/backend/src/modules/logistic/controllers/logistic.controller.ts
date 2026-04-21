@@ -19,6 +19,7 @@ import { markLogisticPlacementCommand } from "../commands/mark-logistic-placemen
 import { fulfilLogisticItemService } from "../services/fulfil-logistic-item.service.js";
 import { markItemFixedService } from "../services/mark-item-fixed.service.js";
 import { updateFixNotesService } from "../services/update-fix-notes.service.js";
+import { getActiveTaskIdsQuery } from "../queries/get-active-task-ids.query.js";
 import { getLogisticItemsQuery } from "../queries/get-logistic-items.query.js";
 import { logger } from "../../../shared/logging/logger.js";
 import {
@@ -100,6 +101,14 @@ export const logisticController = {
     });
 
     res.status(200).json({ ok: true });
+  },
+
+  getActiveTaskIds: async (req: Request, res: Response): Promise<void> => {
+    const ids = await getActiveTaskIdsQuery({
+      shopId: req.authUser.shopId as string,
+      role: req.authUser.role as UserRole,
+    });
+    res.status(200).json({ ids });
   },
 
   getItems: async (req: Request, res: Response): Promise<void> => {

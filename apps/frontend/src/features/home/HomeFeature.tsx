@@ -29,6 +29,11 @@ import { PlacementItemFixedPopup } from "../scanner/ui/PlacementItemFixedPopup";
 import { PlacementZoneMismatchPopup } from "../scanner/ui/PlacementZoneMismatchPopup";
 import { LogisticTasksOverlayHost } from "../logistic-tasks/LogisticTasksOverlayHost";
 import { useLogisticTasksRealtimeFlow } from "../logistic-tasks/flows/use-logistic-tasks-realtime.flow";
+import { useTaskCountFlow } from "../logistic-tasks/flows/use-task-count.flow";
+import {
+  selectTaskCount,
+  useTaskCountStore,
+} from "../logistic-tasks/stores/task-count.store";
 import { LogisticTasksPage } from "../logistic-tasks/ui/LogisticTasksPage";
 import { useRoleCapabilities } from "../role-context/hooks/use-role-capabilities";
 import { SettingsFeature } from "../settings/SettingsFeature";
@@ -54,6 +59,9 @@ interface HomeFeatureProps {
 export function HomeFeature({ onLogout }: HomeFeatureProps) {
   useItemScanHistoryRealtimeFlow();
   useLogisticTasksRealtimeFlow();
+  useTaskCountFlow();
+
+  const taskCount = useTaskCountStore(selectTaskCount);
 
   const { can_display_main_stats } = useRoleCapabilities();
 
@@ -182,7 +190,12 @@ export function HomeFeature({ onLogout }: HomeFeatureProps) {
   }
 
   const activeNavPageId = fullFeaturePageId ?? activePage.id;
-  const navItems = getVisibleBottomMenuItems(registry, activeNavPageId);
+  const navItems = getVisibleBottomMenuItems(registry, activeNavPageId).map(
+    (item) =>
+      item.id === "logistic-tasks" && taskCount > 0
+        ? { ...item, count: taskCount }
+        : item,
+  );
   const activeFullFeaturePage =
     (fullFeaturePageId && registry[fullFeaturePageId]) || null;
 
