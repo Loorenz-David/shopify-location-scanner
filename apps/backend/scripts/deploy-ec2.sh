@@ -123,23 +123,77 @@ sync_repo() {
   git reset --hard "${GIT_REMOTE}/${DEPLOY_BRANCH}"
 }
 
+pm2_app_status() {
+  local app="$1"
+  PM2_APP_NAME="${app}" pm2 jlist | node -e '
+    const fs = require("fs");
+    const name = process.env.PM2_APP_NAME;
+    const apps = JSON.parse(fs.readFileSync(0, "utf8"));
+    const app = apps.find((entry) => entry.name === name);
+    process.stdout.write(app?.pm2_env?.status || "missing");
+  '
+}
+
+wait_for_pm2_status() {
+  local app="$1"
+  local expected="$2"
+  local attempt
+  local status
+
+  for attempt in $(seq 1 15); do
+    status="$(pm2_app_status "${app}")"
+    if [[ "${status}" == "${expected}" ]]; then
+      return
+    fi
+
+    if [[ "${expected}" == "missing" && "${status}" == "missing" ]]; then
+      return
+    fi
+
+    sleep 1
+  done
+
+  fail "PM2 app ${app} did not reach status ${expected}"
+}
+
+stop_pm2_app_if_present() {
+  local app
+  app="$1"
+  local status
+  status="$(pm2_app_status "${app}")"
+  if [[ "${status}" == "missing" ]]; then
+    return
+  fi
+
+  log "Stopping PM2 app ${app}"
+  pm2 stop "${app}" || true
+  wait_for_pm2_status "${app}" "stopped"
+}
+
+delete_pm2_app_if_present() {
+  local app="$1"
+  local status
+  status="$(pm2_app_status "${app}")"
+  if [[ "${status}" == "missing" ]]; then
+    return
+  fi
+
+  log "Deleting PM2 app ${app}"
+  pm2 delete "${app}" || true
+  wait_for_pm2_status "${app}" "missing"
+}
+
 stop_backend_apps() {
   local app
   for app in "${BACKEND_APPS[@]}" "${LEGACY_BACKEND_APPS[@]}"; do
-    if pm2 describe "${app}" >/dev/null 2>&1; then
-      log "Stopping PM2 app ${app}"
-      pm2 stop "${app}"
-    fi
+    stop_pm2_app_if_present "${app}"
   done
 }
 
 delete_legacy_backend_apps() {
   local app
   for app in "${LEGACY_BACKEND_APPS[@]}"; do
-    if pm2 describe "${app}" >/dev/null 2>&1; then
-      log "Deleting legacy PM2 app ${app}"
-      pm2 delete "${app}"
-    fi
+    delete_pm2_app_if_present "${app}"
   done
 }
 
@@ -230,6 +284,7 @@ main() {
 
   log "Stopping backend PM2 apps before migrations"
   stop_backend_apps
+  delete_legacy_backend_apps
 
   log "Applying Prisma migrations"
   npm --prefix "${BACKEND_DIR}" run prisma:migrate:deploy
@@ -237,7 +292,6 @@ main() {
   log "Reloading PM2 ecosystem"
   export NODE_ENV="${runtime_node_env}"
   pm2 startOrReload "${ECOSYSTEM_FILE}" --env production
-  delete_legacy_backend_apps
   pm2 save
 
   log "Verifying PM2 process state"
