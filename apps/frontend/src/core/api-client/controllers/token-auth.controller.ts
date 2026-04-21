@@ -31,6 +31,8 @@ export class TokenAuthController {
   private readonly refreshEndpoint: string;
   private readonly refreshMethod: HttpMethod;
   private refreshInFlight: Promise<string> | null;
+  private readonly sessionExpiredListeners: Set<() => void>;
+  private hasNotifiedSessionExpired: boolean;
 
   constructor(config: TokenAuthControllerConfig = {}) {
     this.accessTokenStorageKey = config.accessTokenStorageKey ?? "accessToken";
@@ -39,6 +41,8 @@ export class TokenAuthController {
     this.refreshEndpoint = config.refreshEndpoint ?? "/auth/refresh";
     this.refreshMethod = config.refreshMethod ?? "POST";
     this.refreshInFlight = null;
+    this.sessionExpiredListeners = new Set();
+    this.hasNotifiedSessionExpired = false;
   }
 
   getAccessToken(): string | null {
@@ -55,6 +59,7 @@ export class TokenAuthController {
 
   setTokens(tokens: TokenPair): void {
     localStorage.setItem(this.accessTokenStorageKey, tokens.accessToken);
+    this.hasNotifiedSessionExpired = false;
 
     if (tokens.refreshToken) {
       localStorage.setItem(this.refreshTokenStorageKey, tokens.refreshToken);
@@ -64,6 +69,14 @@ export class TokenAuthController {
   clearTokens(): void {
     localStorage.removeItem(this.accessTokenStorageKey);
     localStorage.removeItem(this.refreshTokenStorageKey);
+  }
+
+  onSessionExpired(listener: () => void): () => void {
+    this.sessionExpiredListeners.add(listener);
+
+    return () => {
+      this.sessionExpiredListeners.delete(listener);
+    };
   }
 
   shouldRefreshAccessToken(): boolean {
@@ -87,7 +100,7 @@ export class TokenAuthController {
   private async executeRefresh(baseUrl: string): Promise<string> {
     const refreshToken = this.getRefreshToken();
     if (!refreshToken) {
-      this.clearTokens();
+      this.expireSession();
       throw new AuthSessionExpiredError("Refresh token is missing");
     }
 
@@ -102,7 +115,7 @@ export class TokenAuthController {
     });
 
     if (!refreshResponse.ok) {
-      this.clearTokens();
+      this.expireSession();
       throw new AuthSessionExpiredError("Refresh token is invalid");
     }
 
@@ -110,7 +123,7 @@ export class TokenAuthController {
     const accessToken = data.accessToken ?? data.token;
 
     if (!accessToken) {
-      this.clearTokens();
+      this.expireSession();
       throw new AuthSessionExpiredError(
         "Refresh response is missing access token",
       );
@@ -131,5 +144,16 @@ export class TokenAuthController {
       : `/${this.refreshEndpoint}`;
 
     return `${cleanBaseUrl}${cleanRefreshPath}`;
+  }
+
+  private expireSession(): void {
+    this.clearTokens();
+
+    if (this.hasNotifiedSessionExpired) {
+      return;
+    }
+
+    this.hasNotifiedSessionExpired = true;
+    this.sessionExpiredListeners.forEach((listener) => listener());
   }
 }

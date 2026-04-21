@@ -9,6 +9,7 @@ import { RoleContextProvider } from "./features/role-context/providers/RoleConte
 import { usePwaFlow } from "./features/pwa/flows/use-pwa.flow";
 import { usePwaStore } from "./features/pwa/stores/pwa.store";
 import { PwaUpdatePrompt } from "./features/pwa/ui/PwaUpdatePrompt";
+import { tokenAuthController } from "./core/api-client";
 import { useWsEvent } from "./core/ws-client/use-ws-event";
 import { useAppPresenceFlow } from "./features/auth/flows/use-app-presence.flow";
 
@@ -100,11 +101,19 @@ function App() {
   };
 
   const handleSessionInvalidated = useCallback(() => {
+    setAuthenticatedUser(null);
+    setAuthErrorMessage(null);
     authActions.clearSession();
     window.location.reload();
   }, []);
 
   useWsEvent("session_invalidated", handleSessionInvalidated);
+
+  useEffect(() => {
+    return tokenAuthController.onSessionExpired(() => {
+      handleSessionInvalidated();
+    });
+  }, [handleSessionInvalidated]);
 
   if (isSessionCheckPending) {
     return (

@@ -35,11 +35,29 @@ export const globalRateLimitMiddleware = rateLimit({
   handler: buildRateLimitHandler("global"),
 });
 
-export const authRateLimitMiddleware = rateLimit({
+export const authCredentialRateLimitMiddleware = rateLimit({
   windowMs: 15 * 60 * 1000,
-  limit: 25,
+  limit: 15,
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => isDevelopment,
-  handler: buildRateLimitHandler("auth"),
+  handler: buildRateLimitHandler("auth-credentials"),
+});
+
+export const authRefreshRateLimitMiddleware = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 90,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => isDevelopment,
+  handler: buildRateLimitHandler("auth-refresh"),
+});
+
+export const authLogoutRateLimitMiddleware = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: () => isDevelopment,
+  handler: buildRateLimitHandler("auth-logout"),
 });

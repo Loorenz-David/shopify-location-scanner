@@ -7,7 +7,6 @@ import { asyncHandler } from "./shared/http/async-handler.js";
 import { errorMiddleware } from "./shared/http/error-middleware.js";
 import { notFoundMiddleware } from "./shared/http/not-found-middleware.js";
 import {
-  authRateLimitMiddleware,
   globalRateLimitMiddleware,
 } from "./shared/http/rate-limit-middleware.js";
 import { requestFilterMiddleware } from "./shared/http/request-filter-middleware.js";
@@ -119,7 +118,7 @@ app.get(
   }),
 );
 
-app.use("/auth", authRateLimitMiddleware, authRouter);
+app.use("/auth", authRouter);
 app.use("/shopify", shopifyRouter);
 app.use("/bootstrap", bootstrapRouter);
 app.use("/scanner", scannerRouter);
@@ -129,7 +128,7 @@ app.use("/floor-plans", floorPlanRouter);
 app.use("/logistic", logisticRouter);
 app.use("/users", usersRouter);
 app.use("/internal/webhooks", webhookAdminRouter);
-app.use("/api/auth", authRateLimitMiddleware, authRouter);
+app.use("/api/auth", authRouter);
 app.use("/api/shopify", shopifyRouter);
 app.use("/api/bootstrap", bootstrapRouter);
 app.use("/api/scanner", scannerRouter);
