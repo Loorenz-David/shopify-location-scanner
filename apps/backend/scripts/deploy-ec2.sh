@@ -15,9 +15,6 @@ BACKEND_APPS=(
   "shopify-webhook-worker"
   "shopify-notification-worker"
 )
-LEGACY_BACKEND_APPS=(
-  "shopify-worker"
-)
 
 timestamp() {
   date +"%Y-%m-%d %H:%M:%S"
@@ -142,7 +139,7 @@ wait_for_no_online_backend_apps() {
 
   for attempt in $(seq 1 20); do
     pm2_json="$(pm2 jlist)"
-    if TARGET_APPS="$(printf '%s\n' "${BACKEND_APPS[@]}" "${LEGACY_BACKEND_APPS[@]}" | node -e 'const fs = require("fs"); const items = fs.readFileSync(0, "utf8").trim().split(/\n+/).filter(Boolean); process.stdout.write(JSON.stringify(items));')" node -e '
+    if TARGET_APPS="$(printf '%s\n' "${BACKEND_APPS[@]}" | node -e 'const fs = require("fs"); const items = fs.readFileSync(0, "utf8").trim().split(/\n+/).filter(Boolean); process.stdout.write(JSON.stringify(items));')" node -e '
       const fs = require("fs");
       const targetApps = new Set(JSON.parse(process.env.TARGET_APPS || "[]"));
       const apps = JSON.parse(fs.readFileSync(0, "utf8"));
@@ -203,14 +200,9 @@ wait_for_database_unlock() {
 
 stop_backend_apps() {
   log "Stopping PM2 backend apps"
-  pm2 stop "${BACKEND_APPS[@]}" "${LEGACY_BACKEND_APPS[@]}" || true
+  pm2 stop "${BACKEND_APPS[@]}" || true
   wait_for_no_online_backend_apps
   wait_for_database_unlock
-}
-
-delete_legacy_backend_apps() {
-  log "Deleting legacy PM2 apps"
-  pm2 delete "${LEGACY_BACKEND_APPS[@]}" || true
 }
 
 assert_pm2_online() {
@@ -300,7 +292,6 @@ main() {
 
   log "Stopping backend PM2 apps before migrations"
   stop_backend_apps
-  delete_legacy_backend_apps
 
   log "Applying Prisma migrations"
   npm --prefix "${BACKEND_DIR}" run prisma:migrate:deploy

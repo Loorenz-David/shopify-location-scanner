@@ -102,9 +102,8 @@ function App() {
 
   const handleSessionInvalidated = useCallback(() => {
     setAuthenticatedUser(null);
-    setAuthErrorMessage(null);
+    setAuthErrorMessage("Your session expired. Please sign in again.");
     authActions.clearSession();
-    window.location.reload();
   }, []);
 
   useWsEvent("session_invalidated", handleSessionInvalidated);
