@@ -13,6 +13,10 @@ import { tokenAuthController } from "./core/api-client";
 import { useWsEvent } from "./core/ws-client/use-ws-event";
 import { useAppPresenceFlow } from "./features/auth/flows/use-app-presence.flow";
 
+const SESSION_INVALIDATED_RELOAD_KEY = "sessionInvalidatedReloadPending";
+const SESSION_INVALIDATED_MESSAGE =
+  "Your session expired. Please sign in again.";
+
 function App() {
   usePwaFlow();
 
@@ -25,6 +29,16 @@ function App() {
   const isApplyingPwaUpdate = usePwaStore((state) => state.isApplyingUpdate);
 
   useAppPresenceFlow(authenticatedUser);
+
+  useEffect(() => {
+    const shouldShowSessionInvalidatedMessage =
+      sessionStorage.getItem(SESSION_INVALIDATED_RELOAD_KEY) === "1";
+
+    if (shouldShowSessionInvalidatedMessage) {
+      sessionStorage.removeItem(SESSION_INVALIDATED_RELOAD_KEY);
+      setAuthErrorMessage(SESSION_INVALIDATED_MESSAGE);
+    }
+  }, []);
 
   useEffect(() => {
     let isDisposed = false;
@@ -101,18 +115,22 @@ function App() {
   };
 
   const handleSessionInvalidated = useCallback(() => {
+    sessionStorage.setItem(SESSION_INVALIDATED_RELOAD_KEY, "1");
     setAuthenticatedUser(null);
-    setAuthErrorMessage("Your session expired. Please sign in again.");
+    setAuthErrorMessage(SESSION_INVALIDATED_MESSAGE);
     authActions.clearSession();
+    window.location.reload();
   }, []);
 
   useWsEvent("session_invalidated", handleSessionInvalidated);
 
   useEffect(() => {
     return tokenAuthController.onSessionExpired(() => {
-      handleSessionInvalidated();
+      setAuthenticatedUser(null);
+      setAuthErrorMessage(SESSION_INVALIDATED_MESSAGE);
+      authActions.clearSession();
     });
-  }, [handleSessionInvalidated]);
+  }, []);
 
   if (isSessionCheckPending) {
     return (

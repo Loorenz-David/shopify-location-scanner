@@ -123,7 +123,6 @@ export function disconnectWsClient(): void {
   tokenGetter = null;
   reconnectAttempt = 0;
   clearReconnectTimer();
-  listeners.clear();
   socket?.close();
   socket = null;
 }
