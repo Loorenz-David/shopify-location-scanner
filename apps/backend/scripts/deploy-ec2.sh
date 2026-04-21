@@ -15,6 +15,9 @@ BACKEND_APPS=(
   "shopify-webhook-worker"
   "shopify-notification-worker"
 )
+LEGACY_BACKEND_APPS=(
+  "shopify-worker"
+)
 
 timestamp() {
   date +"%Y-%m-%d %H:%M:%S"
@@ -122,10 +125,20 @@ sync_repo() {
 
 stop_backend_apps() {
   local app
-  for app in "${BACKEND_APPS[@]}"; do
+  for app in "${BACKEND_APPS[@]}" "${LEGACY_BACKEND_APPS[@]}"; do
     if pm2 describe "${app}" >/dev/null 2>&1; then
       log "Stopping PM2 app ${app}"
       pm2 stop "${app}"
+    fi
+  done
+}
+
+delete_legacy_backend_apps() {
+  local app
+  for app in "${LEGACY_BACKEND_APPS[@]}"; do
+    if pm2 describe "${app}" >/dev/null 2>&1; then
+      log "Deleting legacy PM2 app ${app}"
+      pm2 delete "${app}"
     fi
   done
 }
@@ -224,6 +237,7 @@ main() {
   log "Reloading PM2 ecosystem"
   export NODE_ENV="${runtime_node_env}"
   pm2 startOrReload "${ECOSYSTEM_FILE}" --env production
+  delete_legacy_backend_apps
   pm2 save
 
   log "Verifying PM2 process state"
