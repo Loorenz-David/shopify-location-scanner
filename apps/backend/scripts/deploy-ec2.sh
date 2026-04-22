@@ -249,6 +249,7 @@ stop_backend_apps() {
   wait_for_database_unlock
 }
 
+
 assert_pm2_online() {
   local expected_apps_json
   expected_apps_json="$(printf '%s\n' "${BACKEND_APPS[@]}" | node -e 'const fs = require("fs"); const items = fs.readFileSync(0, "utf8").trim().split(/\n+/).filter(Boolean); process.stdout.write(JSON.stringify(items));')"
