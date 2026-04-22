@@ -196,6 +196,7 @@ x-api-key: <target.secret>
   "shopId": "cmo8ouq4b0000qhzo3hn1q6qz",
   "scanHistoryId": "cmxxxxxx",
   "orderId": "6890363912345",
+  "itemSku": "SKU-RED-XL",
   "logisticLocation": {
     "id": "cmxxxxxx",
     "location": "Shelf A-3",
@@ -210,6 +211,7 @@ x-api-key: <target.secret>
 - `shopId`: owning shop
 - `scanHistoryId`: item record id in this backend
 - `orderId`: related order id, or `null`
+- `itemSku`: SKU for the specific item to update in the external service, or `null`
 - `logisticLocation.id`: target logistic location id in this backend
 - `logisticLocation.location`: human-readable location label
 - `logisticLocation.updatedAt`: location timestamp in ISO format

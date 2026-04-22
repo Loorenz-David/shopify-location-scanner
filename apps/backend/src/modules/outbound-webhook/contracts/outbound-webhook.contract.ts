@@ -34,6 +34,7 @@ export type ItemPlacedPayload = {
   shopId: string;
   scanHistoryId: string;
   orderId: string | null;
+  itemSku: string | null;
   logisticLocation: {
     id: string;
     location: string;

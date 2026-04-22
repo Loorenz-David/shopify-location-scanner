@@ -48,6 +48,7 @@ export const markLogisticPlacementCommand = async (input: {
     select: {
       id: true,
       orderId: true,
+      itemSku: true,
       fixItem: true,
       logisticsCompletedAt: true,
     },
@@ -134,6 +135,7 @@ export const markLogisticPlacementCommand = async (input: {
     shopId: input.shopId,
     scanHistoryId: scanHistory.id,
     orderId: scanHistory.orderId ?? null,
+    itemSku: scanHistory.itemSku ?? null,
     logisticLocation: {
       id: location.id,
       location: location.location,

@@ -10,6 +10,7 @@ import {
 } from "../shared/queue/outbound-webhook-queue.js";
 
 const DISPATCH_TIMEOUT_MS = 8_000;
+const MAX_LOGGED_RESPONSE_BODY_CHARS = 2_000;
 
 const isRetryableError = (error: unknown): boolean => {
   const message =
@@ -26,6 +27,14 @@ const isRetryableError = (error: unknown): boolean => {
 
 await initializeDatabaseRuntime();
 
+const truncateForLog = (value: string): string => {
+  if (value.length <= MAX_LOGGED_RESPONSE_BODY_CHARS) {
+    return value;
+  }
+
+  return `${value.slice(0, MAX_LOGGED_RESPONSE_BODY_CHARS)}...<truncated>`;
+};
+
 const outboundWebhookWorker = new Worker<OutboundWebhookJobPayload>(
   OUTBOUND_WEBHOOK_QUEUE_NAME,
   async (job: Job<OutboundWebhookJobPayload>) => {
@@ -35,6 +44,11 @@ const outboundWebhookWorker = new Worker<OutboundWebhookJobPayload>(
       jobId: job.id,
       targetId,
       targetUrl,
+      eventPayload,
+      requestHeaders: {
+        "Content-Type": "application/json",
+        "x-api-key": "[redacted]",
+      },
     });
 
     let response: Response;
@@ -69,12 +83,15 @@ const outboundWebhookWorker = new Worker<OutboundWebhookJobPayload>(
       return;
     }
 
+    const responseBody = truncateForLog(await response.text());
+
     if (response.status >= 400 && response.status < 500) {
       logger.warn("Outbound webhook target rejected with 4xx", {
         jobId: job.id,
         targetId,
         targetUrl,
         status: response.status,
+        responseBody,
       });
       return;
     }
@@ -85,6 +102,7 @@ const outboundWebhookWorker = new Worker<OutboundWebhookJobPayload>(
         targetId,
         targetUrl,
         status: response.status,
+        responseBody,
       });
       throw new Error(`Target returned HTTP ${response.status}`);
     }
@@ -94,6 +112,7 @@ const outboundWebhookWorker = new Worker<OutboundWebhookJobPayload>(
       targetId,
       targetUrl,
       status: response.status,
+      responseBody,
     });
   },
   {

@@ -205,12 +205,12 @@ Example:
 
 ```bash
 curl -X POST "http://localhost:4000/api/external/orders/schedule" \
-  -H "x-api-key: YOUR_EXTERNAL_API_KEY" \
+  -H "x-api-key: b5dbaa4bb89725b08e4b641a83dd0306347b32ef3041f59cd26668e2b1c71ea2" \
   -H "Content-Type: application/json" \
   -d '{
-    "shopId": "cmo8ouq4b0000qhzo3hn1q6qz",
-    "orderId": "6890363912345",
-    "scheduledDate": "2026-05-10"
+    "shopId": "cmnractlq0000qr53y8so42t3",
+    "orderId": "16959209308490",
+    "scheduledDate": "2026-05-15"
   }'
 ```
 
