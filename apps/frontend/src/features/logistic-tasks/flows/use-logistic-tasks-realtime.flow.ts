@@ -44,6 +44,15 @@ export function useLogisticTasksRealtimeFlow(): void {
     [handleItemEvent],
   );
 
+  const handleItemsUpdated = useCallback(
+    (event: Extract<WsInboundEvent, { type: "logistic_items_updated" }>) => {
+      for (const itemId of event.itemIds) {
+        handleItemEvent(itemId);
+      }
+    },
+    [handleItemEvent],
+  );
+
   const handleBatchNotification = useCallback(
     (
       event: Extract<WsInboundEvent, { type: "logistic_batch_notification" }>,
@@ -62,5 +71,6 @@ export function useLogisticTasksRealtimeFlow(): void {
   useWsEvent("logistic_intention_set", handleIntentionSet);
   useWsEvent("logistic_item_placed", handleItemPlaced);
   useWsEvent("logistic_item_fulfilled", handleItemFulfilled);
+  useWsEvent("logistic_items_updated", handleItemsUpdated);
   useWsEvent("logistic_batch_notification", handleBatchNotification);
 }

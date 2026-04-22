@@ -39,5 +39,18 @@ module.exports = {
         NODE_ENV: "production",
       },
     },
+    {
+      name: "shopify-outbound-webhook-worker",
+      cwd: __dirname,
+      script: "./dist/src/workers/outbound-webhook-worker.js",
+      instances: 1,
+      exec_mode: "fork",
+      autorestart: true,
+      max_restarts: 10,
+      min_uptime: "5s",
+      env_production: {
+        NODE_ENV: "production",
+      },
+    },
   ],
 };

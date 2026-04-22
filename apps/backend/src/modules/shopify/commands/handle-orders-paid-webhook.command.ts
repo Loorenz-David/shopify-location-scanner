@@ -1,4 +1,5 @@
 import { prisma } from "../../../shared/database/prisma-client.js";
+import { env } from "../../../config/env.js";
 import { logger } from "../../../shared/logging/logger.js";
 import {
   classifyShopifyOrderChannel,
@@ -6,6 +7,12 @@ import {
 } from "../../../shared/sales-channel/classify-sales-channel.js";
 import { scanHistoryRepository } from "../../scanner/repositories/scan-history.repository.js";
 import type { ShopifyOrdersPaidWebhookPayload } from "../contracts/shopify.contract.js";
+import { applyOrderMarkersCommand } from "./apply-order-markers.command.js";
+import {
+  isInternalMarker,
+  parseOrderMarkers,
+} from "../domain/order-marker.js";
+import { buildOrderWebhookLineItemDebugSummary } from "../domain/order-webhook-debug.js";
 import { loadProductSnapshotsForOrderService } from "../services/load-product-snapshots-for-order.service.js";
 
 const WEBHOOK_ACTOR = "system:shopify-webhook";
@@ -75,6 +82,25 @@ export const handleOrdersPaidWebhookCommand = async (input: {
     appId: input.payload.app_id,
     noteAttributes: input.payload.note_attributes,
   });
+  const markers = parseOrderMarkers(input.payload.line_items);
+  const internalMarkerCount = input.payload.line_items.filter((lineItem) =>
+    isInternalMarker(lineItem),
+  ).length;
+
+  if (env.SHOPIFY_DEBUG_ORDER_WEBHOOKS) {
+    logger.info("Received Shopify orders/paid webhook payload", {
+      shopId: input.shopId,
+      shopDomain: input.shopDomain,
+      topic: input.topic,
+      webhookId: input.webhookId,
+      orderId,
+      orderNumber,
+      salesChannel,
+      lineItemCount: input.payload.line_items.length,
+      markers,
+      lineItems: buildOrderWebhookLineItemDebugSummary(input.payload.line_items),
+    });
+  }
 
   const lineItemsByProduct = new Map<
     string,
@@ -85,9 +111,15 @@ export const handleOrdersPaidWebhookCommand = async (input: {
       title: string;
     }
   >();
+  let skippedProducts = 0;
 
   for (const lineItem of input.payload.line_items) {
+    if (isInternalMarker(lineItem)) {
+      continue;
+    }
+
     if (!lineItem.product_id) {
+      skippedProducts += 1;
       continue;
     }
 
@@ -139,6 +171,14 @@ export const handleOrdersPaidWebhookCommand = async (input: {
     processedProducts += 1;
   }
 
+  if (processedProducts > 0) {
+    await applyOrderMarkersCommand({
+      shopId: input.shopId,
+      orderId,
+      markers,
+    });
+  }
+
   try {
     await prisma.shopifyWebhookDelivery.create({
       data: {
@@ -157,14 +197,16 @@ export const handleOrdersPaidWebhookCommand = async (input: {
     });
   }
 
-  const skippedProducts = input.payload.line_items.length - processedProducts;
-
   logger.info("Processed Shopify orders/paid webhook", {
     shopId: input.shopId,
     shopDomain: input.shopDomain,
     topic: input.topic,
     webhookId: input.webhookId,
     orderId: String(input.payload.id),
+    hasMarkerIntention: markers.intention !== null,
+    intention: markers.intention,
+    fixItem: markers.fixItem,
+    internalMarkerCount,
     processedProducts,
     skippedProducts,
   });

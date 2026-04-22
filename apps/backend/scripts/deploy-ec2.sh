@@ -14,6 +14,7 @@ BACKEND_APPS=(
   "shopify-backend"
   "shopify-webhook-worker"
   "shopify-notification-worker"
+  "shopify-outbound-webhook-worker"
 )
 
 timestamp() {

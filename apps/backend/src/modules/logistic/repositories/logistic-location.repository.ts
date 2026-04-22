@@ -10,6 +10,7 @@ const SELECT = {
   location: true,
   zoneType: true,
   createdAt: true,
+  updatedAt: true,
 } as const;
 
 const toDomain = (record: {
@@ -18,12 +19,14 @@ const toDomain = (record: {
   location: string;
   zoneType: string;
   createdAt: Date;
+  updatedAt: Date;
 }): LogisticLocationDto => ({
   id: record.id,
   shopId: record.shopId,
   location: record.location,
   zoneType: record.zoneType as LogisticZoneType,
   createdAt: record.createdAt,
+  updatedAt: record.updatedAt,
 });
 
 export const logisticLocationRepository = {

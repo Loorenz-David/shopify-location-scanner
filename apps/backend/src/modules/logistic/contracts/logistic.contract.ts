@@ -116,6 +116,7 @@ export type LogisticLocationDto = {
   location: string;
   zoneType: LogisticZoneType;
   createdAt: Date;
+  updatedAt: Date;
 };
 
 // Push subscription management

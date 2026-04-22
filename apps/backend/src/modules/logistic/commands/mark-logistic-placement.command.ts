@@ -10,6 +10,8 @@ import { logisticLocationRepository } from "../repositories/logistic-location.re
 import { scheduleRoleNotification } from "../services/logistic-notification.service.js";
 import type { MarkPlacementInput } from "../contracts/logistic.contract.js";
 import type { UserRole } from "@prisma/client";
+import type { ItemPlacedPayload } from "../../outbound-webhook/contracts/outbound-webhook.contract.js";
+import { enqueueOutboundEventService } from "../../outbound-webhook/services/enqueue-outbound-event.service.js";
 
 export const markLogisticPlacementCommand = async (input: {
   shopId: string;
@@ -125,6 +127,30 @@ export const markLogisticPlacementCommand = async (input: {
     shopId: input.shopId,
     scanHistoryId: scanHistory.id,
     logisticLocationId: input.payload.logisticLocationId,
+  });
+
+  const outboundPayload: ItemPlacedPayload = {
+    event: "item_placed",
+    shopId: input.shopId,
+    scanHistoryId: scanHistory.id,
+    orderId: scanHistory.orderId ?? null,
+    logisticLocation: {
+      id: location.id,
+      location: location.location,
+      updatedAt: location.updatedAt.toISOString(),
+    },
+  };
+
+  void enqueueOutboundEventService({
+    shopId: input.shopId,
+    eventType: "item_placed",
+    payload: outboundPayload,
+  }).catch((error) => {
+    logger.error("Failed to enqueue outbound webhook jobs", {
+      shopId: input.shopId,
+      scanHistoryId: scanHistory.id,
+      error: error instanceof Error ? error.message : "unknown",
+    });
   });
 
   return {

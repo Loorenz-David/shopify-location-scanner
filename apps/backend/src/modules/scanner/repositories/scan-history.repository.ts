@@ -232,6 +232,84 @@ export const scanHistoryRepository = {
     return record ? toDomain(record) : null;
   },
 
+  async findActiveSoldIdsByOrder(input: {
+    shopId: string;
+    orderId: string;
+  }): Promise<string[]> {
+    const records = await prisma.scanHistory.findMany({
+      where: {
+        shopId: input.shopId,
+        orderId: input.orderId,
+        isSold: true,
+        logisticsCompletedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return records.map((record) => record.id);
+  },
+
+  async updateFixItemForIds(input: {
+    shopId: string;
+    scanHistoryIds: string[];
+    fixItem: boolean;
+  }): Promise<number> {
+    if (input.scanHistoryIds.length === 0) {
+      return 0;
+    }
+
+    const result = await prisma.scanHistory.updateMany({
+      where: {
+        shopId: input.shopId,
+        id: {
+          in: input.scanHistoryIds,
+        },
+      },
+      data: {
+        fixItem: input.fixItem,
+      },
+    });
+
+    return result.count;
+  },
+
+  async scheduleSoldItemsByOrder(input: {
+    shopId: string;
+    orderId: string;
+    scheduledDate: Date;
+  }): Promise<string[]> {
+    const items = await prisma.scanHistory.findMany({
+      where: {
+        shopId: input.shopId,
+        orderId: input.orderId,
+        isSold: true,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (items.length === 0) {
+      return [];
+    }
+
+    await prisma.scanHistory.updateMany({
+      where: {
+        shopId: input.shopId,
+        id: {
+          in: items.map((item) => item.id),
+        },
+      },
+      data: {
+        scheduledDate: input.scheduledDate,
+      },
+    });
+
+    return items.map((item) => item.id);
+  },
+
   async appendLocationEvent(
     input: AppendScanLocationHistoryInput,
   ): Promise<ScanHistoryRecord> {

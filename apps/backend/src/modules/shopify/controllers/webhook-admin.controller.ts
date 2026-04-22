@@ -8,6 +8,12 @@ import {
 import { webhookQueue } from "../../../shared/queue/index.js";
 import { webhookIntakeRepository } from "../repositories/webhook-intake.repository.js";
 
+const SUPPORTED_REPLAY_TOPICS = new Set([
+  "products/update",
+  "orders/create",
+  "orders/paid",
+]);
+
 const ListWebhookRecordsQuerySchema = z.object({
   status: z.enum(["pending", "processing", "processed", "failed"]).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
@@ -101,8 +107,8 @@ export const webhookAdminController = {
       throw new NotFoundError("Webhook intake record not found");
     }
 
-    if (intake.topic !== "products/update") {
-      throw new ValidationError("Replay is only supported for products/update");
+    if (!SUPPORTED_REPLAY_TOPICS.has(intake.topic)) {
+      throw new ValidationError("Replay is not supported for this webhook topic");
     }
 
     await prisma.webhookIntakeRecord.update({

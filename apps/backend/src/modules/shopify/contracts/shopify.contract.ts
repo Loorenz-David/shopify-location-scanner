@@ -68,12 +68,17 @@ export const RemoveMetafieldOptionParamsSchema = z.object({
   optionValue: z.string().trim().min(1).max(120),
 });
 
-const ShopifyOrderLineItemSchema = z.object({
+export const ShopifyOrderLineItemSchema = z.object({
   id: z.union([z.number().int().positive(), z.string().trim().min(1)]),
   product_id: z
     .union([z.number().int().positive(), z.string().trim().min(1)])
     .nullable()
     .optional(),
+  variant_id: z
+    .union([z.number().int().positive(), z.string().trim().min(1)])
+    .nullable()
+    .optional(),
+  product_type: z.string().trim().nullable().optional(),
   sku: z.string().trim().nullable().optional(),
   barcode: z.string().trim().nullable().optional(),
   price: z.string().trim().nullable().optional(),
@@ -152,6 +157,7 @@ export type ShopifyOrdersPaidWebhookPayload = z.infer<
 export type ShopifyOrdersCreateWebhookPayload = z.infer<
   typeof ShopifyOrdersCreateWebhookPayloadSchema
 >;
+export type ShopifyOrderLineItem = z.infer<typeof ShopifyOrderLineItemSchema>;
 export type ShopifyProductsUpdateWebhookPayload = z.infer<
   typeof ShopifyProductsUpdateWebhookPayloadSchema
 >;

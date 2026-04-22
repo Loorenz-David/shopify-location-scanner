@@ -19,6 +19,11 @@ export type WsInboundEvent =
       orderId: string | null;
     }
   | {
+      type: "logistic_items_updated";
+      itemIds: string[];
+      orderId: string | null;
+    }
+  | {
       type: "logistic_batch_notification";
       count: number;
       itemIds: string[];

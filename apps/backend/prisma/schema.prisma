@@ -59,6 +59,10 @@ enum LogisticZoneType {
   for_fixing
 }
 
+enum OutboundEventType {
+  item_placed
+}
+
 model Shop {
   id            String        @id @default(cuid())
   shopDomain    String        @unique
@@ -73,6 +77,7 @@ model Shop {
   webhookIntakeRecords WebhookIntakeRecord[]
   logisticLocations LogisticLocation[]
   scanHistoryLogistics ScanHistoryLogistic[]
+  outboundWebhookTargets OutboundWebhookTarget[]
 }
 
 model User {
@@ -245,6 +250,23 @@ model WebhookIntakeRecord {
   @@index([shopId, status])
   @@index([topic, status])
   @@index([status, createdAt])
+}
+
+model OutboundWebhookTarget {
+  id        String            @id @default(cuid())
+  shopId    String
+  label     String
+  targetUrl String
+  secret    String
+  eventType OutboundEventType
+  active    Boolean           @default(true)
+  createdAt DateTime          @default(now())
+  updatedAt DateTime          @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, targetUrl, eventType])
+  @@index([shopId, eventType, active])
 }
 
 model LocationStatsDaily {

@@ -10,7 +10,7 @@ import {
 import { createWsBroadcastPublisher } from "../shared/queue/ws-bridge.js";
 import { Worker, type Job } from "bullmq";
 import { webhookIntakeRepository } from "../modules/shopify/repositories/webhook-intake.repository.js";
-import { processProductsUpdateWebhookJob } from "../modules/shopify/jobs/process-products-update-webhook.job.js";
+import { processShopifyWebhookIntakeJob } from "../modules/shopify/jobs/process-shopify-webhook-intake.job.js";
 
 const isTransientError = (error: unknown): boolean => {
   const message =
@@ -73,19 +73,9 @@ const worker = new Worker(
     await webhookIntakeRepository.markProcessing(intakeId);
 
     try {
-      switch (intake.topic) {
-        case "products/update":
-          await processProductsUpdateWebhookJob(intake, wsBroadcastPublisher.publish);
-          break;
-        default:
-          throw new AppError("Unsupported webhook topic", {
-            code: "VALIDATION_ERROR",
-            statusCode: 400,
-            details: {
-              topic: intake.topic,
-            },
-          });
-      }
+      await processShopifyWebhookIntakeJob(intake, {
+        broadcast: wsBroadcastPublisher.publish,
+      });
 
       await webhookIntakeRepository.markProcessed(intakeId);
       logger.info("Webhook worker processed intake", {

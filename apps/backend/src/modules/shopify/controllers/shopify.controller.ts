@@ -14,6 +14,7 @@ import {
 } from "../contracts/shopify.contract.js";
 import { tokenService } from "../../auth/integrations/token.service.js";
 import { createInstallUrlCommand } from "../commands/create-install-url.command.js";
+import { enqueueShopifyWebhookCommand } from "../commands/enqueue-shopify-webhook.command.js";
 import { handleOauthCallbackCommand } from "../commands/handle-oauth-callback.command.js";
 import { getProductQuery } from "../queries/get-product.query.js";
 import { updateItemLocationCommand } from "../commands/update-item-location.command.js";
@@ -33,10 +34,6 @@ import { AppError } from "../../../shared/errors/app-error.js";
 import { logger } from "../../../shared/logging/logger.js";
 import { env } from "../../../config/env.js";
 import { appendMetafieldOptionsCommand } from "../commands/append-metafield-options.command.js";
-import { handleOrdersCreateWebhookCommand } from "../commands/handle-orders-create-webhook.command.js";
-import { handleOrdersPaidWebhookCommand } from "../commands/handle-orders-paid-webhook.command.js";
-import { webhookQueue } from "../../../shared/queue/index.js";
-import { webhookIntakeRepository } from "../repositories/webhook-intake.repository.js";
 
 const extractRawQueryParams = (req: Request): Record<string, string> => {
   const params: Record<string, string> = {};
@@ -58,35 +55,20 @@ export const shopifyController = {
       throw new ValidationError("Webhook context missing");
     }
 
-    const { id: intakeId, isDuplicate } =
-      await webhookIntakeRepository.createIntakeRecord({
-        shopId: context.shopId,
-        shopDomain: context.shopDomain,
-        topic: context.topic,
-        webhookId: context.webhookId,
-        rawPayload: context.rawBody,
-      });
-
-    await webhookQueue.add(
-      context.topic,
-      {
-        intakeId,
-      },
-      {
-        jobId: intakeId,
-      },
-    );
-
-    logger.info("Accepted Shopify products/update webhook", {
+    const result = await enqueueShopifyWebhookCommand({
       shopId: context.shopId,
       shopDomain: context.shopDomain,
       topic: context.topic,
       webhookId: context.webhookId,
-      intakeId,
-      isDuplicate,
+      rawPayload: context.rawBody,
     });
 
-    res.status(200).json({ received: true });
+    res.status(200).json({
+      received: true,
+      queued: true,
+      duplicate: result.duplicate,
+      intakeId: result.intakeId,
+    });
   },
 
   handleOrdersCreateWebhook: async (
@@ -98,23 +80,20 @@ export const shopifyController = {
       throw new ValidationError("Webhook context missing");
     }
 
-    let parsedBody: unknown;
-    try {
-      parsedBody = JSON.parse(context.rawBody);
-    } catch {
-      throw new ValidationError("Invalid webhook JSON payload");
-    }
-
-    const payload = ShopifyOrdersCreateWebhookPayloadSchema.parse(parsedBody);
-    const result = await handleOrdersCreateWebhookCommand({
+    const result = await enqueueShopifyWebhookCommand({
       shopId: context.shopId,
       shopDomain: context.shopDomain,
       topic: context.topic,
       webhookId: context.webhookId,
-      payload,
+      rawPayload: context.rawBody,
     });
 
-    res.status(200).json({ ok: true, ...result });
+    res.status(200).json({
+      received: true,
+      queued: true,
+      duplicate: result.duplicate,
+      intakeId: result.intakeId,
+    });
   },
 
   handleOrdersPaidWebhook: async (
@@ -126,23 +105,20 @@ export const shopifyController = {
       throw new ValidationError("Webhook context missing");
     }
 
-    let parsedBody: unknown;
-    try {
-      parsedBody = JSON.parse(context.rawBody);
-    } catch {
-      throw new ValidationError("Invalid webhook JSON payload");
-    }
-
-    const payload = ShopifyOrdersPaidWebhookPayloadSchema.parse(parsedBody);
-    const result = await handleOrdersPaidWebhookCommand({
+    const result = await enqueueShopifyWebhookCommand({
       shopId: context.shopId,
       shopDomain: context.shopDomain,
       topic: context.topic,
       webhookId: context.webhookId,
-      payload,
+      rawPayload: context.rawBody,
     });
 
-    res.status(200).json({ ok: true, ...result });
+    res.status(200).json({
+      received: true,
+      queued: true,
+      duplicate: result.duplicate,
+      intakeId: result.intakeId,
+    });
   },
 
   getLinkedShop: async (req: Request, res: Response): Promise<void> => {
