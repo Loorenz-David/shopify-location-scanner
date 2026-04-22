@@ -8,7 +8,6 @@ LOCK_DIR="${LOCK_DIR:-/tmp/item-scanner-ec2-deploy.lock}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 BACKEND_DIR="${REPO_ROOT}/apps/backend"
-FRONTEND_DIR="${REPO_ROOT}/apps/frontend"
 ECOSYSTEM_FILE="${BACKEND_DIR}/ecosystem.config.cjs"
 BACKEND_APPS=(
   "shopify-backend"
@@ -16,6 +15,12 @@ BACKEND_APPS=(
   "shopify-notification-worker"
   "shopify-outbound-webhook-worker"
 )
+FETCH_TIMEOUT_SECONDS="${FETCH_TIMEOUT_SECONDS:-120}"
+NPM_INSTALL_TIMEOUT_SECONDS="${NPM_INSTALL_TIMEOUT_SECONDS:-240}"
+BUILD_TIMEOUT_SECONDS="${BUILD_TIMEOUT_SECONDS:-240}"
+MIGRATE_TIMEOUT_SECONDS="${MIGRATE_TIMEOUT_SECONDS:-120}"
+PM2_TIMEOUT_SECONDS="${PM2_TIMEOUT_SECONDS:-90}"
+HEALTHCHECK_TIMEOUT_SECONDS="${HEALTHCHECK_TIMEOUT_SECONDS:-15}"
 
 timestamp() {
   date +"%Y-%m-%d %H:%M:%S"
@@ -38,6 +43,18 @@ cleanup() {
   rm -rf "${LOCK_DIR}"
 }
 
+run_with_timeout() {
+  local seconds="$1"
+  shift
+
+  if command -v timeout >/dev/null 2>&1; then
+    timeout --signal=TERM --kill-after=10s "${seconds}" "$@"
+    return
+  fi
+
+  "$@"
+}
+
 dump_pm2_diagnostics() {
   if ! command -v pm2 >/dev/null 2>&1; then
     return
@@ -58,8 +75,20 @@ on_error() {
   exit "${exit_code}"
 }
 
+on_signal() {
+  local signal="$1"
+  warn "Deployment interrupted by ${signal}; terminating child processes"
+  trap - ERR EXIT HUP INT TERM
+  cleanup
+  kill 0 >/dev/null 2>&1 || true
+  exit 130
+}
+
 trap 'on_error "$?" "${LINENO}"' ERR
 trap cleanup EXIT
+trap 'on_signal HUP' HUP
+trap 'on_signal INT' INT
+trap 'on_signal TERM' TERM
 
 require_command() {
   local cmd="$1"
@@ -71,7 +100,20 @@ install_with_dev_dependencies() {
   env -u NODE_ENV \
     NPM_CONFIG_PRODUCTION=false \
     NPM_CONFIG_OMIT= \
-    npm --prefix "${target_dir}" ci --include=dev
+    npm --prefix "${target_dir}" ci --include=dev --no-audit --no-fund --prefer-offline
+}
+
+git_has_changes_between() {
+  local from_ref="$1"
+  local to_ref="$2"
+  shift 2
+
+  if (($# == 0)); then
+    ! git diff --quiet "${from_ref}" "${to_ref}"
+    return
+  fi
+
+  ! git diff --quiet "${from_ref}" "${to_ref}" -- "$@"
 }
 
 acquire_lock() {
@@ -110,7 +152,8 @@ ensure_clean_worktree() {
 
 sync_repo() {
   log "Fetching ${GIT_REMOTE}/${DEPLOY_BRANCH}"
-  git fetch --prune "${GIT_REMOTE}" "${DEPLOY_BRANCH}"
+  run_with_timeout "${FETCH_TIMEOUT_SECONDS}" \
+    git fetch --prune "${GIT_REMOTE}" "${DEPLOY_BRANCH}"
 
   if git show-ref --verify --quiet "refs/heads/${DEPLOY_BRANCH}"; then
     git checkout "${DEPLOY_BRANCH}"
@@ -236,8 +279,8 @@ health_check() {
   local attempt
 
   for attempt in $(seq 1 15); do
-    if curl --fail --silent --show-error "${base_url}/health" >/dev/null \
-      && curl --fail --silent --show-error "${base_url}/health/db" >/dev/null; then
+    if curl --fail --silent --show-error --max-time "${HEALTHCHECK_TIMEOUT_SECONDS}" "${base_url}/health" >/dev/null \
+      && curl --fail --silent --show-error --max-time "${HEALTHCHECK_TIMEOUT_SECONDS}" "${base_url}/health/db" >/dev/null; then
       log "Health checks passed via ${base_url}"
       return
     fi
@@ -273,33 +316,89 @@ main() {
   current_sha="$(git rev-parse --short HEAD)"
   log "Repository updated ${previous_sha} -> ${current_sha}"
 
+  if [[ "${previous_sha}" == "${current_sha}" ]]; then
+    log "No new commit to deploy"
+    return
+  fi
+
+  local backend_code_changed=false
+  local backend_manifest_changed=false
+  local prisma_changed=false
+  local deploy_script_changed=false
+
+  if git_has_changes_between "${previous_sha}" "${current_sha}" \
+    apps/backend/src \
+    apps/backend/tsconfig.json \
+    apps/backend/ecosystem.config.cjs; then
+    backend_code_changed=true
+  fi
+
+  if git_has_changes_between "${previous_sha}" "${current_sha}" \
+    apps/backend/package.json \
+    apps/backend/package-lock.json; then
+    backend_manifest_changed=true
+  fi
+
+  if git_has_changes_between "${previous_sha}" "${current_sha}" \
+    apps/backend/prisma; then
+    prisma_changed=true
+  fi
+
+  if git_has_changes_between "${previous_sha}" "${current_sha}" \
+    apps/backend/scripts/deploy-ec2.sh; then
+    deploy_script_changed=true
+  fi
+
+  if [[ "${backend_code_changed}" == false \
+    && "${backend_manifest_changed}" == false \
+    && "${prisma_changed}" == false \
+    && "${deploy_script_changed}" == false ]]; then
+    log "No backend deployable changes detected; skipping install/build/reload"
+    return
+  fi
+
   load_backend_env
   local runtime_node_env="${NODE_ENV:-production}"
 
-  log "Installing backend dependencies"
-  install_with_dev_dependencies "${BACKEND_DIR}"
+  if [[ "${backend_manifest_changed}" == true || ! -d "${BACKEND_DIR}/node_modules" ]]; then
+    log "Installing backend dependencies"
+    run_with_timeout "${NPM_INSTALL_TIMEOUT_SECONDS}" \
+      install_with_dev_dependencies "${BACKEND_DIR}"
+  else
+    log "Skipping backend dependency install"
+  fi
 
-  log "Generating Prisma client"
-  npm --prefix "${BACKEND_DIR}" run prisma:generate
+  if [[ "${backend_manifest_changed}" == true || "${prisma_changed}" == true ]]; then
+    log "Generating Prisma client"
+    run_with_timeout "${BUILD_TIMEOUT_SECONDS}" \
+      npm --prefix "${BACKEND_DIR}" run prisma:generate
+  else
+    log "Skipping Prisma client generation"
+  fi
 
-  log "Building backend"
-  npm --prefix "${BACKEND_DIR}" run build
+  if [[ "${backend_code_changed}" == true || "${backend_manifest_changed}" == true || "${prisma_changed}" == true ]]; then
+    log "Building backend"
+    run_with_timeout "${BUILD_TIMEOUT_SECONDS}" \
+      npm --prefix "${BACKEND_DIR}" run build
+  else
+    log "Skipping backend build"
+  fi
 
-  log "Installing frontend dependencies"
-  install_with_dev_dependencies "${FRONTEND_DIR}"
+  if git_has_changes_between "${previous_sha}" "${current_sha}" apps/backend/prisma/migrations; then
+    log "Stopping backend PM2 apps before migrations"
+    stop_backend_apps
 
-  log "Building frontend"
-  npm --prefix "${FRONTEND_DIR}" run build
-
-  log "Stopping backend PM2 apps before migrations"
-  stop_backend_apps
-
-  log "Applying Prisma migrations"
-  npm --prefix "${BACKEND_DIR}" run prisma:migrate:deploy
+    log "Applying Prisma migrations"
+    run_with_timeout "${MIGRATE_TIMEOUT_SECONDS}" \
+      npm --prefix "${BACKEND_DIR}" run prisma:migrate:deploy
+  else
+    log "Skipping Prisma migrations"
+  fi
 
   log "Reloading PM2 ecosystem"
   export NODE_ENV="${runtime_node_env}"
-  pm2 startOrReload "${ECOSYSTEM_FILE}" --env production
+  run_with_timeout "${PM2_TIMEOUT_SECONDS}" \
+    pm2 startOrReload "${ECOSYSTEM_FILE}" --env production
   pm2 save
 
   log "Verifying PM2 process state"
