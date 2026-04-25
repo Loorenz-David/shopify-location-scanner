@@ -8,6 +8,7 @@ LOCK_DIR="${LOCK_DIR:-/tmp/item-scanner-ec2-deploy.lock}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
 BACKEND_DIR="${REPO_ROOT}/apps/backend"
+FRONTEND_DIR="${REPO_ROOT}/apps/frontend"
 ECOSYSTEM_FILE="${BACKEND_DIR}/ecosystem.config.cjs"
 BACKEND_APPS=(
   "shopify-backend"
@@ -17,7 +18,8 @@ BACKEND_APPS=(
 )
 FETCH_TIMEOUT_SECONDS="${FETCH_TIMEOUT_SECONDS:-120}"
 NPM_INSTALL_TIMEOUT_SECONDS="${NPM_INSTALL_TIMEOUT_SECONDS:-240}"
-BUILD_TIMEOUT_SECONDS="${BUILD_TIMEOUT_SECONDS:-240}"
+BUILD_TIMEOUT_SECONDS="${BUILD_TIMEOUT_SECONDS:-600}"
+FRONTEND_BUILD_TIMEOUT_SECONDS="${FRONTEND_BUILD_TIMEOUT_SECONDS:-300}"
 MIGRATE_TIMEOUT_SECONDS="${MIGRATE_TIMEOUT_SECONDS:-120}"
 PM2_TIMEOUT_SECONDS="${PM2_TIMEOUT_SECONDS:-90}"
 HEALTHCHECK_TIMEOUT_SECONDS="${HEALTHCHECK_TIMEOUT_SECONDS:-15}"
@@ -326,6 +328,8 @@ main() {
   local backend_manifest_changed=false
   local prisma_changed=false
   local deploy_script_changed=false
+  local frontend_code_changed=false
+  local frontend_manifest_changed=false
 
   if git_has_changes_between "${previous_sha}" "${current_sha}" \
     apps/backend/src \
@@ -350,11 +354,37 @@ main() {
     deploy_script_changed=true
   fi
 
-  if [[ "${backend_code_changed}" == false \
-    && "${backend_manifest_changed}" == false \
-    && "${prisma_changed}" == false \
-    && "${deploy_script_changed}" == false ]]; then
-    log "No backend deployable changes detected; skipping install/build/reload"
+  if git_has_changes_between "${previous_sha}" "${current_sha}" \
+    apps/frontend/src \
+    apps/frontend/index.html \
+    apps/frontend/vite.config.ts \
+    apps/frontend/tsconfig.json \
+    apps/frontend/tsconfig.app.json \
+    apps/frontend/tsconfig.node.json; then
+    frontend_code_changed=true
+  fi
+
+  if git_has_changes_between "${previous_sha}" "${current_sha}" \
+    apps/frontend/package.json \
+    apps/frontend/package-lock.json; then
+    frontend_manifest_changed=true
+  fi
+
+  local backend_changed=false
+  if [[ "${backend_code_changed}" == true \
+    || "${backend_manifest_changed}" == true \
+    || "${prisma_changed}" == true \
+    || "${deploy_script_changed}" == true ]]; then
+    backend_changed=true
+  fi
+
+  local frontend_changed=false
+  if [[ "${frontend_code_changed}" == true || "${frontend_manifest_changed}" == true ]]; then
+    frontend_changed=true
+  fi
+
+  if [[ "${backend_changed}" == false && "${frontend_changed}" == false ]]; then
+    log "No deployable changes detected; skipping install/build/reload"
     return
   fi
 
@@ -385,6 +415,22 @@ main() {
     log "Skipping backend build"
   fi
 
+  if [[ "${frontend_manifest_changed}" == true || ! -d "${FRONTEND_DIR}/node_modules" ]]; then
+    log "Installing frontend dependencies"
+    run_with_timeout "${NPM_INSTALL_TIMEOUT_SECONDS}" \
+      install_with_dev_dependencies "${FRONTEND_DIR}"
+  else
+    log "Skipping frontend dependency install"
+  fi
+
+  if [[ "${frontend_changed}" == true ]]; then
+    log "Building frontend"
+    run_with_timeout "${FRONTEND_BUILD_TIMEOUT_SECONDS}" \
+      npm --prefix "${FRONTEND_DIR}" run build
+  else
+    log "Skipping frontend build"
+  fi
+
   if git_has_changes_between "${previous_sha}" "${current_sha}" apps/backend/prisma/migrations; then
     log "Stopping backend PM2 apps before migrations"
     stop_backend_apps
@@ -396,17 +442,19 @@ main() {
     log "Skipping Prisma migrations"
   fi
 
-  log "Reloading PM2 ecosystem"
-  export NODE_ENV="${runtime_node_env}"
-  run_with_timeout "${PM2_TIMEOUT_SECONDS}" \
-    pm2 startOrReload "${ECOSYSTEM_FILE}" --env production
-  pm2 save
+  if [[ "${backend_changed}" == true ]]; then
+    log "Reloading PM2 ecosystem"
+    export NODE_ENV="${runtime_node_env}"
+    run_with_timeout "${PM2_TIMEOUT_SECONDS}" \
+      pm2 startOrReload "${ECOSYSTEM_FILE}" --env production
+    pm2 save
 
-  log "Verifying PM2 process state"
-  assert_pm2_online
+    log "Verifying PM2 process state"
+    assert_pm2_online
 
-  log "Running backend health checks"
-  health_check
+    log "Running backend health checks"
+    health_check
+  fi
 
   log "Deployment finished successfully at ${current_sha}"
 }
