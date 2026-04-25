@@ -37,7 +37,7 @@ export function UnifiedLocationScanPage({
 
   return (
     <section
-      className="relative h-full w-1/2 shrink-0 basis-1/2"
+      className="relative h-full w-1/2 shrink-0 basis-1/2 overflow-hidden"
       aria-label="Unified location scanner"
     >
       {locationFrozenFrame ? (
@@ -58,7 +58,7 @@ export function UnifiedLocationScanPage({
           }}
         >
           <div className="flex flex-col gap-3">
-            <div className="flex items-center gap-3 rounded-2xl bg-slate-950/60 px-3 py-2 text-slate-100 ring-1 ring-white/15 backdrop-blur-sm">
+            <div className="flex items-center gap-3 rounded-2xl bg-slate-950 px-3 py-2 text-slate-100 ring-1 ring-white/15">
               {selectedItem?.imageUrl ? (
                 <img
                   src={selectedItem.imageUrl}
@@ -68,7 +68,7 @@ export function UnifiedLocationScanPage({
                   className="h-11 w-11 shrink-0 rounded-xl bg-slate-800 object-cover"
                 />
               ) : isLookingUpItem ? (
-                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-800/90">
+                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-800">
                   <span
                     className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-transparent"
                     aria-hidden="true"
@@ -93,7 +93,7 @@ export function UnifiedLocationScanPage({
 
               <button
                 type="button"
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-white/10 text-slate-100 ring-1 ring-white/15 transition active:bg-white/20"
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-800 text-slate-100 ring-1 ring-white/15 transition active:bg-slate-700"
                 onClick={onClearItemScan}
                 aria-label="Scan a different item"
                 title="Scan a different item"

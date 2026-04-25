@@ -16,6 +16,10 @@ import type {
   UnifiedScannerItem,
 } from "../types/unified-scanner.types";
 
+interface ApplyItemActionOptions {
+  transition?: "deferred" | "immediate";
+}
+
 function finishPendingPlacement(): void {
   const store = useUnifiedScannerStore.getState();
   const pendingLocation = store.pendingLocation;
@@ -59,8 +63,11 @@ function openNextWarningIfAny(): boolean {
 }
 
 export const unifiedScannerActions = {
-  applyItem(item: UnifiedScannerItem): void {
-    applyItemController(item);
+  applyItem(
+    item: UnifiedScannerItem,
+    options?: ApplyItemActionOptions,
+  ): void {
+    applyItemController(item, options);
   },
   applyLocation(location: ResolvedLocation): void {
     applyResolvedLocationController(location);

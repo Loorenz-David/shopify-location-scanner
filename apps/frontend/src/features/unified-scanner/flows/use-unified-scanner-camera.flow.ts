@@ -18,15 +18,33 @@ import type { ScannerFrozenFrame } from "../types/unified-scanner.types";
 const unifiedScannerRegionId = CAMERA_REGION_IDS["unified-scanner"];
 const ITEM_TO_LOCATION_TRANSITION_DELAY_MS = 600;
 
+function isPermissionDeniedCameraError(error: string): boolean {
+  const normalizedError = error.trim().toLowerCase();
+
+  return (
+    normalizedError.includes("notallowederror") ||
+    normalizedError.includes("permission denied") ||
+    normalizedError.includes("permission denied by system") ||
+    normalizedError.includes("user denied") ||
+    normalizedError.includes("denied permission")
+  );
+}
+
 function getCameraErrorMessage(error: unknown): string {
   if (error && typeof error === "object" && "message" in error) {
-    return (
-      String((error as { message?: unknown }).message ?? "") ||
-      "Camera access denied or unavailable."
-    );
+    const message = String((error as { message?: unknown }).message ?? "");
+    if (isPermissionDeniedCameraError(message)) {
+      return "Camera permission denied, please allowed to use the scanner.";
+    }
+
+    return message || "Camera access denied or unavailable.";
   }
 
   if (typeof error === "string") {
+    if (isPermissionDeniedCameraError(error)) {
+      return "Camera permission denied, please allowed to use the scanner.";
+    }
+
     return error;
   }
 

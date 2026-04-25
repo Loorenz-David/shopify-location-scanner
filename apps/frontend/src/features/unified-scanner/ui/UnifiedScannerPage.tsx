@@ -53,13 +53,15 @@ export function UnifiedScannerPage() {
       </div>
 
       {!isCameraReady && !cameraError ? (
-        <div className="absolute inset-0 z-[21] grid place-items-center bg-slate-950/35 text-sm font-semibold text-slate-100">
-          Opening camera...
+        <div className="pointer-events-none absolute inset-x-4 top-1/2 z-[21] -translate-y-1/2">
+          <div className="mx-auto max-w-sm rounded-2xl bg-slate-950/85 px-5 py-4 text-center text-sm font-semibold text-slate-100 shadow-xl ring-1 ring-white/10">
+            Opening camera...
+          </div>
         </div>
       ) : null}
 
       {cameraError ? (
-        <div className="absolute inset-0 z-[21] grid place-items-center bg-slate-950/55 p-6 text-center text-sm font-semibold text-rose-100">
+        <div className="pointer-events-none absolute inset-x-4 top-1/2 z-[21] -translate-y-1/2 text-center text-sm font-semibold text-rose-100">
           {cameraError}
         </div>
       ) : null}
@@ -82,7 +84,9 @@ export function UnifiedScannerPage() {
             onClose={() => setManualInputMode(null)}
             onSelect={(item) => {
               setManualInputMode(null);
-              unifiedScannerActions.applyItem(item);
+              unifiedScannerActions.applyItem(item, {
+                transition: "immediate",
+              });
             }}
           />
         ) : null}

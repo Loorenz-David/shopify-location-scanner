@@ -32,7 +32,7 @@ export function UnifiedItemScanPage({
 
   return (
     <section
-      className="relative h-full w-1/2 shrink-0 basis-1/2"
+      className="relative h-full w-1/2 shrink-0 basis-1/2 overflow-hidden"
       aria-label="Unified item scanner"
     >
       {itemFrozenFrame ? (

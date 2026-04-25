@@ -5,6 +5,10 @@ import { applyLocationByValueController } from "./location.controller";
 import { useUnifiedScannerStore } from "../stores/unified-scanner.store";
 import type { UnifiedScannerItem } from "../types/unified-scanner.types";
 
+interface ApplyItemControllerOptions {
+  transition?: "deferred" | "immediate";
+}
+
 export async function lookupItemByValueController(value: string): Promise<void> {
   const store = useUnifiedScannerStore.getState();
   const normalizedValue = value.trim();
@@ -46,20 +50,24 @@ export async function lookupItemByValueController(value: string): Promise<void> 
 
   const [item] = results;
   useUnifiedScannerStore.getState().setIsLookingUpItem(false);
-  applyItemController(item);
+  applyItemController(item, { transition: "deferred" });
 }
 
-export function applyItemController(item: UnifiedScannerItem): void {
+export function applyItemController(
+  item: UnifiedScannerItem,
+  options?: ApplyItemControllerOptions,
+): void {
   const store = useUnifiedScannerStore.getState();
   const locationMode = resolveLocationScannerMode(item);
   const pendingLocationValue = store.pendingLocationValue;
+  const transition = options?.transition ?? "immediate";
   const nextPhase =
     store.phase === "scanning-location"
       ? "scanning-location"
-      : store.phase === "scanning-item"
-        ? "scanning-item"
       : store.onScanAsk
         ? "item-confirmed"
+      : transition === "deferred"
+        ? "scanning-item"
         : "scanning-location";
 
   store.setSelectedItem(item);
