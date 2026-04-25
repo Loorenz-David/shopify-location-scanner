@@ -43,6 +43,7 @@ export function PopupContainer({
             animate={{ y: 0, opacity: 1 }}
             exit={{ y: 32, opacity: 0 }}
             transition={{ duration: 0.22, ease: "easeOut" }}
+            onClick={(event) => event.stopPropagation()}
           >
             {/* Close button */}
             <button

@@ -9,6 +9,8 @@ import { logisticEventRepository } from "../repositories/logistic-event.reposito
 import { logisticLocationRepository } from "../repositories/logistic-location.repository.js";
 import { scheduleRoleNotification } from "../services/logistic-notification.service.js";
 import type { MarkPlacementInput } from "../contracts/logistic.contract.js";
+import { ZONE_TYPE_DEFAULT_INTENTION } from "../domain/logistic.domain.js";
+import type { LogisticIntention } from "../domain/logistic.domain.js";
 import type { UserRole } from "@prisma/client";
 import type { ItemPlacedPayload } from "../../outbound-webhook/contracts/outbound-webhook.contract.js";
 import { enqueueOutboundEventService } from "../../outbound-webhook/services/enqueue-outbound-event.service.js";
@@ -22,6 +24,9 @@ export const markLogisticPlacementCommand = async (input: {
   scanHistoryId: string;
   lastLogisticEventType: string;
   logisticLocationId: string;
+  intention: LogisticIntention | null;
+  fixItem: boolean;
+  isItemFixed: boolean;
 }> => {
   logger.info("Mark logistic placement started", {
     shopId: input.shopId,
@@ -43,23 +48,39 @@ export const markLogisticPlacementCommand = async (input: {
       id: input.payload.scanHistoryId,
       shopId: input.shopId,
       isSold: true,
-      intention: { not: null },
+      // intention is no longer required — it is auto-derived from zoneType when null
     },
     select: {
       id: true,
       orderId: true,
       itemSku: true,
       fixItem: true,
+      isItemFixed: true,
+      intention: true,
       logisticsCompletedAt: true,
     },
   });
 
   if (!scanHistory) {
-    throw new NotFoundError("Sold item with intention not found for this shop");
+    throw new NotFoundError("Sold item not found for this shop");
   }
 
   if (scanHistory.logisticsCompletedAt) {
     throw new ValidationError("Item logistics are already completed");
+  }
+
+  // Derive intention from zoneType if not set
+  let finalIntention: LogisticIntention | null = (scanHistory.intention as LogisticIntention | null) ?? null;
+
+  if (finalIntention === null) {
+    const derived = ZONE_TYPE_DEFAULT_INTENTION[location.zoneType] ?? null;
+    if (derived !== null) {
+      await prisma.scanHistory.update({
+        where: { id: scanHistory.id },
+        data: { intention: derived },
+      });
+      finalIntention = derived;
+    }
   }
 
   await logisticEventRepository.appendEvent({
@@ -159,5 +180,8 @@ export const markLogisticPlacementCommand = async (input: {
     scanHistoryId: scanHistory.id,
     lastLogisticEventType: "placed",
     logisticLocationId: input.payload.logisticLocationId,
+    intention: finalIntention,
+    fixItem: scanHistory.fixItem ?? false,
+    isItemFixed: scanHistory.isItemFixed,
   };
 };

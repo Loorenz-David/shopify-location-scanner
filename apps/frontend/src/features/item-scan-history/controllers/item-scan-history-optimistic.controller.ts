@@ -12,7 +12,7 @@ import type {
   LinkHistoryItemResponse,
   LinkItemPositionsResponse,
   ScannerItem,
-} from "../../scanner/types/scanner.types";
+} from "../../unified-scanner/types/unified-scanner.types";
 
 const OPTIMISTIC_EVENT_USERNAME = "You";
 const OPTIMISTIC_SKU_PREFIX = "* ";

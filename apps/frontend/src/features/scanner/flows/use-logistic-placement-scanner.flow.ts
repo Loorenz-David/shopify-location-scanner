@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   attachDecodeSession,
   CAMERA_REGION_IDS,
-} from "../domain/camera-session.manager";
+} from "../../unified-scanner/domain/camera-session.manager";
 
 export const LOGISTIC_PLACEMENT_REGION_ID =
   CAMERA_REGION_IDS["logistic-placement"];

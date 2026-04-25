@@ -1336,4 +1336,51 @@ export const scanHistoryRepository = {
       nextCursor,
     };
   },
+
+  async findBySkuOrBarcode(input: {
+    shopId: string;
+    value: string;
+    limit: number;
+  }): Promise<
+    Array<{
+      id: string;
+      productId: string;
+      itemSku: string | null;
+      itemBarcode: string | null;
+      itemImageUrl: string | null;
+      itemTitle: string;
+      latestLocation: string | null;
+      isSold: boolean;
+      intention: string | null;
+      fixItem: boolean | null;
+      isItemFixed: boolean;
+    }>
+  > {
+    const normalizedValue = input.value.trim().toLowerCase();
+
+    return prisma.scanHistory.findMany({
+      where: {
+        shopId: input.shopId,
+        OR: [
+          { itemSku: { contains: normalizedValue } },
+          { itemBarcode: { contains: normalizedValue } },
+        ],
+      },
+      select: {
+        id: true,
+        productId: true,
+        itemSku: true,
+        itemBarcode: true,
+        itemImageUrl: true,
+        itemTitle: true,
+        latestLocation: true,
+        isSold: true,
+        intention: true,
+        fixItem: true,
+        isItemFixed: true,
+      },
+      orderBy: { lastModifiedAt: "desc" },
+      take: input.limit,
+    });
+  },
 };

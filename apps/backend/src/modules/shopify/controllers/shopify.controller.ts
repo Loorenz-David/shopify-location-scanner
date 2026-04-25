@@ -23,6 +23,7 @@ import {
   ValidationError,
 } from "../../../shared/errors/http-errors.js";
 import { searchProductsBySkuQuery } from "../queries/search-products-by-sku.query.js";
+import { searchUnifiedItemsQuery } from "../queries/search-unified-items.query.js";
 import { getMetafieldOptionsQuery } from "../queries/get-metafield-options.query.js";
 import { shopRepository } from "../repositories/shop.repository.js";
 import { resolveProductIdCommand } from "../commands/resolve-product-id.command.js";
@@ -379,9 +380,9 @@ export const shopifyController = {
       sku: req.query.sku,
     });
 
-    const items = await searchProductsBySkuQuery({
+    const items = await searchUnifiedItemsQuery({
       shopId: req.authUser.shopId as string,
-      sku: input.sku,
+      value: input.sku,
     });
 
     logger.info("Shopify SKU query results", {

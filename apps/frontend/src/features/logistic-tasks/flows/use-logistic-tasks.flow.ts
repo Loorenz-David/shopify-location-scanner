@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useRoleCapabilities } from "../../role-context/hooks/use-role-capabilities";
-import { useCameraPrewarm } from "../../scanner/flows/use-camera-prewarm";
 import {
   selectHomeShellCurrentPageId,
   selectHomeShellIsFullFeatureOpen,
   useHomeShellStore,
 } from "../../home/stores/home-shell.store";
+import { useCameraPrewarm } from "../../unified-scanner/flows/use-camera-prewarm";
 import { buildFiltersFromRoleDefaults } from "../domain/logistic-tasks.domain";
 import { logisticTasksActions } from "../actions/logistic-tasks.actions";
 import {

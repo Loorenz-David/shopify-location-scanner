@@ -269,6 +269,7 @@ model OutboundWebhookTarget {
   @@index([shopId, eventType, active])
 }
 
+
 model LocationStatsDaily {
   date                   DateTime
   location               String

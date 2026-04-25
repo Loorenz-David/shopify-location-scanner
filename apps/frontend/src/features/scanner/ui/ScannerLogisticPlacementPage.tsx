@@ -12,12 +12,12 @@ import type { LogisticLocationRecord } from "../../logistic-locations/types/logi
 import { homeShellActions } from "../../home/actions/home-shell.actions";
 import { logisticTasksActions } from "../../logistic-tasks/actions/logistic-tasks.actions";
 import { useLogisticTasksStore } from "../../logistic-tasks/stores/logistic-tasks.store";
+import { ScannerGuideOverlay } from "../../unified-scanner/ui/ScannerGuideOverlay";
 import {
   LOGISTIC_PLACEMENT_REGION_ID,
   useLogisticPlacementScannerFlow,
 } from "../flows/use-logistic-placement-scanner.flow";
 import { useScannerLogisticPlacementStore } from "../stores/scanner-logistic-placement.store";
-import { ScannerGuideOverlay } from "./ScannerGuideOverlay";
 
 export function ScannerLogisticPlacementPage() {
   const scanHistoryId = useScannerLogisticPlacementStore(

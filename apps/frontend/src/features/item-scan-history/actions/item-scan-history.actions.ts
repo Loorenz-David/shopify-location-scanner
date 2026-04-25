@@ -14,7 +14,7 @@ import type { ItemScanHistoryFilters } from "../types/item-scan-history-filters.
 import type {
   LinkItemPositionsResponse,
   ScannerItem,
-} from "../../scanner/types/scanner.types";
+} from "../../unified-scanner/types/unified-scanner.types";
 import { homeShellActions } from "../../home/actions/home-shell.actions";
 
 export const itemScanHistoryActions = {

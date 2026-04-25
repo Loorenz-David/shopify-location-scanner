@@ -184,6 +184,21 @@ export type ShopifySkuSearchItemDto = {
   barcode: string | null;
 };
 
+export type UnifiedItemSearchResultDto = {
+  productId: string;
+  title: string;
+  imageUrl: string | null;
+  sku: string;
+  barcode: string | null;
+  // Logistic enrichment (null/empty when item has no ScanHistory record):
+  id: string;
+  isSold: boolean;
+  intention: string | null;
+  fixItem: boolean;
+  isItemFixed: boolean;
+  currentPosition: string | null;
+};
+
 export type ShopifyMetafieldOptionDto = {
   label: string;
   value: string;

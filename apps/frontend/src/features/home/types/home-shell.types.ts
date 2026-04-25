@@ -2,9 +2,6 @@ import type { ComponentType } from "react";
 
 export type HomePageId = "home" | "scanner" | (string & {});
 export type OverlayPageId =
-  | "scanner-item-manual"
-  | "scanner-location-manual"
-  | "scanner-error-detail"
   | "item-scan-history-filters"
   | (string & {});
 

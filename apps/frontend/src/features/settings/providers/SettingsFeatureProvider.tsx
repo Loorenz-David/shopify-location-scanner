@@ -1,15 +1,12 @@
 import { useState } from "react";
 
 import { settingsActions } from "../actions/settings.actions";
-import { scannerActions } from "../../scanner/actions/scanner.actions";
 import {
   selectBootstrapLastSyncedAt,
   useBootstrapStore,
 } from "../../bootstrap/stores/bootstrap.store";
-import {
-  selectScannerOnScanAsk,
-  useScannerStore,
-} from "../../scanner/stores/scanner.store";
+import { unifiedScannerActions } from "../../unified-scanner/actions/unified-scanner.actions";
+import { useUnifiedScannerStore } from "../../unified-scanner/stores/unified-scanner.store";
 import { SettingsPageProvider } from "../context/settings-page.context";
 import type { SettingsPageContextValue } from "../context/settings-page-context";
 import { useSettingsProfileFlow } from "../flows/use-settings-profile.flow";
@@ -36,7 +33,7 @@ export function SettingsFeatureProvider({
   const profile = useSettingsStore(selectSettingsProfile);
   const isProfileLoading = useSettingsStore(selectSettingsProfileLoading);
   const profileError = useSettingsStore(selectSettingsProfileError);
-  const scannerOnScanAsk = useScannerStore(selectScannerOnScanAsk);
+  const scannerOnScanAsk = useUnifiedScannerStore((state) => state.onScanAsk);
   const bootstrapLastSyncedAt = useBootstrapStore(selectBootstrapLastSyncedAt);
 
   const handleLogout = async () => {
@@ -62,7 +59,7 @@ export function SettingsFeatureProvider({
     isLogoutPending,
     logoutError,
     openOption: settingsActions.openOption,
-    setScannerOnScanAsk: scannerActions.setOnScanAsk,
+    setScannerOnScanAsk: unifiedScannerActions.setOnScanAsk,
     logout: handleLogout,
   };
 

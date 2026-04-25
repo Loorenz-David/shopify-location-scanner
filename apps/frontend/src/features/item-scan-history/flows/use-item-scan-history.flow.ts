@@ -8,7 +8,7 @@ import {
 
 import { useWsEvent } from "../../../core/ws-client/use-ws-event";
 import type { WsInboundEvent } from "../../../core/ws-client/ws-events";
-import { useCameraPrewarm } from "../../scanner/flows/use-camera-prewarm";
+import { useCameraPrewarm } from "../../unified-scanner/flows/use-camera-prewarm";
 import { itemScanHistoryActions } from "../actions/item-scan-history.actions";
 import {
   selectItemScanHistoryFiltersRequestKey,
@@ -62,9 +62,9 @@ export function useItemScanHistoryFlow(): void {
   const currentPageId = useHomeShellStore(selectHomeShellCurrentPageId);
   const isFullFeatureOpen = useHomeShellStore(selectHomeShellIsFullFeatureOpen);
 
-  // Prewarm the main scanner camera so it's ready when the user taps scan.
+  // Prewarm the unified scanner camera so it's ready when the user taps scan.
   useCameraPrewarm(
-    "main-scanner",
+    "unified-scanner",
     0,
     currentPageId === "item-scan-history" && !isFullFeatureOpen,
   );

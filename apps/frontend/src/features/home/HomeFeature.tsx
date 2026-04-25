@@ -23,10 +23,11 @@ import { HomePage } from "./ui/HomePage";
 import { useItemScanHistoryRealtimeFlow } from "../item-scan-history/flows/use-item-scan-history.flow";
 import { ItemScanHistoryPage } from "../item-scan-history/ui/ItemScanHistoryPage";
 import { ItemScanHistoryOverlayHost } from "../item-scan-history/ItemScanHistoryOverlayHost";
-import { ScannerFeature } from "../scanner/ScannerFeature";
-import { ScannerOverlayHost } from "../scanner/ScannerOverlayHost";
 import { PlacementItemFixedPopup } from "../scanner/ui/PlacementItemFixedPopup";
 import { PlacementZoneMismatchPopup } from "../scanner/ui/PlacementZoneMismatchPopup";
+import { UnifiedScannerFeature } from "../unified-scanner/UnifiedScannerFeature";
+import { UnifiedFixCheckPopup } from "../unified-scanner/ui/UnifiedFixCheckPopup";
+import { UnifiedZoneMismatchPopup } from "../unified-scanner/ui/UnifiedZoneMismatchPopup";
 import { LogisticTasksOverlayHost } from "../logistic-tasks/LogisticTasksOverlayHost";
 import { useLogisticTasksRealtimeFlow } from "../logistic-tasks/flows/use-logistic-tasks-realtime.flow";
 import { useTaskCountFlow } from "../logistic-tasks/flows/use-task-count.flow";
@@ -119,9 +120,9 @@ export function HomeFeature({ onLogout }: HomeFeatureProps) {
         presentation: "full-overlay",
       },
       {
-        id: "scanner",
+        id: "unified-scanner",
         title: "Scanner",
-        component: ScannerFeature,
+        component: UnifiedScannerFeature,
         bottomMenu: {
           label: "Scanner",
           slot: "center",
@@ -211,7 +212,6 @@ export function HomeFeature({ onLogout }: HomeFeatureProps) {
       overlayTitle={overlayTitle}
       overlayContent={
         <>
-          <ScannerOverlayHost onClose={homeShellActions.closeOverlayPage} />
           <ItemScanHistoryOverlayHost
             onClose={homeShellActions.closeOverlayPage}
           />
@@ -228,6 +228,12 @@ export function HomeFeature({ onLogout }: HomeFeatureProps) {
           )}
           {popupPageId === "placement-zone-mismatch" && (
             <PlacementZoneMismatchPopup />
+          )}
+          {popupPageId === "unified-scanner-fix-check" && (
+            <UnifiedFixCheckPopup />
+          )}
+          {popupPageId === "unified-scanner-zone-mismatch" && (
+            <UnifiedZoneMismatchPopup />
           )}
         </>
       }

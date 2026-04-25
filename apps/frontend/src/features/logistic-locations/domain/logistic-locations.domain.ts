@@ -35,13 +35,24 @@ export function normalizeLogisticLocations(
   return dtos.map(normalizeLogisticLocation);
 }
 
+export function normalizeLogisticLocationMatchValue(value: string): string {
+  return value
+    .replace(/[\u200B-\u200D\uFEFF]/g, "")
+    .replace(/[\u2010\u2011\u2012\u2013\u2014\u2212]/g, "-")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
 export function filterLogisticLocations(
   locations: LogisticLocationRecord[],
   query: string,
 ): LogisticLocationRecord[] {
-  const q = query.trim().toLowerCase();
+  const q = normalizeLogisticLocationMatchValue(query);
   if (!q) return locations;
-  return locations.filter((loc) => loc.location.toLowerCase().includes(q));
+  return locations.filter((loc) =>
+    normalizeLogisticLocationMatchValue(loc.location).includes(q),
+  );
 }
 
 export function sortWithRecentFirst(
@@ -60,8 +71,12 @@ export function findLocationByValue(
   locations: LogisticLocationRecord[],
   value: string,
 ): LogisticLocationRecord | null {
-  const q = value.trim().toLowerCase();
-  return locations.find((l) => l.location.toLowerCase() === q) ?? null;
+  const q = normalizeLogisticLocationMatchValue(value);
+  return (
+    locations.find(
+      (l) => normalizeLogisticLocationMatchValue(l.location) === q,
+    ) ?? null
+  );
 }
 
 /**
