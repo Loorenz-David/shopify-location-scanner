@@ -2,6 +2,7 @@ import { backendPublicUrl, env } from "../../../config/env.js";
 import { AppError } from "../../../shared/errors/app-error.js";
 import { logger } from "../../../shared/logging/logger.js";
 import { categoryResolverService } from "../../../shared/category/category-resolver.service.js";
+import type { ScanValueType } from "../../../shared/utils/scan-value-normalizer.js";
 import type {
   ProductLocationData,
   ProductLocationSnapshot,
@@ -806,6 +807,7 @@ if (!data.product) {
     shopDomain: string;
     accessToken: string;
     sku: string;
+    type?: ScanValueType;
     limit?: number;
   }): Promise<ShopifySkuSearchItemDto[]> {
     const limit = input.limit ?? 10;
@@ -858,22 +860,28 @@ if (!data.product) {
       }`,
       {
         first: limit,
-        query: `sku:*${input.sku.trim()}* OR barcode:*${input.sku.trim()}*`,
+        query:
+          input.type === "url-handle"
+            ? `handle:${input.sku.trim()}`
+            : `sku:*${input.sku.trim()}* OR barcode:*${input.sku.trim()}*`,
       },
     );
 
     return data.products.edges
       .map((edge) => {
-        const matchedVariant = edge.node.variants.edges.find((variantEdge) => {
-          const variantSku = variantEdge.node.sku?.trim().toLowerCase() ?? "";
-          const variantBarcode =
-            variantEdge.node.barcode?.trim().toLowerCase() ?? "";
-
-          return (
-            variantSku.includes(normalizedInputSku) ||
-            variantBarcode.includes(normalizedInputSku)
-          );
-        });
+        const matchedVariant =
+          input.type === "url-handle"
+            ? edge.node.variants.edges[0]
+            : edge.node.variants.edges.find((variantEdge) => {
+                const variantSku =
+                  variantEdge.node.sku?.trim().toLowerCase() ?? "";
+                const variantBarcode =
+                  variantEdge.node.barcode?.trim().toLowerCase() ?? "";
+                return (
+                  variantSku.includes(normalizedInputSku) ||
+                  variantBarcode.includes(normalizedInputSku)
+                );
+              });
 
         if (!matchedVariant?.node.sku) {
           return null;

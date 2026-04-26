@@ -1383,4 +1383,51 @@ export const scanHistoryRepository = {
       take: input.limit,
     });
   },
+
+  async findManyByProductIds(input: {
+    shopId: string;
+    productIds: string[];
+  }): Promise<
+    Map<
+      string,
+      {
+        id: string;
+        productId: string;
+        itemSku: string | null;
+        itemBarcode: string | null;
+        itemImageUrl: string | null;
+        itemTitle: string;
+        latestLocation: string | null;
+        isSold: boolean;
+        intention: string | null;
+        fixItem: boolean | null;
+        isItemFixed: boolean;
+      }
+    >
+  > {
+    if (input.productIds.length === 0) return new Map();
+
+    const records = await prisma.scanHistory.findMany({
+      where: {
+        shopId: input.shopId,
+        productId: { in: input.productIds },
+      },
+      select: {
+        id: true,
+        productId: true,
+        itemSku: true,
+        itemBarcode: true,
+        itemImageUrl: true,
+        itemTitle: true,
+        latestLocation: true,
+        isSold: true,
+        intention: true,
+        fixItem: true,
+        isItemFixed: true,
+      },
+      orderBy: { lastModifiedAt: "desc" },
+    });
+
+    return new Map(records.map((r) => [r.productId, r]));
+  },
 };
