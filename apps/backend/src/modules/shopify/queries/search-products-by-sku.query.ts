@@ -18,7 +18,7 @@ export const searchProductsBySkuQuery = async (input: {
     shopDomain: shop.shopDomain,
     accessToken: shop.accessToken,
     sku: input.sku,
-    type: input.type,
     limit: 10,
+    ...(input.type !== undefined && { type: input.type }),
   });
 };

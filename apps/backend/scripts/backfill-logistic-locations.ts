@@ -285,7 +285,7 @@ async function interactiveLocationSetup(
   }
 
   for (let i = 0; i < toCreate.length; i++) {
-    const originalLocation = toCreate[i];
+    const originalLocation = toCreate[i]!;
     console.log(`\n${"─".repeat(50)}`);
     console.log(`Location ${i + 1} of ${toCreate.length}:`);
     console.log(`  Raw location string from events: "${originalLocation}"`);
