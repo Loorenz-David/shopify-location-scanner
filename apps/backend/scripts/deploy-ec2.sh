@@ -97,13 +97,14 @@ require_command() {
   command -v "${cmd}" >/dev/null 2>&1 || fail "Required command not found: ${cmd}"
 }
 
-install_with_dev_dependencies() {
+npm_install_with_dev_dependencies() {
   local target_dir="$1"
   env -u NODE_ENV \
     NPM_CONFIG_PRODUCTION=false \
     NPM_CONFIG_OMIT= \
     npm --prefix "${target_dir}" ci --include=dev --no-audit --no-fund --prefer-offline
 }
+export -f npm_install_with_dev_dependencies
 
 git_has_changes_between() {
   local from_ref="$1"
@@ -395,7 +396,7 @@ main() {
   if [[ "${backend_manifest_changed}" == true || ! -d "${BACKEND_DIR}/node_modules" ]]; then
     log "Installing backend dependencies"
     run_with_timeout "${NPM_INSTALL_TIMEOUT_SECONDS}" \
-      install_with_dev_dependencies "${BACKEND_DIR}"
+      bash -c 'npm_install_with_dev_dependencies "$1"' -- "${BACKEND_DIR}"
   else
     log "Skipping backend dependency install"
   fi
@@ -419,7 +420,7 @@ main() {
   if [[ "${frontend_manifest_changed}" == true || ! -d "${FRONTEND_DIR}/node_modules" ]]; then
     log "Installing frontend dependencies"
     run_with_timeout "${NPM_INSTALL_TIMEOUT_SECONDS}" \
-      install_with_dev_dependencies "${FRONTEND_DIR}"
+      bash -c 'npm_install_with_dev_dependencies "$1"' -- "${FRONTEND_DIR}"
   else
     log "Skipping frontend dependency install"
   fi
