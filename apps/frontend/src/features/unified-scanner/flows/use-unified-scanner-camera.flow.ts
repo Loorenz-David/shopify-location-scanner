@@ -159,6 +159,7 @@ export function useUnifiedScannerCameraFlow(): UnifiedScannerCameraFlowResult {
 
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
+  const [cameraRestartKey, setCameraRestartKey] = useState(0);
   const [itemFrozenFrame, setItemFrozenFrame] =
     useState<ScannerFrozenFrame | null>(null);
   const [itemDecodedText, setItemDecodedText] = useState<string | null>(null);
@@ -177,6 +178,29 @@ export function useUnifiedScannerCameraFlow(): UnifiedScannerCameraFlowResult {
   useEffect(() => {
     phaseRef.current = phase;
   }, [phase]);
+
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== "visible") return;
+
+      const scannerRoot = document.getElementById(unifiedScannerRegionId);
+      const video = scannerRoot?.querySelector("video");
+      const stream =
+        video?.srcObject instanceof MediaStream ? video.srcObject : null;
+      const isAlive =
+        stream !== null &&
+        stream.getVideoTracks().some((t) => t.readyState === "live");
+
+      if (!isAlive) {
+        setCameraRestartKey((k) => k + 1);
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+  }, []);
 
   const initLensesFromDevices = useCallback(async () => {
     try {
@@ -419,7 +443,7 @@ export function useUnifiedScannerCameraFlow(): UnifiedScannerCameraFlowResult {
         itemToLocationTimerRef.current = null;
       }
     };
-  }, [initLensesFromDevices, selectedLensId]);
+  }, [initLensesFromDevices, selectedLensId, cameraRestartKey]);
 
   return {
     isCameraReady,

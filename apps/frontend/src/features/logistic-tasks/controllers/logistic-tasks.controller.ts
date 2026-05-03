@@ -19,7 +19,8 @@ export async function loadLogisticTasksController(
   });
 
   try {
-    const response = await getLogisticTasksApi(filters);
+    const { query } = useLogisticTasksStore.getState();
+    const response = await getLogisticTasksApi(filters, undefined, undefined, query);
     const currentRequestId = useLogisticTasksStore.getState().activeRequestId;
 
     if (requestId !== currentRequestId) {
@@ -39,14 +40,14 @@ export async function loadLogisticTasksController(
 
 export async function loadMoreLogisticTasksController(): Promise<void> {
   const store = useLogisticTasksStore.getState();
-  const { filters, nextCursor, isLoadingMore, hasMore } = store;
+  const { filters, query, nextCursor, isLoadingMore, hasMore } = store;
 
   if (!hasMore || isLoadingMore || !nextCursor) return;
 
   useLogisticTasksStore.setState({ isLoadingMore: true });
 
   try {
-    const response = await getLogisticTasksApi(filters, undefined, nextCursor);
+    const response = await getLogisticTasksApi(filters, undefined, nextCursor, query);
     const { items, hasMore: nextHasMore, nextCursor: newCursor } =
       normalizeLogisticTasksPage(response);
     useLogisticTasksStore.getState().appendAndFinish(items, nextHasMore, newCursor);

@@ -14,6 +14,7 @@ import type {
 } from "../types/unified-scanner.types";
 
 interface UnifiedScannerStore extends Record<string, unknown> {
+  prefilledItem: UnifiedScannerItem | null;
   phase: UnifiedScannerPhase;
   selectedItem: UnifiedScannerItem | null;
   locationMode: LocationScannerMode | null;
@@ -52,6 +53,7 @@ interface UnifiedScannerStore extends Record<string, unknown> {
   setAvailableLenses: (value: ScannerLens[]) => void;
   setSelectedLensId: (value: string | null) => void;
   setOnScanAsk: (value: boolean) => void;
+  setPrefilledItem: (item: UnifiedScannerItem | null) => void;
   advanceWarning: () => void;
   resetCycle: () => void;
 }
@@ -77,6 +79,7 @@ const initialCycleState = {
 const initialScannerSettings = readScannerSettings();
 
 export const useUnifiedScannerStore = create<UnifiedScannerStore>((set) => ({
+  prefilledItem: null,
   ...initialCycleState,
   flashEnabled: false,
   availableLenses: [],
@@ -102,6 +105,7 @@ export const useUnifiedScannerStore = create<UnifiedScannerStore>((set) => ({
   setFlashEnabled: (flashEnabled) => set({ flashEnabled }),
   setAvailableLenses: (availableLenses) => set({ availableLenses }),
   setSelectedLensId: (selectedLensId) => set({ selectedLensId }),
+  setPrefilledItem: (prefilledItem) => set({ prefilledItem }),
   setOnScanAsk: (onScanAsk) => {
     saveScannerOnScanAskSetting(onScanAsk);
     set({ onScanAsk });

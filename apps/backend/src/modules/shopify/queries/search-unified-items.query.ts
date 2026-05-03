@@ -2,6 +2,7 @@ import { scanHistoryRepository } from "../../scanner/repositories/scan-history.r
 import { searchProductsBySkuQuery } from "./search-products-by-sku.query.js";
 import type { UnifiedItemSearchResultDto } from "../contracts/shopify.contract.js";
 import { normalizeScanValue } from "../../../shared/utils/scan-value-normalizer.js";
+import { logger } from "../../../shared/logging/logger.js";
 
 export const searchUnifiedItemsQuery = async (input: {
   shopId: string;
@@ -11,15 +12,56 @@ export const searchUnifiedItemsQuery = async (input: {
   const limit = input.limit ?? 10;
   const { value, type } = normalizeScanValue(input.value);
 
+  logger.info("Scanner item lookup started", {
+    shopId: input.shopId,
+    rawValue: input.value,
+    normalizedValue: value,
+    normalizedType: type,
+    limit,
+  });
+
   // ── Step 1: ScanHistory-first lookup ────────────────────────────────────
   const historyRecords = await scanHistoryRepository.findBySkuOrBarcode({
     shopId: input.shopId,
     value,
     limit,
   });
+  const resolvedHistoryRecords =
+    type === "url-handle"
+      ? historyRecords.filter((record) => {
+          const normalizedValue = value.trim().toLowerCase();
+          const sku = record.itemSku?.trim().toLowerCase() ?? "";
+          const barcode = record.itemBarcode?.trim().toLowerCase() ?? "";
+          return sku === normalizedValue || barcode === normalizedValue;
+        })
+      : historyRecords;
 
-  if (historyRecords.length > 0) {
-    return historyRecords.map((record) => ({
+  logger.info("Scanner item lookup ScanHistory results", {
+    shopId: input.shopId,
+    normalizedValue: value,
+    normalizedType: type,
+    count: resolvedHistoryRecords.length,
+    candidateCount: historyRecords.length,
+    records: historyRecords.map((record) => ({
+      id: record.id,
+      productId: record.productId,
+      sku: record.itemSku,
+      barcode: record.itemBarcode,
+      title: record.itemTitle,
+      currentPosition: record.latestLocation,
+    })),
+  });
+
+  if (resolvedHistoryRecords.length > 0) {
+    logger.info("Scanner item lookup resolved from ScanHistory", {
+      shopId: input.shopId,
+      normalizedValue: value,
+      normalizedType: type,
+      count: resolvedHistoryRecords.length,
+      productIds: resolvedHistoryRecords.map((record) => record.productId),
+    });
+
+    return resolvedHistoryRecords.map((record) => ({
       productId: record.productId,
       title: record.itemTitle,
       imageUrl: record.itemImageUrl ?? null,
@@ -39,6 +81,19 @@ export const searchUnifiedItemsQuery = async (input: {
     shopId: input.shopId,
     sku: value,
     type,
+  });
+
+  logger.info("Scanner item lookup Shopify fallback results", {
+    shopId: input.shopId,
+    normalizedValue: value,
+    normalizedType: type,
+    count: shopifyItems.length,
+    records: shopifyItems.map((item) => ({
+      productId: item.productId,
+      sku: item.sku,
+      barcode: item.barcode,
+      title: item.title,
+    })),
   });
 
   if (shopifyItems.length === 0) return [];

@@ -8,23 +8,68 @@ interface CameraDevice {
 const SCANNER_PREFERRED_LENS_ID_STORAGE_KEY = "scanner.preferredCameraLensId";
 
 function isFrontCamera(label: string): boolean {
-  const normalizedLabel = label.toLowerCase();
+  const normalized = label.toLowerCase();
   return (
-    normalizedLabel.includes("front") ||
-    normalizedLabel.includes("selfie") ||
-    normalizedLabel.includes("user")
+    normalized.includes("front") ||
+    normalized.includes("selfie") ||
+    normalized.includes("user")
   );
 }
 
-function toRearCameraDevices(cameraDevices: CameraDevice[]): CameraDevice[] {
-  return cameraDevices.filter(
-    (cameraDevice) => !isFrontCamera(cameraDevice.label),
+// iOS exposes logical multi-lens cameras ("Back Dual Camera", "Back Triple Camera")
+// alongside the individual physical lenses. Keep only the physical lenses so the user
+// picks a specific focal length instead of a system-managed combo.
+function isLogicalMultiLensCamera(label: string): boolean {
+  const normalized = label.toLowerCase();
+  return (
+    normalized.includes("dual") ||
+    normalized.includes("triple") ||
+    normalized.includes("quad")
   );
+}
+
+// Android Camera2 API exposes raw sensor entries like "camera2 0, facing back".
+// These may be depth sensors or IR cameras not intended for user selection.
+function isRawSystemCamera(label: string): boolean {
+  return /^camera2\s+\d+/i.test(label.trim());
+}
+
+function deduplicateByLabel(devices: CameraDevice[]): CameraDevice[] {
+  const seen = new Set<string>();
+  return devices.filter((device) => {
+    const key = device.label.toLowerCase().trim();
+    if (!key) return true; // no label yet (pre-permission) — keep all
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function toRearCameraDevices(cameraDevices: CameraDevice[]): CameraDevice[] {
+  const rearDevices = cameraDevices.filter(
+    (device) => !isFrontCamera(device.label),
+  );
+
+  const hasLabels = rearDevices.some((d) => d.label.length > 0);
+  if (!hasLabels) {
+    // Pre-permission: labels are empty, cannot filter meaningfully.
+    return rearDevices;
+  }
+
+  const filtered = deduplicateByLabel(
+    rearDevices.filter(
+      (device) =>
+        !isLogicalMultiLensCamera(device.label) &&
+        !isRawSystemCamera(device.label),
+    ),
+  );
+
+  return filtered.length > 0 ? filtered : deduplicateByLabel(rearDevices);
 }
 
 function buildLensLabelByIndex(index: number, total: number): string {
   if (total >= 3) {
-    const labels = ["0.5x", "1x", "2x"];
+    const labels = ["0.5x", "1x", "2x", "3x", "5x", "10x"];
     return labels[index] ?? `${index + 1}x`;
   }
 

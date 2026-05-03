@@ -1,7 +1,8 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 
 import { unifiedScannerActions } from "../actions/unified-scanner.actions";
 import { bootstrapLocationOptionsController } from "../controllers/location-options.controller";
+import { applyItemController } from "../controllers/item.controller";
 import { UnifiedScannerPageProvider } from "../context/unified-scanner.context";
 import { useUnifiedScannerCameraFlow } from "../flows/use-unified-scanner-camera.flow";
 import { useLocationOptionsStore } from "../stores/location-options.store";
@@ -59,10 +60,22 @@ export function UnifiedScannerProvider({
     void bootstrapLocationOptionsController();
   }, [hasLocationOptions]);
 
+  // Capture at render time — useRef survives StrictMode's simulated unmount/remount
+  const prefilledItemRef = useRef(useUnifiedScannerStore.getState().prefilledItem);
+
+  // Effect 1: owns the reset lifecycle
   useEffect(() => {
+    useUnifiedScannerStore.getState().setPrefilledItem(null);
     return () => {
       useUnifiedScannerStore.getState().resetCycle();
     };
+  }, []);
+
+  // Effect 2: injects the payload after Effect 1's cleanup runs in StrictMode
+  useEffect(() => {
+    if (prefilledItemRef.current) {
+      applyItemController(prefilledItemRef.current, { transition: "immediate" });
+    }
   }, []);
 
   const handleScanNext = useCallback(() => {

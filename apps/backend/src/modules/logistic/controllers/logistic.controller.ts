@@ -113,6 +113,7 @@ export const logisticController = {
 
   getItems: async (req: Request, res: Response): Promise<void> => {
     const filters = GetLogisticItemsQuerySchema.parse({
+      q: req.query.q,
       fixItem: req.query.fixItem,
       isItemFixed: req.query.isItemFixed,
       lastLogisticEventType: req.query.lastLogisticEventType,

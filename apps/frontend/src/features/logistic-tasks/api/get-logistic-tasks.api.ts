@@ -7,8 +7,9 @@ export async function getLogisticTasksApi(
   filters: LogisticTaskFilters,
   ids?: string[],
   cursor?: string,
+  q?: string,
 ): Promise<GetLogisticTasksResponseDto> {
-  const params = buildApiQueryParams(filters);
+  const params = buildApiQueryParams(filters, q);
 
   if (ids && ids.length > 0) {
     params.set("ids", ids.join(","));

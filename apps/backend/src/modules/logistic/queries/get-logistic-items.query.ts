@@ -52,6 +52,22 @@ export const getLogisticItemsQuery = async (input: {
     where.logisticLocation = { zoneType: filters.zoneType };
   }
 
+  if (filters.q) {
+    const orConditions: any[] = [
+      { itemSku: { contains: filters.q } },
+      { itemBarcode: { contains: filters.q } },
+      { itemType: { contains: filters.q } },
+      { itemCategory: { contains: filters.q } },
+      { itemTitle: { contains: filters.q } },
+      { logisticLocation: { location: { contains: filters.q } } },
+    ];
+    const orderNum = parseInt(filters.q, 10);
+    if (!isNaN(orderNum)) {
+      orConditions.push({ orderNumber: orderNum });
+    }
+    where.AND = [...(where.AND ?? []), { OR: orConditions }];
+  }
+
   if (filters.ids) {
     const idList = filters.ids
       .split(",")

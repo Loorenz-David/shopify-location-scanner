@@ -32,6 +32,7 @@ export function normalizeLogisticTaskItem(
     productId: dto.productId,
     sku: dto.itemSku,
     imageUrl: dto.itemImageUrl,
+    itemCategory: dto.itemCategory,
     itemType: dto.itemType,
     itemTitle: dto.itemTitle,
     location: dto.latestLocation,
@@ -162,9 +163,13 @@ export function buildFiltersFromRoleDefaults(
 
 export function buildApiQueryParams(
   filters: LogisticTaskFilters,
+  q?: string,
 ): URLSearchParams {
   const params = new URLSearchParams();
 
+  if (q && q.trim().length > 0) {
+    params.set("q", q.trim());
+  }
   if (filters.fixItem !== undefined) {
     params.set("fixItem", String(filters.fixItem));
   }

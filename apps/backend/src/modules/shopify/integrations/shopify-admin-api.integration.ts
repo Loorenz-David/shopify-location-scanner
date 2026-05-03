@@ -14,6 +14,26 @@ import type {
 
 type ManagedWebhookTopic = "ORDERS_CREATE" | "ORDERS_PAID" | "PRODUCTS_UPDATE";
 
+type ShopifyProductSearchEdge = {
+  node: {
+    id: string;
+    title: string;
+    featuredImage: {
+      url: string;
+    } | null;
+    variants: {
+      edges: Array<{
+        node: {
+          sku: string | null;
+          barcode: string | null;
+        };
+      }>;
+    };
+  };
+};
+
+const MAX_PRODUCT_REDIRECT_HOPS = 5;
+
 const MANAGED_WEBHOOK_SUBSCRIPTIONS: Array<{
   topic: ManagedWebhookTopic;
   path: string;
@@ -55,6 +75,35 @@ const isWebhookHttpEndpoint = (
 
 const sleep = async (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms));
+
+const extractProductHandleFromPath = (
+  value: string | null | undefined,
+): string | null => {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  try {
+    const url =
+      trimmed.startsWith("http://") || trimmed.startsWith("https://")
+        ? new URL(trimmed)
+        : new URL(trimmed, "https://example.test");
+    const segments = url.pathname.split("/").filter(Boolean);
+    const productIndex = segments.findIndex(
+      (segment) => segment === "products",
+    );
+    const handle = productIndex >= 0 ? segments[productIndex + 1] : null;
+    return handle?.trim() || null;
+  } catch {
+    const segments = trimmed.split("?")[0]?.split("/").filter(Boolean) ?? [];
+    const productIndex = segments.findIndex(
+      (segment) => segment === "products",
+    );
+    const handle = productIndex >= 0 ? segments[productIndex + 1] : null;
+    return handle?.trim() || null;
+  }
+};
 
 const getThrottleRetryDelayMs = (
   errors: unknown,
@@ -813,30 +862,17 @@ if (!data.product) {
     const limit = input.limit ?? 10;
     const normalizedInputSku = input.sku.trim().toLowerCase();
 
-    const data = await shopifyGraphql<{
-      products: {
-        edges: Array<{
-          node: {
-            id: string;
-            title: string;
-            featuredImage: {
-              url: string;
-            } | null;
-            variants: {
-              edges: Array<{
-                node: {
-                  sku: string | null;
-                  barcode: string | null;
-                };
-              }>;
-            };
-          };
-        }>;
-      };
-    }>(
-      input.shopDomain,
-      input.accessToken,
-      `#graphql
+    const searchProducts = async (
+      query: string,
+    ): Promise<ShopifyProductSearchEdge[]> => {
+      const data = await shopifyGraphql<{
+        products: {
+          edges: ShopifyProductSearchEdge[];
+        };
+      }>(
+        input.shopDomain,
+        input.accessToken,
+        `#graphql
       query SearchProductsBySku($query: String!, $first: Int!) {
         products(first: $first, query: $query) {
           edges {
@@ -858,19 +894,22 @@ if (!data.product) {
           }
         }
       }`,
-      {
-        first: limit,
-        query:
-          input.type === "url-handle"
-            ? `handle:${input.sku.trim()}`
-            : `sku:*${input.sku.trim()}* OR barcode:*${input.sku.trim()}*`,
-      },
-    );
+        {
+          first: limit,
+          query,
+        },
+      );
 
-    return data.products.edges
-      .map((edge) => {
-        const matchedVariant =
-          input.type === "url-handle"
+      return data.products.edges;
+    };
+
+    const mapProductEdges = (
+      edges: ShopifyProductSearchEdge[],
+      matchByHandle: boolean,
+    ): ShopifySkuSearchItemDto[] =>
+      edges
+        .map((edge) => {
+          const matchedVariant = matchByHandle
             ? edge.node.variants.edges[0]
             : edge.node.variants.edges.find((variantEdge) => {
                 const variantSku =
@@ -883,20 +922,186 @@ if (!data.product) {
                 );
               });
 
-        if (!matchedVariant?.node.sku) {
-          return null;
-        }
+          if (!matchedVariant?.node.sku) {
+            return null;
+          }
 
-        return {
-          productId: edge.node.id,
-          title: edge.node.title,
-          imageUrl: edge.node.featuredImage?.url ?? null,
-          sku: matchedVariant.node.sku,
-          barcode: matchedVariant.node.barcode,
-        };
-      })
-      .filter((item): item is ShopifySkuSearchItemDto => item !== null)
-      .slice(0, limit);
+          return {
+            productId: edge.node.id,
+            title: edge.node.title,
+            imageUrl: edge.node.featuredImage?.url ?? null,
+            sku: matchedVariant.node.sku,
+            barcode: matchedVariant.node.barcode,
+          };
+        })
+        .filter((item): item is ShopifySkuSearchItemDto => item !== null)
+        .slice(0, limit);
+
+    const query =
+      input.type === "url-handle"
+        ? `handle:${input.sku.trim()}`
+        : `sku:*${input.sku.trim()}* OR barcode:*${input.sku.trim()}*`;
+
+    logger.info("Shopify SKU/product search query started", {
+      shopDomain: input.shopDomain,
+      inputValue: input.sku,
+      inputType: input.type ?? "raw",
+      query,
+      limit,
+    });
+
+    const directEdges = await searchProducts(query);
+    const directResults = mapProductEdges(
+      directEdges,
+      input.type === "url-handle",
+    );
+
+    logger.info("Shopify SKU/product search query completed", {
+      shopDomain: input.shopDomain,
+      inputValue: input.sku,
+      inputType: input.type ?? "raw",
+      query,
+      edgeCount: directEdges.length,
+      resultCount: directResults.length,
+      edges: directEdges.map((edge) => ({
+        productId: edge.node.id,
+        title: edge.node.title,
+        variants: edge.node.variants.edges.map((variantEdge) => ({
+          sku: variantEdge.node.sku,
+          barcode: variantEdge.node.barcode,
+        })),
+      })),
+      results: directResults.map((item) => ({
+        productId: item.productId,
+        title: item.title,
+        sku: item.sku,
+        barcode: item.barcode,
+      })),
+    });
+
+    if (directResults.length > 0 || input.type !== "url-handle") {
+      return directResults;
+    }
+
+    const originalHandle = input.sku.trim();
+    const visitedHandles = new Set([originalHandle]);
+    let currentHandle = originalHandle;
+
+    for (let hop = 1; hop <= MAX_PRODUCT_REDIRECT_HOPS; hop += 1) {
+      const redirectedHandle = await this.findRedirectedProductHandle({
+        shopDomain: input.shopDomain,
+        accessToken: input.accessToken,
+        handle: currentHandle,
+      });
+
+      if (!redirectedHandle || visitedHandles.has(redirectedHandle)) {
+        return [];
+      }
+
+      visitedHandles.add(redirectedHandle);
+
+      const redirectedQuery = `handle:${redirectedHandle}`;
+      logger.info("Shopify redirected product search query started", {
+        shopDomain: input.shopDomain,
+        originalHandle,
+        currentHandle,
+        redirectedHandle,
+        hop,
+        query: redirectedQuery,
+      });
+
+      const redirectedEdges = await searchProducts(redirectedQuery);
+      const redirectedResults = mapProductEdges(redirectedEdges, true);
+
+      logger.info("Shopify redirected product search query completed", {
+        shopDomain: input.shopDomain,
+        originalHandle,
+        currentHandle,
+        redirectedHandle,
+        hop,
+        query: redirectedQuery,
+        edgeCount: redirectedEdges.length,
+        resultCount: redirectedResults.length,
+        results: redirectedResults.map((item) => ({
+          productId: item.productId,
+          title: item.title,
+          sku: item.sku,
+          barcode: item.barcode,
+        })),
+      });
+
+      if (redirectedResults.length > 0) {
+        return redirectedResults;
+      }
+
+      currentHandle = redirectedHandle;
+    }
+
+    return [];
+  },
+
+  async findRedirectedProductHandle(input: {
+    shopDomain: string;
+    accessToken: string;
+    handle: string;
+  }): Promise<string | null> {
+    const handle = input.handle.trim();
+    if (!handle) {
+      return null;
+    }
+    const redirectQuery = `path:/products/${handle}`;
+
+    const data = await shopifyGraphql<{
+      urlRedirects: {
+        edges: Array<{
+          node: {
+            path: string;
+            target: string;
+          };
+        }>;
+      };
+    }>(
+      input.shopDomain,
+      input.accessToken,
+      `#graphql
+      query FindProductUrlRedirect($query: String!) {
+        urlRedirects(first: 1, query: $query) {
+          edges {
+            node {
+              path
+              target
+            }
+          }
+        }
+      }`,
+      {
+        query: redirectQuery,
+      },
+    );
+
+    const redirect = data.urlRedirects.edges[0]?.node;
+    if (!redirect) {
+      logger.info("Shopify product URL redirect lookup returned no match", {
+        shopDomain: input.shopDomain,
+        handle,
+        query: redirectQuery,
+      });
+
+      return null;
+    }
+
+    const redirectedHandle = extractProductHandleFromPath(redirect.target);
+
+    logger.info("Shopify product URL redirect lookup completed", {
+      shopDomain: input.shopDomain,
+      handle,
+      query: redirectQuery,
+      redirectPath: redirect.path,
+      redirectTarget: redirect.target,
+      redirectedHandle,
+    });
+
+    return redirectedHandle;
   },
 
   async getMetafieldOptions(input: {

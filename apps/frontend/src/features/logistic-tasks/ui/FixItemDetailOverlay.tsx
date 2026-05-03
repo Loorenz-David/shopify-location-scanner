@@ -42,7 +42,7 @@ export function FixItemDetailOverlay({
 
   const handlePlace = () => {
     onClose();
-    logisticTasksActions.openPlacementScanner(scanHistoryId);
+    logisticTasksActions.openPlacementScanner(item);
   };
 
   return (

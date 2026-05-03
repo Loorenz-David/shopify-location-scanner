@@ -64,6 +64,7 @@ export const GetLogisticItemsQuerySchema = z.object({
   lastLogisticEventType: LogisticEventTypeSchema.optional(),
   zoneType: LogisticZoneTypeSchema.optional(),
   intention: LogisticIntentionSchema.optional(),
+  q: z.string().trim().min(1).optional(),
   orderId: z.string().optional(),
   ids: z.string().optional(), // comma-separated scanHistory IDs for targeted refetch
   noIntention: z

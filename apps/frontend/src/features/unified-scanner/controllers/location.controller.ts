@@ -80,7 +80,7 @@ export function applyResolvedLocationController(location: ResolvedLocation): voi
   store.setPendingWarnings([]);
   store.setActiveWarning(null);
   store.setRequiresZoneMismatchAfterFixCheck(false);
-  store.setCanScanNext(true);
+  store.setCanScanNext(false);
   store.setLastPlacementError(null);
   store.setPhase("placing");
 

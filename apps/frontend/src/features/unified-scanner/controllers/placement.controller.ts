@@ -44,13 +44,16 @@ export async function placementController(): Promise<void> {
         optimisticToken,
         response,
       );
-      useUnifiedScannerStore.getState().setPhase("placed");
+      const storeAfterShop = useUnifiedScannerStore.getState();
+      if (!storeAfterShop.selectedItem) return; // cycle was reset before API resolved
+      storeAfterShop.setCanScanNext(true);
+      storeAfterShop.setPhase("placed");
       return;
     } catch (error) {
       itemScanHistoryActions.rollbackOptimisticLocationUpdate(optimisticToken);
 
       const currentStore = useUnifiedScannerStore.getState();
-      currentStore.setCanScanNext(false);
+      if (!currentStore.selectedItem) return; // cycle was reset before API resolved
       currentStore.setLastPlacementError(extractErrorMessage(error));
       currentStore.setPhase("error");
       return;
@@ -58,7 +61,6 @@ export async function placementController(): Promise<void> {
   }
 
   if (!item.id) {
-    store.setCanScanNext(false);
     store.setLastPlacementError(
       "This item cannot be placed because it is missing its scan history ID.",
     );
@@ -80,7 +82,7 @@ export async function placementController(): Promise<void> {
       logisticLocationId: location.id,
     });
     const currentStore = useUnifiedScannerStore.getState();
-    currentStore.setCanScanNext(false);
+    if (!currentStore.selectedItem) return; // cycle was reset before API resolved
     currentStore.setPhase("placed");
   } catch (error) {
     if (previousItem) {
@@ -88,7 +90,7 @@ export async function placementController(): Promise<void> {
     }
 
     const currentStore = useUnifiedScannerStore.getState();
-    currentStore.setCanScanNext(false);
+    if (!currentStore.selectedItem) return; // cycle was reset before API resolved
     currentStore.setLastPlacementError(extractErrorMessage(error));
     currentStore.setPhase("error");
   }

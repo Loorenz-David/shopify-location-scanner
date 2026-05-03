@@ -12,6 +12,7 @@ export interface LogisticTaskItem {
   productId: string;
   sku: string | null;
   imageUrl: string | null;
+  itemCategory: string | null;
   itemType: string;
   itemTitle: string;
   location: string | null;

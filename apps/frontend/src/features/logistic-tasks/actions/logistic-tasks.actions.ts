@@ -1,6 +1,8 @@
 import { homeShellActions } from "../../home/actions/home-shell.actions";
 import { useLogisticLocationsStore } from "../../logistic-locations/stores/logistic-locations.store";
 import { useScannerLogisticPlacementStore } from "../../scanner/stores/scanner-logistic-placement.store";
+import { resolveLocationScannerMode } from "../../unified-scanner/domain/item-mode.domain";
+import { useUnifiedScannerStore } from "../../unified-scanner/stores/unified-scanner.store";
 import { markIntentionApi } from "../api/mark-intention.api";
 import { markItemFixedApi } from "../api/mark-item-fixed.api";
 import { markPlacementApi } from "../api/mark-placement.api";
@@ -22,6 +24,7 @@ import { useTaskCountStore } from "../stores/task-count.store";
 import type {
   LogisticIntention,
   LogisticTaskFilters,
+  LogisticTaskItem,
 } from "../types/logistic-tasks.types";
 
 export const logisticTasksActions = {
@@ -90,9 +93,27 @@ export const logisticTasksActions = {
     }
   },
 
-  openPlacementScanner(scanHistoryId: string): void {
-    useScannerLogisticPlacementStore.getState().setScanHistoryId(scanHistoryId);
-    homeShellActions.openFullFeaturePage("scanner-logistic-placement");
+  openPlacementScanner(item: LogisticTaskItem): void {
+    const prefilledItem = {
+      id: item.id,
+      idType: "sku" as const,
+      itemId: item.sku ?? item.productId,
+      sku: item.sku ?? "",
+      imageUrl: item.imageUrl ?? undefined,
+      title: item.itemTitle,
+      currentPosition: item.location ?? undefined,
+      isSold: true,
+      intention: item.intention,
+      fixItem: item.fixItem,
+      isItemFixed: item.isItemFixed,
+    };
+    const store = useUnifiedScannerStore.getState();
+    store.setPrefilledItem(prefilledItem);
+    // Pre-seed so the scanner's first render is already in the correct phase
+    store.setSelectedItem(prefilledItem);
+    store.setLocationMode(resolveLocationScannerMode(prefilledItem));
+    store.setPhase("scanning-location");
+    homeShellActions.openFullFeaturePage("unified-scanner");
   },
 
   openFixItemDetail(scanHistoryId: string): void {
