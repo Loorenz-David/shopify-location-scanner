@@ -69,5 +69,10 @@ jobs:
             deploy_branch="${INPUT_BRANCH}"
           fi
 
-          ssh -p "${EC2_PORT:-22}" "${EC2_USER}@${EC2_HOST}" \
+          ssh \
+            -p "${EC2_PORT:-22}" \
+            -o ServerAliveInterval=30 \
+            -o ServerAliveCountMax=20 \
+            -o ConnectTimeout=30 \
+            "${EC2_USER}@${EC2_HOST}" \
             "cd '${EC2_REPO_PATH}' && DEPLOY_BRANCH='${deploy_branch}' ENV_FILE='${EC2_BACKEND_ENV_FILE:-/etc/item-scanner/backend.env}' bash ./apps/backend/scripts/deploy-ec2.sh"
