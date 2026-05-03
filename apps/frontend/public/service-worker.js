@@ -1,3 +1,6 @@
+// Replaced at build time with the actual build timestamp — do not edit this line manually.
+const BUILD_VERSION = "__SW_BUILD_VERSION__";
+
 const APP_SHELL_CACHE = "item-scanner-app-shell-v1";
 const STATIC_CACHE = "item-scanner-static-v1";
 const CACHE_ALLOWLIST = [APP_SHELL_CACHE, STATIC_CACHE];

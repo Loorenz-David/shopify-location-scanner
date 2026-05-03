@@ -77,13 +77,21 @@ export async function registerPwaController({
   });
 }
 
-export async function applyWaitingServiceWorkerController(
+export function applyWaitingServiceWorkerController(
   registration: ServiceWorkerRegistration,
-): Promise<boolean> {
+): boolean {
   if (!hasWaitingServiceWorker(registration)) {
     return false;
   }
 
-  registration.waiting?.postMessage({ type: "SKIP_WAITING" });
+  // Reload only after the new SW has actually taken control, not immediately
+  // after posting SKIP_WAITING (which is async).
+  navigator.serviceWorker.addEventListener(
+    "controllerchange",
+    () => window.location.reload(),
+    { once: true },
+  );
+
+  registration.waiting!.postMessage({ type: "SKIP_WAITING" });
   return true;
 }

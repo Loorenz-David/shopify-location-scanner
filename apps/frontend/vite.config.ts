@@ -1,11 +1,26 @@
-import { defineConfig } from "vite";
+import { readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import svgr from "vite-plugin-svgr";
 
+function injectSwBuildVersion(): Plugin {
+  const version = Date.now().toString();
+  return {
+    name: "inject-sw-build-version",
+    apply: "build",
+    closeBundle() {
+      const swPath = join("dist", "service-worker.js");
+      const content = readFileSync(swPath, "utf-8");
+      writeFileSync(swPath, content.replace('"__SW_BUILD_VERSION__"', `"${version}"`));
+    },
+  };
+}
+
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss(), svgr()],
+  plugins: [react(), tailwindcss(), svgr(), injectSwBuildVersion()],
   build: {
     rollupOptions: {
       output: {

@@ -28,7 +28,7 @@ export const pwaActions = {
   dismissUpdatePrompt(): void {
     usePwaStore.getState().setUpdateAvailable(false);
   },
-  async applyUpdate(): Promise<void> {
+  applyUpdate(): void {
     const store = usePwaStore.getState();
     const registration = store.registration;
 
@@ -38,16 +38,13 @@ export const pwaActions = {
 
     store.setApplyingUpdate(true);
 
-    const hasAppliedWaitingWorker =
-      await applyWaitingServiceWorkerController(registration);
+    const applied = applyWaitingServiceWorkerController(registration);
 
-    if (!hasAppliedWaitingWorker) {
+    if (!applied) {
       store.setApplyingUpdate(false);
       store.setUpdateAvailable(false);
-      return;
     }
-
-    window.location.reload();
+    // When applied, controllerchange fires in the controller and reloads the page.
   },
   async subscribeToPush(vapidPublicKey: string): Promise<void> {
     const subscribed = await subscribeToPushController(vapidPublicKey);
