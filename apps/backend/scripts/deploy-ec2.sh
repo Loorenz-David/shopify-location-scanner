@@ -334,6 +334,7 @@ main() {
   if git_has_changes_between "${previous_sha}" "${current_sha}" \
     apps/backend/src \
     apps/backend/tsconfig.json \
+    apps/backend/tsconfig.build.json \
     apps/backend/ecosystem.config.cjs; then
     backend_code_changed=true
   fi
