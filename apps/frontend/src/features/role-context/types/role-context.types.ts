@@ -19,6 +19,7 @@ export type LogisticTaskCardAction = "markItemIntention" | "markItemPlacement";
 export interface RoleCapabilities {
   can_display_main_stats: boolean;
   can_manage_logistic_locations: boolean;
+  can_mark_scan_history_completion: boolean;
   task_page_default_filters: LogisticTaskDefaultFilter[];
   task_page_allowed_filters: LogisticTaskFilterKey[];
   task_intention_tab_menu: boolean;

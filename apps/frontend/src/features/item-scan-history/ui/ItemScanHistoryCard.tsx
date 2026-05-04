@@ -5,6 +5,7 @@ import {
   formatTimeInStock,
 } from "../domain/item-scan-history.domain";
 import { itemScanHistoryActions } from "../actions/item-scan-history.actions";
+import { useRoleCapabilities } from "../../role-context/hooks/use-role-capabilities";
 import type { ItemScanHistoryItem } from "../types/item-scan-history.types";
 import { ItemScanHistoryTimeline } from "./ItemScanHistoryTimeline";
 
@@ -23,6 +24,7 @@ export function ItemScanHistoryCard({
     ? CHANNEL_BADGE[item.lastSoldChannel]
     : null;
   const isCompleted = Boolean(item.logisticsCompletedAt);
+  const { can_mark_scan_history_completion } = useRoleCapabilities();
 
   return (
     <article className="relative overflow-hidden rounded-[28px] border border-slate-900/10 bg-white/85 shadow-[0_18px_45px_rgba(15,23,42,0.1)] backdrop-blur-md">
@@ -111,16 +113,18 @@ export function ItemScanHistoryCard({
             </p>
           )}
 
-          <div className="mt-4 flex justify-center">
-            <ConfirmActionButton
-              label={isCompleted ? "Mark as uncompleted" : "Mark as completed"}
-              confirmLabel={isCompleted ? "Tap again to uncomplete" : "Tap again to complete"}
-              tone={isCompleted ? "neutral" : "success"}
-              onConfirm={() =>
-                itemScanHistoryActions.markCompletion(item, !isCompleted)
-              }
-            />
-          </div>
+          {can_mark_scan_history_completion ? (
+            <div className="mt-4 flex justify-center">
+              <ConfirmActionButton
+                label={isCompleted ? "Mark as uncompleted" : "Mark as completed"}
+                confirmLabel={isCompleted ? "Tap again to uncomplete" : "Tap again to complete"}
+                tone={isCompleted ? "neutral" : "success"}
+                onConfirm={() =>
+                  itemScanHistoryActions.markCompletion(item, !isCompleted)
+                }
+              />
+            </div>
+          ) : null}
         </div>
       ) : null}
     </article>

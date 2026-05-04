@@ -27,6 +27,7 @@ export function buildRoleCapabilities(role: UserRole): RoleCapabilities {
       return {
         can_display_main_stats: true,
         can_manage_logistic_locations: true,
+        can_mark_scan_history_completion: true,
         task_page_default_filters: [
           { key: "lastLogisticEventType", value: "placed" },
           { key: "fixItem", value: true },
@@ -41,6 +42,7 @@ export function buildRoleCapabilities(role: UserRole): RoleCapabilities {
       return {
         can_display_main_stats: true,
         can_manage_logistic_locations: false,
+        can_mark_scan_history_completion: true,
         task_page_default_filters: [{ key: "noIntention", value: true }],
         task_page_allowed_filters: ALL_FILTER_KEYS,
         task_intention_tab_menu: false,
@@ -51,6 +53,7 @@ export function buildRoleCapabilities(role: UserRole): RoleCapabilities {
       return {
         can_display_main_stats: false,
         can_manage_logistic_locations: false,
+        can_mark_scan_history_completion: false,
         task_page_default_filters: [
           { key: "lastLogisticEventType", value: "marked_intention" },
         ],
@@ -64,6 +67,7 @@ export function buildRoleCapabilities(role: UserRole): RoleCapabilities {
       return {
         can_display_main_stats: true,
         can_manage_logistic_locations: true,
+        can_mark_scan_history_completion: true,
         task_page_default_filters: [],
         task_page_allowed_filters: ALL_FILTER_KEYS,
         task_intention_tab_menu: true,
