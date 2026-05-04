@@ -3,6 +3,8 @@ import {
   CreateLogisticLocationInputSchema,
   DeletePushSubscriptionInputSchema,
   FulfilItemInputSchema,
+  MarkAsCompletedInputSchema,
+  MarkAsUncompletedInputSchema,
   MarkItemFixedInputSchema,
   GetLogisticItemsQuerySchema,
   GetLogisticLocationsQuerySchema,
@@ -17,6 +19,8 @@ import { pushSubscriptionRepository } from "../repositories/push-subscription.re
 import { markLogisticIntentionCommand } from "../commands/mark-logistic-intention.command.js";
 import { markLogisticPlacementCommand } from "../commands/mark-logistic-placement.command.js";
 import { fulfilLogisticItemService } from "../services/fulfil-logistic-item.service.js";
+import { markAsCompleted as markAsCompletedService } from "../services/mark-as-completed.service.js";
+import { markAsUncompleted } from "../services/mark-as-uncompleted.service.js";
 import { markItemFixedService } from "../services/mark-item-fixed.service.js";
 import { updateFixNotesService } from "../services/update-fix-notes.service.js";
 import { getActiveTaskIdsQuery } from "../queries/get-active-task-ids.query.js";
@@ -158,6 +162,26 @@ export const logisticController = {
   fulfilItem: async (req: Request, res: Response): Promise<void> => {
     const input = FulfilItemInputSchema.parse(req.body);
     await fulfilLogisticItemService({
+      scanHistoryId: input.scanHistoryId,
+      shopId: req.authUser.shopId as string,
+      username: req.authUser.username,
+    });
+    res.status(200).json({ ok: true });
+  },
+
+  markAsCompleted: async (req: Request, res: Response): Promise<void> => {
+    const input = MarkAsCompletedInputSchema.parse(req.body);
+    await markAsCompletedService({
+      scanHistoryId: input.scanHistoryId,
+      shopId: req.authUser.shopId as string,
+      username: req.authUser.username,
+    });
+    res.status(200).json({ ok: true });
+  },
+
+  markAsUncompleted: async (req: Request, res: Response): Promise<void> => {
+    const input = MarkAsUncompletedInputSchema.parse(req.body);
+    await markAsUncompleted({
       scanHistoryId: input.scanHistoryId,
       shopId: req.authUser.shopId as string,
       username: req.authUser.username,

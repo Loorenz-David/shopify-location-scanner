@@ -159,6 +159,15 @@ const buildStringFilterConditions = (
 };
 
 const toDomain = (record: any): ScanHistoryRecord => {
+  const latestLogisticEvent = record.logisticEvents?.[0] ?? null;
+  const logisticLocation = record.logisticLocation
+    ? {
+        id: record.logisticLocation.id,
+        location: record.logisticLocation.location,
+        zoneType: record.logisticLocation.zoneType,
+      }
+    : null;
+
   return {
     id: record.id,
     shopId: record.shopId,
@@ -181,8 +190,22 @@ const toDomain = (record: any): ScanHistoryRecord => {
     lastSoldChannel: record.lastSoldChannel,
     orderId: record.orderId ?? null,
     orderNumber: record.orderNumber ?? null,
+    lastLogisticEventType: record.lastLogisticEventType ?? null,
+    logisticLocationId: record.logisticLocationId ?? null,
+    logisticLocation,
+    lastLogisticLocation: logisticLocation?.location ?? null,
+    logisticEvent: latestLogisticEvent
+      ? {
+          username: latestLogisticEvent.username,
+          eventType: latestLogisticEvent.eventType,
+          location: latestLogisticEvent.logisticLocation?.location ?? null,
+          zoneType: latestLogisticEvent.logisticLocation?.zoneType ?? null,
+          happenedAt: latestLogisticEvent.happenedAt,
+        }
+      : null,
+    logisticsCompletedAt: record.logisticsCompletedAt ?? null,
     lastModifiedAt: record.lastModifiedAt,
-    events: record.events.map((entry: any) => ({
+    events: (record.events ?? []).map((entry: any) => ({
       username: entry.username,
       eventType: entry.eventType,
       orderId: entry.orderId,
@@ -191,7 +214,7 @@ const toDomain = (record: any): ScanHistoryRecord => {
       location: entry.location,
       happenedAt: entry.happenedAt,
     })),
-    priceHistory: record.priceHistory.map((entry: any) => ({
+    priceHistory: (record.priceHistory ?? []).map((entry: any) => ({
       price: entry.price,
       terminalType: entry.terminalType,
       orderId: entry.orderId,
@@ -224,6 +247,16 @@ export const scanHistoryRepository = {
         priceHistory: {
           orderBy: {
             happenedAt: "desc",
+          },
+        },
+        logisticLocation: true,
+        logisticEvents: {
+          orderBy: {
+            happenedAt: "desc",
+          },
+          take: 1,
+          include: {
+            logisticLocation: true,
           },
         },
       },
@@ -553,6 +586,16 @@ export const scanHistoryRepository = {
           priceHistory: {
             orderBy: {
               happenedAt: "desc",
+            },
+          },
+          logisticLocation: true,
+          logisticEvents: {
+            orderBy: {
+              happenedAt: "desc",
+            },
+            take: 1,
+            include: {
+              logisticLocation: true,
             },
           },
         },
@@ -1048,6 +1091,16 @@ export const scanHistoryRepository = {
               happenedAt: "desc",
             },
           },
+          logisticLocation: true,
+          logisticEvents: {
+            orderBy: {
+              happenedAt: "desc",
+            },
+            take: 1,
+            include: {
+              logisticLocation: true,
+            },
+          },
         },
       });
     });
@@ -1240,6 +1293,7 @@ export const scanHistoryRepository = {
     stringColumns?: ScanHistoryStringFilterColumn[];
     sold?: boolean;
     inStore?: boolean;
+    logisticsCompleted?: true | null;
     salesChannel?: SalesChannel;
     from?: Date;
     to?: Date;
@@ -1268,6 +1322,14 @@ export const scanHistoryRepository = {
       whereAnd.push({ isSold: false });
     }
 
+    if (input.logisticsCompleted === true) {
+      whereAnd.push({ logisticsCompletedAt: { not: null } });
+    }
+
+    if (input.logisticsCompleted === null) {
+      whereAnd.push({ logisticsCompletedAt: null });
+    }
+
     if (input.salesChannel) {
       whereAnd.push({ lastSoldChannel: input.salesChannel });
     }
@@ -1285,6 +1347,8 @@ export const scanHistoryRepository = {
         ),
       });
     }
+
+    const totalWhere: Prisma.ScanHistoryWhereInput = { AND: [...whereAnd] };
 
     // Cursor-based pagination: sort is lastModifiedAt DESC, id ASC.
     // Next page: lastModifiedAt < cursorDate OR (lastModifiedAt = cursorDate AND id > cursorId)
@@ -1309,15 +1373,24 @@ export const scanHistoryRepository = {
     const where: Prisma.ScanHistoryWhereInput = { AND: whereAnd };
 
     // Fetch one extra record to determine if there is a next page
-    const records = await prisma.scanHistory.findMany({
-      where,
-      orderBy: [{ lastModifiedAt: "desc" }, { id: "asc" }],
-      take: input.pageSize + 1,
-      include: {
-        events: { orderBy: { happenedAt: "desc" } },
-        priceHistory: { orderBy: { happenedAt: "desc" } },
-      },
-    });
+    const [total, records] = await Promise.all([
+      prisma.scanHistory.count({ where: totalWhere }),
+      prisma.scanHistory.findMany({
+        where,
+        orderBy: [{ lastModifiedAt: "desc" }, { id: "asc" }],
+        take: input.pageSize + 1,
+        include: {
+          events: { orderBy: { happenedAt: "desc" } },
+          priceHistory: { orderBy: { happenedAt: "desc" } },
+          logisticLocation: true,
+          logisticEvents: {
+            orderBy: { happenedAt: "desc" },
+            take: 1,
+            include: { logisticLocation: true },
+          },
+        },
+      }),
+    ]);
 
     const hasMore = records.length > input.pageSize;
     const pageRecords = hasMore ? records.slice(0, input.pageSize) : records;
@@ -1329,7 +1402,7 @@ export const scanHistoryRepository = {
 
     return {
       items: pageRecords.map(toDomain),
-      total: 0, // not computed with cursor pagination
+      total,
       page: input.page,
       pageSize: input.pageSize,
       hasMore,
@@ -1351,6 +1424,7 @@ export const scanHistoryRepository = {
       itemTitle: string;
       latestLocation: string | null;
       isSold: boolean;
+      logisticsCompletedAt: Date | null;
       intention: string | null;
       fixItem: boolean | null;
       isItemFixed: boolean;
@@ -1375,6 +1449,7 @@ export const scanHistoryRepository = {
         itemTitle: true,
         latestLocation: true,
         isSold: true,
+        logisticsCompletedAt: true,
         intention: true,
         fixItem: true,
         isItemFixed: true,
@@ -1399,6 +1474,7 @@ export const scanHistoryRepository = {
         itemTitle: string;
         latestLocation: string | null;
         isSold: boolean;
+        logisticsCompletedAt: Date | null;
         intention: string | null;
         fixItem: boolean | null;
         isItemFixed: boolean;
@@ -1421,6 +1497,7 @@ export const scanHistoryRepository = {
         itemTitle: true,
         latestLocation: true,
         isSold: true,
+        logisticsCompletedAt: true,
         intention: true,
         fixItem: true,
         isItemFixed: true,

@@ -136,6 +136,7 @@ export const getLogisticItemsQuery = async (input: {
       isItemFixed: record.isItemFixed,
       fixNotes: record.fixNotes ?? null,
       scheduledDate: record.scheduledDate ?? null,
+      logisticsCompletedAt: record.logisticsCompletedAt ?? null,
       lastLogisticEventType:
         record.lastLogisticEventType as LogisticEventType | null,
       updatedAt: record.updatedAt,
@@ -146,6 +147,7 @@ export const getLogisticItemsQuery = async (input: {
             location: latestEvent.logisticLocation?.location ?? null,
             zoneType: latestEvent.logisticLocation
               ?.zoneType as LogisticZoneType | null,
+            happenedAt: latestEvent.happenedAt,
           }
         : null,
     };

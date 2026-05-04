@@ -197,6 +197,7 @@ export type UnifiedItemSearchResultDto = {
   fixItem: boolean;
   isItemFixed: boolean;
   currentPosition: string | null;
+  logisticsCompletedAt: string | null;
 };
 
 export type ShopifyMetafieldOptionDto = {

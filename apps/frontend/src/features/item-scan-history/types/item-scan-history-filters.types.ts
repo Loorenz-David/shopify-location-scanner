@@ -8,12 +8,12 @@ export type ItemScanHistorySearchField =
   | "itemCategory"
   | "username";
 
-export type ItemScanHistoryStatusFilter = "active" | "sold";
+export type ItemScanHistoryStatusFilter = "active" | "sold" | "completed";
 
 export interface ItemScanHistoryFilters {
   selectedFields: ItemScanHistorySearchField[];
   includeLocationHistory: boolean;
-  status: ItemScanHistoryStatusFilter;
+  status?: ItemScanHistoryStatusFilter;
   salesChannel?: SalesChannel;
   from: string;
   to: string;

@@ -21,6 +21,13 @@ export interface ItemScanHistoryPriceHistoryDto {
   happenedAt: string;
 }
 
+export interface ItemScanHistoryLogisticEventDto {
+  username: string;
+  eventType: "marked_intention" | "placed" | "fulfilled";
+  location: string | null;
+  happenedAt: string;
+}
+
 export interface ItemScanHistoryEntryDto {
   id: string;
   shopId: string;
@@ -39,8 +46,14 @@ export interface ItemScanHistoryEntryDto {
   volume: number | null;
   lastModifiedAt: string;
   latestLocation?: string | null;
+  lastLogisticLocation?: string | null;
+  logisticsCompletedAt?: string | null;
   lastSoldChannel?: SalesChannel | null;
   events: ItemScanHistoryEventDto[];
+  logisticEvent?:
+    | ItemScanHistoryLogisticEventDto[]
+    | ItemScanHistoryLogisticEventDto
+    | null;
   priceHistory: ItemScanHistoryPriceHistoryDto[];
   createdAt: string;
   updatedAt: string;

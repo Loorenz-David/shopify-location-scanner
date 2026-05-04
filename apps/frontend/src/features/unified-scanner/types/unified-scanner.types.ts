@@ -195,6 +195,9 @@ export interface LinkHistoryItemResponse {
   itemDepth: number | null;
   volume: number | null;
   lastModifiedAt: string;
+  latestLocation?: string | null;
+  lastLogisticLocation?: string | null;
+  logisticsCompletedAt?: string | null;
   events: Array<{
     username: string;
     eventType: ScanHistoryEventType;
@@ -203,6 +206,20 @@ export interface LinkHistoryItemResponse {
     location: string;
     happenedAt: string;
   }>;
+  logisticEvent?:
+    | Array<{
+        username: string;
+        eventType: "marked_intention" | "placed" | "fulfilled";
+        location: string | null;
+        happenedAt: string;
+      }>
+    | {
+        username: string;
+        eventType: "marked_intention" | "placed" | "fulfilled";
+        location: string | null;
+        happenedAt: string;
+      }
+    | null;
   priceHistory: Array<{
     price: string | null;
     terminalType: ScanHistoryPriceTerminalType | null;

@@ -5,7 +5,9 @@ import type {
 import type {
   ItemScanHistoryEvent,
   ItemScanHistoryItem,
+  ItemScanHistoryLogisticEvent,
   ItemScanHistoryPriceHistory,
+  ItemScanHistoryTimelineEvent,
 } from "../types/item-scan-history.types";
 import { normalizeShopifyImageUrl } from "../../shopify/domain/shopify-image.domain";
 
@@ -46,6 +48,7 @@ export function normalizeItemScanHistoryItem(
     .sort(compareNewestFirst)
     .map((event, index) => ({
       id: `${item.id}-${event.happenedAt}-${index}`,
+      kind: "scan" as const,
       eventType: event.eventType,
       orderId: event.orderId,
       orderGroupId: event.orderGroupId,
@@ -55,7 +58,21 @@ export function normalizeItemScanHistoryItem(
       username: event.username,
     }));
 
+  const logisticEvents = toLogisticEventList(item.logisticEvent)
+    .sort(compareNewestFirst)
+    .map((event, index) => ({
+      id: `${item.id}-logistic-${event.happenedAt}-${index}`,
+      kind: "logistic" as const,
+      eventType: event.eventType,
+      location: event.location,
+      happenedAt: event.happenedAt,
+      happenedAtLabel: formatShortFriendlyDateTime(event.happenedAt),
+      username: event.username,
+    }));
+
   const latestEvent = events[0];
+  const latestPositionEvent =
+    events.find((event) => event.eventType !== "sold_terminal") ?? latestEvent;
   const priceHistory = [...item.priceHistory]
     .sort(compareNewestFirst)
     .map((entry, index) => ({
@@ -79,6 +96,9 @@ export function normalizeItemScanHistoryItem(
             1000,
         )
       : null;
+  const timelineEvents = [...events, ...logisticEvents].sort(
+    compareNewestFirst,
+  );
 
   return {
     id: item.id,
@@ -98,11 +118,20 @@ export function normalizeItemScanHistoryItem(
     timeToSellSeconds,
     lastModifiedAt: item.lastModifiedAt,
     lastModifiedLabel: formatLongFriendlyDateTime(item.lastModifiedAt),
-    latestLocationLabel:
-      item.latestLocation?.trim() || latestEvent?.location || "No scans yet",
-    latestUsername: latestEvent?.username ?? item.username,
+    latestLocationLabel: resolveLatestLocationLabel({
+      isSold,
+      latestLocation: item.latestLocation,
+      lastLogisticLocation: item.lastLogisticLocation,
+      latestEventLocation: latestPositionEvent?.location,
+      latestEventType: latestPositionEvent?.eventType,
+    }),
+    latestUsername:
+      timelineEvents[0]?.username ?? latestEvent?.username ?? item.username,
     lastSoldChannel: item.lastSoldChannel ?? null,
-    events,
+    logisticsCompletedAt: item.logisticsCompletedAt ?? null,
+    events: stripTimelineKind(events),
+    logisticEvents: stripTimelineKind(logisticEvents),
+    timelineEvents,
     priceHistory,
   };
 }
@@ -170,9 +199,95 @@ export function buildSkuLabel(
   return "Unknown item";
 }
 
+function resolveLatestLocationLabel({
+  isSold,
+  latestLocation,
+  lastLogisticLocation,
+  latestEventLocation,
+  latestEventType,
+}: {
+  isSold: boolean;
+  latestLocation?: string | null;
+  lastLogisticLocation?: string | null;
+  latestEventLocation?: string | null;
+  latestEventType?: ItemScanHistoryEvent["eventType"];
+}): string {
+  const trimmedLatestLocation = normalizeLocationLabel(latestLocation);
+  const trimmedLastLogisticLocation =
+    normalizeLocationLabel(lastLogisticLocation);
+  const trimmedLatestEventLocation =
+    latestEventType === "unknown_position"
+      ? "Unknown"
+      : normalizeLocationLabel(latestEventLocation);
+
+  if (!isSold) {
+    return (
+      trimmedLatestLocation || trimmedLatestEventLocation || "No scans yet"
+    );
+  }
+
+  return (
+    trimmedLastLogisticLocation ||
+    trimmedLatestLocation ||
+    trimmedLatestEventLocation ||
+    "No scans yet"
+  );
+}
+
+function normalizeLocationLabel(location?: string | null): string | null {
+  const trimmedLocation = location?.trim();
+
+  if (!trimmedLocation) {
+    return null;
+  }
+
+  if (trimmedLocation.toLowerCase() === "unknown_position") {
+    return "Unknown";
+  }
+
+  return trimmedLocation;
+}
+
+function toLogisticEventList(
+  value: ItemScanHistoryEntryDto["logisticEvent"],
+): ItemScanHistoryLogisticEvent[] {
+  if (!value) {
+    return [];
+  }
+
+  const events = Array.isArray(value) ? value : [value];
+
+  return events.map((event, index) => ({
+    id: `logistic-${event.happenedAt}-${index}`,
+    eventType: event.eventType,
+    location: event.location,
+    happenedAt: event.happenedAt,
+    happenedAtLabel: formatShortFriendlyDateTime(event.happenedAt),
+    username: event.username,
+  }));
+}
+
+function stripTimelineKind<T extends { kind: string }>(
+  items: T[],
+): Array<Omit<T, "kind">> {
+  return items.map(({ kind: _kind, ...item }) => item);
+}
+
 function compareNewestFirst(
-  left: Pick<ItemScanHistoryEvent | ItemScanHistoryPriceHistory, "happenedAt">,
-  right: Pick<ItemScanHistoryEvent | ItemScanHistoryPriceHistory, "happenedAt">,
+  left: Pick<
+    | ItemScanHistoryEvent
+    | ItemScanHistoryLogisticEvent
+    | ItemScanHistoryPriceHistory
+    | ItemScanHistoryTimelineEvent,
+    "happenedAt"
+  >,
+  right: Pick<
+    | ItemScanHistoryEvent
+    | ItemScanHistoryLogisticEvent
+    | ItemScanHistoryPriceHistory
+    | ItemScanHistoryTimelineEvent,
+    "happenedAt"
+  >,
 ): number {
   return toTimestamp(right.happenedAt) - toTimestamp(left.happenedAt);
 }

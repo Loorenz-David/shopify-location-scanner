@@ -2,6 +2,7 @@ import type { ItemScanHistoryItem } from "../types/item-scan-history.types";
 import type {
   ItemScanHistoryFilters,
   ItemScanHistorySearchField,
+  ItemScanHistoryStatusFilter,
 } from "../types/item-scan-history-filters.types";
 
 export const itemScanHistorySearchFieldOptions: ItemScanHistorySearchField[] = [
@@ -22,6 +23,19 @@ export const defaultItemScanHistoryFilters: ItemScanHistoryFilters = {
   to: "",
 };
 
+const itemScanHistoryStatusOptions = ["active", "sold", "completed"] as const;
+
+function isItemScanHistoryStatusFilter(
+  value: unknown,
+): value is ItemScanHistoryStatusFilter {
+  return (
+    typeof value === "string" &&
+    itemScanHistoryStatusOptions.includes(
+      value as ItemScanHistoryStatusFilter,
+    )
+  );
+}
+
 export function normalizeItemScanHistoryFilters(
   filters: ItemScanHistoryFilters,
 ): ItemScanHistoryFilters {
@@ -32,7 +46,9 @@ export function normalizeItemScanHistoryFilters(
   return {
     selectedFields: Array.from(new Set(normalizedFields)),
     includeLocationHistory: Boolean(filters.includeLocationHistory),
-    status: filters.status === "sold" ? "sold" : "active",
+    status: isItemScanHistoryStatusFilter(filters.status)
+      ? filters.status
+      : undefined,
     salesChannel: filters.salesChannel,
     from: filters.from.trim(),
     to: filters.to.trim(),
@@ -48,7 +64,7 @@ export function countActiveItemScanHistoryFilters(
   return [
     hasCustomFields ? "1" : "",
     normalized.includeLocationHistory ? "1" : "",
-    normalized.status === "sold" ? "1" : "",
+    normalized.status ? "1" : "",
     normalized.salesChannel ?? "",
     normalized.from,
     normalized.to,
@@ -159,10 +175,18 @@ function matchesStatusFilter(
   item: ItemScanHistoryItem,
   status: ItemScanHistoryFilters["status"],
 ): boolean {
-  const isSold = item.events[0]?.eventType === "sold_terminal";
+  const isSold = item.isSold;
+
+  if (!status) {
+    return true;
+  }
+
+  if (status === "completed") {
+    return Boolean(item.logisticsCompletedAt);
+  }
 
   if (status === "sold") {
-    return isSold;
+    return isSold && !item.logisticsCompletedAt;
   }
 
   return !isSold;
@@ -191,13 +215,21 @@ function getFieldValuesForSearch(
       return [item.barcodeLabel ?? ""];
     case "location":
       return includeLocationHistory
-        ? [item.latestLocationLabel, ...item.events.map((event) => event.location)]
+        ? [
+            item.latestLocationLabel,
+            ...item.timelineEvents.flatMap((event) =>
+              event.location ? [event.location] : [],
+            ),
+          ]
         : [item.latestLocationLabel];
     case "itemTitle":
       return [item.title];
     case "itemCategory":
       return [item.categoryLabel ?? ""];
     case "username":
-      return [item.latestUsername, ...item.events.map((event) => event.username)];
+      return [
+        item.latestUsername,
+        ...item.timelineEvents.map((event) => event.username),
+      ];
   }
 }

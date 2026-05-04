@@ -1,8 +1,8 @@
 import { useHomeShellStore } from "../home/stores/home-shell.store";
 import { itemScanHistoryActions } from "./actions/item-scan-history.actions";
 import {
-  selectItemScanHistoryActiveFilterCount,
   selectItemScanHistoryFilters,
+  selectItemScanHistoryTotal,
   useItemScanHistoryStore,
 } from "./stores/item-scan-history.store";
 import { ItemScanHistoryFiltersPanel } from "./ui/ItemScanHistoryFiltersPanel";
@@ -16,9 +16,7 @@ export function ItemScanHistoryOverlayHost({
 }: ItemScanHistoryOverlayHostProps) {
   const overlayPageId = useHomeShellStore((state) => state.overlayPageId);
   const filters = useItemScanHistoryStore(selectItemScanHistoryFilters);
-  const activeFilterCount = useItemScanHistoryStore(
-    selectItemScanHistoryActiveFilterCount,
-  );
+  const total = useItemScanHistoryStore(selectItemScanHistoryTotal);
 
   if (overlayPageId !== "item-scan-history-filters") {
     return null;
@@ -27,7 +25,7 @@ export function ItemScanHistoryOverlayHost({
   return (
     <ItemScanHistoryFiltersPanel
       filters={filters}
-      activeFilterCount={activeFilterCount}
+      total={total}
       onChangeFilters={itemScanHistoryActions.setFilters}
       onResetFilters={itemScanHistoryActions.resetFilters}
       onClose={onClose}

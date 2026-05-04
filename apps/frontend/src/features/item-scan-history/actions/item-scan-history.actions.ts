@@ -1,20 +1,29 @@
 import {
+  markHistoryItemCompletedApi,
+  markHistoryItemUncompletedApi,
+} from "../api/mark-history-item-completion.api";
+import {
   loadItemScanHistoryController,
   loadMoreItemScanHistoryController,
   refreshItemScanHistoryItemController,
 } from "../controllers/item-scan-history.controller";
 import {
   commitOptimisticLocationUpdateController,
+  rollbackOptimisticCompletionUpdateController,
   rollbackOptimisticLocationUpdateController,
+  startOptimisticCompletionUpdateController,
   startOptimisticLocationUpdateController,
   type ItemScanHistoryOptimisticUpdateToken,
 } from "../controllers/item-scan-history-optimistic.controller";
 import { useItemScanHistoryStore } from "../stores/item-scan-history.store";
 import type { ItemScanHistoryFilters } from "../types/item-scan-history-filters.types";
+import type { ItemScanHistoryItem } from "../types/item-scan-history.types";
 import type {
   LinkItemPositionsResponse,
   ScannerItem,
 } from "../../unified-scanner/types/unified-scanner.types";
+import { resolveLocationScannerMode } from "../../unified-scanner/domain/item-mode.domain";
+import { useUnifiedScannerStore } from "../../unified-scanner/stores/unified-scanner.store";
 import { homeShellActions } from "../../home/actions/home-shell.actions";
 
 export const itemScanHistoryActions = {
@@ -71,6 +80,45 @@ export const itemScanHistoryActions = {
     token: ItemScanHistoryOptimisticUpdateToken,
   ): void {
     rollbackOptimisticLocationUpdateController(token);
+  },
+  openPlacementScanner(item: ItemScanHistoryItem): void {
+    const itemId =
+      item.itemType === "sku"
+        ? item.skuLabel
+        : item.itemType === "barcode"
+          ? (item.barcodeLabel ?? item.productId)
+          : item.productId;
+    const prefilledItem = {
+      id: item.id,
+      idType: item.itemType,
+      itemId,
+      sku: item.skuLabel,
+      imageUrl: item.imageUrl ?? undefined,
+      title: item.title,
+      isSold: item.isSold,
+      intention: null,
+      fixItem: false,
+      isItemFixed: false,
+    };
+    const store = useUnifiedScannerStore.getState();
+    store.setPrefilledItem(prefilledItem);
+    store.setSelectedItem(prefilledItem);
+    store.setLocationMode(resolveLocationScannerMode(prefilledItem));
+    store.setPhase("scanning-location");
+    homeShellActions.openFullFeaturePage("unified-scanner");
+  },
+  async markCompletion(item: ItemScanHistoryItem, completed: boolean): Promise<void> {
+    const token = startOptimisticCompletionUpdateController(item.id, completed);
+
+    try {
+      if (completed) {
+        await markHistoryItemCompletedApi({ scanHistoryId: item.id });
+      } else {
+        await markHistoryItemUncompletedApi({ scanHistoryId: item.id });
+      }
+    } catch {
+      rollbackOptimisticCompletionUpdateController(token);
+    }
   },
   reset(): void {
     useItemScanHistoryStore.getState().reset();

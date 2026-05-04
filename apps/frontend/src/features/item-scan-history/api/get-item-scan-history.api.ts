@@ -37,7 +37,9 @@ export async function getItemScanHistoryApi(
     queryParams.set("includeLocationHistory", "true");
   }
 
-  queryParams.set("status", filters.status);
+  if (filters.status) {
+    queryParams.set("status", filters.status);
+  }
 
   if (filters.salesChannel) {
     queryParams.set("salesChannel", filters.salesChannel);

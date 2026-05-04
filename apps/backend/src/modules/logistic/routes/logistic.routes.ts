@@ -44,6 +44,14 @@ logisticRouter.post(
 );
 logisticRouter.post("/fulfil", asyncHandler(logisticController.fulfilItem));
 logisticRouter.post(
+  "/items/mark-as-completed",
+  asyncHandler(logisticController.markAsCompleted),
+);
+logisticRouter.post(
+  "/items/mark-as-uncompleted",
+  asyncHandler(logisticController.markAsUncompleted),
+);
+logisticRouter.post(
   "/item-is-fix",
   asyncHandler(logisticController.markItemFixed),
 );

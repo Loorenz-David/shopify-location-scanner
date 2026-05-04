@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { SalesChannel } from "../../analytics/types/analytics.types";
 import { itemScanHistorySearchFieldOptions } from "../domain/item-scan-history-filters.domain";
 import {
@@ -12,7 +13,7 @@ import type {
 
 interface ItemScanHistoryFiltersPanelProps {
   filters: ItemScanHistoryFilters;
-  activeFilterCount: number;
+  total: number;
   onChangeFilters: (filters: Partial<ItemScanHistoryFilters>) => void;
   onResetFilters: () => void;
   onClose: () => void;
@@ -20,7 +21,7 @@ interface ItemScanHistoryFiltersPanelProps {
 
 export function ItemScanHistoryFiltersPanel({
   filters,
-  activeFilterCount,
+  total,
   onChangeFilters,
   onResetFilters,
   onClose,
@@ -32,8 +33,12 @@ export function ItemScanHistoryFiltersPanel({
     filters.from,
     filters.to,
   );
+  const [dateRangeMode, setDateRangeMode] =
+    useState<ItemScanHistoryDateRangePreset>(selectedDatePreset);
 
   const handleDatePresetChange = (preset: ItemScanHistoryDateRangePreset) => {
+    setDateRangeMode(preset);
+
     if (preset === "none") {
       onChangeFilters({
         from: "",
@@ -50,6 +55,11 @@ export function ItemScanHistoryFiltersPanel({
     onChangeFilters(range);
   };
 
+  const handleResetFilters = () => {
+    setDateRangeMode("none");
+    onResetFilters();
+  };
+
   return (
     <section
       className="flex h-full min-h-0 flex-col bg-slate-50"
@@ -59,9 +69,7 @@ export function ItemScanHistoryFiltersPanel({
         <div>
           <p className="m-0 text-sm font-semibold text-slate-900">Filters</p>
           <p className="m-0 mt-1 text-xs text-slate-600">
-            {activeFilterCount > 0
-              ? `${activeFilterCount} active`
-              : "No active filters"}
+            {total === 1 ? "1 result" : `${total.toLocaleString()} results`}
           </p>
         </div>
 
@@ -155,12 +163,33 @@ export function ItemScanHistoryFiltersPanel({
               <ToggleChip
                 label="Active"
                 checked={filters.status === "active"}
-                onToggle={() => onChangeFilters({ status: "active" })}
+                onToggle={() =>
+                  onChangeFilters({
+                    status:
+                      filters.status === "active" ? undefined : "active",
+                  })
+                }
               />
               <ToggleChip
                 label="Sold"
                 checked={filters.status === "sold"}
-                onToggle={() => onChangeFilters({ status: "sold" })}
+                onToggle={() =>
+                  onChangeFilters({
+                    status: filters.status === "sold" ? undefined : "sold",
+                  })
+                }
+              />
+              <ToggleChip
+                label="Completed"
+                checked={filters.status === "completed"}
+                onToggle={() =>
+                  onChangeFilters({
+                    status:
+                      filters.status === "completed"
+                        ? undefined
+                        : "completed",
+                  })
+                }
               />
             </div>
           </div>
@@ -197,7 +226,7 @@ export function ItemScanHistoryFiltersPanel({
             <label className="mt-2 block">
               <span className="sr-only">Date range preset</span>
               <select
-                value={selectedDatePreset}
+                value={dateRangeMode}
                 onChange={(event) =>
                   handleDatePresetChange(
                     event.target.value as ItemScanHistoryDateRangePreset,
@@ -214,7 +243,7 @@ export function ItemScanHistoryFiltersPanel({
               </select>
             </label>
 
-            {selectedDatePreset === "custom" ? (
+            {dateRangeMode === "custom" ? (
               <div className="mt-2 grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <DateField
                   label="From"
@@ -236,7 +265,7 @@ export function ItemScanHistoryFiltersPanel({
         <button
           type="button"
           className="w-full rounded-xl border border-slate-900/15 bg-white px-4 py-2 text-sm font-semibold text-slate-700"
-          onClick={onResetFilters}
+          onClick={handleResetFilters}
         >
           Reset filters
         </button>

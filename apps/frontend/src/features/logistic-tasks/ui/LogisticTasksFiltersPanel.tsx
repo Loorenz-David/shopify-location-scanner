@@ -19,9 +19,9 @@ interface LogisticTasksFiltersPanelProps {
 }
 
 const EVENT_TYPE_OPTIONS: { value: LogisticEventType; label: string }[] = [
-  { value: "marked_intention", label: "Marked Intention" },
+  { value: "marked_intention", label: "Pending" },
   { value: "placed", label: "Placed" },
-  { value: "fulfilled", label: "Fulfilled" },
+  { value: "fulfilled", label: "Completed" },
 ];
 
 const ZONE_TYPE_OPTIONS: { value: LogisticZoneType; label: string }[] = [
@@ -139,8 +139,7 @@ export function LogisticTasksFiltersPanel({
                 }`}
                 onClick={() =>
                   update({
-                    isItemFixed:
-                      filters.isItemFixed === true ? false : true,
+                    isItemFixed: filters.isItemFixed === true ? false : true,
                   })
                 }
               >

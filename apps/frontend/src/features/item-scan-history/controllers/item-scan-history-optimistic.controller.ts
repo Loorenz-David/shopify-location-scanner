@@ -2,11 +2,14 @@ import {
   formatLongFriendlyDateTime,
   normalizeItemScanHistoryItem,
 } from "../domain/item-scan-history.domain";
+import { applyItemScanHistoryLiveFilters } from "../domain/item-scan-history-filters.domain";
 import { useItemScanHistoryStore } from "../stores/item-scan-history.store";
 import type { ItemScanHistoryEntryDto } from "../types/item-scan-history.dto";
 import type {
   ItemScanHistoryEvent,
   ItemScanHistoryItem,
+  ItemScanHistoryLogisticEvent,
+  ItemScanHistoryTimelineEvent,
 } from "../types/item-scan-history.types";
 import type {
   LinkHistoryItemResponse,
@@ -28,6 +31,11 @@ export interface ItemScanHistoryOptimisticUpdateToken {
   optimisticItemId: string | null;
 }
 
+export interface ItemScanHistoryCompletionOptimisticToken {
+  previousItems: ItemScanHistoryItem[];
+  previousTotal: number;
+}
+
 export function startOptimisticLocationUpdateController({
   item,
   locationCode,
@@ -35,6 +43,7 @@ export function startOptimisticLocationUpdateController({
   const state = useItemScanHistoryStore.getState();
   const nowIso = new Date().toISOString();
   const nextEvent = buildOptimisticEvent(nowIso, locationCode);
+  const nextTimelineEvent = { ...nextEvent, kind: "scan" as const };
 
   const matchedIndex = findHistoryItemIndex(state.items, item);
   const previousItems = state.items;
@@ -48,6 +57,7 @@ export function startOptimisticLocationUpdateController({
       latestLocationLabel: locationCode,
       latestUsername: OPTIMISTIC_EVENT_USERNAME,
       events: [nextEvent, ...matchedItem.events],
+      timelineEvents: [nextTimelineEvent, ...matchedItem.timelineEvents],
     };
 
     const reorderedItems = [
@@ -186,12 +196,52 @@ export function rollbackOptimisticLocationUpdateController(
   }));
 }
 
+export function startOptimisticCompletionUpdateController(
+  itemId: string,
+  completed: boolean,
+): ItemScanHistoryCompletionOptimisticToken {
+  const state = useItemScanHistoryStore.getState();
+  const previousItems = state.items;
+  const previousTotal = state.total;
+  const nowIso = new Date().toISOString();
+  const nextItems = state.items.map((item) =>
+    item.id === itemId
+      ? patchItemCompletionState(item, completed, nowIso)
+      : item,
+  );
+  const visibleItems = applyItemScanHistoryLiveFilters(
+    nextItems,
+    state.query,
+    state.filters,
+  );
+  const removedByFilters = nextItems.length > visibleItems.length;
+
+  useItemScanHistoryStore.setState({
+    items: visibleItems,
+    total: removedByFilters
+      ? Math.max(0, state.total - (nextItems.length - visibleItems.length))
+      : state.total,
+  });
+
+  return { previousItems, previousTotal };
+}
+
+export function rollbackOptimisticCompletionUpdateController(
+  token: ItemScanHistoryCompletionOptimisticToken,
+): void {
+  useItemScanHistoryStore.setState({
+    items: token.previousItems,
+    total: token.previousTotal,
+  });
+}
+
 function buildOptimisticHandleItem(
   item: ScannerItem,
   locationCode: string,
   nowIso: string,
 ): ItemScanHistoryItem {
   const normalizedHandle = item.itemId.trim();
+  const optimisticEvent = buildOptimisticEvent(nowIso, locationCode);
 
   return {
     id: `optimistic-handle-${normalizedHandle}`,
@@ -214,7 +264,10 @@ function buildOptimisticHandleItem(
     latestLocationLabel: locationCode,
     latestUsername: OPTIMISTIC_EVENT_USERNAME,
     lastSoldChannel: null,
-    events: [buildOptimisticEvent(nowIso, locationCode)],
+    logisticsCompletedAt: null,
+    events: [optimisticEvent],
+    logisticEvents: [],
+    timelineEvents: [{ ...optimisticEvent, kind: "scan" as const }],
     priceHistory: [],
   };
 }
@@ -232,6 +285,59 @@ function buildOptimisticEvent(
     happenedAt,
     happenedAtLabel: formatLongFriendlyDateTime(happenedAt),
     username: OPTIMISTIC_EVENT_USERNAME,
+  };
+}
+
+function buildOptimisticLogisticEvent(
+  happenedAt: string,
+): ItemScanHistoryLogisticEvent {
+  return {
+    id: `optimistic-logistic-${happenedAt}`,
+    eventType: "fulfilled",
+    location: null,
+    happenedAt,
+    happenedAtLabel: formatLongFriendlyDateTime(happenedAt),
+    username: OPTIMISTIC_EVENT_USERNAME,
+  };
+}
+
+function patchItemCompletionState(
+  item: ItemScanHistoryItem,
+  completed: boolean,
+  happenedAt: string,
+): ItemScanHistoryItem {
+  if (completed) {
+    const nextEvent = buildOptimisticLogisticEvent(happenedAt);
+    const nextTimelineEvent: ItemScanHistoryTimelineEvent = {
+      ...nextEvent,
+      kind: "logistic",
+    };
+
+    return {
+      ...item,
+      logisticsCompletedAt: happenedAt,
+      logisticEvents: [nextEvent, ...item.logisticEvents],
+      timelineEvents: [nextTimelineEvent, ...item.timelineEvents].sort(
+        compareNewestFirst,
+      ),
+      latestUsername: OPTIMISTIC_EVENT_USERNAME,
+    };
+  }
+
+  const logisticEvents = item.logisticEvents.filter(
+    (event) => event.eventType !== "fulfilled",
+  );
+  const timelineEvents = item.timelineEvents.filter(
+    (event) => !(event.kind === "logistic" && event.eventType === "fulfilled"),
+  );
+
+  return {
+    ...item,
+    logisticsCompletedAt: null,
+    logisticEvents,
+    timelineEvents,
+    latestUsername:
+      timelineEvents[0]?.username ?? item.events[0]?.username ?? item.latestUsername,
   };
 }
 
@@ -317,6 +423,9 @@ function toItemScanHistoryEntryDto(
     itemDepth: historyItem.itemDepth,
     volume: historyItem.volume,
     lastModifiedAt: historyItem.lastModifiedAt,
+    latestLocation: historyItem.latestLocation,
+    lastLogisticLocation: historyItem.lastLogisticLocation,
+    logisticsCompletedAt: historyItem.logisticsCompletedAt,
     events: historyItem.events.map((event) => ({
       username: event.username,
       eventType: event.eventType,
@@ -325,6 +434,7 @@ function toItemScanHistoryEntryDto(
       location: event.location,
       happenedAt: event.happenedAt,
     })),
+    logisticEvent: historyItem.logisticEvent,
     priceHistory: (historyItem.priceHistory ?? []).map((entry) => ({
       price: entry.price,
       terminalType: entry.terminalType,
@@ -348,4 +458,16 @@ function dedupeById(items: ItemScanHistoryItem[]): ItemScanHistoryItem[] {
     seen.add(item.id);
     return true;
   });
+}
+
+function compareNewestFirst(
+  left: Pick<ItemScanHistoryTimelineEvent, "happenedAt">,
+  right: Pick<ItemScanHistoryTimelineEvent, "happenedAt">,
+): number {
+  return toTimestamp(right.happenedAt) - toTimestamp(left.happenedAt);
+}
+
+function toTimestamp(value: string): number {
+  const time = new Date(value).getTime();
+  return Number.isNaN(time) ? 0 : time;
 }

@@ -73,6 +73,9 @@ export const searchUnifiedItemsQuery = async (input: {
       fixItem: record.fixItem ?? false,
       isItemFixed: record.isItemFixed,
       currentPosition: record.latestLocation ?? null,
+      logisticsCompletedAt: record.logisticsCompletedAt
+        ? record.logisticsCompletedAt.toISOString()
+        : null,
     }));
   }
 
@@ -119,6 +122,9 @@ export const searchUnifiedItemsQuery = async (input: {
       fixItem: history?.fixItem ?? false,
       isItemFixed: history?.isItemFixed ?? false,
       currentPosition: history?.latestLocation ?? null,
+      logisticsCompletedAt: history?.logisticsCompletedAt
+        ? history.logisticsCompletedAt.toISOString()
+        : null,
     };
   });
 };

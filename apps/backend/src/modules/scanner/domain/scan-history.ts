@@ -9,6 +9,8 @@ export type ScanHistoryPriceTerminalType =
   | "price_update";
 
 export type SalesChannel = "webshop" | "physical" | "imported" | "unknown";
+export type LogisticEventType = "marked_intention" | "placed" | "fulfilled";
+export type LogisticZoneType = "for_delivery" | "for_pickup" | "for_fixing";
 
 export type ScanHistoryEvent = {
   username: string;
@@ -25,6 +27,20 @@ export type ScanHistoryPricePoint = {
   terminalType: ScanHistoryPriceTerminalType | null;
   orderId: string | null;
   orderGroupId: string | null;
+  happenedAt: Date;
+};
+
+export type ScanHistoryLogisticLocation = {
+  id: string;
+  location: string;
+  zoneType: LogisticZoneType;
+};
+
+export type ScanHistoryLogisticEvent = {
+  username: string;
+  eventType: LogisticEventType;
+  location: string | null;
+  zoneType: LogisticZoneType | null;
   happenedAt: Date;
 };
 
@@ -50,6 +66,12 @@ export type ScanHistoryRecord = {
   lastSoldChannel: SalesChannel | null;
   orderId: string | null;
   orderNumber: number | null;
+  lastLogisticEventType: LogisticEventType | null;
+  logisticLocationId: string | null;
+  logisticLocation: ScanHistoryLogisticLocation | null;
+  lastLogisticLocation: string | null;
+  logisticEvent: ScanHistoryLogisticEvent | null;
+  logisticsCompletedAt: Date | null;
   lastModifiedAt: Date;
   events: ScanHistoryEvent[];
   priceHistory: ScanHistoryPricePoint[];

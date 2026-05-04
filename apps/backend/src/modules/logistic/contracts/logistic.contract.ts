@@ -44,6 +44,14 @@ export const FulfilItemInputSchema = z.object({
   scanHistoryId: z.string().min(1),
 });
 
+export const MarkAsCompletedInputSchema = z.object({
+  scanHistoryId: z.string().min(1),
+});
+
+export const MarkAsUncompletedInputSchema = z.object({
+  scanHistoryId: z.string().min(1),
+});
+
 export const MarkItemFixedInputSchema = z.object({
   scanHistoryId: z.string().min(1),
 });
@@ -96,6 +104,10 @@ export const GetLogisticLocationsQuerySchema = z.object({
 export type MarkIntentionInput = z.infer<typeof MarkIntentionInputSchema>;
 export type MarkPlacementInput = z.infer<typeof MarkPlacementInputSchema>;
 export type FulfilItemInput = z.infer<typeof FulfilItemInputSchema>;
+export type MarkAsCompletedInput = z.infer<typeof MarkAsCompletedInputSchema>;
+export type MarkAsUncompletedInput = z.infer<
+  typeof MarkAsUncompletedInputSchema
+>;
 export type GetLogisticItemsQuery = z.infer<typeof GetLogisticItemsQuerySchema>;
 export type CreateLogisticLocationInput = z.infer<
   typeof CreateLogisticLocationInputSchema

@@ -47,6 +47,7 @@ export type LogisticItemSummary = {
   isItemFixed: boolean;
   fixNotes: string | null;
   scheduledDate: Date | null;
+  logisticsCompletedAt: Date | null;
   lastLogisticEventType: LogisticEventType | null;
   updatedAt: Date;
   logisticEvent: {
@@ -54,6 +55,7 @@ export type LogisticItemSummary = {
     eventType: LogisticEventType;
     location: string | null;
     zoneType: LogisticZoneType | null;
+    happenedAt: Date;
   } | null;
 };
 

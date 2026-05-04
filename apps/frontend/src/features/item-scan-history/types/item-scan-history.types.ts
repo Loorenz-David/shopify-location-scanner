@@ -25,6 +25,19 @@ export interface ItemScanHistoryPriceHistory {
   happenedAtLabel: string;
 }
 
+export interface ItemScanHistoryLogisticEvent {
+  id: string;
+  eventType: "marked_intention" | "placed" | "fulfilled";
+  location: string | null;
+  happenedAt: string;
+  happenedAtLabel: string;
+  username: string;
+}
+
+export type ItemScanHistoryTimelineEvent =
+  | ({ kind: "scan" } & ItemScanHistoryEvent)
+  | ({ kind: "logistic" } & ItemScanHistoryLogisticEvent);
+
 export interface ItemScanHistoryItem {
   id: string;
   categoryLabel: string | null;
@@ -46,6 +59,9 @@ export interface ItemScanHistoryItem {
   latestLocationLabel: string;
   latestUsername: string;
   lastSoldChannel: SalesChannel | null;
+  logisticsCompletedAt: string | null;
   events: ItemScanHistoryEvent[];
+  logisticEvents: ItemScanHistoryLogisticEvent[];
+  timelineEvents: ItemScanHistoryTimelineEvent[];
   priceHistory: ItemScanHistoryPriceHistory[];
 }

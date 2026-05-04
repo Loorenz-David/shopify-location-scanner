@@ -136,6 +136,8 @@ export const selectItemScanHistoryFilters = (
 export const selectItemScanHistoryActiveFilterCount = (
   state: ItemScanHistoryStoreState,
 ) => countActiveItemScanHistoryFilters(state.filters);
+export const selectItemScanHistoryTotal = (state: ItemScanHistoryStoreState) =>
+  state.total;
 export const selectItemScanHistoryFiltersRequestKey = (
   state: ItemScanHistoryStoreState,
 ) => serializeItemScanHistoryFiltersForRequest(state.filters);

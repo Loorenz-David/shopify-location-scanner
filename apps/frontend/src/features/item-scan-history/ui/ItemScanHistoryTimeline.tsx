@@ -1,7 +1,7 @@
-import type { ItemScanHistoryEvent } from "../types/item-scan-history.types";
+import type { ItemScanHistoryTimelineEvent } from "../types/item-scan-history.types";
 
 interface ItemScanHistoryTimelineProps {
-  events: ItemScanHistoryEvent[];
+  events: ItemScanHistoryTimelineEvent[];
 }
 
 export function ItemScanHistoryTimeline({
@@ -26,7 +26,7 @@ export function ItemScanHistoryTimeline({
               {event.happenedAtLabel}
             </p>
             <div className="mt-1">
-              {event.eventType === "sold_terminal" ? (
+              {event.kind === "scan" && event.eventType === "sold_terminal" ? (
                 <div className="flex flex-col gap-1">
                   <span className="inline-flex w-fit items-center rounded-full border border-rose-200 bg-rose-100 px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.08em] text-rose-700">
                     Sold
@@ -37,9 +37,15 @@ export function ItemScanHistoryTimeline({
                     </p>
                   ) : null}
                 </div>
+              ) : event.kind === "logistic" ? (
+                <p className="m-0 text-sm font-semibold text-slate-900">
+                  {event.location ?? formatLogisticEventLabel(event.eventType)}
+                </p>
               ) : (
                 <p className="m-0 text-sm font-semibold text-slate-900">
-                  {event.location}
+                  {event.eventType === "unknown_position"
+                    ? "Unknown"
+                    : event.location}
                 </p>
               )}
             </div>
@@ -49,4 +55,19 @@ export function ItemScanHistoryTimeline({
       ))}
     </ol>
   );
+}
+
+function formatLogisticEventLabel(
+  eventType: ItemScanHistoryTimelineEvent["eventType"],
+): string {
+  switch (eventType) {
+    case "marked_intention":
+      return "Marked intention";
+    case "placed":
+      return "Placed";
+    case "fulfilled":
+      return "Fulfilled";
+    default:
+      return eventType;
+  }
 }

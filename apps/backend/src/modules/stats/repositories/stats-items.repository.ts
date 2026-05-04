@@ -9,6 +9,7 @@ import type {
 } from "../domain/stats-items.domain.js";
 
 const PAGE_SIZE = 50;
+const UNKNOWN_POSITION_LOCATION = "UNKNOWN_POSITION";
 
 /**
  * When sorting by a derived column (lastKnownPrice, timeToSell) we cannot
@@ -48,7 +49,14 @@ function buildWhere(
     const loc = filters.latestLocation;
     const levelMatch = /^(.+):(\d+)$/.exec(loc);
 
-    if (!levelMatch) {
+    if (loc === UNKNOWN_POSITION_LOCATION) {
+      and.push({
+        OR: [
+          { latestLocation: UNKNOWN_POSITION_LOCATION },
+          { latestLocation: null },
+        ],
+      });
+    } else if (!levelMatch) {
       // Zone-level query ("H1"): match bare "H1" AND any "H1:N" levels.
       and.push({
         OR: [

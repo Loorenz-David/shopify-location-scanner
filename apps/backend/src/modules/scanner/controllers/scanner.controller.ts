@@ -60,6 +60,9 @@ export const scannerController = {
       ...(query.stringColumns ? { stringColumns: query.stringColumns } : {}),
       ...(typeof query.sold === "boolean" ? { sold: query.sold } : {}),
       ...(typeof query.inStore === "boolean" ? { inStore: query.inStore } : {}),
+      ...(typeof query.logisticsCompleted !== "undefined"
+        ? { logisticsCompleted: query.logisticsCompleted }
+        : {}),
       ...(query.salesChannel ? { salesChannel: query.salesChannel } : {}),
       ...(query.from ? { from: query.from } : {}),
       ...(query.to ? { to: query.to } : {}),

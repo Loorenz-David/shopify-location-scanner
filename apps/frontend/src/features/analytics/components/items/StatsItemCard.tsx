@@ -170,12 +170,13 @@ function CompactContent({
               </span>
             ) : null}
           </div>
-          {(item.lastSoldChannel || item.timeToSellSeconds !== null) ? (
+          {item.lastSoldChannel || item.timeToSellSeconds !== null ? (
             <div className="mt-0.5 flex flex-wrap items-center gap-2">
               {item.lastSoldChannel ? (
                 <span
                   className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
-                    CHANNEL_COLORS[item.lastSoldChannel] ?? CHANNEL_COLORS.unknown
+                    CHANNEL_COLORS[item.lastSoldChannel] ??
+                    CHANNEL_COLORS.unknown
                   }`}
                 >
                   {CHANNEL_LABELS[item.lastSoldChannel] ?? item.lastSoldChannel}
@@ -209,12 +210,13 @@ function CompactContent({
               </span>
             ) : null}
           </div>
-          {(item.lastSoldChannel || item.timeToSellSeconds !== null) ? (
+          {item.lastSoldChannel || item.timeToSellSeconds !== null ? (
             <div className="mt-0.5 flex flex-wrap items-center gap-2">
               {item.lastSoldChannel ? (
                 <span
                   className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
-                    CHANNEL_COLORS[item.lastSoldChannel] ?? CHANNEL_COLORS.unknown
+                    CHANNEL_COLORS[item.lastSoldChannel] ??
+                    CHANNEL_COLORS.unknown
                   }`}
                 >
                   {CHANNEL_LABELS[item.lastSoldChannel] ?? item.lastSoldChannel}
@@ -290,15 +292,27 @@ function CompactContent({
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <span className="text-xs text-slate-600">
-              <span className={focusDimension === "height" ? "font-bold text-slate-900" : ""}>
+              <span
+                className={
+                  focusDimension === "height" ? "font-bold text-slate-900" : ""
+                }
+              >
                 {formatDimension(item.itemHeight)}
               </span>{" "}
               ×{" "}
-              <span className={focusDimension === "width" ? "font-bold text-slate-900" : ""}>
+              <span
+                className={
+                  focusDimension === "width" ? "font-bold text-slate-900" : ""
+                }
+              >
                 {formatDimension(item.itemWidth)}
               </span>{" "}
               ×{" "}
-              <span className={focusDimension === "depth" ? "font-bold text-slate-900" : ""}>
+              <span
+                className={
+                  focusDimension === "depth" ? "font-bold text-slate-900" : ""
+                }
+              >
                 {formatDimension(item.itemDepth)}
               </span>
             </span>
@@ -383,11 +397,22 @@ function ExpandedContent({
   item: StatsItem;
   cardMode: StatsItemCardMode;
 }) {
-  const rows: Array<{ label: string; value: string }> = [];
+  const rows: Array<{ label: string; value: string; className?: string }> = [];
 
   // Fields always shown in expanded unless already in compact
   if (cardMode !== "received") {
-    rows.push({ label: "Received", value: formatDate(item.createdAt) });
+    rows.push({
+      label: "Received",
+      value: formatDate(item.createdAt),
+      className: "col-start-1",
+    });
+    if (item.itemSku) {
+      rows.push({
+        label: "SKU",
+        value: item.itemSku,
+        className: "col-start-1",
+      });
+    }
   }
   if (
     cardMode !== "avg-sell-time" &&
@@ -426,7 +451,18 @@ function ExpandedContent({
         value: formatSeconds(item.timeToSellSeconds),
       });
     }
-    rows.push({ label: "Received", value: formatDate(item.createdAt) });
+    rows.push({
+      label: "Received",
+      value: formatDate(item.createdAt),
+      className: "col-start-1",
+    });
+    if (item.itemSku) {
+      rows.push({
+        label: "SKU",
+        value: item.itemSku,
+        className: "col-start-1",
+      });
+    }
   }
   if (item.itemCategory) {
     rows.push({ label: "Category", value: item.itemCategory });
@@ -448,8 +484,8 @@ function ExpandedContent({
 
   return (
     <dl className="m-0 grid grid-cols-2 gap-x-4 gap-y-2">
-      {rows.map(({ label, value }) => (
-        <div key={label}>
+      {rows.map(({ label, value, className }) => (
+        <div key={label} className={className}>
           <dt className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
             {label}
           </dt>

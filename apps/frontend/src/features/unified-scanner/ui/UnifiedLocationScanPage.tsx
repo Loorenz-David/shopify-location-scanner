@@ -102,22 +102,20 @@ export function UnifiedLocationScanPage({
               </button>
             </div>
 
-            <div className="min-h-12">
-              {locationMode === "shop" && canScanNext ? (
-                <button
-                  type="button"
-                  className="w-full rounded-lg bg-sky-500/90 px-3 py-3 text-md font-bold text-sky-50"
-                  onClick={onScanNext}
-                >
-                  Next scan
-                </button>
-              ) : null}
-            </div>
+            {locationMode === "shop" && canScanNext ? (
+              <button
+                type="button"
+                className="w-full rounded-lg bg-sky-500/90 px-3 py-3 text-md font-bold text-sky-50"
+                onClick={onScanNext}
+              >
+                Next scan
+              </button>
+            ) : null}
           </div>
         </div>
       ) : null}
 
-      {locationDecodedText ? (
+      {locationDecodedText && !canScanNext ? (
         <DecodedTextPanel
           value={locationDecodedText}
           onClear={onClearLocationScan}

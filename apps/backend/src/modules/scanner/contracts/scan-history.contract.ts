@@ -21,7 +21,7 @@ const FrontendScanHistoryFieldSchema = z.enum([
   "itemCategory",
 ]);
 
-const ScanHistoryStatusFilterSchema = z.enum(["active", "sold"]);
+const ScanHistoryStatusFilterSchema = z.enum(["active", "sold", "completed"]);
 const SalesChannelFilterSchema = z.enum([
   "webshop",
   "physical",
@@ -55,6 +55,18 @@ const OptionalDateQuerySchema = z.preprocess((value) => {
 
   return value;
 }, z.coerce.date().optional());
+
+const toStartOfDay = (value: Date): Date => {
+  const date = new Date(value);
+  date.setHours(0, 0, 0, 0);
+  return date;
+};
+
+const toEndOfDay = (value: Date): Date => {
+  const date = new Date(value);
+  date.setHours(23, 59, 59, 999);
+  return date;
+};
 
 const OptionalStringColumnsQuerySchema = z.preprocess((value) => {
   if (value === undefined || value === null || value === "") {
@@ -159,7 +171,7 @@ export const GetScanHistoryQuerySchema = z
     page: z.coerce.number().int().min(1).default(1),
     q: z.string().trim().min(1).max(120).optional(),
     fields: OptionalFieldsQuerySchema,
-    status: ScanHistoryStatusFilterSchema.default("active"),
+    status: ScanHistoryStatusFilterSchema.optional(),
     includeLocationHistory: OptionalBooleanQuerySchema,
     stringColumns: OptionalStringColumnsQuerySchema,
     sold: OptionalBooleanQuerySchema,
@@ -176,16 +188,25 @@ export const GetScanHistoryQuerySchema = z
   .transform((input) => {
     const stringColumns =
       input.fields?.map(mapFrontendFieldToColumn) ?? input.stringColumns;
+    const from = input.from ? toStartOfDay(input.from) : undefined;
+    const to = input.to ? toEndOfDay(input.to) : undefined;
 
     let sold = input.sold;
     let inStore = input.inStore;
+    let logisticsCompleted: true | null | undefined;
 
     if (input.status === "sold") {
       sold = true;
       inStore = false;
+      logisticsCompleted = null;
     } else if (input.status === "active") {
       sold = false;
       inStore = true;
+      logisticsCompleted = null;
+    } else if (input.status === "completed") {
+      sold = undefined;
+      inStore = undefined;
+      logisticsCompleted = true;
     }
 
     return {
@@ -197,9 +218,10 @@ export const GetScanHistoryQuerySchema = z
       stringColumns,
       sold,
       inStore,
+      logisticsCompleted,
       salesChannel: input.salesChannel,
-      from: input.from,
-      to: input.to,
+      from,
+      to,
       cursor: input.cursor,
     };
   });
