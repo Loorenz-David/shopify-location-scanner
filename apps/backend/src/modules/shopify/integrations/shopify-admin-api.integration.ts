@@ -21,6 +21,7 @@ type ShopifyProductSearchEdge = {
     featuredImage: {
       url: string;
     } | null;
+    quantityMeta: { value: string | null } | null;
     variants: {
       edges: Array<{
         node: {
@@ -322,12 +323,40 @@ const coalesceMetafieldValue = (
   return null;
 };
 
+const serializeProductImageUrls = (product: {
+  featuredImage: { url: string } | null;
+  images?: {
+    edges: Array<{
+      node: {
+        url: string;
+      };
+    }>;
+  } | null;
+}): string | null => {
+  const urls = [
+    product.featuredImage?.url,
+    ...(product.images?.edges.map((edge) => edge.node.url) ?? []),
+  ]
+    .map((url) => url?.trim())
+    .filter((url): url is string => Boolean(url));
+
+  const uniqueUrls = [...new Set(urls)];
+  return uniqueUrls.length > 0 ? uniqueUrls.join(",") : null;
+};
+
 const mapProductNodeToLocationSnapshot = (product: {
   id: string;
   title: string;
   updatedAt: string;
   featuredImage: {
     url: string;
+  } | null;
+  images?: {
+    edges: Array<{
+      node: {
+        url: string;
+      };
+    }>;
   } | null;
   itemCategoryMeta: { value: string | null } | null;
   quantityMeta: { value: string | null } | null;
@@ -392,7 +421,7 @@ const mapProductNodeToLocationSnapshot = (product: {
     itemWidth: dimensions.itemWidth,
     itemDepth: dimensions.itemDepth,
     volume: dimensions.volume,
-    imageUrl: product.featuredImage?.url ?? null,
+    imageUrl: serializeProductImageUrls(product),
     updatedAt: product.updatedAt,
     location: product.itemLocation?.value ?? null,
   };
@@ -412,6 +441,13 @@ type ListProductsWithLocationResponse = {
         featuredImage: {
           url: string;
         } | null;
+        images: {
+          edges: Array<{
+            node: {
+              url: string;
+            };
+          }>;
+        };
         itemCategoryMeta: { value: string | null } | null;
         quantityMeta: { value: string | null } | null;
         variants: {
@@ -495,6 +531,13 @@ export const shopifyAdminApi = {
         featuredImage: {
           url: string;
         } | null;
+        images: {
+          edges: Array<{
+            node: {
+              url: string;
+            };
+          }>;
+        };
         itemCategoryMeta: { value: string | null } | null;
         quantityMeta: { value: string | null } | null;
         variants: {
@@ -542,6 +585,13 @@ export const shopifyAdminApi = {
           updatedAt
           featuredImage {
             url
+          }
+          images(first: 250) {
+            edges {
+              node {
+                url
+              }
+            }
           }
           itemCategoryMeta: metafield(namespace: "custom", key: "productcategory") {
             value
@@ -664,6 +714,13 @@ if (!data.product) {
                 updatedAt
                 featuredImage {
                   url
+                }
+                images(first: 250) {
+                  edges {
+                    node {
+                      url
+                    }
+                  }
                 }
                 itemCategoryMeta: metafield(namespace: "custom", key: "productcategory") {
                   value
@@ -882,6 +939,9 @@ if (!data.product) {
               featuredImage {
                 url
               }
+              quantityMeta: metafield(namespace: "custom", key: "quantity") {
+                value
+              }
               variants(first: 20) {
                 edges {
                   node {
@@ -932,6 +992,7 @@ if (!data.product) {
             imageUrl: edge.node.featuredImage?.url ?? null,
             sku: matchedVariant.node.sku,
             barcode: matchedVariant.node.barcode,
+            quantity: resolveQuantity(edge.node.quantityMeta?.value, "", edge.node.title),
           };
         })
         .filter((item): item is ShopifySkuSearchItemDto => item !== null)

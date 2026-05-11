@@ -8,10 +8,7 @@ import {
 import { scanHistoryRepository } from "../../scanner/repositories/scan-history.repository.js";
 import type { ShopifyOrdersPaidWebhookPayload } from "../contracts/shopify.contract.js";
 import { applyOrderMarkersCommand } from "./apply-order-markers.command.js";
-import {
-  isInternalMarker,
-  parseOrderMarkers,
-} from "../domain/order-marker.js";
+import { isInternalMarker, parseOrderMarkers } from "../domain/order-marker.js";
 import { buildOrderWebhookLineItemDebugSummary } from "../domain/order-webhook-debug.js";
 import { loadProductSnapshotsForOrderService } from "../services/load-product-snapshots-for-order.service.js";
 
@@ -98,7 +95,9 @@ export const handleOrdersPaidWebhookCommand = async (input: {
       salesChannel,
       lineItemCount: input.payload.line_items.length,
       markers,
-      lineItems: buildOrderWebhookLineItemDebugSummary(input.payload.line_items),
+      lineItems: buildOrderWebhookLineItemDebugSummary(
+        input.payload.line_items,
+      ),
     });
   }
 
@@ -109,6 +108,7 @@ export const handleOrdersPaidWebhookCommand = async (input: {
       barcode: string | null;
       price: string | null;
       title: string;
+      quantity: number | null;
     }
   >();
   let skippedProducts = 0;
@@ -130,6 +130,7 @@ export const handleOrdersPaidWebhookCommand = async (input: {
         barcode: lineItem.barcode ?? null,
         price: lineItem.price ?? null,
         title: lineItem.title,
+        quantity: lineItem.quantity ?? null,
       });
     }
   }
@@ -158,6 +159,7 @@ export const handleOrdersPaidWebhookCommand = async (input: {
       itemWidth: productSnapshot?.itemWidth ?? null,
       itemDepth: productSnapshot?.itemDepth ?? null,
       volume: productSnapshot?.volume ?? null,
+      quantity: productSnapshot?.quantity ?? lineItem.quantity ?? null,
       soldPrice: lineItem.price,
       orderId,
       orderNumber,

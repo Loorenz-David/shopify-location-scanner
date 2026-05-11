@@ -58,12 +58,16 @@ export function normalizeItemScanHistoryItem(
       username: event.username,
     }));
 
-  const logisticEvents = toLogisticEventList(item.logisticEvent)
+  const logisticEvents = toLogisticEventList({
+    logisticEvents: item.logisticEvents,
+    logisticEvent: item.logisticEvent,
+  })
     .sort(compareNewestFirst)
     .map((event, index) => ({
       id: `${item.id}-logistic-${event.happenedAt}-${index}`,
       kind: "logistic" as const,
       eventType: event.eventType,
+      description: event.description,
       location: event.location,
       happenedAt: event.happenedAt,
       happenedAtLabel: formatShortFriendlyDateTime(event.happenedAt),
@@ -71,8 +75,9 @@ export function normalizeItemScanHistoryItem(
     }));
 
   const latestEvent = events[0];
-  const latestPositionEvent =
-    events.find((event) => event.eventType !== "sold_terminal") ?? latestEvent;
+  const soldEvent = events.find((event) => event.eventType === "sold_terminal");
+  const timelineEvents = mergeNewestFirst(events, logisticEvents);
+  const latestTimelineLocation = resolveLatestTimelineLocation(timelineEvents);
   const priceHistory = [...item.priceHistory]
     .sort(compareNewestFirst)
     .map((entry, index) => ({
@@ -87,7 +92,6 @@ export function normalizeItemScanHistoryItem(
 
   const isSold =
     item.lastSoldChannel != null || events[0]?.eventType === "sold_terminal";
-  const soldEvent = events.find((e) => e.eventType === "sold_terminal");
   const timeToSellSeconds =
     isSold && soldEvent
       ? Math.floor(
@@ -96,10 +100,6 @@ export function normalizeItemScanHistoryItem(
             1000,
         )
       : null;
-  const timelineEvents = [...events, ...logisticEvents].sort(
-    compareNewestFirst,
-  );
-
   return {
     id: item.id,
     categoryLabel: item.itemCategory,
@@ -107,23 +107,23 @@ export function normalizeItemScanHistoryItem(
     barcodeLabel: item.itemBarcode,
     title: item.itemTitle,
     imageUrl: normalizeShopifyImageUrl(item.itemImageUrl),
+    imageUrls: item.itemImageUrl,
     productId: item.productId,
     itemType: item.itemType,
     itemHeight: item.itemHeight,
     itemWidth: item.itemWidth,
     itemDepth: item.itemDepth,
     volume: item.volume,
+    quantity: item.quantity ?? 1,
     createdAt: item.createdAt,
     isSold,
     timeToSellSeconds,
     lastModifiedAt: item.lastModifiedAt,
     lastModifiedLabel: formatLongFriendlyDateTime(item.lastModifiedAt),
     latestLocationLabel: resolveLatestLocationLabel({
-      isSold,
       latestLocation: item.latestLocation,
       lastLogisticLocation: item.lastLogisticLocation,
-      latestEventLocation: latestPositionEvent?.location,
-      latestEventType: latestPositionEvent?.eventType,
+      latestTimelineLocation,
     }),
     latestUsername:
       timelineEvents[0]?.username ?? latestEvent?.username ?? item.username,
@@ -200,36 +200,25 @@ export function buildSkuLabel(
 }
 
 function resolveLatestLocationLabel({
-  isSold,
   latestLocation,
   lastLogisticLocation,
-  latestEventLocation,
-  latestEventType,
+  latestTimelineLocation,
 }: {
-  isSold: boolean;
   latestLocation?: string | null;
   lastLogisticLocation?: string | null;
-  latestEventLocation?: string | null;
-  latestEventType?: ItemScanHistoryEvent["eventType"];
+  latestTimelineLocation?: string | null;
 }): string {
   const trimmedLatestLocation = normalizeLocationLabel(latestLocation);
   const trimmedLastLogisticLocation =
     normalizeLocationLabel(lastLogisticLocation);
-  const trimmedLatestEventLocation =
-    latestEventType === "unknown_position"
-      ? "Unknown"
-      : normalizeLocationLabel(latestEventLocation);
-
-  if (!isSold) {
-    return (
-      trimmedLatestLocation || trimmedLatestEventLocation || "No scans yet"
-    );
-  }
+  const trimmedLatestTimelineLocation = normalizeLocationLabel(
+    latestTimelineLocation,
+  );
 
   return (
-    trimmedLastLogisticLocation ||
+    trimmedLatestTimelineLocation ||
     trimmedLatestLocation ||
-    trimmedLatestEventLocation ||
+    trimmedLastLogisticLocation ||
     "No scans yet"
   );
 }
@@ -248,18 +237,36 @@ function normalizeLocationLabel(location?: string | null): string | null {
   return trimmedLocation;
 }
 
-function toLogisticEventList(
-  value: ItemScanHistoryEntryDto["logisticEvent"],
-): ItemScanHistoryLogisticEvent[] {
-  if (!value) {
-    return [];
+function toLogisticEventList(value: {
+  logisticEvents?: ItemScanHistoryEntryDto["logisticEvents"];
+  logisticEvent?: ItemScanHistoryEntryDto["logisticEvent"];
+}): ItemScanHistoryLogisticEvent[] {
+  const fromLogisticEvents = value.logisticEvents ?? [];
+  const fromLogisticEvent = !value.logisticEvent
+    ? []
+    : Array.isArray(value.logisticEvent)
+      ? value.logisticEvent
+      : [value.logisticEvent];
+
+  const dedupeMap = new Map<string, (typeof fromLogisticEvents)[number]>();
+
+  for (const event of [...fromLogisticEvents, ...fromLogisticEvent]) {
+    const dedupeKey = [
+      event.happenedAt,
+      event.eventType,
+      event.location ?? "",
+      event.username,
+    ].join("|");
+
+    if (!dedupeMap.has(dedupeKey)) {
+      dedupeMap.set(dedupeKey, event);
+    }
   }
 
-  const events = Array.isArray(value) ? value : [value];
-
-  return events.map((event, index) => ({
+  return [...dedupeMap.values()].map((event, index) => ({
     id: `logistic-${event.happenedAt}-${index}`,
     eventType: event.eventType,
+    description: normalizeDescription(event.description),
     location: event.location,
     happenedAt: event.happenedAt,
     happenedAtLabel: formatShortFriendlyDateTime(event.happenedAt),
@@ -267,10 +274,94 @@ function toLogisticEventList(
   }));
 }
 
+function normalizeDescription(description?: string | null): string | null {
+  const trimmedDescription = description?.trim();
+
+  return trimmedDescription || null;
+}
+
 function stripTimelineKind<T extends { kind: string }>(
   items: T[],
 ): Array<Omit<T, "kind">> {
-  return items.map(({ kind: _kind, ...item }) => item);
+  return items.map((item) => {
+    const { kind, ...rest } = item;
+    void kind;
+    return rest;
+  });
+}
+
+function mergeNewestFirst(
+  scanEvents: Array<{ kind: "scan" } & ItemScanHistoryEvent>,
+  logisticEvents: Array<{ kind: "logistic" } & ItemScanHistoryLogisticEvent>,
+): ItemScanHistoryTimelineEvent[] {
+  const merged: ItemScanHistoryTimelineEvent[] = [];
+  let scanIndex = 0;
+  let logisticIndex = 0;
+
+  while (
+    scanIndex < scanEvents.length ||
+    logisticIndex < logisticEvents.length
+  ) {
+    const nextScan = scanEvents[scanIndex];
+    const nextLogistic = logisticEvents[logisticIndex];
+
+    if (!nextLogistic) {
+      merged.push(nextScan);
+      scanIndex += 1;
+      continue;
+    }
+
+    if (!nextScan) {
+      merged.push(nextLogistic);
+      logisticIndex += 1;
+      continue;
+    }
+
+    if (compareNewestFirst(nextScan, nextLogistic) <= 0) {
+      merged.push(nextScan);
+      scanIndex += 1;
+    } else {
+      merged.push(nextLogistic);
+      logisticIndex += 1;
+    }
+  }
+
+  return merged;
+}
+
+function resolveLatestTimelineLocation(
+  timelineEvents: ItemScanHistoryTimelineEvent[],
+): string | null {
+  for (const event of timelineEvents) {
+    if (event.kind === "scan" && event.eventType === "sold_terminal") {
+      continue;
+    }
+
+    const normalizedLocation =
+      event.kind === "scan"
+        ? normalizeScanEventLocationLabel(event)
+        : normalizeLocationLabel(event.location);
+
+    if (normalizedLocation) {
+      return normalizedLocation;
+    }
+  }
+
+  return null;
+}
+
+function normalizeScanEventLocationLabel(
+  event?: Pick<ItemScanHistoryEvent, "eventType" | "location">,
+): string | null {
+  if (!event) {
+    return null;
+  }
+
+  if (event.eventType === "unknown_position") {
+    return "Unknown";
+  }
+
+  return normalizeLocationLabel(event.location);
 }
 
 function compareNewestFirst(

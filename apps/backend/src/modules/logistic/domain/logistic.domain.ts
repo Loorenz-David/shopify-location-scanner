@@ -24,6 +24,7 @@ export type LogisticEvent = {
   orderId: string | null;
   logisticLocationId: string | null;
   username: string;
+  description: string | null;
   eventType: LogisticEventType;
   happenedAt: Date;
   createdAt: Date;

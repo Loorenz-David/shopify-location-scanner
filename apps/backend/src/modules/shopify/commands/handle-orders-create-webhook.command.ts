@@ -8,10 +8,7 @@ import {
 import { scanHistoryRepository } from "../../scanner/repositories/scan-history.repository.js";
 import type { ShopifyOrdersCreateWebhookPayload } from "../contracts/shopify.contract.js";
 import { applyOrderMarkersCommand } from "./apply-order-markers.command.js";
-import {
-  isInternalMarker,
-  parseOrderMarkers,
-} from "../domain/order-marker.js";
+import { isInternalMarker, parseOrderMarkers } from "../domain/order-marker.js";
 import { buildOrderWebhookLineItemDebugSummary } from "../domain/order-webhook-debug.js";
 import { loadProductSnapshotsForOrderService } from "../services/load-product-snapshots-for-order.service.js";
 
@@ -56,12 +53,15 @@ export const handleOrdersCreateWebhookCommand = async (input: {
   skippedProducts: number;
 }> => {
   if (input.payload.financial_status !== "paid") {
-    logger.info("Skipping orders/create webhook: financial_status is not paid", {
-      shopId: input.shopId,
-      shopDomain: input.shopDomain,
-      webhookId: input.webhookId,
-      financial_status: input.payload.financial_status ?? null,
-    });
+    logger.info(
+      "Skipping orders/create webhook: financial_status is not paid",
+      {
+        shopId: input.shopId,
+        shopDomain: input.shopDomain,
+        webhookId: input.webhookId,
+        financial_status: input.payload.financial_status ?? null,
+      },
+    );
 
     return {
       skipped: true,
@@ -117,7 +117,9 @@ export const handleOrdersCreateWebhookCommand = async (input: {
       financialStatus: input.payload.financial_status ?? null,
       lineItemCount: input.payload.line_items.length,
       markers,
-      lineItems: buildOrderWebhookLineItemDebugSummary(input.payload.line_items),
+      lineItems: buildOrderWebhookLineItemDebugSummary(
+        input.payload.line_items,
+      ),
     });
   }
 
@@ -128,6 +130,7 @@ export const handleOrdersCreateWebhookCommand = async (input: {
       barcode: string | null;
       price: string | null;
       title: string;
+      quantity: number | null;
     }
   >();
   let skippedProducts = 0;
@@ -149,6 +152,7 @@ export const handleOrdersCreateWebhookCommand = async (input: {
         barcode: lineItem.barcode ?? null,
         price: lineItem.price ?? null,
         title: lineItem.title,
+        quantity: lineItem.quantity ?? null,
       });
     }
   }
@@ -177,6 +181,7 @@ export const handleOrdersCreateWebhookCommand = async (input: {
       itemWidth: productSnapshot?.itemWidth ?? null,
       itemDepth: productSnapshot?.itemDepth ?? null,
       volume: productSnapshot?.volume ?? null,
+      quantity: productSnapshot?.quantity ?? lineItem.quantity ?? null,
       soldPrice: lineItem.price,
       orderId,
       orderNumber,

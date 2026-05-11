@@ -24,7 +24,9 @@ export interface ItemScanHistoryPriceHistoryDto {
 export interface ItemScanHistoryLogisticEventDto {
   username: string;
   eventType: "marked_intention" | "placed" | "fulfilled";
+  description?: string | null;
   location: string | null;
+  zoneType?: "for_delivery" | "for_pickup" | "for_fixing" | null;
   happenedAt: string;
 }
 
@@ -44,12 +46,14 @@ export interface ItemScanHistoryEntryDto {
   itemWidth: number | null;
   itemDepth: number | null;
   volume: number | null;
+  quantity: number;
   lastModifiedAt: string;
   latestLocation?: string | null;
   lastLogisticLocation?: string | null;
   logisticsCompletedAt?: string | null;
   lastSoldChannel?: SalesChannel | null;
   events: ItemScanHistoryEventDto[];
+  logisticEvents?: ItemScanHistoryLogisticEventDto[];
   logisticEvent?:
     | ItemScanHistoryLogisticEventDto[]
     | ItemScanHistoryLogisticEventDto

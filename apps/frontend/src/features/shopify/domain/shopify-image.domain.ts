@@ -12,7 +12,10 @@ export function normalizeShopifyImageUrl(
     height: DEFAULT_SHOPIFY_IMAGE_SIZE,
   },
 ): string | null {
-  const trimmedValue = value?.trim();
+  const trimmedValue = value
+    ?.split(",")
+    .map((entry) => entry.trim())
+    .find((entry) => entry.length > 0);
   if (!trimmedValue) {
     return null;
   }

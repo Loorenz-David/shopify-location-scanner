@@ -5,6 +5,8 @@ import type {
   StatsItem,
   StatsItemCardMode,
 } from "../../types/stats-items.types";
+import { ItemImagePreviewButton } from "../../../item-scan-history/ui/ItemImagePreviewButton";
+import { ItemQuantityPill } from "../../../item-scan-history/ui/ItemQuantityPill";
 
 function formatPrice(price: string | null): string | null {
   if (!price) return null;
@@ -78,55 +80,55 @@ export function StatsItemCard({
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-900/10 bg-white shadow-[0_4px_12px_rgba(15,23,42,0.06)]">
-      <button
-        type="button"
-        className="flex w-full items-start gap-3 p-3 text-left"
-        onClick={() => setIsExpanded((v) => !v)}
-        aria-expanded={isExpanded}
-      >
+      <div className="flex w-full items-start gap-3 p-3 text-left">
         {/* Image */}
-        {item.itemImageUrl ? (
-          <img
-            src={item.itemImageUrl}
-            alt=""
-            width={56}
-            height={56}
-            loading="lazy"
-            decoding="async"
-            fetchPriority="low"
-            className="h-14 w-14 shrink-0 rounded-2xl bg-slate-100 object-cover"
-          />
-        ) : (
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-slate-200 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500">
-            No image
-          </div>
-        )}
+        <ItemImagePreviewButton
+          imageUrls={item.itemImageUrl}
+          title={item.itemTitle}
+          buttonClassName="relative h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-slate-100 transition-opacity hover:opacity-80 active:opacity-70"
+          placeholderClassName="flex items-center justify-center rounded-2xl bg-slate-200 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500"
+          placeholderLabel="No image"
+          overlay={
+            <ItemQuantityPill
+              quantity={item.quantity}
+              itemCategory={item.itemCategory}
+              className="absolute bottom-1 right-1 border-slate-950/20 bg-slate-950/80 px-2 py-1 text-white shadow-sm backdrop-blur"
+            />
+          }
+        />
 
-        {/* Compact content */}
-        <div className="min-w-0 flex-1">
-          <CompactContent
-            item={item}
-            cardMode={cardMode}
-            focusDimension={focusDimension}
-          />
-        </div>
-
-        {/* Expand chevron */}
-        <svg
-          className={`mt-1 h-4 w-4 shrink-0 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-          viewBox="0 0 16 16"
-          fill="none"
-          aria-hidden="true"
+        <button
+          type="button"
+          className="flex min-w-0 flex-1 items-start gap-3 text-left"
+          onClick={() => setIsExpanded((v) => !v)}
+          aria-expanded={isExpanded}
         >
-          <path
-            d="M4 6l4 4 4-4"
-            stroke="currentColor"
-            strokeWidth={1.5}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </svg>
-      </button>
+          {/* Compact content */}
+          <div className="min-w-0 flex-1">
+            <CompactContent
+              item={item}
+              cardMode={cardMode}
+              focusDimension={focusDimension}
+            />
+          </div>
+
+          {/* Expand chevron */}
+          <svg
+            className={`mt-1 h-4 w-4 shrink-0 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+            viewBox="0 0 16 16"
+            fill="none"
+            aria-hidden="true"
+          >
+            <path
+              d="M4 6l4 4 4-4"
+              stroke="currentColor"
+              strokeWidth={1.5}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+      </div>
 
       {isExpanded ? (
         <div className="border-t border-slate-900/8 bg-slate-50/60 px-3 py-3">
@@ -146,22 +148,23 @@ function CompactContent({
   cardMode: StatsItemCardMode;
   focusDimension: "height" | "width" | "depth" | "volume" | null;
 }) {
+  const titleLine = (
+    <div className="flex min-w-0 items-center gap-2">
+      <p className="m-0 truncate text-sm font-semibold text-slate-900">
+        {item.itemTitle}
+      </p>
+    </div>
+  );
+
   switch (cardMode) {
     case "sold-default":
       return (
         <>
-          <p className="m-0 truncate text-sm font-semibold text-slate-900">
-            {item.itemTitle}
-          </p>
+          {titleLine}
           <div className="mt-1 flex flex-wrap items-center gap-2">
             {item.lastKnownPrice ? (
               <span className="text-xs font-medium text-slate-700">
                 {formatPrice(item.lastKnownPrice) ?? ""}
-              </span>
-            ) : null}
-            {item.quantity > 1 ? (
-              <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                ×{item.quantity}
               </span>
             ) : null}
             {item.intention ? (
@@ -195,9 +198,7 @@ function CompactContent({
     case "avg-sell-time":
       return (
         <>
-          <p className="m-0 truncate text-sm font-semibold text-slate-900">
-            {item.itemTitle}
-          </p>
+          {titleLine}
           <div className="mt-1 flex flex-wrap items-center gap-2">
             {item.lastKnownPrice ? (
               <span className="text-xs font-medium text-slate-700">
@@ -235,9 +236,7 @@ function CompactContent({
     case "received":
       return (
         <>
-          <p className="m-0 truncate text-sm font-semibold text-slate-900">
-            {item.itemTitle}
-          </p>
+          {titleLine}
           <p className="m-0 mt-1 text-xs text-slate-500">
             Received {formatDate(item.createdAt)}
           </p>
@@ -247,9 +246,7 @@ function CompactContent({
     case "with-channel":
       return (
         <>
-          <p className="m-0 truncate text-sm font-semibold text-slate-900">
-            {item.itemTitle}
-          </p>
+          {titleLine}
           <div className="mt-1 flex flex-wrap items-center gap-2">
             {item.lastKnownPrice ? (
               <span className="text-xs font-medium text-slate-700">
@@ -263,11 +260,6 @@ function CompactContent({
                 }`}
               >
                 {CHANNEL_LABELS[item.lastSoldChannel] ?? item.lastSoldChannel}
-              </span>
-            ) : null}
-            {item.quantity > 1 ? (
-              <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-0.5 text-[10px] font-semibold text-slate-600">
-                ×{item.quantity}
               </span>
             ) : null}
             {item.intention ? (
@@ -287,9 +279,7 @@ function CompactContent({
     case "dimensions":
       return (
         <>
-          <p className="m-0 truncate text-sm font-semibold text-slate-900">
-            {item.itemTitle}
-          </p>
+          {titleLine}
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <span className="text-xs text-slate-600">
               <span
@@ -360,9 +350,7 @@ function CompactContent({
     case "zone-standard":
       return (
         <>
-          <p className="m-0 truncate text-sm font-semibold text-slate-900">
-            {item.itemTitle}
-          </p>
+          {titleLine}
           <div className="mt-1 flex flex-wrap items-center gap-2">
             {item.lastKnownPrice ? (
               <span className="text-xs font-medium text-slate-700">
@@ -380,11 +368,6 @@ function CompactContent({
               </span>
             ) : null}
           </div>
-          {item.quantity > 1 ? (
-            <p className="m-0 mt-0.5 text-xs text-slate-500">
-              Qty {item.quantity}
-            </p>
-          ) : null}
         </>
       );
   }

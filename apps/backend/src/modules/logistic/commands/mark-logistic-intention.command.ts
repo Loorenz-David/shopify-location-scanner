@@ -56,6 +56,7 @@ export const markLogisticIntentionCommand = async (input: {
         logisticLocationId: null,
         username: input.username,
         eventType: "marked_intention" as any,
+        description: input.payload.intention,
       },
     });
 

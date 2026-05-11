@@ -1,4 +1,6 @@
 import { RetryIcon } from "../../../assets/icons";
+import { ItemImagePreviewButton } from "../../item-scan-history/ui/ItemImagePreviewButton";
+import { ItemQuantityPill } from "../../item-scan-history/ui/ItemQuantityPill";
 import { useUnifiedScannerPageContext } from "../context/unified-scanner-context";
 import { DecodedTextPanel } from "./DecodedTextPanel";
 import { FrozenFrameCanvas } from "./FrozenFrameCanvas";
@@ -59,13 +61,19 @@ export function UnifiedLocationScanPage({
         >
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-3 rounded-2xl bg-slate-950 px-3 py-2 text-slate-100 ring-1 ring-white/15">
-              {selectedItem?.imageUrl ? (
-                <img
-                  src={selectedItem.imageUrl}
-                  alt=""
-                  width={44}
-                  height={44}
-                  className="h-11 w-11 shrink-0 rounded-xl bg-slate-800 object-cover"
+              {selectedItem ? (
+                <ItemImagePreviewButton
+                  imageUrls={selectedItem.imageUrls ?? selectedItem.imageUrl}
+                  title={selectedItem.title ?? selectedItem.sku}
+                  buttonClassName="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-slate-800 transition-opacity hover:opacity-80 active:opacity-70"
+                  placeholderClassName="rounded-xl bg-slate-800"
+                  overlay={
+                    <ItemQuantityPill
+                      quantity={selectedItem.quantity}
+                      itemCategory={selectedItem.itemCategory}
+                      className="absolute bottom-0.5 right-0.5 border-slate-950/20 bg-slate-950/85 px-1.5 py-0.5 text-[9px] text-white shadow-sm backdrop-blur"
+                    />
+                  }
                 />
               ) : isLookingUpItem ? (
                 <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-800">
@@ -77,17 +85,14 @@ export function UnifiedLocationScanPage({
               ) : null}
 
               <div className="min-w-0 flex-1">
-                <p className="m-0 truncate text-sm font-semibold">
-                  {selectedItem?.title ??
-                    selectedItem?.sku ??
-                    itemDecodedText ??
-                    "Looking up item..."}
-                </p>
+                <div className="flex min-w-0 items-center gap-2">
+                  <p className="m-0 truncate text-sm font-semibold">
+                    {selectedItem?.sku ?? itemDecodedText ?? "Looking up item..."}
+                  </p>
+                </div>
                 <p className="m-0 truncate text-xs text-slate-300">
-                  {selectedItem?.sku ?? (isLookingUpItem ? "Searching..." : "")}
-                  {selectedItem?.currentPosition
-                    ? ` • ${selectedItem.currentPosition}`
-                    : ""}
+                  {selectedItem?.currentPosition ??
+                    (isLookingUpItem ? "Searching..." : "")}
                 </p>
               </div>
 

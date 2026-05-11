@@ -9,6 +9,7 @@ import type {
   LogisticTaskFilters,
   LogisticTaskItem,
 } from "../types/logistic-tasks.types";
+import { normalizeShopifyImageUrl } from "../../shopify/domain/shopify-image.domain";
 
 export const LOGISTIC_INTENTION_LABELS: Record<LogisticIntention, string> = {
   customer_took_it: "Customer Took It",
@@ -31,10 +32,12 @@ export function normalizeLogisticTaskItem(
     id: dto.id,
     productId: dto.productId,
     sku: dto.itemSku,
-    imageUrl: dto.itemImageUrl,
+    imageUrl: normalizeShopifyImageUrl(dto.itemImageUrl),
+    imageUrls: dto.itemImageUrl,
     itemCategory: dto.itemCategory,
     itemType: dto.itemType,
     itemTitle: dto.itemTitle,
+    quantity: dto.quantity ?? 1,
     location: dto.latestLocation,
     orderId: dto.orderId,
     orderNumber: dto.orderNumber ?? null,

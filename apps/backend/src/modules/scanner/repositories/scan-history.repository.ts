@@ -9,6 +9,7 @@ import type {
 } from "../contracts/scan-history.contract.js";
 import type {
   ScanHistoryPage,
+  ScanHistoryLogisticEvent,
   ScanHistoryRecord,
 } from "../domain/scan-history.js";
 import type { Prisma } from "@prisma/client";
@@ -159,7 +160,17 @@ const buildStringFilterConditions = (
 };
 
 const toDomain = (record: any): ScanHistoryRecord => {
-  const latestLogisticEvent = record.logisticEvents?.[0] ?? null;
+  const logisticEvents = (record.logisticEvents ?? []).map(
+    (entry: any): ScanHistoryLogisticEvent => ({
+      username: entry.username,
+      description: entry.description ?? null,
+      eventType: entry.eventType,
+      location: entry.logisticLocation?.location ?? null,
+      zoneType: entry.logisticLocation?.zoneType ?? null,
+      happenedAt: entry.happenedAt,
+    }),
+  );
+  const latestLogisticEvent = logisticEvents[0] ?? null;
   const logisticLocation = record.logisticLocation
     ? {
         id: record.logisticLocation.id,
@@ -195,14 +206,9 @@ const toDomain = (record: any): ScanHistoryRecord => {
     logisticLocation,
     lastLogisticLocation: logisticLocation?.location ?? null,
     logisticEvent: latestLogisticEvent
-      ? {
-          username: latestLogisticEvent.username,
-          eventType: latestLogisticEvent.eventType,
-          location: latestLogisticEvent.logisticLocation?.location ?? null,
-          zoneType: latestLogisticEvent.logisticLocation?.zoneType ?? null,
-          happenedAt: latestLogisticEvent.happenedAt,
-        }
+      ? latestLogisticEvent
       : null,
+    logisticEvents,
     logisticsCompletedAt: record.logisticsCompletedAt ?? null,
     lastModifiedAt: record.lastModifiedAt,
     events: (record.events ?? []).map((entry: any) => ({
@@ -251,10 +257,7 @@ export const scanHistoryRepository = {
         },
         logisticLocation: true,
         logisticEvents: {
-          orderBy: {
-            happenedAt: "desc",
-          },
-          take: 1,
+          orderBy: [{ happenedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
           include: {
             logisticLocation: true,
           },
@@ -590,10 +593,7 @@ export const scanHistoryRepository = {
           },
           logisticLocation: true,
           logisticEvents: {
-            orderBy: {
-              happenedAt: "desc",
-            },
-            take: 1,
+            orderBy: [{ happenedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
             include: {
               logisticLocation: true,
             },
@@ -1093,10 +1093,7 @@ export const scanHistoryRepository = {
           },
           logisticLocation: true,
           logisticEvents: {
-            orderBy: {
-              happenedAt: "desc",
-            },
-            take: 1,
+            orderBy: [{ happenedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
             include: {
               logisticLocation: true,
             },
@@ -1175,7 +1172,6 @@ export const scanHistoryRepository = {
         productId: input.productId,
       });
     }
-
     return true;
   },
 
@@ -1298,12 +1294,9 @@ export const scanHistoryRepository = {
     from?: Date;
     to?: Date;
     cursor?: string; // format: "<lastModifiedAt ISO>|<id>"
-  }): Promise<ScanHistoryPage> {
-    const trimmedQuery = input.q?.trim();
-
-    const whereAnd: Prisma.ScanHistoryWhereInput[] = [
-      { shopId: input.shopId },
-    ];
+  }) {
+    const trimmedQuery = input.q?.trim() ?? "";
+    const whereAnd: Prisma.ScanHistoryWhereInput[] = [{ shopId: input.shopId }];
 
     if (input.from || input.to) {
       whereAnd.push({
@@ -1384,8 +1377,7 @@ export const scanHistoryRepository = {
           priceHistory: { orderBy: { happenedAt: "desc" } },
           logisticLocation: true,
           logisticEvents: {
-            orderBy: { happenedAt: "desc" },
-            take: 1,
+            orderBy: [{ happenedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
             include: { logisticLocation: true },
           },
         },

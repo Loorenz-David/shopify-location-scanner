@@ -2,6 +2,7 @@ import type {
   LogisticIntention,
   LogisticZoneType,
 } from "../../logistic-tasks/types/logistic-tasks.types";
+import type { SalesChannel } from "../../analytics/types/analytics.types";
 
 export type LocationScannerMode = "shop" | "logistic";
 
@@ -13,8 +14,12 @@ export interface ScannerItem {
   itemId: string;
   sku: string;
   imageUrl?: string;
+  imageUrls?: string;
+  quantity?: number;
+  itemCategory?: string | null;
   title?: string;
   currentPosition?: string;
+  lastSoldChannel?: SalesChannel | null;
 }
 
 export interface ScannerLocationOption {
@@ -139,9 +144,12 @@ export interface UnifiedScannerPageContextValue {
 export interface UnifiedItemSearchResult {
   productId: string;
   imageUrl: string;
+  itemCategory: string | null;
+  quantity: number;
   sku: string;
   title?: string;
   currentPosition: string | null;
+  lastSoldChannel: SalesChannel | null;
   id: string;
   isSold: boolean;
   intention: LogisticIntention | null;
@@ -194,6 +202,7 @@ export interface LinkHistoryItemResponse {
   itemWidth: number | null;
   itemDepth: number | null;
   volume: number | null;
+  quantity: number;
   lastModifiedAt: string;
   latestLocation?: string | null;
   lastLogisticLocation?: string | null;
@@ -206,17 +215,26 @@ export interface LinkHistoryItemResponse {
     location: string;
     happenedAt: string;
   }>;
+  logisticEvents?: Array<{
+    username: string;
+    eventType: "marked_intention" | "placed" | "fulfilled";
+    location: string | null;
+    zoneType: "for_delivery" | "for_pickup" | "for_fixing" | null;
+    happenedAt: string;
+  }>;
   logisticEvent?:
     | Array<{
         username: string;
         eventType: "marked_intention" | "placed" | "fulfilled";
         location: string | null;
+        zoneType?: "for_delivery" | "for_pickup" | "for_fixing" | null;
         happenedAt: string;
       }>
     | {
         username: string;
         eventType: "marked_intention" | "placed" | "fulfilled";
         location: string | null;
+        zoneType?: "for_delivery" | "for_pickup" | "for_fixing" | null;
         happenedAt: string;
       }
     | null;

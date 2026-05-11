@@ -250,12 +250,14 @@ function buildOptimisticHandleItem(
     barcodeLabel: null,
     title: item.title?.trim() || normalizedHandle,
     imageUrl: item.imageUrl ?? null,
+    imageUrls: item.imageUrls ?? item.imageUrl ?? null,
     productId: normalizedHandle,
     itemType: "handle",
     itemHeight: null,
     itemWidth: null,
     itemDepth: null,
     volume: null,
+    quantity: item.quantity ?? 1,
     createdAt: nowIso,
     isSold: false,
     timeToSellSeconds: null,
@@ -294,6 +296,7 @@ function buildOptimisticLogisticEvent(
   return {
     id: `optimistic-logistic-${happenedAt}`,
     eventType: "fulfilled",
+    description: null,
     location: null,
     happenedAt,
     happenedAtLabel: formatLongFriendlyDateTime(happenedAt),
@@ -337,7 +340,9 @@ function patchItemCompletionState(
     logisticEvents,
     timelineEvents,
     latestUsername:
-      timelineEvents[0]?.username ?? item.events[0]?.username ?? item.latestUsername,
+      timelineEvents[0]?.username ??
+      item.events[0]?.username ??
+      item.latestUsername,
   };
 }
 
@@ -422,6 +427,7 @@ function toItemScanHistoryEntryDto(
     itemWidth: historyItem.itemWidth,
     itemDepth: historyItem.itemDepth,
     volume: historyItem.volume,
+    quantity: historyItem.quantity ?? 1,
     lastModifiedAt: historyItem.lastModifiedAt,
     latestLocation: historyItem.latestLocation,
     lastLogisticLocation: historyItem.lastLogisticLocation,
@@ -434,6 +440,7 @@ function toItemScanHistoryEntryDto(
       location: event.location,
       happenedAt: event.happenedAt,
     })),
+    logisticEvents: historyItem.logisticEvents,
     logisticEvent: historyItem.logisticEvent,
     priceHistory: (historyItem.priceHistory ?? []).map((entry) => ({
       price: entry.price,

@@ -3,6 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { CloseIcon } from "../../../assets/icons";
 import { SearchBar } from "../../../share/searchbar";
+import { ItemImagePreviewButton } from "../../item-scan-history/ui/ItemImagePreviewButton";
+import { ItemQuantityPill } from "../../item-scan-history/ui/ItemQuantityPill";
 import { searchUnifiedItemsApi } from "../api/search-unified-items.api";
 import type { UnifiedScannerItem } from "../types/unified-scanner.types";
 
@@ -12,6 +14,13 @@ interface UnifiedItemManualInputPanelProps {
 }
 
 const ITEM_SEARCH_DEBOUNCE_MS = 250;
+
+const CHANNEL_BADGE = {
+  physical: { label: "POS", color: "bg-green-100 text-green-700" },
+  webshop: { label: "Webshop", color: "bg-indigo-100 text-indigo-700" },
+  imported: { label: "Imported", color: "bg-amber-100 text-amber-700" },
+  unknown: { label: "?", color: "bg-slate-100 text-slate-500" },
+} as const;
 
 export function UnifiedItemManualInputPanel({
   onClose,
@@ -33,23 +42,28 @@ export function UnifiedItemManualInputPanel({
 
   useEffect(() => {
     const normalizedQuery = query.trim();
-
-    if (!normalizedQuery) {
-      setResults([]);
-      setIsLoading(false);
-      return;
-    }
-
-    setIsLoading(true);
+    let disposed = false;
 
     const timeoutId = window.setTimeout(() => {
+      if (!normalizedQuery) {
+        setResults([]);
+        setIsLoading(false);
+        return;
+      }
+
+      setIsLoading(true);
       void searchUnifiedItemsApi(normalizedQuery).then((items) => {
+        if (disposed) {
+          return;
+        }
+
         setResults(items);
         setIsLoading(false);
       });
-    }, ITEM_SEARCH_DEBOUNCE_MS);
+    }, normalizedQuery ? ITEM_SEARCH_DEBOUNCE_MS : 0);
 
     return () => {
+      disposed = true;
       window.clearTimeout(timeoutId);
     };
   }, [query]);
@@ -106,28 +120,62 @@ export function UnifiedItemManualInputPanel({
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
             {results.map((item) => (
               <li key={`${item.id || item.itemId}-${item.sku}`}>
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-3 rounded-xl border border-slate-800/20 bg-white p-2 text-left"
+                <div
+                  role="button"
+                  tabIndex={0}
+                  className="grid w-full grid-cols-[64px_minmax(0,1fr)] items-start gap-3 rounded-[28px] border border-slate-900/10 bg-white/85 px-4 py-3 text-left shadow-[0_18px_45px_rgba(15,23,42,0.1)] backdrop-blur-md active:bg-slate-50"
                   onClick={() => onSelect(item)}
+                  onKeyDown={(event) => {
+                    if (event.key !== "Enter" && event.key !== " ") {
+                      return;
+                    }
+
+                    event.preventDefault();
+                    onSelect(item);
+                  }}
                 >
-                  <img
-                    src={item.imageUrl}
-                    alt=""
-                    width={40}
-                    height={40}
-                    loading="lazy"
-                    decoding="async"
-                    fetchPriority="low"
-                    className="h-10 w-10 shrink-0 rounded-lg bg-slate-100 object-cover"
+                  <ItemImagePreviewButton
+                    imageUrls={item.imageUrls ?? item.imageUrl}
+                    title={item.title ?? item.sku}
+                    imageAlt={item.title ?? item.sku}
+                    buttonClassName="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-slate-100 transition-opacity hover:opacity-80 active:opacity-70"
+                    placeholderClassName="flex items-center justify-center rounded-2xl bg-slate-200 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500"
+                    placeholderLabel="No image"
+                    overlay={
+                      <ItemQuantityPill
+                        quantity={item.quantity}
+                        itemCategory={item.itemCategory}
+                        className="absolute bottom-1 right-1 border-slate-950/20 bg-slate-950/80 px-2 py-1 text-white shadow-sm backdrop-blur"
+                      />
+                    }
                   />
-                  <span className="flex min-w-0 flex-1 flex-col gap-0.5 text-sky-900">
-                    <strong className="truncate">{item.title ?? item.sku}</strong>
-                    <span className="truncate text-sm text-slate-600">
-                      {item.sku}
-                    </span>
-                  </span>
-                </button>
+
+                  <div className="grid min-w-0 gap-y-2">
+                    <div className="min-w-0 self-center">
+                      <p className="m-0 truncate text-sm font-bold text-slate-900">
+                        {item.sku}
+                      </p>
+                    </div>
+
+                    <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 rounded-2xl bg-emerald-50 px-3 py-2">
+                      <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-emerald-700">
+                        Latest
+                      </p>
+                      <div className="flex min-w-0 flex-wrap items-center gap-2">
+                        <p className="m-0 truncate text-sm font-semibold text-slate-900">
+                          {item.currentPosition ?? "No location"}
+                        </p>
+                        {item.isSold && item.lastSoldChannel ? (
+                          <span
+                            className={`inline-flex w-fit items-center rounded-full px-2 py-0.5 text-xs font-semibold ${CHANNEL_BADGE[item.lastSoldChannel].color}`}
+                          >
+                            {CHANNEL_BADGE[item.lastSoldChannel].label}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </li>
             ))}
           </ul>

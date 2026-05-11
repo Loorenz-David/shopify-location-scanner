@@ -17,12 +17,17 @@ export const markAsCompleted = async (input: {
       shopId: input.shopId,
       logisticsCompletedAt: null,
     },
-    select: { id: true, orderId: true, logisticLocationId: true },
+    select: { id: true, orderId: true, logisticLocationId: true, intention: true },
   });
 
   if (!scanHistory) {
     throw new NotFoundError("Active logistics item not found");
   }
+
+  const description =
+    scanHistory.intention === "customer_took_it"
+      ? "customer_took_it"
+      : "manually set as completed";
 
   await logisticEventRepository.appendEvent({
     scanHistoryId: input.scanHistoryId,
@@ -32,6 +37,7 @@ export const markAsCompleted = async (input: {
     username: input.username,
     eventType: "fulfilled",
     completedAt: new Date(),
+    description,
   });
 
   broadcastToShop(

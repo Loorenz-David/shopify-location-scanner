@@ -52,6 +52,12 @@ export const itemScanHistoryActions = {
       "History Filters",
     );
   },
+  openItemOptions(itemId: string): void {
+    homeShellActions.openOverlayPage(
+      `item-scan-history-options:${itemId}`,
+      "Item Options",
+    );
+  },
   closeFilters(): void {
     homeShellActions.closeOverlayPage();
   },
@@ -94,7 +100,9 @@ export const itemScanHistoryActions = {
       itemId,
       sku: item.skuLabel,
       imageUrl: item.imageUrl ?? undefined,
+      imageUrls: item.imageUrls ?? item.imageUrl ?? undefined,
       title: item.title,
+      quantity: item.quantity,
       isSold: item.isSold,
       intention: null,
       fixItem: false,

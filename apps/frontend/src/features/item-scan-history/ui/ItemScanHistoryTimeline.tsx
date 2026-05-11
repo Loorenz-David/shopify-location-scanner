@@ -38,9 +38,16 @@ export function ItemScanHistoryTimeline({
                   ) : null}
                 </div>
               ) : event.kind === "logistic" ? (
-                <p className="m-0 text-sm font-semibold text-slate-900">
-                  {event.location ?? formatLogisticEventLabel(event.eventType)}
-                </p>
+                <div className="flex flex-col gap-1">
+                  <p className="m-0 text-sm font-semibold text-slate-900">
+                    {event.location ?? formatLogisticEventLabel(event.eventType)}
+                  </p>
+                  {event.description ? (
+                    <p className="m-0 text-sm text-slate-600">
+                      {event.description}
+                    </p>
+                  ) : null}
+                </div>
               ) : (
                 <p className="m-0 text-sm font-semibold text-slate-900">
                   {event.eventType === "unknown_position"

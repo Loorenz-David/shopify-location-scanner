@@ -143,6 +143,7 @@ export const getLogisticItemsQuery = async (input: {
       logisticEvent: latestEvent
         ? {
             username: latestEvent.username,
+            description: latestEvent.description ?? null,
             eventType: latestEvent.eventType as LogisticEventType,
             location: latestEvent.logisticLocation?.location ?? null,
             zoneType: latestEvent.logisticLocation

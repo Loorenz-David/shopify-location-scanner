@@ -140,6 +140,7 @@ model ScanHistory {
   lastLogisticEventType LogisticEventType?
   logisticLocationId   String?
   logisticsCompletedAt DateTime?
+  properties       Json?
   lastModifiedAt   DateTime @default(now())
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
@@ -371,6 +372,7 @@ model ScanHistoryLogistic {
   orderId            String?
   logisticLocationId String?
   username           String
+  description        String?
   eventType          LogisticEventType
   happenedAt         DateTime          @default(now())
   createdAt          DateTime          @default(now())
@@ -401,3 +403,8 @@ model PushSubscription {
   @@index([shopId])
   @@index([userId])
 }
+
+
+
+
+

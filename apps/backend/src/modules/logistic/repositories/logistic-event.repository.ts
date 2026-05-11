@@ -23,6 +23,7 @@ const toDomain = (record: any): LogisticEvent => ({
   orderId: record.orderId ?? null,
   logisticLocationId: record.logisticLocationId ?? null,
   username: record.username,
+  description: record.description ?? null,
   eventType: record.eventType,
   happenedAt: record.happenedAt,
   createdAt: record.createdAt,
@@ -46,6 +47,7 @@ export const logisticEventRepository = {
     username: string;
     eventType: "marked_intention" | "placed" | "fulfilled";
     completedAt?: Date;
+    description?: string;
   }): Promise<LogisticEvent> {
     return prisma.$transaction(async (tx) => {
       const event = await tx.scanHistoryLogistic.create({
@@ -56,6 +58,7 @@ export const logisticEventRepository = {
           logisticLocationId: input.logisticLocationId,
           username: input.username,
           eventType: input.eventType as any,
+          description: input.description ?? null,
         },
         include: { logisticLocation: true },
       });

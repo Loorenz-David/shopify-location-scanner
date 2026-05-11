@@ -121,7 +121,9 @@ const OptionalFieldsQuerySchema = z.preprocess((value) => {
 
     try {
       const parsed = JSON.parse(trimmedEntry) as unknown;
-      return Array.isArray(parsed) ? parsed.map((item) => String(item)) : [trimmedEntry];
+      return Array.isArray(parsed)
+        ? parsed.map((item) => String(item))
+        : [trimmedEntry];
     } catch {
       return trimmedEntry.split(",");
     }

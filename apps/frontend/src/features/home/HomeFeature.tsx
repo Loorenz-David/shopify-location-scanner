@@ -20,9 +20,14 @@ import {
 import type { HomePageRegistration } from "./types/home-shell.types";
 import { HomeLayout } from "./ui/HomeLayout";
 import { HomePage } from "./ui/HomePage";
-import { useItemScanHistoryRealtimeFlow } from "../item-scan-history/flows/use-item-scan-history.flow";
+import {
+  useItemScanHistoryRealtimeFlow,
+  useItemScanHistoryFlow,
+} from "../item-scan-history/flows/use-item-scan-history.flow";
 import { ItemScanHistoryPage } from "../item-scan-history/ui/ItemScanHistoryPage";
 import { ItemScanHistoryOverlayHost } from "../item-scan-history/ItemScanHistoryOverlayHost";
+import { useItemImageViewerStore } from "../item-scan-history/stores/item-image-viewer.store";
+import { ItemImageCarouselPage } from "../item-scan-history/ui/ItemImageCarouselPage";
 import { PlacementItemFixedPopup } from "../scanner/ui/PlacementItemFixedPopup";
 import { PlacementZoneMismatchPopup } from "../scanner/ui/PlacementZoneMismatchPopup";
 import { UnifiedScannerFeature } from "../unified-scanner/UnifiedScannerFeature";
@@ -59,10 +64,12 @@ interface HomeFeatureProps {
 
 export function HomeFeature({ onLogout }: HomeFeatureProps) {
   useItemScanHistoryRealtimeFlow();
+  useItemScanHistoryFlow();
   useLogisticTasksRealtimeFlow();
   useTaskCountFlow();
 
   const taskCount = useTaskCountStore(selectTaskCount);
+  const isImageViewerOpen = useItemImageViewerStore((state) => state.isOpen);
 
   const { can_display_main_stats } = useRoleCapabilities();
 
@@ -201,44 +208,48 @@ export function HomeFeature({ onLogout }: HomeFeatureProps) {
     (fullFeaturePageId && registry[fullFeaturePageId]) || null;
 
   return (
-    <HomeLayout
-      activePageTitle={activePage.title}
-      ActivePageComponent={activePage.component}
-      activeFullFeatureTitle={activeFullFeaturePage?.title ?? "Feature"}
-      ActiveFullFeatureComponent={activeFullFeaturePage?.component ?? null}
-      isFullFeatureOpen={isFullFeatureOpen}
-      navItems={navItems}
-      isOverlayOpen={isOverlayOpen}
-      overlayTitle={overlayTitle}
-      overlayContent={
-        <>
-          <ItemScanHistoryOverlayHost
-            onClose={homeShellActions.closeOverlayPage}
-          />
-          <LogisticTasksOverlayHost
-            onClose={homeShellActions.closeOverlayPage}
-          />
-        </>
-      }
-      isPopupOpen={isPopupOpen}
-      popupContent={
-        <>
-          {popupPageId === "placement-item-fixed-check" && (
-            <PlacementItemFixedPopup />
-          )}
-          {popupPageId === "placement-zone-mismatch" && (
-            <PlacementZoneMismatchPopup />
-          )}
-          {popupPageId === "unified-scanner-fix-check" && (
-            <UnifiedFixCheckPopup />
-          )}
-          {popupPageId === "unified-scanner-zone-mismatch" && (
-            <UnifiedZoneMismatchPopup />
-          )}
-        </>
-      }
-      onClosePopup={homeShellActions.closePopupPage}
-      onSelectPage={homeShellActions.selectNavigationPage}
-    />
+    <>
+      <HomeLayout
+        activePageTitle={activePage.title}
+        ActivePageComponent={activePage.component}
+        activeFullFeatureTitle={activeFullFeaturePage?.title ?? "Feature"}
+        ActiveFullFeatureComponent={activeFullFeaturePage?.component ?? null}
+        isFullFeatureOpen={isFullFeatureOpen}
+        navItems={navItems}
+        isOverlayOpen={isOverlayOpen}
+        overlayTitle={overlayTitle}
+        overlayContent={
+          <>
+            <ItemScanHistoryOverlayHost
+              onClose={homeShellActions.closeOverlayPage}
+            />
+            <LogisticTasksOverlayHost
+              onClose={homeShellActions.closeOverlayPage}
+            />
+          </>
+        }
+        isPopupOpen={isPopupOpen}
+        popupContent={
+          <>
+            {popupPageId === "placement-item-fixed-check" && (
+              <PlacementItemFixedPopup />
+            )}
+            {popupPageId === "placement-zone-mismatch" && (
+              <PlacementZoneMismatchPopup />
+            )}
+            {popupPageId === "unified-scanner-fix-check" && (
+              <UnifiedFixCheckPopup />
+            )}
+            {popupPageId === "unified-scanner-zone-mismatch" && (
+              <UnifiedZoneMismatchPopup />
+            )}
+          </>
+        }
+        onClosePopup={homeShellActions.closePopupPage}
+        onSelectPage={homeShellActions.selectNavigationPage}
+      />
+
+      {isImageViewerOpen ? <ItemImageCarouselPage /> : null}
+    </>
   );
 }

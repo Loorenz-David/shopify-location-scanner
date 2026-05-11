@@ -3,6 +3,7 @@ import type { ComponentType } from "react";
 export type HomePageId = "home" | "scanner" | (string & {});
 export type OverlayPageId =
   | "item-scan-history-filters"
+  | `item-scan-history-options:${string}`
   | (string & {});
 
 export type PopupPageId =

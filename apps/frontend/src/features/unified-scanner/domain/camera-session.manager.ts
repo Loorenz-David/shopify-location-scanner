@@ -1,6 +1,14 @@
 import { loadQrReaderFactory } from "./zxing-loader.domain";
+import {
+  getScannerGuideRect,
+  SCANNER_GUIDE_DEFAULT_ROI_PADDING_PX,
+} from "./scanner-guide.domain";
 
 export const CAMERA_IDLE_RELEASE_MS = 90_000;
+
+const SCAN_LOOP_DELAY_MS = 90;
+const SCAN_SUCCESS_BACKOFF_MS = 650;
+const MAX_DECODE_CANVAS_EDGE_PX = 960;
 
 export type CameraSessionId = "logistic-placement" | "unified-scanner";
 
@@ -19,6 +27,13 @@ interface CameraSession {
   prewarmCount: number;
   idleTimerId: number | null;
   startDelayTimerId: number | null;
+}
+
+interface SourceRect {
+  sx: number;
+  sy: number;
+  sw: number;
+  sh: number;
 }
 
 const SESSION_IDS: CameraSessionId[] = ["logistic-placement", "unified-scanner"];
@@ -44,13 +59,55 @@ function getContainerElement(id: CameraSessionId): HTMLElement | null {
   return document.getElementById(CAMERA_REGION_IDS[id]);
 }
 
+function waitForNextFrame(): Promise<void> {
+  return new Promise((resolve) => {
+    window.requestAnimationFrame(() => resolve());
+  });
+}
+
+async function waitForContainerToSettle(
+  container: HTMLElement,
+  isCancelled: () => boolean,
+): Promise<void> {
+  const startedAt = performance.now();
+  let stableFrameCount = 0;
+
+  while (!isCancelled()) {
+    const rect = container.getBoundingClientRect();
+    const hasSize = rect.width > 0 && rect.height > 0;
+    const isInViewport =
+      rect.right > 0 &&
+      rect.bottom > 0 &&
+      rect.left < window.innerWidth &&
+      rect.top < window.innerHeight;
+    const isHorizontallySettled = Math.abs(rect.left) <= 1;
+
+    if (hasSize && isInViewport && isHorizontallySettled) {
+      stableFrameCount += 1;
+      if (stableFrameCount >= 2) {
+        return;
+      }
+    } else {
+      stableFrameCount = 0;
+    }
+
+    if (performance.now() - startedAt > 700) {
+      return;
+    }
+
+    await waitForNextFrame();
+  }
+}
+
 function ensureVideoElement(container: HTMLElement): HTMLVideoElement {
   let video = container.querySelector("video");
   if (!(video instanceof HTMLVideoElement)) {
     video = document.createElement("video");
     video.setAttribute("playsinline", "true");
     video.setAttribute("webkit-playsinline", "true");
+    video.playsInline = true;
     video.muted = true;
+    video.defaultMuted = true;
     video.autoplay = true;
     container.appendChild(video);
   }
@@ -60,7 +117,10 @@ function ensureVideoElement(container: HTMLElement): HTMLVideoElement {
   video.style.setProperty("object-fit", "cover", "important");
   video.style.setProperty("position", "absolute", "important");
   video.style.setProperty("inset", "0", "important");
+  video.style.setProperty("z-index", "0", "important");
+  video.style.setProperty("background", "#020617", "important");
   video.style.setProperty("transform", "translateZ(0)", "important");
+  video.style.setProperty("will-change", "transform", "important");
 
   return video;
 }
@@ -73,6 +133,7 @@ function buildVideoConstraints(
   const video: MediaTrackConstraints = {
     width: { ideal: 1280 },
     height: { ideal: 720 },
+    frameRate: { ideal: 30, max: 30 },
   };
 
   if (resolvedDeviceId) {
@@ -82,6 +143,155 @@ function buildVideoConstraints(
   }
 
   return { video, audio: false };
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+async function optimizeVideoTrackForQr(stream: MediaStream): Promise<void> {
+  const [videoTrack] = stream.getVideoTracks();
+  if (!videoTrack || typeof videoTrack.applyConstraints !== "function") {
+    return;
+  }
+
+  const capabilities =
+    typeof videoTrack.getCapabilities === "function"
+      ? (videoTrack.getCapabilities() as {
+          focusMode?: string[];
+        })
+      : null;
+
+  if (!capabilities?.focusMode?.includes("continuous")) {
+    return;
+  }
+
+  try {
+    await videoTrack.applyConstraints({
+      advanced: [
+        {
+          focusMode: "continuous",
+        } as unknown as MediaTrackConstraintSet,
+      ],
+    });
+  } catch {
+    // Continuous focus is a best-effort mobile camera hint.
+  }
+}
+
+function mapCssRectToVideoSourceRect(
+  video: HTMLVideoElement,
+  container: HTMLElement,
+  cssRect: { left: number; top: number; right: number; bottom: number },
+): SourceRect | null {
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  const containerRect = container.getBoundingClientRect();
+
+  if (vw <= 0 || vh <= 0 || containerRect.width <= 0 || containerRect.height <= 0) {
+    return null;
+  }
+
+  const scale = Math.max(containerRect.width / vw, containerRect.height / vh);
+  const displayedWidth = vw * scale;
+  const displayedHeight = vh * scale;
+  const offsetX = (displayedWidth - containerRect.width) / 2;
+  const offsetY = (displayedHeight - containerRect.height) / 2;
+
+  const sx = clamp((cssRect.left + offsetX) / scale, 0, vw);
+  const sy = clamp((cssRect.top + offsetY) / scale, 0, vh);
+  const right = clamp((cssRect.right + offsetX) / scale, 0, vw);
+  const bottom = clamp((cssRect.bottom + offsetY) / scale, 0, vh);
+
+  const sw = right - sx;
+  const sh = bottom - sy;
+
+  if (sw < 32 || sh < 32) {
+    return null;
+  }
+
+  return { sx, sy, sw, sh };
+}
+
+function getCenteredSourceRect(video: HTMLVideoElement, ratio: number): SourceRect {
+  const vw = video.videoWidth;
+  const vh = video.videoHeight;
+  const side = Math.floor(Math.min(vw, vh) * ratio);
+
+  return {
+    sx: Math.floor((vw - side) / 2),
+    sy: Math.floor((vh - side) / 2),
+    sw: side,
+    sh: side,
+  };
+}
+
+function buildScanRegions(
+  video: HTMLVideoElement,
+  container: HTMLElement,
+  scanCount: number,
+): SourceRect[] {
+  const containerRect = container.getBoundingClientRect();
+  const guideRect = getScannerGuideRect({
+    viewportWidth: containerRect.width,
+    viewportHeight: containerRect.height,
+    paddingPx: SCANNER_GUIDE_DEFAULT_ROI_PADDING_PX + 28,
+  });
+  const guideSourceRect = mapCssRectToVideoSourceRect(
+    video,
+    container,
+    guideRect,
+  );
+
+  const regions: SourceRect[] = [];
+  if (guideSourceRect) {
+    regions.push(guideSourceRect);
+  } else {
+    regions.push(getCenteredSourceRect(video, 0.72));
+  }
+
+  if (scanCount % 2 === 0) {
+    regions.push(getCenteredSourceRect(video, 0.82));
+  }
+
+  if (scanCount % 4 === 0) {
+    regions.push({
+      sx: 0,
+      sy: 0,
+      sw: video.videoWidth,
+      sh: video.videoHeight,
+    });
+  }
+
+  return regions;
+}
+
+function drawSourceRectToCanvas(
+  video: HTMLVideoElement,
+  canvas: HTMLCanvasElement,
+  ctx: CanvasRenderingContext2D,
+  sourceRect: SourceRect,
+): void {
+  const targetScale = Math.min(
+    1,
+    MAX_DECODE_CANVAS_EDGE_PX / Math.max(sourceRect.sw, sourceRect.sh),
+  );
+  const targetWidth = Math.max(1, Math.round(sourceRect.sw * targetScale));
+  const targetHeight = Math.max(1, Math.round(sourceRect.sh * targetScale));
+
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
+  ctx.drawImage(
+    video,
+    Math.round(sourceRect.sx),
+    Math.round(sourceRect.sy),
+    Math.round(sourceRect.sw),
+    Math.round(sourceRect.sh),
+    0,
+    0,
+    targetWidth,
+    targetHeight,
+  );
 }
 
 function waitForVideoReady(video: HTMLVideoElement): Promise<void> {
@@ -240,6 +450,9 @@ export function attachDecodeSession(
       const container = getContainerElement(id);
       if (!container || cancelled) return;
 
+      await waitForContainerToSettle(container, () => cancelled);
+      if (cancelled) return;
+
       // Load ZXing configured for QR-only decoding. All hint/format setup is
       // encapsulated in the factory so this file stays free of ZXing internals.
       const createReader = await loadQrReaderFactory();
@@ -264,6 +477,7 @@ export function attachDecodeSession(
       if (canReuseStream && prewarmStream) {
         reusingStream = true;
         video.srcObject = prewarmStream;
+        void optimizeVideoTrackForQr(prewarmStream);
       } else {
         reusingStream = false;
 
@@ -286,6 +500,7 @@ export function attachDecodeSession(
 
         session.stream = stream;
         video.srcObject = stream;
+        void optimizeVideoTrackForQr(stream);
       }
 
       // Explicit play() for iOS Safari (belt-and-suspenders with autoplay attr).
@@ -299,6 +514,9 @@ export function attachDecodeSession(
       // Wait until the video has an actual frame before attempting any decode.
       await waitForVideoReady(video);
       if (cancelled) return;
+      await waitForNextFrame();
+      await waitForNextFrame();
+      if (cancelled) return;
 
       // Brief autofocus stabilisation delay.
       // Fresh streams need slightly longer than reused ones.
@@ -310,45 +528,44 @@ export function attachDecodeSession(
       // setTimeout cycle. This keeps CPU load bounded and avoids decode
       // pile-up on slow devices.
       //
-      // Each iteration crops the centre 60 % of the frame to a canvas and
-      // passes it to decodeFromCanvas (synchronous). Cropping reduces pixel
-      // count and eliminates background noise near the edges.
+      // Each iteration first scans the same area shown by the visual guide.
+      // Wider regions are tried periodically so slightly off-center, moving,
+      // or too-close QR codes are still caught without making every frame
+      // expensive.
 
       const canvas = document.createElement("canvas");
       const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
       let loopActive = true;
+      let scanCount = 0;
 
       const scanLoop = (): void => {
         if (cancelled || !loopActive) return;
 
         if (ctx && video.readyState >= 2 && video.videoWidth > 0) {
-          const vw = video.videoWidth;
-          const vh = video.videoHeight;
-          const side = Math.floor(Math.min(vw, vh) * 0.6);
-          const sx = Math.floor((vw - side) / 2);
-          const sy = Math.floor((vh - side) / 2);
+          scanCount += 1;
+          const scanRegions = buildScanRegions(video, container, scanCount);
 
-          canvas.width = side;
-          canvas.height = side;
-          ctx.drawImage(video, sx, sy, side, side, 0, 0, side, side);
+          for (const scanRegion of scanRegions) {
+            drawSourceRectToCanvas(video, canvas, ctx, scanRegion);
 
-          try {
-            const result = reader.decodeFromCanvas(canvas);
-            if (!cancelled && result) {
-              onDecode(result.getText());
-              // Back off after a successful read — the flow-level dedup
-              // (lastScanRef) handles duplicates, but this avoids hammering
-              // the decoder on a static frame.
-              setTimeout(scanLoop, 800);
-              return;
+            try {
+              const result = reader.decodeFromCanvas(canvas);
+              if (!cancelled && result) {
+                onDecode(result.getText());
+                // Back off after a successful read — the flow-level dedup
+                // (lastScanRef) handles duplicates, but this avoids hammering
+                // the decoder on a static frame.
+                setTimeout(scanLoop, SCAN_SUCCESS_BACKOFF_MS);
+                return;
+              }
+            } catch {
+              // NotFoundException is the normal "nothing found" path.
             }
-          } catch {
-            // NotFoundException is the normal "nothing found" path — ignore.
           }
         }
 
-        setTimeout(scanLoop, 120);
+        setTimeout(scanLoop, SCAN_LOOP_DELAY_MS);
       };
 
       session.decodeControls = {

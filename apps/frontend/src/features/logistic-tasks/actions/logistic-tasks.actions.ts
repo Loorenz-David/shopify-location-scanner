@@ -101,6 +101,7 @@ export const logisticTasksActions = {
       sku: item.sku ?? "",
       imageUrl: item.imageUrl ?? undefined,
       title: item.itemTitle,
+      quantity: item.quantity,
       currentPosition: item.location ?? undefined,
       isSold: true,
       intention: item.intention,

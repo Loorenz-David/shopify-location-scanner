@@ -38,6 +38,7 @@ export type ScanHistoryLogisticLocation = {
 
 export type ScanHistoryLogisticEvent = {
   username: string;
+  description: string | null;
   eventType: LogisticEventType;
   location: string | null;
   zoneType: LogisticZoneType | null;
@@ -71,6 +72,7 @@ export type ScanHistoryRecord = {
   logisticLocation: ScanHistoryLogisticLocation | null;
   lastLogisticLocation: string | null;
   logisticEvent: ScanHistoryLogisticEvent | null;
+  logisticEvents: ScanHistoryLogisticEvent[];
   logisticsCompletedAt: Date | null;
   lastModifiedAt: Date;
   events: ScanHistoryEvent[];

@@ -28,6 +28,7 @@ export interface ItemScanHistoryPriceHistory {
 export interface ItemScanHistoryLogisticEvent {
   id: string;
   eventType: "marked_intention" | "placed" | "fulfilled";
+  description: string | null;
   location: string | null;
   happenedAt: string;
   happenedAtLabel: string;
@@ -45,12 +46,14 @@ export interface ItemScanHistoryItem {
   barcodeLabel: string | null;
   title: string;
   imageUrl: string | null;
+  imageUrls: string | null;
   productId: string;
   itemType: "product_id" | "handle" | "sku" | "barcode";
   itemHeight: number | null;
   itemWidth: number | null;
   itemDepth: number | null;
   volume: number | null;
+  quantity: number;
   createdAt: string;
   isSold: boolean;
   timeToSellSeconds: number | null;
