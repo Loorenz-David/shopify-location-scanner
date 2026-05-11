@@ -11,6 +11,7 @@
     "dev:outbound-webhook-worker": "tsx watch src/workers/outbound-webhook-worker.ts",
     "typecheck": "tsc --noEmit",
     "build": "tsc -p tsconfig.build.json",
+    "build:fast": "tsc -p tsconfig.build.json --incremental --tsBuildInfoFile dist/.tsbuildinfo",
     "start": "node dist/src/server.js",
     "start:worker": "node dist/src/workers/webhook-worker.js",
     "start:notification-worker": "node dist/src/workers/notification-worker.js",

@@ -785,7 +785,18 @@ export const shopifyAdminApi = {
       input.shopDomain,
       input.accessToken,
       `#graphql
-      query GetProductsWithLocation($ids: [ID!]!) {
+      query GetProductsWithLocation(
+        $ids: [ID!]!
+        $namespace: String!
+        $locationKey: String!
+        $heightKey: String!
+        $heightKeyAlt: String!
+        $dimensionNamespaceFallback: String!
+        $widthKey: String!
+        $widthKeyAlt: String!
+        $depthKey: String!
+        $depthKeyAlt: String!
+      ) {
         nodes(ids: $ids) {
           __typename
           ... on Product {

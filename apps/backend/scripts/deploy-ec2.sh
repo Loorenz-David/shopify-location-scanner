@@ -410,9 +410,9 @@ main() {
   fi
 
   if [[ "${backend_code_changed}" == true || "${backend_manifest_changed}" == true || "${prisma_changed}" == true ]]; then
-    log "Building backend"
+    log "Building backend with incremental TypeScript cache"
     run_with_timeout "${BUILD_TIMEOUT_SECONDS}" \
-      npm --prefix "${BACKEND_DIR}" run build
+      npm --prefix "${BACKEND_DIR}" run build:fast
   else
     log "Skipping backend build"
   fi

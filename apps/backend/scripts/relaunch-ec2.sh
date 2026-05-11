@@ -7,7 +7,6 @@ pm2 stop shopify-backend
 
 npm install
 npx prisma generate
-npm run build
+npm run build:fast
 npx prisma migrate deploy
 pm2 restart shopify-backend
-
