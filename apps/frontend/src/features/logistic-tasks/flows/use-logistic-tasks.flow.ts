@@ -6,6 +6,7 @@ import {
   selectHomeShellIsFullFeatureOpen,
   useHomeShellStore,
 } from "../../home/stores/home-shell.store";
+import { getRememberedLensId } from "../../unified-scanner/domain/scanner-camera-lens.domain";
 import { useCameraPrewarm } from "../../unified-scanner/flows/use-camera-prewarm";
 import { buildFiltersFromRoleDefaults } from "../domain/logistic-tasks.domain";
 import { logisticTasksActions } from "../actions/logistic-tasks.actions";
@@ -22,12 +23,15 @@ const REFRESH_LOADING_VISIBILITY_DELAY_MS = 400;
 export function useLogisticTasksFlow(): void {
   const currentPageId = useHomeShellStore(selectHomeShellCurrentPageId);
   const isFullFeatureOpen = useHomeShellStore(selectHomeShellIsFullFeatureOpen);
+  const preferredScannerLensId = getRememberedLensId() ?? undefined;
 
-  // Prewarm the logistic placement camera so it's ready when the user taps place.
+  // Task placement opens the unified scanner, so prewarm that same camera session.
   useCameraPrewarm(
-    "logistic-placement",
+    "unified-scanner",
     0,
     currentPageId === "logistic-tasks" && !isFullFeatureOpen,
+    preferredScannerLensId,
+    { attachPreview: true },
   );
 
   const { task_page_default_filters } = useRoleCapabilities();

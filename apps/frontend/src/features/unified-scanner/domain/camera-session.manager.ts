@@ -555,6 +555,28 @@ function scheduleIdleRelease(session: CameraSession): void {
   }, CAMERA_IDLE_RELEASE_MS);
 }
 
+function releaseOtherCameraSessions(activeId: CameraSessionId): void {
+  for (const id of SESSION_IDS) {
+    if (id === activeId) {
+      continue;
+    }
+
+    const session = sessions[id];
+    cancelIdleTimer(session);
+    cancelStartDelay(session);
+
+    try {
+      session.decodeControls?.stop();
+    } catch {
+      // Ignore teardown races.
+    }
+
+    session.decodeControls = null;
+    stopStream(session, { removeVideo: false });
+    session.phase = "idle";
+  }
+}
+
 async function selectBackCamera(): Promise<string | undefined> {
   try {
     const devices = (await navigator.mediaDevices.enumerateDevices()).filter(
@@ -624,6 +646,12 @@ async function attachPrewarmPreview(session: CameraSession): Promise<void> {
 }
 
 async function startPrewarmStream(session: CameraSession): Promise<void> {
+  if (session.prewarmCount === 0) {
+    session.phase = "idle";
+    return;
+  }
+
+  releaseOtherCameraSessions(session.id);
   session.phase = "prewarming";
 
   try {
@@ -705,6 +733,8 @@ export function attachDecodeSession(
 
   async function start(): Promise<void> {
     try {
+      releaseOtherCameraSessions(id);
+
       const container = getContainerElement(id);
       if (!container || cancelled) return;
 
