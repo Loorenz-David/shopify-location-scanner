@@ -169,6 +169,7 @@ export interface UnifiedScannerCameraFlowResult {
   clearItemScan: () => void;
   clearLocationScan: () => void;
   resetScannerVisualCycle: () => void;
+  setDecodePaused: (paused: boolean) => void;
 }
 
 export function useUnifiedScannerCameraFlow(): UnifiedScannerCameraFlowResult {
@@ -366,6 +367,13 @@ export function useUnifiedScannerCameraFlow(): UnifiedScannerCameraFlowResult {
     clearLocationScan();
   }, [clearItemScan, clearLocationScan]);
 
+  const setDecodePaused = useCallback((paused: boolean) => {
+    decodePausedRef.current = paused;
+    if (paused) {
+      lastScanRef.current = null;
+    }
+  }, []);
+
   useEffect(() => {
     if (!isCameraReady) {
       return;
@@ -497,5 +505,6 @@ export function useUnifiedScannerCameraFlow(): UnifiedScannerCameraFlowResult {
     clearItemScan,
     clearLocationScan,
     resetScannerVisualCycle,
+    setDecodePaused,
   };
 }

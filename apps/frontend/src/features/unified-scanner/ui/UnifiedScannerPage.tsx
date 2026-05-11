@@ -15,6 +15,7 @@ export function UnifiedScannerPage() {
     selectedItem,
     isCameraReady,
     cameraError,
+    onSetDecodePaused,
   } = useUnifiedScannerPageContext();
   const [manualInputMode, setManualInputMode] = useState<
     "item" | "location" | null
@@ -37,6 +38,14 @@ export function UnifiedScannerPage() {
       window.clearTimeout(timeoutId);
     };
   }, [cameraError, isCameraReady, previewMessageDelayMs]);
+
+  useEffect(() => {
+    onSetDecodePaused(manualInputMode !== null);
+
+    return () => {
+      onSetDecodePaused(false);
+    };
+  }, [manualInputMode, onSetDecodePaused]);
 
   return (
     <section

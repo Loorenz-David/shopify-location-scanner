@@ -157,6 +157,7 @@ export function UnifiedScannerProvider({
     onDismissLocationWarning: unifiedScannerActions.clearLocationWarningBanner,
     onDismissPlacementError: unifiedScannerActions.clearPlacementError,
     onToggleOnScanAsk: unifiedScannerActions.toggleOnScanAsk,
+    onSetDecodePaused: cameraFlow.setDecodePaused,
   };
 
   return (

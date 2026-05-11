@@ -951,3 +951,30 @@ export function releaseAllCameraSessions(): void {
     removePrewarmHostElement(id);
   }
 }
+
+export function suspendAllCameraSessions(): void {
+  for (const id of SESSION_IDS) {
+    const session = sessions[id];
+    cancelIdleTimer(session);
+    cancelStartDelay(session);
+
+    try {
+      session.decodeControls?.stop();
+    } catch {
+      // Ignore teardown races.
+    }
+
+    session.decodeControls = null;
+    stopStream(session, { removeVideo: false });
+    session.phase = "idle";
+  }
+}
+
+export function resumePrewarmedCameraSessions(): void {
+  for (const id of SESSION_IDS) {
+    const session = sessions[id];
+    if (session.prewarmCount > 0 && session.phase === "idle") {
+      void startPrewarmStream(session);
+    }
+  }
+}

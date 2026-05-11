@@ -140,6 +140,7 @@ export interface UnifiedScannerPageContextValue {
   onDismissLocationWarning: () => void;
   onDismissPlacementError: () => void;
   onToggleOnScanAsk: () => void;
+  onSetDecodePaused: (paused: boolean) => void;
 }
 
 export interface UnifiedItemSearchResult {

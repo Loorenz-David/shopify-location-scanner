@@ -12,6 +12,7 @@ import { PwaUpdatePrompt } from "./features/pwa/ui/PwaUpdatePrompt";
 import { tokenAuthController } from "./core/api-client";
 import { useWsEvent } from "./core/ws-client/use-ws-event";
 import { useAppPresenceFlow } from "./features/auth/flows/use-app-presence.flow";
+import { useCameraAppLifecycleFlow } from "./features/unified-scanner/flows/use-camera-app-lifecycle.flow";
 
 const SESSION_INVALIDATED_RELOAD_KEY = "sessionInvalidatedReloadPending";
 const SESSION_INVALIDATED_MESSAGE =
@@ -19,6 +20,7 @@ const SESSION_INVALIDATED_MESSAGE =
 
 function App() {
   usePwaFlow();
+  useCameraAppLifecycleFlow();
 
   const [isSessionCheckPending, setIsSessionCheckPending] = useState(true);
   const [authenticatedUser, setAuthenticatedUser] =
