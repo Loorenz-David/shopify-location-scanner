@@ -257,6 +257,7 @@ function buildOptimisticHandleItem(
     itemWidth: null,
     itemDepth: null,
     volume: null,
+    properties: null,
     quantity: item.quantity ?? 1,
     createdAt: nowIso,
     isSold: false,

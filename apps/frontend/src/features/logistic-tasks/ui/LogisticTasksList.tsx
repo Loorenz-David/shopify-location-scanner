@@ -23,7 +23,7 @@ export function LogisticTasksList({
   if (groups.length === 0) return null;
 
   return (
-    <div className="flex flex-col gap-4 px-5 pt-4 pb-8">
+    <div className="flex flex-col gap-4 px-5 pb-[calc(7rem+env(safe-area-inset-bottom))] pt-12">
       {groups.map((group, index) => (
         <div key={group.orderId ?? `no-order-${index}`}>
           {index > 0 && <div className="h-4" />}

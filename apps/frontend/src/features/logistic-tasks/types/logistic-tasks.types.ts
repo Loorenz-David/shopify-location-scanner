@@ -14,6 +14,7 @@ export interface LogisticTaskItem {
   imageUrl: string | null;
   imageUrls: string | null;
   itemCategory: string | null;
+  properties: Record<string, unknown> | null;
   itemType: string;
   itemTitle: string;
   quantity: number;

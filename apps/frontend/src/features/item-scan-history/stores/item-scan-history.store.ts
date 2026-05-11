@@ -62,7 +62,7 @@ const initialState = {
   expandedItemIds: [],
   total: 0,
   page: 1,
-  pageSize: 50,
+  pageSize: 25,
   activeRequestId: 0,
 };
 

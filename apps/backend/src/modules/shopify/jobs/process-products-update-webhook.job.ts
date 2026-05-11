@@ -4,6 +4,7 @@ import type { ShopifyProductsUpdateWebhookPayload } from "../contracts/shopify.c
 import { ShopifyProductsUpdateWebhookPayloadSchema } from "../contracts/shopify.contract.js";
 import { shopifyAdminApi } from "../integrations/shopify-admin-api.integration.js";
 import { shopRepository } from "../repositories/shop.repository.js";
+import { logger } from "../../../shared/logging/logger.js";
 
 const WEBHOOK_ACTOR = "system:shopify-webhook";
 
@@ -44,13 +45,20 @@ const parseHappenedAt = (
   return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
 };
 
+const isActiveProductStatus = (
+  status: "ACTIVE" | "DRAFT" | "ARCHIVED" | "UNLISTED" | "UNKNOWN",
+): boolean => status === "ACTIVE";
+
 // broadcast is injected by the caller so the job processor has no dependency on
 // the in-process WebSocket registry. In the worker process the caller publishes
 // over Redis; in the API server process (if ever called directly) it can call
 // broadcastToShop. This keeps the job testable and process-agnostic.
 export const processProductsUpdateWebhookJob = async (
   intake: WebhookIntakeRecord,
-  broadcast: (shopId: string, event: { type: string } & Record<string, unknown>) => Promise<void> | void,
+  broadcast: (
+    shopId: string,
+    event: { type: string } & Record<string, unknown>,
+  ) => Promise<void> | void,
 ): Promise<void> => {
   const parsedBody = JSON.parse(intake.rawPayload) as unknown;
   const payload = ShopifyProductsUpdateWebhookPayloadSchema.parse(parsedBody);
@@ -62,13 +70,15 @@ export const processProductsUpdateWebhookJob = async (
   let productSnapshotUpdated = false;
 
   if (price) {
-    priceUpdated = await scanHistoryRepository.appendPriceChangeIfHistoryExists({
-      shopId: intake.shopId,
-      productId,
-      price,
-      happenedAt,
-      emitBroadcast: false,
-    });
+    priceUpdated = await scanHistoryRepository.appendPriceChangeIfHistoryExists(
+      {
+        shopId: intake.shopId,
+        productId,
+        price,
+        happenedAt,
+        emitBroadcast: false,
+      },
+    );
   }
 
   const existingHistory = await scanHistoryRepository.findByShopAndProduct({
@@ -76,7 +86,7 @@ export const processProductsUpdateWebhookJob = async (
     productId,
   });
 
-  if (existingHistory && !existingHistory.isSold) {
+  if (!existingHistory || !existingHistory.isSold) {
     const shop = await shopRepository.findById(intake.shopId);
 
     if (shop?.accessToken) {
@@ -86,48 +96,99 @@ export const processProductsUpdateWebhookJob = async (
         productId,
       });
 
-      const normalizedLocation = product.location?.trim() || null;
-      const previousLocation = existingHistory.latestLocation?.trim() || null;
+      if (!isActiveProductStatus(product.status)) {
+        logger.info(
+          "Skipping Shopify products/update snapshot sync for non-active product",
+          {
+            shopId: intake.shopId,
+            productId,
+            status: product.status,
+          },
+        );
+      } else {
+        const normalizedLocation = product.location?.trim() || null;
 
-      productSnapshotUpdated =
-        await scanHistoryRepository.syncProductSnapshotIfHistoryExists({
-          shopId: intake.shopId,
-          productId,
-          itemCategory: product.itemCategory,
-          itemSku: product.sku,
-          itemBarcode: product.barcode,
-          itemImageUrl: product.imageUrl,
-          itemType: "product_id",
-          itemTitle: product.title,
-          itemHeight: product.itemHeight,
-          itemWidth: product.itemWidth,
-          itemDepth: product.itemDepth,
-          volume: product.volume,
-          emitBroadcast: false,
-        });
+        if (!existingHistory) {
+          if (normalizedLocation) {
+            await scanHistoryRepository.appendLocationEvent({
+              shopId: intake.shopId,
+              userId: null,
+              username: WEBHOOK_ACTOR,
+              currentPrice: product.price,
+              itemHeight: product.itemHeight,
+              itemWidth: product.itemWidth,
+              itemDepth: product.itemDepth,
+              volume: product.volume,
+              productId,
+              quantity: product.quantity,
+              properties: product.properties ?? undefined,
+              itemCategory: product.itemCategory,
+              itemSku: product.sku,
+              itemBarcode: product.barcode,
+              itemImageUrl: product.imageUrl,
+              itemType: "product_id",
+              itemTitle: product.title,
+              location: normalizedLocation,
+              happenedAt,
+            });
 
-      if (normalizedLocation && normalizedLocation !== previousLocation) {
-        await scanHistoryRepository.appendLocationEvent({
-          shopId: intake.shopId,
-          userId: null,
-          username: WEBHOOK_ACTOR,
-          currentPrice: product.price,
-          itemHeight: product.itemHeight,
-          itemWidth: product.itemWidth,
-          itemDepth: product.itemDepth,
-          volume: product.volume,
-          productId,
-          itemCategory: product.itemCategory,
-          itemSku: product.sku,
-          itemBarcode: product.barcode,
-          itemImageUrl: product.imageUrl,
-          itemType: "product_id",
-          itemTitle: product.title,
-          location: normalizedLocation,
-          happenedAt,
-        });
+            locationUpdated = true;
+          } else {
+            logger.info(
+              "Skipping Shopify products/update history create: no location set",
+              {
+                shopId: intake.shopId,
+                productId,
+              },
+            );
+          }
+        } else {
+          const previousLocation =
+            existingHistory.latestLocation?.trim() || null;
 
-        locationUpdated = true;
+          productSnapshotUpdated =
+            await scanHistoryRepository.syncProductSnapshotIfHistoryExists({
+              shopId: intake.shopId,
+              productId,
+              itemCategory: product.itemCategory,
+              itemSku: product.sku,
+              itemBarcode: product.barcode,
+              itemImageUrl: product.imageUrl,
+              itemType: "product_id",
+              itemTitle: product.title,
+              itemHeight: product.itemHeight,
+              itemWidth: product.itemWidth,
+              itemDepth: product.itemDepth,
+              volume: product.volume,
+              properties: product.properties ?? undefined,
+              emitBroadcast: false,
+            });
+
+          if (normalizedLocation && normalizedLocation !== previousLocation) {
+            await scanHistoryRepository.appendLocationEvent({
+              shopId: intake.shopId,
+              userId: null,
+              username: WEBHOOK_ACTOR,
+              currentPrice: product.price,
+              itemHeight: product.itemHeight,
+              itemWidth: product.itemWidth,
+              itemDepth: product.itemDepth,
+              volume: product.volume,
+              productId,
+              properties: product.properties ?? undefined,
+              itemCategory: product.itemCategory,
+              itemSku: product.sku,
+              itemBarcode: product.barcode,
+              itemImageUrl: product.imageUrl,
+              itemType: "product_id",
+              itemTitle: product.title,
+              location: normalizedLocation,
+              happenedAt,
+            });
+
+            locationUpdated = true;
+          }
+        }
       }
     }
   }

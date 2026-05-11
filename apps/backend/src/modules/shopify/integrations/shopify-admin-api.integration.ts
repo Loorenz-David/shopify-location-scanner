@@ -7,6 +7,10 @@ import type {
   ProductLocationData,
   ProductLocationSnapshot,
 } from "../domain/shopify-shop.js";
+import {
+  buildShopifyPropertyMetafieldSelection,
+  extractShopifyScanHistoryProperties,
+} from "../domain/shopify-metafield-properties.js";
 import type {
   ShopifyMetafieldOptionsDto,
   ShopifySkuSearchItemDto,
@@ -21,6 +25,7 @@ type ShopifyProductSearchEdge = {
     featuredImage: {
       url: string;
     } | null;
+    itemCategoryMeta: { value: string | null } | null;
     quantityMeta: { value: string | null } | null;
     variants: {
       edges: Array<{
@@ -33,7 +38,53 @@ type ShopifyProductSearchEdge = {
   };
 };
 
+type ShopifyProductSnapshotNode = {
+  __typename: "Product";
+  id: string;
+  title: string;
+  status: string;
+  updatedAt: string;
+  featuredImage: {
+    url: string;
+  } | null;
+  images?: {
+    edges: Array<{
+      node: {
+        url: string;
+      };
+    }>;
+  } | null;
+  itemCategoryMeta: { value: string | null } | null;
+  quantityMeta: { value: string | null } | null;
+  extensionTypeMeta: { value: string | null } | null;
+  extensionQuantityMeta: { value: string | null } | null;
+  variants: {
+    edges: Array<{
+      node: {
+        sku: string | null;
+        barcode: string | null;
+        price: string | null;
+      };
+    }>;
+  };
+  itemLocation: { value: string | null } | null;
+  itemHeight: { value: string | null } | null;
+  itemHeightAlt: { value: string | null } | null;
+  itemHeightFallback: { value: string | null } | null;
+  itemHeightAltFallback: { value: string | null } | null;
+  itemWidth: { value: string | null } | null;
+  itemWidthAlt: { value: string | null } | null;
+  itemWidthFallback: { value: string | null } | null;
+  itemWidthAltFallback: { value: string | null } | null;
+  itemDepth: { value: string | null } | null;
+  itemDepthAlt: { value: string | null } | null;
+  itemDepthFallback: { value: string | null } | null;
+  itemDepthAltFallback: { value: string | null } | null;
+};
+
 const MAX_PRODUCT_REDIRECT_HOPS = 5;
+const SHOPIFY_PROPERTY_METAFIELD_SELECTION =
+  buildShopifyPropertyMetafieldSelection();
 
 const MANAGED_WEBHOOK_SUBSCRIPTIONS: Array<{
   topic: ManagedWebhookTopic;
@@ -120,7 +171,9 @@ const getThrottleRetryDelayMs = (
     }
 
     const extensions =
-      "extensions" in error && error.extensions && typeof error.extensions === "object"
+      "extensions" in error &&
+      error.extensions &&
+      typeof error.extensions === "object"
         ? error.extensions
         : null;
 
@@ -204,7 +257,10 @@ const shopifyGraphql = async <T>(
       errors?: unknown;
     };
 
-    const throttleRetryDelayMs = getThrottleRetryDelayMs(payload.errors, attempt);
+    const throttleRetryDelayMs = getThrottleRetryDelayMs(
+      payload.errors,
+      attempt,
+    );
     if (throttleRetryDelayMs !== null && attempt < maxAttempts - 1) {
       logger.warn("Shopify GraphQL throttled request; retrying", {
         operationName,
@@ -338,7 +394,8 @@ const serializeProductImageUrls = (product: {
     ...(product.images?.edges.map((edge) => edge.node.url) ?? []),
   ]
     .map((url) => url?.trim())
-    .filter((url): url is string => Boolean(url));
+    .filter((url): url is string => Boolean(url))
+    .slice(0, 8);
 
   const uniqueUrls = [...new Set(urls)];
   return uniqueUrls.length > 0 ? uniqueUrls.join(",") : null;
@@ -347,6 +404,7 @@ const serializeProductImageUrls = (product: {
 const mapProductNodeToLocationSnapshot = (product: {
   id: string;
   title: string;
+  status: string;
   updatedAt: string;
   featuredImage: {
     url: string;
@@ -360,6 +418,8 @@ const mapProductNodeToLocationSnapshot = (product: {
   } | null;
   itemCategoryMeta: { value: string | null } | null;
   quantityMeta: { value: string | null } | null;
+  extensionTypeMeta: { value: string | null } | null;
+  extensionQuantityMeta: { value: string | null } | null;
   variants: {
     edges: Array<{
       node: {
@@ -383,6 +443,19 @@ const mapProductNodeToLocationSnapshot = (product: {
   itemDepthFallback: { value: string | null } | null;
   itemDepthAltFallback: { value: string | null } | null;
 }): ProductLocationSnapshot => {
+  const status =
+    product.status === "ACTIVE" ||
+    product.status === "DRAFT" ||
+    product.status === "ARCHIVED" ||
+    product.status === "UNLISTED"
+      ? product.status
+      : "UNKNOWN";
+
+  const properties = extractShopifyScanHistoryProperties({
+    extensionTypeMeta: product.extensionTypeMeta,
+    extensionQuantityMeta: product.extensionQuantityMeta,
+  });
+
   const dimensions = resolveDimensions({
     height: coalesceMetafieldValue(
       product.itemHeight?.value,
@@ -412,8 +485,14 @@ const mapProductNodeToLocationSnapshot = (product: {
   return {
     id: product.id,
     title: product.title,
+    status,
     itemCategory,
-    quantity: resolveQuantity(product.quantityMeta?.value, itemCategory, product.title),
+    quantity: resolveQuantity(
+      product.quantityMeta?.value,
+      itemCategory,
+      product.title,
+    ),
+    properties,
     sku: product.variants.edges[0]?.node.sku ?? null,
     barcode: product.variants.edges[0]?.node.barcode ?? null,
     price: product.variants.edges[0]?.node.price ?? null,
@@ -427,6 +506,11 @@ const mapProductNodeToLocationSnapshot = (product: {
   };
 };
 
+const mapProductNodesToLocationSnapshots = (
+  nodes: ShopifyProductSnapshotNode[],
+): ProductLocationSnapshot[] =>
+  nodes.map((node) => mapProductNodeToLocationSnapshot(node));
+
 type ListProductsWithLocationResponse = {
   products: {
     pageInfo: {
@@ -437,6 +521,7 @@ type ListProductsWithLocationResponse = {
       node: {
         id: string;
         title: string;
+        status: string;
         updatedAt: string;
         featuredImage: {
           url: string;
@@ -450,6 +535,8 @@ type ListProductsWithLocationResponse = {
         };
         itemCategoryMeta: { value: string | null } | null;
         quantityMeta: { value: string | null } | null;
+        extensionTypeMeta: { value: string | null } | null;
+        extensionQuantityMeta: { value: string | null } | null;
         variants: {
           edges: Array<{
             node: {
@@ -475,6 +562,10 @@ type ListProductsWithLocationResponse = {
       };
     }>;
   };
+};
+
+type GetProductsWithLocationResponse = {
+  nodes: Array<ShopifyProductSnapshotNode | null>;
 };
 
 export const shopifyAdminApi = {
@@ -527,6 +618,7 @@ export const shopifyAdminApi = {
       product: {
         id: string;
         title: string;
+        status: string;
         updatedAt: string;
         featuredImage: {
           url: string;
@@ -540,6 +632,8 @@ export const shopifyAdminApi = {
         };
         itemCategoryMeta: { value: string | null } | null;
         quantityMeta: { value: string | null } | null;
+        extensionTypeMeta: { value: string | null } | null;
+        extensionQuantityMeta: { value: string | null } | null;
         variants: {
           edges: Array<{
             node: {
@@ -582,11 +676,12 @@ export const shopifyAdminApi = {
         product(id: $id) {
           id
           title
+          status
           updatedAt
           featuredImage {
             url
           }
-          images(first: 250) {
+          images(first: 8) {
             edges {
               node {
                 url
@@ -599,6 +694,7 @@ export const shopifyAdminApi = {
           quantityMeta: metafield(namespace: "custom", key: "quantity") {
             value
           }
+          ${SHOPIFY_PROPERTY_METAFIELD_SELECTION}
           variants(first: 1) {
             edges {
               node {
@@ -663,7 +759,7 @@ export const shopifyAdminApi = {
       },
     );
 
-if (!data.product) {
+    if (!data.product) {
       throw new AppError("Shopify product not found", {
         code: "NOT_FOUND",
         statusCode: 404,
@@ -671,6 +767,120 @@ if (!data.product) {
     }
 
     return mapProductNodeToLocationSnapshot(data.product);
+  },
+
+  async getProductsWithLocation(input: {
+    shopDomain: string;
+    accessToken: string;
+    productIds: string[];
+  }): Promise<ProductLocationSnapshot[]> {
+    const normalizedIds = [
+      ...new Set(input.productIds.map((id) => id.trim()).filter(Boolean)),
+    ];
+    if (normalizedIds.length === 0) {
+      return [];
+    }
+
+    const data = await shopifyGraphql<GetProductsWithLocationResponse>(
+      input.shopDomain,
+      input.accessToken,
+      `#graphql
+      query GetProductsWithLocation($ids: [ID!]!) {
+        nodes(ids: $ids) {
+          __typename
+          ... on Product {
+            id
+            title
+            status
+            updatedAt
+            featuredImage {
+              url
+            }
+            images(first: 8) {
+              edges {
+                node {
+                  url
+                }
+              }
+            }
+            itemCategoryMeta: metafield(namespace: "custom", key: "productcategory") {
+              value
+            }
+            quantityMeta: metafield(namespace: "custom", key: "quantity") {
+              value
+            }
+            ${SHOPIFY_PROPERTY_METAFIELD_SELECTION}
+            variants(first: 1) {
+              edges {
+                node {
+                  sku
+                  barcode
+                  price
+                }
+              }
+            }
+            itemLocation: metafield(namespace: $namespace, key: $locationKey) {
+              value
+            }
+            itemHeight: metafield(namespace: $namespace, key: $heightKey) {
+              value
+            }
+            itemHeightAlt: metafield(namespace: $namespace, key: $heightKeyAlt) {
+              value
+            }
+            itemHeightFallback: metafield(namespace: $dimensionNamespaceFallback, key: $heightKey) {
+              value
+            }
+            itemHeightAltFallback: metafield(namespace: $dimensionNamespaceFallback, key: $heightKeyAlt) {
+              value
+            }
+            itemWidth: metafield(namespace: $namespace, key: $widthKey) {
+              value
+            }
+            itemWidthAlt: metafield(namespace: $namespace, key: $widthKeyAlt) {
+              value
+            }
+            itemWidthFallback: metafield(namespace: $dimensionNamespaceFallback, key: $widthKey) {
+              value
+            }
+            itemWidthAltFallback: metafield(namespace: $dimensionNamespaceFallback, key: $widthKeyAlt) {
+              value
+            }
+            itemDepth: metafield(namespace: $namespace, key: $depthKey) {
+              value
+            }
+            itemDepthAlt: metafield(namespace: $namespace, key: $depthKeyAlt) {
+              value
+            }
+            itemDepthFallback: metafield(namespace: $dimensionNamespaceFallback, key: $depthKey) {
+              value
+            }
+            itemDepthAltFallback: metafield(namespace: $dimensionNamespaceFallback, key: $depthKeyAlt) {
+              value
+            }
+          }
+        }
+      }`,
+      {
+        ids: normalizedIds,
+        namespace: env.SHOPIFY_METAFIELD_NAMESPACE,
+        locationKey: env.SHOPIFY_METAFIELD_KEY,
+        heightKey: "totalheight",
+        heightKeyAlt: "totalheight",
+        dimensionNamespaceFallback: DIMENSION_NAMESPACE_FALLBACK,
+        widthKey: "totalwidth",
+        widthKeyAlt: "totalwidth",
+        depthKey: "totaldepth",
+        depthKeyAlt: "totaldepth",
+      },
+    );
+
+    return mapProductNodesToLocationSnapshots(
+      data.nodes.filter(
+        (node): node is ShopifyProductSnapshotNode =>
+          node !== null && node.__typename === "Product",
+      ),
+    );
   },
 
   async listProductsWithLocation(input: {
@@ -686,9 +896,9 @@ if (!data.product) {
     while (hasNextPage) {
       const data: ListProductsWithLocationResponse =
         await shopifyGraphql<ListProductsWithLocationResponse>(
-        input.shopDomain,
-        input.accessToken,
-        `#graphql
+          input.shopDomain,
+          input.accessToken,
+          `#graphql
         query ListProductsWithLocation(
           $first: Int!
           $after: String
@@ -711,11 +921,12 @@ if (!data.product) {
               node {
                 id
                 title
+                status
                 updatedAt
                 featuredImage {
                   url
                 }
-                images(first: 250) {
+                images(first: 8) {
                   edges {
                     node {
                       url
@@ -728,6 +939,7 @@ if (!data.product) {
                 quantityMeta: metafield(namespace: "custom", key: "quantity") {
                   value
                 }
+                ${SHOPIFY_PROPERTY_METAFIELD_SELECTION}
                 variants(first: 1) {
                   edges {
                     node {
@@ -780,20 +992,20 @@ if (!data.product) {
             }
           }
         }`,
-        {
-          first: pageSize,
-          after: cursor,
-          namespace: env.SHOPIFY_METAFIELD_NAMESPACE,
-          locationKey: env.SHOPIFY_METAFIELD_KEY,
-          heightKey: "totalheight",
-          heightKeyAlt: "totalheight",
-          dimensionNamespaceFallback: DIMENSION_NAMESPACE_FALLBACK,
-          widthKey: "totalwidth",
-          widthKeyAlt: "totalwidth",
-          depthKey: "totaldepth",
-          depthKeyAlt: "totaldepth",
-        },
-      );
+          {
+            first: pageSize,
+            after: cursor,
+            namespace: env.SHOPIFY_METAFIELD_NAMESPACE,
+            locationKey: env.SHOPIFY_METAFIELD_KEY,
+            heightKey: "totalheight",
+            heightKeyAlt: "totalheight",
+            dimensionNamespaceFallback: DIMENSION_NAMESPACE_FALLBACK,
+            widthKey: "totalwidth",
+            widthKeyAlt: "totalwidth",
+            depthKey: "totaldepth",
+            depthKeyAlt: "totaldepth",
+          },
+        );
 
       for (const edge of data.products.edges) {
         const location = edge.node.itemLocation?.value?.trim();
@@ -939,6 +1151,9 @@ if (!data.product) {
               featuredImage {
                 url
               }
+              itemCategoryMeta: metafield(namespace: "custom", key: "productcategory") {
+                value
+              }
               quantityMeta: metafield(namespace: "custom", key: "quantity") {
                 value
               }
@@ -986,14 +1201,26 @@ if (!data.product) {
             return null;
           }
 
-          return {
+          const itemCategory: string | null = categoryResolverService.resolve(
+            edge.node.itemCategoryMeta?.value,
+            edge.node.title,
+          );
+
+          const mappedItem: ShopifySkuSearchItemDto = {
             productId: edge.node.id,
             title: edge.node.title,
             imageUrl: edge.node.featuredImage?.url ?? null,
+            itemCategory,
             sku: matchedVariant.node.sku,
             barcode: matchedVariant.node.barcode,
-            quantity: resolveQuantity(edge.node.quantityMeta?.value, "", edge.node.title),
+            quantity: resolveQuantity(
+              edge.node.quantityMeta?.value,
+              itemCategory,
+              edge.node.title,
+            ),
           };
+
+          return mappedItem;
         })
         .filter((item): item is ShopifySkuSearchItemDto => item !== null)
         .slice(0, limit);

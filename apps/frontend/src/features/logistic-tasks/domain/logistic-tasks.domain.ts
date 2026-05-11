@@ -35,6 +35,7 @@ export function normalizeLogisticTaskItem(
     imageUrl: normalizeShopifyImageUrl(dto.itemImageUrl),
     imageUrls: dto.itemImageUrl,
     itemCategory: dto.itemCategory,
+    properties: dto.properties,
     itemType: dto.itemType,
     itemTitle: dto.itemTitle,
     quantity: dto.quantity ?? 1,

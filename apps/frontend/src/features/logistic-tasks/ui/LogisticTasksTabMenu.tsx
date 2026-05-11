@@ -22,7 +22,7 @@ export function LogisticTasksTabMenu({
   if (visibleIntentions.length === 0) return null;
 
   return (
-    <div className="flex gap-2 overflow-x-auto px-5 pb-1 scrollbar-none">
+    <div className="relative z-30 flex gap-2 overflow-x-auto px-5 pb-1 scrollbar-none">
       {visibleIntentions.map((intention) => {
         const count = intentionCounts[intention] ?? 0;
         const isActive = activeTab === intention;

@@ -137,6 +137,7 @@ export function ItemImageCarousel({
               imageUrl={imageUrl}
               alt={`Image ${index + 1}`}
               isActive={index === currentIndex}
+              shouldPrefetch={Math.abs(index - currentIndex) <= 1}
             />
           </div>
         ))}
@@ -149,9 +150,15 @@ interface CarouselImageProps {
   imageUrl: string;
   alt: string;
   isActive: boolean;
+  shouldPrefetch: boolean;
 }
 
-function CarouselImage({ imageUrl, alt, isActive }: CarouselImageProps) {
+function CarouselImage({
+  imageUrl,
+  alt,
+  isActive,
+  shouldPrefetch,
+}: CarouselImageProps) {
   const fullscreenUrl = getFullscreenImageUrl(imageUrl);
   const thumbnailUrl = getThumbnailImageUrl(imageUrl);
   const [isFullscreenReady, setIsFullscreenReady] = useState(
@@ -159,6 +166,10 @@ function CarouselImage({ imageUrl, alt, isActive }: CarouselImageProps) {
   );
 
   useEffect(() => {
+    if (!shouldPrefetch) {
+      return;
+    }
+
     let disposed = false;
 
     void prefetchFullscreenImage(imageUrl, {
@@ -173,7 +184,7 @@ function CarouselImage({ imageUrl, alt, isActive }: CarouselImageProps) {
     return () => {
       disposed = true;
     };
-  }, [imageUrl, isActive]);
+  }, [imageUrl, isActive, shouldPrefetch]);
 
   return (
     <div className="relative flex h-full w-full items-center justify-center">
@@ -188,7 +199,7 @@ function CarouselImage({ imageUrl, alt, isActive }: CarouselImageProps) {
         />
       ) : null}
 
-      {isActive || isFullscreenReady ? (
+      {isActive || shouldPrefetch || isFullscreenReady ? (
         <motion.img
           src={fullscreenUrl}
           alt={alt}

@@ -150,6 +150,7 @@ export const AppendScanLocationHistorySchema = z.object({
   volume: z.number().positive().nullable().optional(),
   productId: z.string().trim().min(1),
   quantity: z.number().int().min(1).optional(),
+  properties: z.record(z.string(), z.string().trim().min(1)).optional(),
   itemCategory: z.string().trim().min(1).max(120).nullable().optional(),
   itemSku: z.string().trim().min(1).max(120).nullable().optional(),
   itemBarcode: z.string().trim().min(1).max(120).nullable().optional(),

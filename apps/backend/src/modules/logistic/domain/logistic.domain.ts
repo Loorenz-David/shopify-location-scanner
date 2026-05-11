@@ -37,6 +37,7 @@ export type LogisticItemSummary = {
   itemSku: string | null;
   itemBarcode: string | null;
   itemImageUrl: string | null;
+  properties: Record<string, unknown> | null;
   itemCategory: string | null;
   itemType: string;
   itemTitle: string;
@@ -74,7 +75,9 @@ export type LogisticItemsPage = {
 // for_delivery covers both domestic (local_delivery) and international
 // shipments; local_delivery is used as the auto-assignment default since it
 // is the more common case. for_fixing has no meaningful default — leave null.
-export const ZONE_TYPE_DEFAULT_INTENTION: Partial<Record<LogisticZoneType, LogisticIntention>> = {
+export const ZONE_TYPE_DEFAULT_INTENTION: Partial<
+  Record<LogisticZoneType, LogisticIntention>
+> = {
   for_delivery: "local_delivery",
   for_pickup: "store_pickup",
   // for_fixing → omitted (no default; remains null)

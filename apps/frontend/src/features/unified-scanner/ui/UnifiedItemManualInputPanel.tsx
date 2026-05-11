@@ -4,7 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { CloseIcon } from "../../../assets/icons";
 import { SearchBar } from "../../../share/searchbar";
 import { ItemImagePreviewButton } from "../../item-scan-history/ui/ItemImagePreviewButton";
-import { ItemQuantityPill } from "../../item-scan-history/ui/ItemQuantityPill";
+import {
+  ItemQuantityPill,
+  resolveItemQuantityPillProps,
+} from "../../item-scan-history/ui/ItemQuantityPill";
 import { searchUnifiedItemsApi } from "../api/search-unified-items.api";
 import type { UnifiedScannerItem } from "../types/unified-scanner.types";
 
@@ -118,44 +121,50 @@ export function UnifiedItemManualInputPanel({
           </p>
         ) : (
           <ul className="m-0 flex list-none flex-col gap-2 p-0">
-            {results.map((item) => (
-              <li key={`${item.id || item.itemId}-${item.sku}`}>
-                <div
-                  role="button"
-                  tabIndex={0}
-                  className="grid w-full grid-cols-[64px_minmax(0,1fr)] items-start gap-3 rounded-[28px] border border-slate-900/10 bg-white/85 px-4 py-3 text-left shadow-[0_18px_45px_rgba(15,23,42,0.1)] backdrop-blur-md active:bg-slate-50"
-                  onClick={() => onSelect(item)}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") {
-                      return;
-                    }
+            {results.map((item) => {
+              const quantityPillProps = resolveItemQuantityPillProps({
+                quantity: item.quantity,
+                itemCategory: item.itemCategory,
+                properties: item.properties,
+              });
 
-                    event.preventDefault();
-                    onSelect(item);
-                  }}
-                >
-                  <ItemImagePreviewButton
-                    imageUrls={item.imageUrls ?? item.imageUrl}
-                    title={item.title ?? item.sku}
-                    imageAlt={item.title ?? item.sku}
-                    buttonClassName="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-slate-100 transition-opacity hover:opacity-80 active:opacity-70"
-                    placeholderClassName="flex items-center justify-center rounded-2xl bg-slate-200 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500"
-                    placeholderLabel="No image"
-                    overlay={
-                      <ItemQuantityPill
-                        quantity={item.quantity}
-                        itemCategory={item.itemCategory}
-                        className="absolute bottom-1 right-1 border-slate-950/20 bg-slate-950/80 px-2 py-1 text-white shadow-sm backdrop-blur"
-                      />
-                    }
-                  />
+              return (
+                <li key={`${item.id || item.itemId}-${item.sku}`}>
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    className="grid w-full grid-cols-[64px_minmax(0,1fr)] items-start gap-3 rounded-[28px] border border-slate-900/10 bg-white/85 px-4 py-3 text-left shadow-[0_18px_45px_rgba(15,23,42,0.1)] backdrop-blur-md active:bg-slate-50"
+                    onClick={() => onSelect(item)}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") {
+                        return;
+                      }
 
-                  <div className="grid min-w-0 gap-y-2">
-                    <div className="min-w-0 self-center">
-                      <p className="m-0 truncate text-sm font-bold text-slate-900">
-                        {item.sku}
-                      </p>
-                    </div>
+                      event.preventDefault();
+                      onSelect(item);
+                    }}
+                  >
+                    <ItemImagePreviewButton
+                      imageUrls={item.imageUrls ?? item.imageUrl}
+                      title={item.title ?? item.sku}
+                      imageAlt={item.title ?? item.sku}
+                      buttonClassName="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-slate-100 transition-opacity hover:opacity-80 active:opacity-70"
+                      placeholderClassName="flex items-center justify-center rounded-2xl bg-slate-200 text-[10px] font-bold uppercase tracking-[0.08em] text-slate-500"
+                      placeholderLabel="No image"
+                      overlay={
+                        <ItemQuantityPill
+                          {...quantityPillProps}
+                          className="absolute bottom-1 right-1 border-slate-950/20 bg-slate-950/80 px-2 py-1 text-white shadow-sm backdrop-blur"
+                        />
+                      }
+                    />
+
+                    <div className="grid min-w-0 gap-y-2">
+                      <div className="min-w-0 self-center">
+                        <p className="m-0 truncate text-sm font-bold text-slate-900">
+                          {item.sku}
+                        </p>
+                      </div>
 
                     <div className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 rounded-2xl bg-emerald-50 px-3 py-2">
                       <p className="m-0 text-[11px] font-semibold uppercase tracking-[0.08em] text-emerald-700">
@@ -175,9 +184,10 @@ export function UnifiedItemManualInputPanel({
                       </div>
                     </div>
                   </div>
-                </div>
-              </li>
-            ))}
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>

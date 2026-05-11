@@ -6,7 +6,6 @@ import { normalizeImageUrls } from "../domain/item-image-viewer.domain";
 import { getThumbnailImageUrl } from "../domain/item-image-resolution.domain";
 import {
   prefetchFullscreenImage,
-  prefetchFullscreenImages,
 } from "../domain/item-image-prefetch.domain";
 
 interface ItemImagePreviewButtonProps {
@@ -66,8 +65,12 @@ export function ItemImagePreviewButton({
     };
   }, [firstImageUrl]);
 
-  const prefetchAllImages = () => {
-    prefetchFullscreenImages(images, { priority: true });
+  const prefetchPrimaryImage = () => {
+    if (!firstImageUrl) {
+      return;
+    }
+
+    void prefetchFullscreenImage(firstImageUrl, { priority: true });
   };
 
   if (!firstImageUrl) {
@@ -90,10 +93,10 @@ export function ItemImagePreviewButton({
           title,
         });
       }}
-      onFocus={prefetchAllImages}
-      onPointerDown={prefetchAllImages}
-      onPointerEnter={prefetchAllImages}
-      onTouchStart={prefetchAllImages}
+      onFocus={prefetchPrimaryImage}
+      onPointerDown={prefetchPrimaryImage}
+      onPointerEnter={prefetchPrimaryImage}
+      onTouchStart={prefetchPrimaryImage}
       aria-label={`View ${images.length > 1 ? `${images.length} images` : "image"}`}
     >
       <img

@@ -17,6 +17,7 @@ export interface ScannerItem {
   imageUrls?: string;
   quantity?: number;
   itemCategory?: string | null;
+  properties?: Record<string, unknown> | null;
   title?: string;
   currentPosition?: string;
   lastSoldChannel?: SalesChannel | null;
@@ -146,6 +147,7 @@ export interface UnifiedItemSearchResult {
   imageUrl: string;
   itemCategory: string | null;
   quantity: number;
+  properties: Record<string, unknown> | null;
   sku: string;
   title?: string;
   currentPosition: string | null;

@@ -1,6 +1,9 @@
 import { RetryIcon } from "../../../assets/icons";
 import { ItemImagePreviewButton } from "../../item-scan-history/ui/ItemImagePreviewButton";
-import { ItemQuantityPill } from "../../item-scan-history/ui/ItemQuantityPill";
+import {
+  ItemQuantityPill,
+  resolveItemQuantityPillProps,
+} from "../../item-scan-history/ui/ItemQuantityPill";
 import { useUnifiedScannerPageContext } from "../context/unified-scanner-context";
 import { DecodedTextPanel } from "./DecodedTextPanel";
 import { FrozenFrameCanvas } from "./FrozenFrameCanvas";
@@ -36,6 +39,13 @@ export function UnifiedLocationScanPage({
     onDismissPlacementError,
     onClearItemScan,
   } = useUnifiedScannerPageContext();
+  const quantityPillProps = selectedItem
+    ? resolveItemQuantityPillProps({
+        quantity: selectedItem.quantity,
+        itemCategory: selectedItem.itemCategory,
+        properties: selectedItem.properties,
+      })
+    : null;
 
   return (
     <section
@@ -65,18 +75,19 @@ export function UnifiedLocationScanPage({
                 <ItemImagePreviewButton
                   imageUrls={selectedItem.imageUrls ?? selectedItem.imageUrl}
                   title={selectedItem.title ?? selectedItem.sku}
-                  buttonClassName="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl bg-slate-800 transition-opacity hover:opacity-80 active:opacity-70"
-                  placeholderClassName="rounded-xl bg-slate-800"
+                  buttonClassName="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl bg-slate-800 transition-opacity hover:opacity-80 active:opacity-70"
+                  placeholderClassName="rounded-2xl bg-slate-800"
                   overlay={
-                    <ItemQuantityPill
-                      quantity={selectedItem.quantity}
-                      itemCategory={selectedItem.itemCategory}
-                      className="absolute bottom-0.5 right-0.5 border-slate-950/20 bg-slate-950/85 px-1.5 py-0.5 text-[9px] text-white shadow-sm backdrop-blur"
-                    />
+                    quantityPillProps ? (
+                      <ItemQuantityPill
+                        {...quantityPillProps}
+                        className="absolute bottom-1 right-1 border-slate-950/20 bg-slate-950/85 px-2 py-1 text-white shadow-sm backdrop-blur"
+                      />
+                    ) : null
                   }
                 />
               ) : isLookingUpItem ? (
-                <div className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-slate-800">
+                <div className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl bg-slate-800">
                   <span
                     className="h-5 w-5 animate-spin rounded-full border-2 border-slate-300 border-t-transparent"
                     aria-hidden="true"

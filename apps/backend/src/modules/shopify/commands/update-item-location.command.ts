@@ -101,6 +101,8 @@ export const updateItemLocationCommand = async (input: {
     itemDepth: after.itemDepth,
     volume: after.volume,
     productId: input.resolvedProductId,
+    quantity: after.quantity,
+    properties: after.properties ?? undefined,
     itemCategory: after.itemCategory,
     itemSku: input.idType === "sku" ? input.originalItemId : after.sku,
     itemBarcode:
@@ -124,6 +126,7 @@ export const updateItemLocationCommand = async (input: {
       id: after.id,
       title: after.title,
       itemCategory: after.itemCategory,
+      quantity: after.quantity,
       barcode: after.barcode,
       price: after.price,
       itemHeight: after.itemHeight,

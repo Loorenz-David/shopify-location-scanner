@@ -1,6 +1,6 @@
 export function LogisticTasksLoadingCards() {
   return (
-    <div className="flex flex-col gap-3 px-5 pt-4">
+    <div className="flex flex-col gap-3 px-5 pt-12">
       {[1, 2, 3, 4].map((n) => (
         <div
           key={n}

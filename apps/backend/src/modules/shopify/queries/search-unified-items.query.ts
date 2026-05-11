@@ -4,6 +4,14 @@ import type { UnifiedItemSearchResultDto } from "../contracts/shopify.contract.j
 import { normalizeScanValue } from "../../../shared/utils/scan-value-normalizer.js";
 import { logger } from "../../../shared/logging/logger.js";
 
+const toPropertiesObject = (value: unknown): Record<string, unknown> | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as Record<string, unknown>;
+};
+
 export const searchUnifiedItemsQuery = async (input: {
   shopId: string;
   value: string;
@@ -65,8 +73,11 @@ export const searchUnifiedItemsQuery = async (input: {
       productId: record.productId,
       title: record.itemTitle,
       imageUrl: record.itemImageUrl ?? null,
+      itemCategory: record.itemCategory ?? null,
       sku: record.itemSku ?? "",
       barcode: record.itemBarcode ?? null,
+      quantity: record.quantity ?? 1,
+      properties: toPropertiesObject(record.properties),
       id: record.id,
       isSold: record.isSold,
       intention: record.intention ?? null,
@@ -114,8 +125,11 @@ export const searchUnifiedItemsQuery = async (input: {
       productId: item.productId,
       title: history?.itemTitle ?? item.title,
       imageUrl: history?.itemImageUrl ?? item.imageUrl ?? null,
+      itemCategory: history?.itemCategory ?? item.itemCategory ?? null,
       sku: history?.itemSku ?? item.sku,
       barcode: history?.itemBarcode ?? item.barcode ?? null,
+      quantity: history?.quantity ?? item.quantity,
+      properties: toPropertiesObject(history?.properties),
       id: history?.id ?? "",
       isSold: history?.isSold ?? false,
       intention: history?.intention ?? null,

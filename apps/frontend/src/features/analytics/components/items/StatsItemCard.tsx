@@ -6,7 +6,10 @@ import type {
   StatsItemCardMode,
 } from "../../types/stats-items.types";
 import { ItemImagePreviewButton } from "../../../item-scan-history/ui/ItemImagePreviewButton";
-import { ItemQuantityPill } from "../../../item-scan-history/ui/ItemQuantityPill";
+import {
+  ItemQuantityPill,
+  resolveItemQuantityPillProps,
+} from "../../../item-scan-history/ui/ItemQuantityPill";
 
 function formatPrice(price: string | null): string | null {
   if (!price) return null;
@@ -77,6 +80,11 @@ export function StatsItemCard({
   focusDimension = null,
 }: StatsItemCardProps) {
   const [isExpanded, setIsExpanded] = useState(false);
+  const quantityPillProps = resolveItemQuantityPillProps({
+    quantity: item.quantity,
+    itemCategory: item.itemCategory,
+    properties: item.properties,
+  });
 
   return (
     <div className="overflow-hidden rounded-2xl border border-slate-900/10 bg-white shadow-[0_4px_12px_rgba(15,23,42,0.06)]">
@@ -90,8 +98,7 @@ export function StatsItemCard({
           placeholderLabel="No image"
           overlay={
             <ItemQuantityPill
-              quantity={item.quantity}
-              itemCategory={item.itemCategory}
+              {...quantityPillProps}
               className="absolute bottom-1 right-1 border-slate-950/20 bg-slate-950/80 px-2 py-1 text-white shadow-sm backdrop-blur"
             />
           }

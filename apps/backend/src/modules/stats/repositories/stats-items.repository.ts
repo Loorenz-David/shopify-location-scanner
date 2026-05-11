@@ -119,9 +119,7 @@ function buildWhere(
     and.push({
       volume: {
         ...(filters.volumeMin !== undefined ? { gte: filters.volumeMin } : {}),
-        ...(filters.volumeMax !== undefined
-          ? { lt: filters.volumeMax }
-          : {}),
+        ...(filters.volumeMax !== undefined ? { lt: filters.volumeMax } : {}),
       },
     });
   }
@@ -141,21 +139,31 @@ const PRICE_INCLUDE = {
   },
 } satisfies Prisma.ScanHistoryInclude;
 
+const toPropertiesObject = (value: unknown): Record<string, unknown> | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as Record<string, unknown>;
+};
+
 // ---------------------------------------------------------------------------
 // Domain mapping
 // ---------------------------------------------------------------------------
 
 function toDomain(record: any): StatsItem {
-  const lastKnownPrice: string | null =
-    record.priceHistory?.[0]?.price ?? null;
+  const lastKnownPrice: string | null = record.priceHistory?.[0]?.price ?? null;
 
   // For correction/backfill records, lastModifiedAt (= Shopify order processed_at)
   // can predate createdAt (= when the DB row was inserted). A negative duration
   // is meaningless, so return null — the item was never scanned before the sale.
   const rawTimeToSell = record.isSold
-    ? Math.round((record.lastModifiedAt.getTime() - record.createdAt.getTime()) / 1000)
+    ? Math.round(
+        (record.lastModifiedAt.getTime() - record.createdAt.getTime()) / 1000,
+      )
     : null;
-  const timeToSellSeconds = rawTimeToSell !== null && rawTimeToSell > 0 ? rawTimeToSell : null;
+  const timeToSellSeconds =
+    rawTimeToSell !== null && rawTimeToSell > 0 ? rawTimeToSell : null;
 
   return {
     id: record.id,
@@ -164,6 +172,7 @@ function toDomain(record: any): StatsItem {
     itemCategory: record.itemCategory ?? null,
     itemSku: record.itemSku ?? null,
     itemTitle: record.itemTitle,
+    properties: toPropertiesObject(record.properties),
     itemHeight: record.itemHeight ?? null,
     itemWidth: record.itemWidth ?? null,
     itemDepth: record.itemDepth ?? null,
@@ -187,13 +196,18 @@ function toDomain(record: any): StatsItem {
 // Time-of-day / day-of-week post-filter
 // ---------------------------------------------------------------------------
 
-function matchesTimeFilter(item: StatsItem, filters: StatsItemsFilters): boolean {
+function matchesTimeFilter(
+  item: StatsItem,
+  filters: StatsItemsFilters,
+): boolean {
   // SQLite strftime operates in UTC, so we match against UTC hour/weekday here.
   if (filters.hourOfDay !== undefined) {
-    if (new Date(item.lastModifiedAt).getUTCHours() !== filters.hourOfDay) return false;
+    if (new Date(item.lastModifiedAt).getUTCHours() !== filters.hourOfDay)
+      return false;
   }
   if (filters.weekday !== undefined) {
-    if (new Date(item.lastModifiedAt).getUTCDay() !== filters.weekday) return false;
+    if (new Date(item.lastModifiedAt).getUTCDay() !== filters.weekday)
+      return false;
   }
   return true;
 }
@@ -202,14 +216,22 @@ function matchesTimeFilter(item: StatsItem, filters: StatsItemsFilters): boolean
 // App-level sort comparators
 // ---------------------------------------------------------------------------
 
-function compareByPrice(a: StatsItem, b: StatsItem, dir: "asc" | "desc"): number {
+function compareByPrice(
+  a: StatsItem,
+  b: StatsItem,
+  dir: "asc" | "desc",
+): number {
   const parse = (p: string | null) =>
     p ? parseFloat(p.replace(/,/g, "")) : -1;
   const diff = parse(a.lastKnownPrice) - parse(b.lastKnownPrice);
   return dir === "asc" ? diff : -diff;
 }
 
-function compareByTimeToSell(a: StatsItem, b: StatsItem, dir: "asc" | "desc"): number {
+function compareByTimeToSell(
+  a: StatsItem,
+  b: StatsItem,
+  dir: "asc" | "desc",
+): number {
   const diff = (a.timeToSellSeconds ?? -1) - (b.timeToSellSeconds ?? -1);
   return dir === "asc" ? diff : -diff;
 }
@@ -229,7 +251,8 @@ export const statsItemsRepository = {
     const where = buildWhere(input.shopId, input.filters);
     const skip = (input.page - 1) * PAGE_SIZE;
     const hasTimeFilter =
-      input.filters.hourOfDay !== undefined || input.filters.weekday !== undefined;
+      input.filters.hourOfDay !== undefined ||
+      input.filters.weekday !== undefined;
 
     // ------------------------------------------------------------------
     // Fast path: timeInStock — unsold items first (isSold ASC), then oldest
@@ -239,7 +262,7 @@ export const statsItemsRepository = {
     // ------------------------------------------------------------------
     if (input.sort.sortBy === "timeInStock" && !hasTimeFilter) {
       const orderBy: Prisma.ScanHistoryOrderByWithRelationInput[] = [
-        { isSold: "asc" },          // unsold (false=0) before sold (true=1)
+        { isSold: "asc" }, // unsold (false=0) before sold (true=1)
         { createdAt: input.sort.sortDir }, // asc = longest in stock first
       ];
 
@@ -254,7 +277,12 @@ export const statsItemsRepository = {
         }),
       ]);
 
-      return { items: records.map(toDomain), total, page: input.page, pageSize: PAGE_SIZE };
+      return {
+        items: records.map(toDomain),
+        total,
+        page: input.page,
+        pageSize: PAGE_SIZE,
+      };
     }
 
     // ------------------------------------------------------------------
@@ -283,7 +311,12 @@ export const statsItemsRepository = {
         }),
       ]);
 
-      return { items: records.map(toDomain), total, page: input.page, pageSize: PAGE_SIZE };
+      return {
+        items: records.map(toDomain),
+        total,
+        page: input.page,
+        pageSize: PAGE_SIZE,
+      };
     }
 
     // ------------------------------------------------------------------
@@ -306,8 +339,10 @@ export const statsItemsRepository = {
 
     const comparator =
       input.sort.sortBy === "lastKnownPrice"
-        ? (a: StatsItem, b: StatsItem) => compareByPrice(a, b, input.sort.sortDir)
-        : (a: StatsItem, b: StatsItem) => compareByTimeToSell(a, b, input.sort.sortDir);
+        ? (a: StatsItem, b: StatsItem) =>
+            compareByPrice(a, b, input.sort.sortDir)
+        : (a: StatsItem, b: StatsItem) =>
+            compareByTimeToSell(a, b, input.sort.sortDir);
 
     allItems.sort(comparator);
 
@@ -326,6 +361,11 @@ export const statsItemsRepository = {
     // Report the real total count; note that only APP_SORT_MAX records are sortable.
     const reportedTotal = Math.min(total, APP_SORT_MAX);
 
-    return { items: paginated, total: reportedTotal, page: input.page, pageSize: PAGE_SIZE };
+    return {
+      items: paginated,
+      total: reportedTotal,
+      page: input.page,
+      pageSize: PAGE_SIZE,
+    };
   },
 };

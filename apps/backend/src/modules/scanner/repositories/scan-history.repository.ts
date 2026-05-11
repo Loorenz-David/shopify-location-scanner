@@ -70,7 +70,10 @@ const resolveCategoryForUpdate = (
   inputCategory: string | null | undefined,
   existingCategory: string | null,
 ): string => {
-  return resolveStringForUpdate(inputCategory, existingCategory, "unknown") ?? "unknown";
+  return (
+    resolveStringForUpdate(inputCategory, existingCategory, "unknown") ??
+    "unknown"
+  );
 };
 
 const normalizeLocation = (location?: string | null): string | null => {
@@ -98,6 +101,92 @@ const sameNullableString = (
   right: string | null | undefined,
 ): boolean => {
   return (left?.trim() || null) === (right?.trim() || null);
+};
+
+const normalizeIncomingProperties = (
+  properties?: Record<string, unknown> | null,
+): Record<string, string> => {
+  if (!properties) {
+    return {};
+  }
+
+  const normalized: Record<string, string> = {};
+  for (const [key, rawValue] of Object.entries(properties)) {
+    if (typeof rawValue !== "string") {
+      continue;
+    }
+
+    const normalizedKey = key.trim();
+    const normalizedValue = rawValue.trim();
+    if (normalizedKey && normalizedValue) {
+      normalized[normalizedKey] = normalizedValue;
+    }
+  }
+
+  return normalized;
+};
+
+const normalizeStoredProperties = (
+  properties: Prisma.JsonValue | null | undefined,
+): Record<string, string> => {
+  if (
+    !properties ||
+    typeof properties !== "object" ||
+    Array.isArray(properties)
+  ) {
+    return {};
+  }
+
+  const normalized: Record<string, string> = {};
+  for (const [key, value] of Object.entries(properties)) {
+    if (typeof value !== "string") {
+      continue;
+    }
+
+    const normalizedKey = key.trim();
+    const normalizedValue = value.trim();
+    if (normalizedKey && normalizedValue) {
+      normalized[normalizedKey] = normalizedValue;
+    }
+  }
+
+  return normalized;
+};
+
+const resolvePropertiesForCreate = (
+  properties?: Record<string, unknown> | null,
+): Record<string, string> | undefined => {
+  const normalized = normalizeIncomingProperties(properties);
+  return Object.keys(normalized).length > 0 ? normalized : undefined;
+};
+
+const resolvePropertiesForUpdate = (
+  existingProperties: Prisma.JsonValue | null | undefined,
+  incomingProperties?: Record<string, unknown> | null,
+): Record<string, string> | undefined => {
+  const normalizedIncoming = normalizeIncomingProperties(incomingProperties);
+  if (Object.keys(normalizedIncoming).length === 0) {
+    return undefined;
+  }
+
+  return {
+    ...normalizeStoredProperties(existingProperties),
+    ...normalizedIncoming,
+  };
+};
+
+const sameStringRecord = (
+  left: Record<string, string>,
+  right: Record<string, string>,
+): boolean => {
+  const leftKeys = Object.keys(left);
+  const rightKeys = Object.keys(right);
+
+  if (leftKeys.length !== rightKeys.length) {
+    return false;
+  }
+
+  return leftKeys.every((key) => left[key] === right[key]);
 };
 
 const ALL_STRING_FILTER_COLUMNS: ScanHistoryStringFilterColumn[] = [
@@ -178,6 +267,12 @@ const toDomain = (record: any): ScanHistoryRecord => {
         zoneType: record.logisticLocation.zoneType,
       }
     : null;
+  const properties =
+    record.properties &&
+    typeof record.properties === "object" &&
+    !Array.isArray(record.properties)
+      ? (record.properties as Record<string, unknown>)
+      : null;
 
   return {
     id: record.id,
@@ -195,6 +290,7 @@ const toDomain = (record: any): ScanHistoryRecord => {
     itemWidth: record.itemWidth,
     itemDepth: record.itemDepth,
     volume: record.volume,
+    properties,
     quantity: record.quantity ?? 1,
     latestLocation: record.latestLocation,
     isSold: record.isSold,
@@ -205,9 +301,7 @@ const toDomain = (record: any): ScanHistoryRecord => {
     logisticLocationId: record.logisticLocationId ?? null,
     logisticLocation,
     lastLogisticLocation: logisticLocation?.location ?? null,
-    logisticEvent: latestLogisticEvent
-      ? latestLogisticEvent
-      : null,
+    logisticEvent: latestLogisticEvent ? latestLogisticEvent : null,
     logisticEvents,
     logisticsCompletedAt: record.logisticsCompletedAt ?? null,
     lastModifiedAt: record.lastModifiedAt,
@@ -257,7 +351,11 @@ export const scanHistoryRepository = {
         },
         logisticLocation: true,
         logisticEvents: {
-          orderBy: [{ happenedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+          orderBy: [
+            { happenedAt: "desc" },
+            { createdAt: "desc" },
+            { id: "desc" },
+          ],
           include: {
             logisticLocation: true,
           },
@@ -359,6 +457,7 @@ export const scanHistoryRepository = {
     const itemDepth = normalizeDimension(input.itemDepth);
     const volume = normalizeVolume(input.volume);
     const quantity = normalizeQuantity(input.quantity);
+    const propertiesForCreate = resolvePropertiesForCreate(input.properties);
     let didAppendLocationEvent = false;
 
     if (!normalizedLocation) {
@@ -410,6 +509,9 @@ export const scanHistoryRepository = {
             itemDepth,
             volume,
             quantity,
+            ...(propertiesForCreate !== undefined
+              ? { properties: propertiesForCreate }
+              : {}),
             latestLocation: normalizedLocation,
             isSold: eventType === "sold_terminal",
             lastModifiedAt: happenedAt,
@@ -500,6 +602,11 @@ export const scanHistoryRepository = {
         });
       }
 
+      const propertiesForUpdate = resolvePropertiesForUpdate(
+        existing.properties,
+        input.properties,
+      );
+
       await tx.scanHistory.update({
         where: { id: existing.id },
         data: {
@@ -515,6 +622,9 @@ export const scanHistoryRepository = {
           ...(itemWidth !== null ? { itemWidth } : {}),
           ...(itemDepth !== null ? { itemDepth } : {}),
           ...(volume !== null ? { volume } : {}),
+          ...(propertiesForUpdate !== undefined
+            ? { properties: propertiesForUpdate }
+            : {}),
           quantity,
           latestLocation: normalizedLocation,
           isSold: eventType === "sold_terminal",
@@ -593,7 +703,11 @@ export const scanHistoryRepository = {
           },
           logisticLocation: true,
           logisticEvents: {
-            orderBy: [{ happenedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+            orderBy: [
+              { happenedAt: "desc" },
+              { createdAt: "desc" },
+              { id: "desc" },
+            ],
             include: {
               logisticLocation: true,
             },
@@ -602,15 +716,15 @@ export const scanHistoryRepository = {
       });
     });
 
+    const result = toDomain(history);
     logger.info("Scan history append completed", {
-      scanHistoryId: history.id,
-      shopId: history.shopId,
-      productId: history.productId,
-      latestLocation: history.events[0]?.location ?? null,
-      latestEventType: history.events[0]?.eventType ?? null,
+      scanHistoryId: result.id,
+      shopId: result.shopId,
+      productId: result.productId,
+      latestLocation: result.events[0]?.location ?? null,
+      latestEventType: result.events[0]?.eventType ?? null,
     });
 
-    const result = toDomain(history);
     if (didAppendLocationEvent) {
       broadcastToShop(input.shopId, {
         type: "scan_history_updated",
@@ -645,6 +759,7 @@ export const scanHistoryRepository = {
     happenedAt?: Date;
     salesChannel?: SalesChannel;
     quantity?: number | null;
+    properties?: Record<string, string> | null;
   }): Promise<ScanHistoryRecord> {
     const happenedAt = input.happenedAt ?? new Date();
     const salesChannel: SalesChannel = input.salesChannel ?? "unknown";
@@ -657,6 +772,7 @@ export const scanHistoryRepository = {
     const orderNumber = input.orderNumber ?? null;
     const orderGroupId = input.orderGroupId ?? null;
     const quantity = normalizeQuantity(input.quantity);
+    const propertiesForCreate = resolvePropertiesForCreate(input.properties);
     const itemHeight = normalizeDimension(input.itemHeight);
     const itemWidth = normalizeDimension(input.itemWidth);
     const itemDepth = normalizeDimension(input.itemDepth);
@@ -778,6 +894,9 @@ export const scanHistoryRepository = {
             ...(itemWidth !== null ? { itemWidth } : {}),
             ...(itemDepth !== null ? { itemDepth } : {}),
             ...(volume !== null ? { volume } : {}),
+            ...(propertiesForCreate !== undefined
+              ? { properties: propertiesForCreate }
+              : {}),
             latestLocation: null,
             isSold: true,
             lastSoldChannel: salesChannel,
@@ -857,6 +976,10 @@ export const scanHistoryRepository = {
       const resolvedItemType =
         resolveStringForUpdate(input.itemType, existing.itemType) ??
         input.itemType;
+      const propertiesForUpdate = resolvePropertiesForUpdate(
+        existing.properties,
+        input.properties,
+      );
 
       if (orderId) {
         const alreadyProcessedForOrder = await tx.scanHistoryEvent.findFirst({
@@ -909,6 +1032,9 @@ export const scanHistoryRepository = {
             itemImageUrl: input.itemImageUrl ?? existing.itemImageUrl ?? null,
             itemType: resolvedItemType,
             itemTitle: resolvedItemTitle,
+            ...(propertiesForUpdate !== undefined
+              ? { properties: propertiesForUpdate }
+              : {}),
             isSold: true,
             lastSoldChannel: salesChannel,
             orderId: orderId ?? existing.orderId ?? null,
@@ -945,6 +1071,9 @@ export const scanHistoryRepository = {
           itemImageUrl: input.itemImageUrl ?? existing.itemImageUrl ?? null,
           itemType: resolvedItemType,
           itemTitle: resolvedItemTitle,
+          ...(propertiesForUpdate !== undefined
+            ? { properties: propertiesForUpdate }
+            : {}),
           isSold: true,
           lastSoldChannel: salesChannel,
           orderId: orderId ?? existing.orderId ?? null,
@@ -968,9 +1097,7 @@ export const scanHistoryRepository = {
         arrivedEvent?.location ?? normalizedUnknownLocation;
       const totalTimeToSellSeconds = toDurationSeconds(arrivedTime, happenedAt);
       const statsDate = startOfUtcDay(happenedAt);
-      const soldItemCategory = normalizeCategory(
-        resolvedItemCategory,
-      );
+      const soldItemCategory = normalizeCategory(resolvedItemCategory);
 
       if (!latestLocationUnchanged) {
         await tx.scanHistoryEvent.create({
@@ -1093,7 +1220,11 @@ export const scanHistoryRepository = {
           },
           logisticLocation: true,
           logisticEvents: {
-            orderBy: [{ happenedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+            orderBy: [
+              { happenedAt: "desc" },
+              { createdAt: "desc" },
+              { id: "desc" },
+            ],
             include: {
               logisticLocation: true,
             },
@@ -1188,6 +1319,7 @@ export const scanHistoryRepository = {
     itemWidth?: number | null;
     itemDepth?: number | null;
     volume?: number | null;
+    properties?: Record<string, string> | null | undefined;
     emitBroadcast?: boolean;
   }): Promise<boolean> {
     const existing = await prisma.scanHistory.findUnique({
@@ -1209,6 +1341,7 @@ export const scanHistoryRepository = {
         itemWidth: true,
         itemDepth: true,
         volume: true,
+        properties: true,
       },
     });
 
@@ -1230,13 +1363,23 @@ export const scanHistoryRepository = {
       existing.itemImageUrl,
     );
     const nextItemType =
-      resolveStringForUpdate(input.itemType, existing.itemType) ?? input.itemType;
+      resolveStringForUpdate(input.itemType, existing.itemType) ??
+      input.itemType;
     const nextItemTitle =
-      resolveStringForUpdate(input.itemTitle, existing.itemTitle) ?? input.itemTitle;
+      resolveStringForUpdate(input.itemTitle, existing.itemTitle) ??
+      input.itemTitle;
     const nextItemHeight = normalizeDimension(input.itemHeight);
     const nextItemWidth = normalizeDimension(input.itemWidth);
     const nextItemDepth = normalizeDimension(input.itemDepth);
     const nextVolume = normalizeVolume(input.volume);
+    const nextProperties = resolvePropertiesForUpdate(
+      existing.properties,
+      input.properties,
+    );
+    const currentProperties = normalizeStoredProperties(existing.properties);
+    const propertyValuesChanged =
+      nextProperties !== undefined &&
+      !sameStringRecord(currentProperties, nextProperties);
 
     const hasChanges =
       !sameNullableString(existing.itemCategory, nextItemCategory) ||
@@ -1248,7 +1391,8 @@ export const scanHistoryRepository = {
       existing.itemHeight !== nextItemHeight ||
       existing.itemWidth !== nextItemWidth ||
       existing.itemDepth !== nextItemDepth ||
-      existing.volume !== nextVolume;
+      existing.volume !== nextVolume ||
+      propertyValuesChanged;
 
     if (!hasChanges) {
       return false;
@@ -1267,6 +1411,7 @@ export const scanHistoryRepository = {
         itemWidth: nextItemWidth,
         itemDepth: nextItemDepth,
         volume: nextVolume,
+        ...(nextProperties !== undefined ? { properties: nextProperties } : {}),
       },
     });
 
@@ -1354,10 +1499,7 @@ export const scanHistoryRepository = {
         OR: [
           { lastModifiedAt: { lt: cursorDate } },
           {
-            AND: [
-              { lastModifiedAt: cursorDate },
-              { id: { gt: cursorId } },
-            ],
+            AND: [{ lastModifiedAt: cursorDate }, { id: { gt: cursorId } }],
           },
         ],
       });
@@ -1377,7 +1519,11 @@ export const scanHistoryRepository = {
           priceHistory: { orderBy: { happenedAt: "desc" } },
           logisticLocation: true,
           logisticEvents: {
-            orderBy: [{ happenedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+            orderBy: [
+              { happenedAt: "desc" },
+              { createdAt: "desc" },
+              { id: "desc" },
+            ],
             include: { logisticLocation: true },
           },
         },
@@ -1413,7 +1559,10 @@ export const scanHistoryRepository = {
       itemSku: string | null;
       itemBarcode: string | null;
       itemImageUrl: string | null;
+      properties: Prisma.JsonValue | null;
+      itemCategory: string | null;
       itemTitle: string;
+      quantity: number;
       latestLocation: string | null;
       isSold: boolean;
       logisticsCompletedAt: Date | null;
@@ -1438,7 +1587,10 @@ export const scanHistoryRepository = {
         itemSku: true,
         itemBarcode: true,
         itemImageUrl: true,
+        properties: true,
+        itemCategory: true,
         itemTitle: true,
+        quantity: true,
         latestLocation: true,
         isSold: true,
         logisticsCompletedAt: true,
@@ -1463,7 +1615,10 @@ export const scanHistoryRepository = {
         itemSku: string | null;
         itemBarcode: string | null;
         itemImageUrl: string | null;
+        properties: Prisma.JsonValue | null;
+        itemCategory: string | null;
         itemTitle: string;
+        quantity: number;
         latestLocation: string | null;
         isSold: boolean;
         logisticsCompletedAt: Date | null;
@@ -1486,7 +1641,10 @@ export const scanHistoryRepository = {
         itemSku: true,
         itemBarcode: true,
         itemImageUrl: true,
+        properties: true,
+        itemCategory: true,
         itemTitle: true,
+        quantity: true,
         latestLocation: true,
         isSold: true,
         logisticsCompletedAt: true,

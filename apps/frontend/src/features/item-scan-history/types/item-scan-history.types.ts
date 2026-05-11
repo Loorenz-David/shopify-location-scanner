@@ -53,6 +53,7 @@ export interface ItemScanHistoryItem {
   itemWidth: number | null;
   itemDepth: number | null;
   volume: number | null;
+  properties: Record<string, string | number> | null;
   quantity: number;
   createdAt: string;
   isSold: boolean;

@@ -100,6 +100,7 @@ export const ShopifyOrdersPaidWebhookPayloadSchema = z.object({
   source_name: z.string().trim().nullable().optional(),
   app_id: z.number().int().nullable().optional(),
   note_attributes: z.array(ShopifyNoteAttributeSchema).optional(),
+  tags: z.array(z.string().trim().min(1)).optional(),
   line_items: z.array(ShopifyOrderLineItemSchema),
 });
 
@@ -113,6 +114,7 @@ export const ShopifyOrdersCreateWebhookPayloadSchema = z.object({
   source_name: z.string().trim().nullable().optional(),
   app_id: z.number().int().nullable().optional(),
   note_attributes: z.array(ShopifyNoteAttributeSchema).optional(),
+  tags: z.array(z.string().trim().min(1)).optional(),
   line_items: z.array(ShopifyOrderLineItemSchema),
 });
 
@@ -166,6 +168,7 @@ export type ShopifyProductLocationDto = {
   id: string;
   title: string;
   itemCategory: string | null;
+  quantity: number;
   barcode: string | null;
   price: string | null;
   itemHeight: number | null;
@@ -180,16 +183,21 @@ export type ShopifySkuSearchItemDto = {
   productId: string;
   title: string;
   imageUrl: string | null;
+  itemCategory: string | null;
   sku: string;
   barcode: string | null;
+  quantity: number;
 };
 
 export type UnifiedItemSearchResultDto = {
   productId: string;
   title: string;
   imageUrl: string | null;
+  itemCategory: string | null;
   sku: string;
   barcode: string | null;
+  quantity: number;
+  properties: Record<string, unknown> | null;
   // Logistic enrichment (null/empty when item has no ScanHistory record):
   id: string;
   isSold: boolean;

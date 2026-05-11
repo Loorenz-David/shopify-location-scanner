@@ -9,7 +9,10 @@ import { LogisticTasksPageContext } from "../context/logistic-tasks-page-context
 import type { LogisticTaskCardAction } from "../../role-context/types/role-context.types";
 import type { LogisticTaskItem } from "../types/logistic-tasks.types";
 import { ItemImagePreviewButton } from "../../item-scan-history/ui/ItemImagePreviewButton";
-import { ItemQuantityPill } from "../../item-scan-history/ui/ItemQuantityPill";
+import {
+  ItemQuantityPill,
+  resolveItemQuantityPillProps,
+} from "../../item-scan-history/ui/ItemQuantityPill";
 
 interface LogisticTasksCardProps {
   item: LogisticTaskItem;
@@ -23,6 +26,11 @@ export function LogisticTasksCard({
   const ctx = useContext(LogisticTasksPageContext);
   const latestLocationLabel =
     item.logisticLocation ?? item.location ?? "No scans yet";
+  const quantityPillProps = resolveItemQuantityPillProps({
+    quantity: item.quantity,
+    itemCategory: item.itemCategory,
+    properties: item.properties,
+  });
 
   const handleAction = () => {
     if (cardAction === "markItemIntention" || !item.intention) {
@@ -49,8 +57,7 @@ export function LogisticTasksCard({
           placeholderLabel="No image"
           overlay={
             <ItemQuantityPill
-              quantity={item.quantity}
-              itemCategory={item.itemCategory}
+              {...quantityPillProps}
               className="absolute bottom-1 right-1 border-slate-950/20 bg-slate-950/80 px-2 py-1 text-white shadow-sm backdrop-blur"
             />
           }

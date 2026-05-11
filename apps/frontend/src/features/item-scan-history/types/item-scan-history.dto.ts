@@ -46,6 +46,7 @@ export interface ItemScanHistoryEntryDto {
   itemWidth: number | null;
   itemDepth: number | null;
   volume: number | null;
+  properties?: Record<string, string | number> | null;
   quantity: number;
   lastModifiedAt: string;
   latestLocation?: string | null;

@@ -8,6 +8,14 @@ import type {
   LogisticZoneType,
 } from "../domain/logistic.domain.js";
 
+const toPropertiesObject = (value: unknown): Record<string, unknown> | null => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+
+  return value as Record<string, unknown>;
+};
+
 const DEFAULT_PAGE_SIZE = 20;
 
 export const getLogisticItemsQuery = async (input: {
@@ -125,6 +133,7 @@ export const getLogisticItemsQuery = async (input: {
       itemSku: record.itemSku ?? null,
       itemBarcode: record.itemBarcode ?? null,
       itemImageUrl: record.itemImageUrl ?? null,
+      properties: toPropertiesObject(record.properties),
       itemCategory: record.itemCategory ?? null,
       itemType: record.itemType,
       itemTitle: record.itemTitle,

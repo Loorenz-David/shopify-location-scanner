@@ -114,6 +114,7 @@ export function normalizeItemScanHistoryItem(
     itemWidth: item.itemWidth,
     itemDepth: item.itemDepth,
     volume: item.volume,
+    properties: item.properties ?? null,
     quantity: item.quantity ?? 1,
     createdAt: item.createdAt,
     isSold,

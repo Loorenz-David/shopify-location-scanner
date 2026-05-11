@@ -22,6 +22,7 @@ function mapToUnifiedScannerItem(
     imageUrls: result.imageUrl,
     quantity: result.quantity ?? 1,
     itemCategory: result.itemCategory,
+    properties: result.properties,
     title: result.title,
     currentPosition: result.currentPosition ?? undefined,
     lastSoldChannel: result.lastSoldChannel ?? null,

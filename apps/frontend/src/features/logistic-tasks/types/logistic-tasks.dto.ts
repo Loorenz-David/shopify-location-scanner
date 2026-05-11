@@ -14,6 +14,7 @@ export interface LogisticTaskItemDto {
   itemBarcode: string | null;
   itemImageUrl: string | null;
   itemCategory: string | null;
+  properties: Record<string, unknown> | null;
   itemType: string;
   itemTitle: string;
   quantity: number;

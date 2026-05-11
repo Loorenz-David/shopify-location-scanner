@@ -62,6 +62,7 @@ export type StatsItem = {
   itemCategory: string | null;
   itemSku: string | null;
   itemTitle: string;
+  properties: Record<string, unknown> | null;
   itemHeight: number | null;
   itemWidth: number | null;
   itemDepth: number | null;

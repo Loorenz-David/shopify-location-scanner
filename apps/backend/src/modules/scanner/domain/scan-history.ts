@@ -61,6 +61,7 @@ export type ScanHistoryRecord = {
   itemWidth: number | null;
   itemDepth: number | null;
   volume: number | null;
+  properties: Record<string, unknown> | null;
   quantity: number;
   latestLocation: string | null;
   isSold: boolean;

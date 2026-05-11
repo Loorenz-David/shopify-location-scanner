@@ -2,7 +2,7 @@ import type { ScanHistoryPage } from "../domain/scan-history.js";
 import type { ScanHistoryStringFilterColumn } from "../contracts/scan-history.contract.js";
 import { scanHistoryRepository } from "../repositories/scan-history.repository.js";
 
-const PAGE_SIZE = 50;
+const PAGE_SIZE = 25;
 
 export const getScanHistoryQuery = async (input: {
   shopId: string;

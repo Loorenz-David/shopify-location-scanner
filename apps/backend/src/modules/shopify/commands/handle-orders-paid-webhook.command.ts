@@ -159,6 +159,7 @@ export const handleOrdersPaidWebhookCommand = async (input: {
       itemWidth: productSnapshot?.itemWidth ?? null,
       itemDepth: productSnapshot?.itemDepth ?? null,
       volume: productSnapshot?.volume ?? null,
+      properties: productSnapshot?.properties ?? null,
       quantity: productSnapshot?.quantity ?? lineItem.quantity ?? null,
       soldPrice: lineItem.price,
       orderId,
@@ -178,6 +179,7 @@ export const handleOrdersPaidWebhookCommand = async (input: {
       shopId: input.shopId,
       orderId,
       markers,
+      ...(input.payload.tags ? { tags: input.payload.tags } : {}),
     });
   }
 

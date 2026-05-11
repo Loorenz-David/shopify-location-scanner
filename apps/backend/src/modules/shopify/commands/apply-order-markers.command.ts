@@ -1,7 +1,10 @@
 import { logger } from "../../../shared/logging/logger.js";
 import { markLogisticIntentionCommand } from "../../logistic/commands/mark-logistic-intention.command.js";
 import { scanHistoryRepository } from "../../scanner/repositories/scan-history.repository.js";
-import type { ParsedOrderMarkers } from "../domain/order-marker.js";
+import {
+  parseOrderTags,
+  type ParsedOrderMarkers,
+} from "../domain/order-marker.js";
 
 const MARKER_ACTOR = "system:shopify-marker";
 
@@ -9,10 +12,14 @@ export const applyOrderMarkersCommand = async (input: {
   shopId: string;
   orderId: string;
   markers: ParsedOrderMarkers;
+  tags?: string[];
 }): Promise<void> => {
   const { shopId, orderId, markers } = input;
+  const parsedTags = parseOrderTags(input.tags);
+  const resolvedIntention = parsedTags.intention ?? markers.intention;
+  const resolvedScheduledDate = parsedTags.scheduledDate;
 
-  if (!markers.intention && !markers.fixItem) {
+  if (!resolvedIntention && !markers.fixItem && !resolvedScheduledDate) {
     return;
   }
 
@@ -25,23 +32,24 @@ export const applyOrderMarkersCommand = async (input: {
     logger.warn("No eligible sold items found for order markers", {
       shopId,
       orderId,
-      intention: markers.intention,
+      intention: resolvedIntention,
       fixItem: markers.fixItem,
+      scheduledDate: resolvedScheduledDate,
     });
     return;
   }
 
-  if (markers.intention) {
+  if (resolvedIntention) {
     for (const scanHistoryId of scanHistoryIds) {
       await markLogisticIntentionCommand({
         shopId,
         username: MARKER_ACTOR,
         payload: {
           scanHistoryId,
-          intention: markers.intention,
+          intention: resolvedIntention,
           fixItem: markers.fixItem,
           fixNotes: undefined,
-          scheduledDate: undefined,
+          scheduledDate: resolvedScheduledDate ?? undefined,
         },
       });
     }
@@ -56,8 +64,11 @@ export const applyOrderMarkersCommand = async (input: {
   logger.info("Applied Shopify order markers", {
     shopId,
     orderId,
-    intention: markers.intention,
+    markerIntention: markers.intention,
+    tagIntention: parsedTags.intention,
+    resolvedIntention,
     fixItem: markers.fixItem,
+    scheduledDate: resolvedScheduledDate,
     itemCount: scanHistoryIds.length,
   });
 };

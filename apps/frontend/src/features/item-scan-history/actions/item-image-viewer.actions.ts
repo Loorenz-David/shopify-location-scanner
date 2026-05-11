@@ -1,6 +1,6 @@
 import { useItemImageViewerStore } from "../stores/item-image-viewer.store";
 import { normalizeImageUrls, parseImageUrls } from "../domain/item-image-viewer.domain";
-import { prefetchFullscreenImages } from "../domain/item-image-prefetch.domain";
+import { prefetchFullscreenImage } from "../domain/item-image-prefetch.domain";
 import type { ItemScanHistoryItem } from "../types/item-scan-history.types";
 
 interface OpenItemImageViewerInput {
@@ -28,7 +28,7 @@ export const itemImageViewerActions = {
     }
 
     const safeIndex = Math.max(0, Math.min(startIndex, images.length - 1));
-    prefetchFullscreenImages(images, { priority: true });
+    void prefetchFullscreenImage(images[safeIndex], { priority: true });
     useItemImageViewerStore
       .getState()
       .openImageViewer(images, safeIndex, title ?? undefined);
@@ -41,7 +41,11 @@ export const itemImageViewerActions = {
       typeof input === "object" && input !== null && !Array.isArray(input)
         ? parseImageUrls(input.imageUrl)
         : normalizeImageUrls(input);
-    prefetchFullscreenImages(images, { priority: true });
+    const [firstImage] = images;
+
+    if (firstImage) {
+      void prefetchFullscreenImage(firstImage, { priority: true });
+    }
   },
 
   closeImageViewer: (): void => {

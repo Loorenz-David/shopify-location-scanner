@@ -6,7 +6,10 @@ import {
 import { itemScanHistoryActions } from "../actions/item-scan-history.actions";
 import type { ItemScanHistoryItem } from "../types/item-scan-history.types";
 import { ItemImagePreviewButton } from "./ItemImagePreviewButton";
-import { ItemQuantityPill } from "./ItemQuantityPill";
+import {
+  ItemQuantityPill,
+  resolveItemQuantityPillProps,
+} from "./ItemQuantityPill";
 import { ItemScanHistoryTimeline } from "./ItemScanHistoryTimeline";
 
 interface ItemScanHistoryCardProps {
@@ -23,6 +26,11 @@ export function ItemScanHistoryCard({
   const soldChannelBadge = item.lastSoldChannel
     ? CHANNEL_BADGE[item.lastSoldChannel]
     : null;
+  const quantityPillProps = resolveItemQuantityPillProps({
+    quantity: item.quantity,
+    itemCategory: item.categoryLabel,
+    properties: item.properties,
+  });
 
   return (
     <article className="relative overflow-hidden rounded-[28px] border border-slate-900/10 bg-white/85 shadow-[0_18px_45px_rgba(15,23,42,0.1)] backdrop-blur-md">
@@ -39,8 +47,7 @@ export function ItemScanHistoryCard({
           placeholderLabel="No image"
           overlay={
             <ItemQuantityPill
-              quantity={item.quantity}
-              itemCategory={item.categoryLabel}
+              {...quantityPillProps}
               className="absolute bottom-1 right-1 border-slate-950/20 bg-slate-950/80 px-2 py-1 text-white shadow-sm backdrop-blur"
             />
           }
