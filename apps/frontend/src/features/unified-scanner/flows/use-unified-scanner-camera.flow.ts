@@ -126,6 +126,31 @@ function captureCurrentFrame(): ScannerFrozenFrame | null {
   };
 }
 
+function isUnifiedCameraPreviewHealthy(): boolean {
+  const scannerRoot = document.getElementById(unifiedScannerRegionId);
+  const video = scannerRoot?.querySelector("video");
+
+  if (!(video instanceof HTMLVideoElement)) {
+    return false;
+  }
+
+  const stream = video.srcObject;
+  if (!(stream instanceof MediaStream)) {
+    return false;
+  }
+
+  const hasLiveTrack = stream
+    .getVideoTracks()
+    .some((track) => track.readyState === "live");
+
+  return (
+    hasLiveTrack &&
+    video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+    video.videoWidth > 0 &&
+    video.videoHeight > 0
+  );
+}
+
 function triggerScanHapticFeedback(): void {
   if (typeof navigator === "undefined" || !navigator.vibrate) {
     return;
@@ -156,6 +181,9 @@ export function useUnifiedScannerCameraFlow(): UnifiedScannerCameraFlowResult {
   const selectedLensId = useUnifiedScannerStore(
     (state) => state.selectedLensId,
   );
+  const lensSelectionRevision = useUnifiedScannerStore(
+    (state) => state.lensSelectionRevision,
+  );
 
   const [isCameraReady, setIsCameraReady] = useState(false);
   const [cameraError, setCameraError] = useState<string | null>(null);
@@ -180,18 +208,14 @@ export function useUnifiedScannerCameraFlow(): UnifiedScannerCameraFlowResult {
   }, [phase]);
 
   useEffect(() => {
-    const handleVisibilityChange = () => {
+    const handleVisibilityChange = async () => {
       if (document.visibilityState !== "visible") return;
 
-      const scannerRoot = document.getElementById(unifiedScannerRegionId);
-      const video = scannerRoot?.querySelector("video");
-      const stream =
-        video?.srcObject instanceof MediaStream ? video.srcObject : null;
-      const isAlive =
-        stream !== null &&
-        stream.getVideoTracks().some((t) => t.readyState === "live");
+      await new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => resolve());
+      });
 
-      if (!isAlive) {
+      if (!isUnifiedCameraPreviewHealthy()) {
         setCameraRestartKey((k) => k + 1);
       }
     };
@@ -202,7 +226,7 @@ export function useUnifiedScannerCameraFlow(): UnifiedScannerCameraFlowResult {
     };
   }, []);
 
-  const initLensesFromDevices = useCallback(async () => {
+  const initLensesFromDevices = useCallback(async (activeDeviceId?: string | null) => {
     try {
       const cameras = (await navigator.mediaDevices.enumerateDevices())
         .filter((device) => device.kind === "videoinput")
@@ -214,19 +238,34 @@ export function useUnifiedScannerCameraFlow(): UnifiedScannerCameraFlowResult {
       const availableLenses = mapCameraDevicesToLenses(cameras);
       unifiedScannerActions.setAvailableLenses(availableLenses);
 
+      if (
+        activeDeviceId &&
+        availableLenses.some((lens) => lens.id === activeDeviceId)
+      ) {
+        const currentSelectedLensId =
+          useUnifiedScannerStore.getState().selectedLensId;
+        if (currentSelectedLensId !== activeDeviceId) {
+          unifiedScannerActions.syncActiveLens(activeDeviceId);
+        }
+        return;
+      }
+
       const preferredLensId = resolvePreferredLensId(
         cameras,
-        selectedLensId,
+        useUnifiedScannerStore.getState().selectedLensId,
         getRememberedLensId(),
       );
 
-      if (preferredLensId && preferredLensId !== selectedLensId) {
-        unifiedScannerActions.selectLens(preferredLensId);
+      if (
+        preferredLensId &&
+        preferredLensId !== useUnifiedScannerStore.getState().selectedLensId
+      ) {
+        unifiedScannerActions.syncActiveLens(preferredLensId);
       }
     } catch {
       unifiedScannerActions.setAvailableLenses([]);
     }
-  }, [selectedLensId]);
+  }, []);
 
   useEffect(() => {
     if (!selectedItem) {
@@ -421,15 +460,18 @@ export function useUnifiedScannerCameraFlow(): UnifiedScannerCameraFlowResult {
           applyLocationByValueController(normalizedValue);
         }
       },
-      (ready, error) => {
+      (ready, error, activeDeviceId) => {
         setIsCameraReady(ready);
         setCameraError(error ?? null);
 
         if (ready) {
-          void initLensesFromDevices();
+          void initLensesFromDevices(activeDeviceId);
         }
       },
-      selectedLensId ?? undefined,
+      (useUnifiedScannerStore.getState().selectedLensId ??
+        getRememberedLensId() ??
+        undefined),
+      { forceDeviceId: lensSelectionRevision > 0 },
     );
 
     return () => {
@@ -443,7 +485,7 @@ export function useUnifiedScannerCameraFlow(): UnifiedScannerCameraFlowResult {
         itemToLocationTimerRef.current = null;
       }
     };
-  }, [initLensesFromDevices, selectedLensId, cameraRestartKey]);
+  }, [initLensesFromDevices, lensSelectionRevision, cameraRestartKey]);
 
   return {
     isCameraReady,

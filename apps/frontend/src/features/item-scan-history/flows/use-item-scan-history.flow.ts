@@ -8,6 +8,7 @@ import {
 
 import { useWsEvent } from "../../../core/ws-client/use-ws-event";
 import type { WsInboundEvent } from "../../../core/ws-client/ws-events";
+import { getRememberedLensId } from "../../unified-scanner/domain/scanner-camera-lens.domain";
 import { useCameraPrewarm } from "../../unified-scanner/flows/use-camera-prewarm";
 import { itemScanHistoryActions } from "../actions/item-scan-history.actions";
 import {
@@ -61,12 +62,15 @@ export function useItemScanHistoryRealtimeFlow(): void {
 export function useItemScanHistoryFlow(): void {
   const currentPageId = useHomeShellStore(selectHomeShellCurrentPageId);
   const isFullFeatureOpen = useHomeShellStore(selectHomeShellIsFullFeatureOpen);
+  const preferredScannerLensId = getRememberedLensId() ?? undefined;
 
   // Prewarm the unified scanner camera so it's ready when the user taps scan.
   useCameraPrewarm(
     "unified-scanner",
     0,
     currentPageId === "item-scan-history" && !isFullFeatureOpen,
+    preferredScannerLensId,
+    { attachPreview: true },
   );
 
   const hasLoaded = useItemScanHistoryStore((state) => state.hasLoaded);

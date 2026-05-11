@@ -33,6 +33,7 @@ interface UnifiedScannerStore extends Record<string, unknown> {
   flashEnabled: boolean;
   availableLenses: ScannerLens[];
   selectedLensId: string | null;
+  lensSelectionRevision: number;
   onScanAsk: boolean;
   setPhase: (phase: UnifiedScannerPhase) => void;
   setSelectedItem: (item: UnifiedScannerItem | null) => void;
@@ -52,6 +53,7 @@ interface UnifiedScannerStore extends Record<string, unknown> {
   setFlashEnabled: (value: boolean) => void;
   setAvailableLenses: (value: ScannerLens[]) => void;
   setSelectedLensId: (value: string | null) => void;
+  bumpLensSelectionRevision: () => void;
   setOnScanAsk: (value: boolean) => void;
   setPrefilledItem: (item: UnifiedScannerItem | null) => void;
   advanceWarning: () => void;
@@ -84,6 +86,7 @@ export const useUnifiedScannerStore = create<UnifiedScannerStore>((set) => ({
   flashEnabled: false,
   availableLenses: [],
   selectedLensId: null,
+  lensSelectionRevision: 0,
   onScanAsk: initialScannerSettings.onScanAsk,
   setPhase: (phase) => set({ phase }),
   setSelectedItem: (selectedItem) => set({ selectedItem }),
@@ -105,6 +108,8 @@ export const useUnifiedScannerStore = create<UnifiedScannerStore>((set) => ({
   setFlashEnabled: (flashEnabled) => set({ flashEnabled }),
   setAvailableLenses: (availableLenses) => set({ availableLenses }),
   setSelectedLensId: (selectedLensId) => set({ selectedLensId }),
+  bumpLensSelectionRevision: () =>
+    set((state) => ({ lensSelectionRevision: state.lensSelectionRevision + 1 })),
   setPrefilledItem: (prefilledItem) => set({ prefilledItem }),
   setOnScanAsk: (onScanAsk) => {
     saveScannerOnScanAskSetting(onScanAsk);

@@ -1,4 +1,4 @@
-import { RetryIcon } from "../../../assets/icons";
+import { QRcodeIcon, RetryIcon } from "../../../assets/icons";
 import { ItemImagePreviewButton } from "../../item-scan-history/ui/ItemImagePreviewButton";
 import {
   ItemQuantityPill,
@@ -21,6 +21,8 @@ export function UnifiedLocationScanPage({
     locationFrozenFrame,
     locationDecodedText,
     locationMode,
+    selectedLocation,
+    phase,
     selectedItem,
     itemDecodedText,
     isLookingUpItem,
@@ -45,6 +47,13 @@ export function UnifiedLocationScanPage({
         itemCategory: selectedItem.itemCategory,
         properties: selectedItem.properties,
       })
+    : null;
+  const canChangeLocation = Boolean(selectedLocation);
+  const isPlacementPending = phase === "placing";
+  const selectedLocationLabel = selectedLocation
+    ? selectedLocation.mode === "shop"
+      ? selectedLocation.label
+      : selectedLocation.location
     : null;
 
   return (
@@ -102,36 +111,62 @@ export function UnifiedLocationScanPage({
                   </p>
                 </div>
                 <p className="m-0 truncate text-xs text-slate-300">
-                  {selectedItem?.currentPosition ??
+                  {selectedLocationLabel ??
+                    selectedItem?.currentPosition ??
                     (isLookingUpItem ? "Searching..." : "")}
                 </p>
               </div>
 
-              <button
-                type="button"
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-slate-800 text-slate-100 ring-1 ring-white/15 transition active:bg-slate-700"
-                onClick={onClearItemScan}
-                aria-label="Scan a different item"
-                title="Scan a different item"
-              >
-                <RetryIcon className="h-4 w-4" aria-hidden="true" />
-              </button>
+              <div className="flex shrink-0 items-center gap-1.5">
+                {canChangeLocation ? (
+                  <button
+                    type="button"
+                    className="flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-xl bg-slate-800 text-slate-100 ring-1 ring-white/15 transition active:bg-slate-700"
+                    onClick={onClearLocationScan}
+                    aria-label="Scan a different location"
+                    title="Scan a different location"
+                  >
+                    <QRcodeIcon className="h-4 w-4" aria-hidden="true" />
+                    <span className="text-[10px] font-semibold leading-none">
+                      Location
+                    </span>
+                  </button>
+                ) : null}
+
+                <button
+                  type="button"
+                  className="flex h-12 w-12 flex-col items-center justify-center gap-0.5 rounded-xl bg-slate-800 text-slate-100 ring-1 ring-white/15 transition active:bg-slate-700"
+                  onClick={onClearItemScan}
+                  aria-label="Scan a different item"
+                  title="Scan a different item"
+                >
+                  <RetryIcon className="h-4 w-4" aria-hidden="true" />
+                  <span className="text-[10px] font-semibold leading-none">
+                    Item
+                  </span>
+                </button>
+              </div>
             </div>
 
-            {locationMode === "shop" && canScanNext ? (
+            {locationMode === "shop" && selectedLocation ? (
               <button
                 type="button"
-                className="w-full rounded-lg bg-sky-500/90 px-3 py-3 text-md font-bold text-sky-50"
+                className={`w-full rounded-lg px-3 py-3 text-md font-bold ${
+                  canScanNext
+                    ? "bg-sky-500/90 text-sky-50"
+                    : "bg-slate-800 text-slate-300"
+                }`}
                 onClick={onScanNext}
+                disabled={!canScanNext}
               >
-                Next scan
+                {isPlacementPending ? "Saving..." : "Next scan"}
               </button>
             ) : null}
           </div>
         </div>
       ) : null}
 
-      {locationDecodedText && !canScanNext ? (
+      {locationDecodedText && !canScanNext && !selectedLocation ? (
         <DecodedTextPanel
           value={locationDecodedText}
           onClear={onClearLocationScan}

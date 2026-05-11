@@ -130,6 +130,11 @@ export const unifiedScannerActions = {
   },
   selectLens(lensId: string): void {
     rememberLensId(lensId);
+    const store = useUnifiedScannerStore.getState();
+    store.setSelectedLensId(lensId);
+    store.bumpLensSelectionRevision();
+  },
+  syncActiveLens(lensId: string): void {
     useUnifiedScannerStore.getState().setSelectedLensId(lensId);
   },
   setOnScanAsk(enabled: boolean): void {

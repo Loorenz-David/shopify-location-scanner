@@ -1319,6 +1319,7 @@ export const scanHistoryRepository = {
     itemWidth?: number | null;
     itemDepth?: number | null;
     volume?: number | null;
+    quantity?: number | null;
     properties?: Record<string, string> | null | undefined;
     emitBroadcast?: boolean;
   }): Promise<boolean> {
@@ -1341,6 +1342,7 @@ export const scanHistoryRepository = {
         itemWidth: true,
         itemDepth: true,
         volume: true,
+        quantity: true,
         properties: true,
       },
     });
@@ -1372,6 +1374,7 @@ export const scanHistoryRepository = {
     const nextItemWidth = normalizeDimension(input.itemWidth);
     const nextItemDepth = normalizeDimension(input.itemDepth);
     const nextVolume = normalizeVolume(input.volume);
+    const nextQuantity = normalizeQuantity(input.quantity);
     const nextProperties = resolvePropertiesForUpdate(
       existing.properties,
       input.properties,
@@ -1392,6 +1395,7 @@ export const scanHistoryRepository = {
       existing.itemWidth !== nextItemWidth ||
       existing.itemDepth !== nextItemDepth ||
       existing.volume !== nextVolume ||
+      existing.quantity !== nextQuantity ||
       propertyValuesChanged;
 
     if (!hasChanges) {
@@ -1411,6 +1415,7 @@ export const scanHistoryRepository = {
         itemWidth: nextItemWidth,
         itemDepth: nextItemDepth,
         volume: nextVolume,
+        quantity: nextQuantity,
         ...(nextProperties !== undefined ? { properties: nextProperties } : {}),
       },
     });
@@ -1423,6 +1428,205 @@ export const scanHistoryRepository = {
     }
 
     return true;
+  },
+
+  async syncSoldQuantityIfHistoryExists(input: {
+    shopId: string;
+    productId: string;
+    quantity?: number | null;
+    emitBroadcast?: boolean;
+  }): Promise<boolean> {
+    const nextQuantity = normalizeQuantity(input.quantity);
+
+    const changed = await prisma.$transaction(async (tx) => {
+      const txWithSalesChannelStats = tx as typeof tx & {
+        salesChannelStatsDaily: typeof prisma.salesChannelStatsDaily;
+      };
+
+      const existing = await tx.scanHistory.findUnique({
+        where: {
+          shopId_productId: {
+            shopId: input.shopId,
+            productId: input.productId,
+          },
+        },
+        select: {
+          id: true,
+          isSold: true,
+          quantity: true,
+          itemCategory: true,
+          lastSoldChannel: true,
+          lastModifiedAt: true,
+        },
+      });
+
+      if (!existing || !existing.isSold) {
+        return false;
+      }
+
+      if (existing.quantity === nextQuantity) {
+        return false;
+      }
+
+      const quantityDelta = nextQuantity - existing.quantity;
+
+      const soldEvent = await tx.scanHistoryEvent.findFirst({
+        where: {
+          scanHistoryId: existing.id,
+          eventType: "sold_terminal",
+        },
+        orderBy: {
+          happenedAt: "desc",
+        },
+        select: {
+          happenedAt: true,
+          salesChannel: true,
+        },
+      });
+
+      const soldAt = soldEvent?.happenedAt ?? existing.lastModifiedAt;
+      const statsDate = startOfUtcDay(soldAt);
+      const salesChannel: SalesChannel =
+        (soldEvent?.salesChannel as SalesChannel | null) ??
+        ((existing.lastSoldChannel as SalesChannel | null) ?? "unknown");
+
+      const arrivedEvent = await tx.scanHistoryEvent.findFirst({
+        where: {
+          scanHistoryId: existing.id,
+          eventType: "location_update",
+        },
+        orderBy: {
+          happenedAt: "desc",
+        },
+        select: {
+          location: true,
+          happenedAt: true,
+        },
+      });
+
+      const arrivedLocation = arrivedEvent?.location ?? "UNKNOWN_POSITION";
+      const arrivedAt = arrivedEvent?.happenedAt ?? soldAt;
+      const timeToSellSeconds = toDurationSeconds(arrivedAt, soldAt);
+
+      const soldPriceRow = await tx.scanHistoryPrice.findFirst({
+        where: {
+          scanHistoryId: existing.id,
+          terminalType: "sold_terminal",
+        },
+        orderBy: {
+          happenedAt: "desc",
+        },
+        select: {
+          price: true,
+        },
+      });
+
+      const unitPrice = parsePriceValue(soldPriceRow?.price ?? null);
+      const valuationDelta = unitPrice * quantityDelta;
+      const soldItemCategory = normalizeCategory(existing.itemCategory);
+
+      if (salesChannel === "physical") {
+        await tx.locationStatsDaily.upsert({
+          where: {
+            date_location: {
+              date: statsDate,
+              location: arrivedLocation,
+            },
+          },
+          create: {
+            date: statsDate,
+            location: arrivedLocation,
+            itemsSold: quantityDelta,
+            itemsReceived: 0,
+            totalTimeToSellSeconds: quantityDelta * timeToSellSeconds,
+            totalValuation: valuationDelta,
+          },
+          update: {
+            itemsSold: {
+              increment: quantityDelta,
+            },
+            totalTimeToSellSeconds: {
+              increment: quantityDelta * timeToSellSeconds,
+            },
+            totalValuation: {
+              increment: valuationDelta,
+            },
+          },
+        });
+
+        await tx.locationCategoryStatsDaily.upsert({
+          where: {
+            date_location_itemCategory: {
+              date: statsDate,
+              location: arrivedLocation,
+              itemCategory: soldItemCategory,
+            },
+          },
+          create: {
+            date: statsDate,
+            location: arrivedLocation,
+            itemCategory: soldItemCategory,
+            itemsSold: quantityDelta,
+            totalRevenue: valuationDelta,
+            totalTimeToSellSeconds: quantityDelta * timeToSellSeconds,
+          },
+          update: {
+            itemsSold: {
+              increment: quantityDelta,
+            },
+            totalRevenue: {
+              increment: valuationDelta,
+            },
+            totalTimeToSellSeconds: {
+              increment: quantityDelta * timeToSellSeconds,
+            },
+          },
+        });
+      }
+
+      await txWithSalesChannelStats.salesChannelStatsDaily.upsert({
+        where: {
+          date_shopId_salesChannel: {
+            date: statsDate,
+            shopId: input.shopId,
+            salesChannel,
+          },
+        },
+        create: {
+          date: statsDate,
+          shopId: input.shopId,
+          salesChannel,
+          itemsSold: quantityDelta,
+          totalRevenue: valuationDelta,
+        },
+        update: {
+          itemsSold: {
+            increment: quantityDelta,
+          },
+          totalRevenue: {
+            increment: valuationDelta,
+          },
+        },
+      });
+
+      await tx.scanHistory.update({
+        where: { id: existing.id },
+        data: {
+          quantity: nextQuantity,
+        },
+      });
+
+      return true;
+    });
+
+    if (changed && input.emitBroadcast !== false) {
+      broadcastToShop(input.shopId, {
+        type: "scan_history_updated",
+        productId: input.productId,
+      });
+    }
+
+    return changed;
   },
 
   async listByShopPaginated(input: {

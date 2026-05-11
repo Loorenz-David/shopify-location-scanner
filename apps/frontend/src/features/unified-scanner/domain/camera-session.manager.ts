@@ -9,6 +9,10 @@ export const CAMERA_IDLE_RELEASE_MS = 90_000;
 const SCAN_LOOP_DELAY_MS = 90;
 const SCAN_SUCCESS_BACKOFF_MS = 650;
 const MAX_DECODE_CANVAS_EDGE_PX = 960;
+const VIDEO_READY_TIMEOUT_MS = 2200;
+const VIDEO_REATTACH_READY_TIMEOUT_MS = 1400;
+const VIDEO_REOPEN_READY_TIMEOUT_MS = 2600;
+const PREWARM_PREVIEW_READY_TIMEOUT_MS = 1400;
 
 export type CameraSessionId = "logistic-placement" | "unified-scanner";
 
@@ -23,6 +27,10 @@ interface CameraSession {
   id: CameraSessionId;
   phase: SessionPhase;
   stream: MediaStream | null;
+  hasRenderableVideo: boolean;
+  videoElement: HTMLVideoElement | null;
+  prewarmDeviceId: string | undefined;
+  prewarmPreviewEnabled: boolean;
   decodeControls: { stop: () => void } | null;
   prewarmCount: number;
   idleTimerId: number | null;
@@ -43,6 +51,10 @@ function makeSession(id: CameraSessionId): CameraSession {
     id,
     phase: "idle",
     stream: null,
+    hasRenderableVideo: false,
+    videoElement: null,
+    prewarmDeviceId: undefined,
+    prewarmPreviewEnabled: false,
     decodeControls: null,
     prewarmCount: 0,
     idleTimerId: null,
@@ -57,6 +69,37 @@ const sessions: Record<CameraSessionId, CameraSession> = {
 
 function getContainerElement(id: CameraSessionId): HTMLElement | null {
   return document.getElementById(CAMERA_REGION_IDS[id]);
+}
+
+function getPrewarmHostId(id: CameraSessionId): string {
+  return `${CAMERA_REGION_IDS[id]}-prewarm-host`;
+}
+
+function getOrCreatePrewarmHostElement(id: CameraSessionId): HTMLElement {
+  const hostId = getPrewarmHostId(id);
+  let host = document.getElementById(hostId);
+  if (!host) {
+    host = document.createElement("div");
+    host.id = hostId;
+    document.body.appendChild(host);
+  }
+
+  host.style.setProperty("position", "fixed", "important");
+  host.style.setProperty("left", "0", "important");
+  host.style.setProperty("top", "0", "important");
+  host.style.setProperty("width", "2px", "important");
+  host.style.setProperty("height", "2px", "important");
+  host.style.setProperty("overflow", "hidden", "important");
+  host.style.setProperty("opacity", "0.01", "important");
+  host.style.setProperty("pointer-events", "none", "important");
+  host.style.setProperty("z-index", "-1", "important");
+  host.style.setProperty("transform", "translateZ(0)", "important");
+
+  return host;
+}
+
+function removePrewarmHostElement(id: CameraSessionId): void {
+  document.getElementById(getPrewarmHostId(id))?.remove();
 }
 
 function waitForNextFrame(): Promise<void> {
@@ -99,19 +142,47 @@ async function waitForContainerToSettle(
   }
 }
 
-function ensureVideoElement(container: HTMLElement): HTMLVideoElement {
-  let video = container.querySelector("video");
+function ensureSessionVideoElement(
+  session: CameraSession,
+  container: HTMLElement,
+): HTMLVideoElement {
+  let video =
+    session.videoElement instanceof HTMLVideoElement
+      ? session.videoElement
+      : container.querySelector("video");
+
   if (!(video instanceof HTMLVideoElement)) {
     video = document.createElement("video");
-    video.setAttribute("playsinline", "true");
-    video.setAttribute("webkit-playsinline", "true");
-    video.playsInline = true;
-    video.muted = true;
-    video.defaultMuted = true;
-    video.autoplay = true;
+  }
+
+  if (video.parentElement !== container) {
     container.appendChild(video);
   }
 
+  session.videoElement = video;
+  applyMobileVideoAttributes(video);
+  applyCameraVideoStyles(video);
+
+  return video;
+}
+
+function ensurePrewarmVideoElement(session: CameraSession): HTMLVideoElement {
+  return ensureSessionVideoElement(
+    session,
+    getOrCreatePrewarmHostElement(session.id),
+  );
+}
+
+function applyMobileVideoAttributes(video: HTMLVideoElement): void {
+  video.setAttribute("playsinline", "true");
+  video.setAttribute("webkit-playsinline", "true");
+  video.playsInline = true;
+  video.muted = true;
+  video.defaultMuted = true;
+  video.autoplay = true;
+}
+
+function applyCameraVideoStyles(video: HTMLVideoElement): void {
   video.style.setProperty("width", "100%", "important");
   video.style.setProperty("height", "100%", "important");
   video.style.setProperty("object-fit", "cover", "important");
@@ -121,8 +192,6 @@ function ensureVideoElement(container: HTMLElement): HTMLVideoElement {
   video.style.setProperty("background", "#020617", "important");
   video.style.setProperty("transform", "translateZ(0)", "important");
   video.style.setProperty("will-change", "transform", "important");
-
-  return video;
 }
 
 // Shared resolution constraints: 720p is the sweet-spot for QR decoding speed.
@@ -294,29 +363,6 @@ function drawSourceRectToCanvas(
   );
 }
 
-function waitForVideoReady(video: HTMLVideoElement): Promise<void> {
-  return new Promise<void>((resolve) => {
-    if (video.readyState >= 2) {
-      resolve();
-      return;
-    }
-
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      video.removeEventListener("canplay", finish);
-      video.removeEventListener("loadeddata", finish);
-      resolve();
-    };
-
-    video.addEventListener("canplay", finish);
-    video.addEventListener("loadeddata", finish);
-    // Safety valve — if events never fire (e.g. some iOS edge cases).
-    setTimeout(finish, 3000);
-  });
-}
-
 function getStreamDeviceId(stream: MediaStream): string | null {
   const tracks = stream.getVideoTracks();
   if (tracks.length === 0) return null;
@@ -328,18 +374,159 @@ function isStreamAlive(stream: MediaStream): boolean {
   return tracks.length > 0 && tracks.every((t) => t.readyState === "live");
 }
 
-function stopStream(session: CameraSession): void {
+function isVideoRenderable(
+  video: HTMLVideoElement,
+  stream: MediaStream,
+): boolean {
+  return (
+    isStreamAlive(stream) &&
+    video.srcObject === stream &&
+    video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+    video.videoWidth > 0 &&
+    video.videoHeight > 0
+  );
+}
+
+function detachVideoStream(video: HTMLVideoElement): void {
+  try {
+    video.pause();
+  } catch {
+    // Some mobile browsers can throw during teardown races.
+  }
+
+  video.srcObject = null;
+
+  try {
+    video.load();
+  } catch {
+    // load() is best-effort when srcObject was a MediaStream.
+  }
+}
+
+async function waitForPaintedVideoFrame(
+  video: HTMLVideoElement,
+  isCancelled: () => boolean,
+  timeoutMs: number,
+): Promise<boolean> {
+  if (typeof video.requestVideoFrameCallback === "function") {
+    return new Promise<boolean>((resolve) => {
+      let settled = false;
+      let callbackId: number | null = null;
+      const timeoutId = window.setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        resolve(false);
+      }, timeoutMs);
+
+      callbackId = video.requestVideoFrameCallback(() => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timeoutId);
+        resolve(!isCancelled());
+      });
+
+      if (isCancelled()) {
+        settled = true;
+        window.clearTimeout(timeoutId);
+        if (
+          callbackId !== null &&
+          typeof video.cancelVideoFrameCallback === "function"
+        ) {
+          video.cancelVideoFrameCallback(callbackId);
+        }
+        resolve(false);
+      }
+    });
+  }
+
+  await waitForNextFrame();
+  await waitForNextFrame();
+  return !isCancelled();
+}
+
+async function waitForRenderableVideo(
+  video: HTMLVideoElement,
+  stream: MediaStream,
+  isCancelled: () => boolean,
+  timeoutMs: number,
+): Promise<boolean> {
+  const startedAt = performance.now();
+
+  while (!isCancelled()) {
+    if (isVideoRenderable(video, stream)) {
+      const remainingMs = Math.max(250, timeoutMs - (performance.now() - startedAt));
+      const gotPaintedFrame = await waitForPaintedVideoFrame(
+        video,
+        isCancelled,
+        Math.min(remainingMs, 900),
+      );
+
+      if (gotPaintedFrame && isVideoRenderable(video, stream)) {
+        return true;
+      }
+    }
+
+    if (performance.now() - startedAt >= timeoutMs) {
+      return false;
+    }
+
+    await waitForNextFrame();
+  }
+
+  return false;
+}
+
+async function prepareVideoForStream(
+  video: HTMLVideoElement,
+  stream: MediaStream,
+  isCancelled: () => boolean,
+  timeoutMs: number,
+): Promise<boolean> {
+  applyMobileVideoAttributes(video);
+  applyCameraVideoStyles(video);
+
+  if (video.srcObject !== stream) {
+    detachVideoStream(video);
+    await waitForNextFrame();
+    if (isCancelled()) return false;
+    video.srcObject = stream;
+  }
+
+  try {
+    await video.play();
+  } catch {
+    // Render readiness below is the authoritative success/failure signal.
+  }
+
+  if (isCancelled()) {
+    return false;
+  }
+
+  return waitForRenderableVideo(video, stream, isCancelled, timeoutMs);
+}
+
+function stopStream(
+  session: CameraSession,
+  options: { removeVideo?: boolean } = {},
+): void {
+  const removeVideo = options.removeVideo ?? true;
   const stream = session.stream;
   if (stream) {
     stream.getTracks().forEach((track) => track.stop());
     session.stream = null;
+    session.hasRenderableVideo = false;
   }
 
   const container = getContainerElement(session.id);
-  const video = container?.querySelector("video");
+  const video = session.videoElement ?? container?.querySelector("video");
   if (video instanceof HTMLVideoElement && video.srcObject === stream) {
-    video.srcObject = null;
-    video.remove();
+    detachVideoStream(video);
+    if (removeVideo) {
+      video.remove();
+      if (session.videoElement === video) {
+        session.videoElement = null;
+      }
+    }
   }
 }
 
@@ -383,14 +570,65 @@ async function selectBackCamera(): Promise<string | undefined> {
   }
 }
 
+async function openCameraStream(
+  resolvedDeviceId: string | undefined,
+): Promise<{ stream: MediaStream; resolvedDeviceId: string | undefined }> {
+  try {
+    return {
+      stream: await navigator.mediaDevices.getUserMedia(
+        buildVideoConstraints(resolvedDeviceId),
+      ),
+      resolvedDeviceId,
+    };
+  } catch (error) {
+    if (!resolvedDeviceId) {
+      throw error;
+    }
+
+    const fallbackDeviceId = await selectBackCamera();
+    if (fallbackDeviceId && fallbackDeviceId !== resolvedDeviceId) {
+      return {
+        stream: await navigator.mediaDevices.getUserMedia(
+          buildVideoConstraints(fallbackDeviceId),
+        ),
+        resolvedDeviceId: fallbackDeviceId,
+      };
+    }
+
+    return {
+      stream: await navigator.mediaDevices.getUserMedia(
+        buildVideoConstraints(undefined),
+      ),
+      resolvedDeviceId: undefined,
+    };
+  }
+}
+
+async function attachPrewarmPreview(session: CameraSession): Promise<void> {
+  if (!session.prewarmPreviewEnabled || !session.stream) {
+    return;
+  }
+
+  if (!isStreamAlive(session.stream)) {
+    session.hasRenderableVideo = false;
+    return;
+  }
+
+  const video = ensurePrewarmVideoElement(session);
+  session.hasRenderableVideo = await prepareVideoForStream(
+    video,
+    session.stream,
+    () => session.prewarmCount === 0,
+    PREWARM_PREVIEW_READY_TIMEOUT_MS,
+  );
+}
+
 async function startPrewarmStream(session: CameraSession): Promise<void> {
   session.phase = "prewarming";
 
   try {
-    const deviceId = await selectBackCamera();
-    const stream = await navigator.mediaDevices.getUserMedia(
-      buildVideoConstraints(deviceId),
-    );
+    const deviceId = session.prewarmDeviceId ?? (await selectBackCamera());
+    const { stream } = await openCameraStream(deviceId);
 
     if (session.prewarmCount === 0) {
       stream.getTracks().forEach((track) => track.stop());
@@ -399,9 +637,14 @@ async function startPrewarmStream(session: CameraSession): Promise<void> {
     }
 
     session.stream = stream;
+    session.hasRenderableVideo = false;
+
+    await attachPrewarmPreview(session);
+
     session.phase = "hot";
     scheduleIdleRelease(session);
   } catch {
+    stopStream(session, { removeVideo: false });
     session.phase = "idle";
   }
 }
@@ -409,13 +652,23 @@ async function startPrewarmStream(session: CameraSession): Promise<void> {
 export function prewarmCameraSession(
   id: CameraSessionId,
   delayMs = 0,
+  deviceId?: string,
+  options: { attachPreview?: boolean } = {},
 ): () => void {
   const session = sessions[id];
   session.prewarmCount += 1;
+  session.prewarmDeviceId = deviceId;
+  session.prewarmPreviewEnabled =
+    session.prewarmPreviewEnabled || options.attachPreview === true;
 
   const doStart = (): void => {
     if (session.phase === "idle") {
       void startPrewarmStream(session);
+      return;
+    }
+
+    if (session.phase === "hot") {
+      void attachPrewarmPreview(session);
     }
   };
 
@@ -428,14 +681,19 @@ export function prewarmCameraSession(
 
   return () => {
     session.prewarmCount = Math.max(0, session.prewarmCount - 1);
+    if (session.prewarmCount === 0) {
+      session.prewarmDeviceId = undefined;
+      session.prewarmPreviewEnabled = false;
+    }
   };
 }
 
 export function attachDecodeSession(
   id: CameraSessionId,
   onDecode: (value: string) => void,
-  onReady: (ready: boolean, error?: string) => void,
+  onReady: (ready: boolean, error?: string, activeDeviceId?: string | null) => void,
   deviceId?: string,
+  options: { forceDeviceId?: boolean } = {},
 ): () => void {
   const session = sessions[id];
 
@@ -460,7 +718,7 @@ export function attachDecodeSession(
 
       const reader = createReader();
 
-      const video = ensureVideoElement(container);
+      const video = ensureSessionVideoElement(session, container);
 
       // ── Acquire stream ───────────────────────────────────────────────────
       const prewarmStream = session.stream;
@@ -470,14 +728,17 @@ export function attachDecodeSession(
         ? getStreamDeviceId(prewarmStream)
         : null;
       const canReuseStream =
-        streamAlive && (!deviceId || prewarmDeviceId === deviceId);
+        streamAlive &&
+        (!options.forceDeviceId || !deviceId || prewarmDeviceId === deviceId);
 
       let reusingStream: boolean;
+      let activeStream: MediaStream;
+      let resolvedDeviceId = deviceId ?? prewarmDeviceId ?? undefined;
 
       if (canReuseStream && prewarmStream) {
         reusingStream = true;
-        video.srcObject = prewarmStream;
-        void optimizeVideoTrackForQr(prewarmStream);
+        activeStream = prewarmStream;
+        void optimizeVideoTrackForQr(activeStream);
       } else {
         reusingStream = false;
 
@@ -486,37 +747,81 @@ export function attachDecodeSession(
           stopStream(session);
         }
 
-        const resolvedDeviceId = deviceId ?? (await selectBackCamera());
+        resolvedDeviceId = deviceId ?? (await selectBackCamera());
         if (cancelled) return;
 
-        const stream = await navigator.mediaDevices.getUserMedia(
-          buildVideoConstraints(resolvedDeviceId),
-        );
+        const openedCamera = await openCameraStream(resolvedDeviceId);
+        activeStream = openedCamera.stream;
+        resolvedDeviceId = openedCamera.resolvedDeviceId;
 
         if (cancelled) {
-          stream.getTracks().forEach((t) => t.stop());
+          activeStream.getTracks().forEach((t) => t.stop());
           return;
         }
 
-        session.stream = stream;
-        video.srcObject = stream;
-        void optimizeVideoTrackForQr(stream);
+        session.stream = activeStream;
+        void optimizeVideoTrackForQr(activeStream);
       }
 
-      // Explicit play() for iOS Safari (belt-and-suspenders with autoplay attr).
-      try {
-        await video.play();
-      } catch {
-        // play() rejection is non-fatal; autoplay attribute handles it.
+      let videoReady = await prepareVideoForStream(
+        video,
+        activeStream,
+        () => cancelled,
+        VIDEO_READY_TIMEOUT_MS,
+      );
+      if (cancelled) return;
+
+      if (!videoReady) {
+        detachVideoStream(video);
+        await waitForNextFrame();
+        if (cancelled) return;
+
+        videoReady = await prepareVideoForStream(
+          video,
+          activeStream,
+          () => cancelled,
+          VIDEO_REATTACH_READY_TIMEOUT_MS,
+        );
       }
       if (cancelled) return;
 
-      // Wait until the video has an actual frame before attempting any decode.
-      await waitForVideoReady(video);
-      if (cancelled) return;
-      await waitForNextFrame();
-      await waitForNextFrame();
-      if (cancelled) return;
+      if (!videoReady) {
+        activeStream.getTracks().forEach((track) => track.stop());
+        if (session.stream === activeStream) {
+          session.stream = null;
+          session.hasRenderableVideo = false;
+        }
+
+        detachVideoStream(video);
+        resolvedDeviceId = resolvedDeviceId ?? (await selectBackCamera());
+        if (cancelled) return;
+
+        const openedCamera = await openCameraStream(resolvedDeviceId);
+        activeStream = openedCamera.stream;
+        resolvedDeviceId = openedCamera.resolvedDeviceId;
+
+        if (cancelled) {
+          activeStream.getTracks().forEach((t) => t.stop());
+          return;
+        }
+
+        reusingStream = false;
+        session.stream = activeStream;
+        void optimizeVideoTrackForQr(activeStream);
+        videoReady = await prepareVideoForStream(
+          video,
+          activeStream,
+          () => cancelled,
+          VIDEO_REOPEN_READY_TIMEOUT_MS,
+        );
+      }
+
+      if (!videoReady) {
+        throw new Error("Camera preview did not render. Please reopen the scanner.");
+      }
+
+      session.hasRenderableVideo = true;
+      const activeDeviceId = getStreamDeviceId(activeStream);
 
       // Brief autofocus stabilisation delay.
       // Fresh streams need slightly longer than reused ones.
@@ -538,9 +843,19 @@ export function attachDecodeSession(
 
       let loopActive = true;
       let scanCount = 0;
+      let scanTimerId: number | null = null;
+
+      const scheduleScanLoop = (delayMs: number): void => {
+        if (scanTimerId !== null) {
+          window.clearTimeout(scanTimerId);
+        }
+
+        scanTimerId = window.setTimeout(scanLoop, delayMs);
+      };
 
       const scanLoop = (): void => {
         if (cancelled || !loopActive) return;
+        scanTimerId = null;
 
         if (ctx && video.readyState >= 2 && video.videoWidth > 0) {
           scanCount += 1;
@@ -556,7 +871,7 @@ export function attachDecodeSession(
                 // Back off after a successful read — the flow-level dedup
                 // (lastScanRef) handles duplicates, but this avoids hammering
                 // the decoder on a static frame.
-                setTimeout(scanLoop, SCAN_SUCCESS_BACKOFF_MS);
+                scheduleScanLoop(SCAN_SUCCESS_BACKOFF_MS);
                 return;
               }
             } catch {
@@ -565,19 +880,24 @@ export function attachDecodeSession(
           }
         }
 
-        setTimeout(scanLoop, SCAN_LOOP_DELAY_MS);
+        scheduleScanLoop(SCAN_LOOP_DELAY_MS);
       };
 
       session.decodeControls = {
         stop: () => {
           loopActive = false;
+          if (scanTimerId !== null) {
+            window.clearTimeout(scanTimerId);
+            scanTimerId = null;
+          }
         },
       };
 
-      onReady(true);
+      onReady(true, undefined, activeDeviceId);
       scanLoop();
     } catch (error) {
       if (!cancelled) {
+        stopStream(session, { removeVideo: false });
         const message =
           error instanceof Error
             ? error.message
@@ -592,7 +912,6 @@ export function attachDecodeSession(
 
   return () => {
     cancelled = true;
-    session.phase = "hot";
 
     try {
       session.decodeControls?.stop();
@@ -601,7 +920,13 @@ export function attachDecodeSession(
     }
 
     session.decodeControls = null;
-    scheduleIdleRelease(session);
+    if (session.stream && isStreamAlive(session.stream) && session.hasRenderableVideo) {
+      session.phase = "hot";
+      scheduleIdleRelease(session);
+    } else {
+      stopStream(session);
+      session.phase = "idle";
+    }
   };
 }
 
@@ -621,5 +946,8 @@ export function releaseAllCameraSessions(): void {
     stopStream(session);
     session.phase = "idle";
     session.prewarmCount = 0;
+    session.prewarmDeviceId = undefined;
+    session.prewarmPreviewEnabled = false;
+    removePrewarmHostElement(id);
   }
 }

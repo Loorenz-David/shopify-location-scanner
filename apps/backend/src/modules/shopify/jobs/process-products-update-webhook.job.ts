@@ -86,6 +86,26 @@ export const processProductsUpdateWebhookJob = async (
     productId,
   });
 
+  if (existingHistory?.isSold) {
+    const shop = await shopRepository.findById(intake.shopId);
+
+    if (shop?.accessToken) {
+      const product = await shopifyAdminApi.getProductWithLocation({
+        shopDomain: shop.shopDomain,
+        accessToken: shop.accessToken,
+        productId,
+      });
+
+      productSnapshotUpdated =
+        await scanHistoryRepository.syncSoldQuantityIfHistoryExists({
+          shopId: intake.shopId,
+          productId,
+          quantity: product.quantity,
+          emitBroadcast: false,
+        });
+    }
+  }
+
   if (!existingHistory || !existingHistory.isSold) {
     const shop = await shopRepository.findById(intake.shopId);
 
@@ -160,6 +180,7 @@ export const processProductsUpdateWebhookJob = async (
               itemWidth: product.itemWidth,
               itemDepth: product.itemDepth,
               volume: product.volume,
+              quantity: product.quantity,
               properties: product.properties ?? undefined,
               emitBroadcast: false,
             });
@@ -175,6 +196,7 @@ export const processProductsUpdateWebhookJob = async (
               itemDepth: product.itemDepth,
               volume: product.volume,
               productId,
+              quantity: product.quantity,
               properties: product.properties ?? undefined,
               itemCategory: product.itemCategory,
               itemSku: product.sku,

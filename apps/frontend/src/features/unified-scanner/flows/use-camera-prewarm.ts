@@ -12,13 +12,15 @@ export function useCameraPrewarm(
   sessionId: CameraSessionId,
   delayMs = 0,
   enabled = true,
+  deviceId?: string,
+  options: { attachPreview?: boolean } = {},
 ): void {
   useEffect(() => {
     if (!enabled) {
       return;
     }
 
-    const cleanup = prewarmCameraSession(sessionId, delayMs);
+    const cleanup = prewarmCameraSession(sessionId, delayMs, deviceId, options);
     return cleanup;
-  }, [sessionId, delayMs, enabled]);
+  }, [sessionId, delayMs, enabled, deviceId, options.attachPreview]);
 }

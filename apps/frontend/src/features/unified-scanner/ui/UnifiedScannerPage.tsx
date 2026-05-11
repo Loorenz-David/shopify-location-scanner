@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "framer-motion";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { unifiedScannerActions } from "../actions/unified-scanner.actions";
 import { useUnifiedScannerPageContext } from "../context/unified-scanner-context";
@@ -8,21 +8,35 @@ import { UnifiedItemScanPage } from "./UnifiedItemScanPage";
 import { UnifiedItemManualInputPanel } from "./UnifiedItemManualInputPanel";
 import { UnifiedLocationManualInputPanel } from "./UnifiedLocationManualInputPanel";
 import { UnifiedLocationScanPage } from "./UnifiedLocationScanPage";
-import { UnifiedLogisticSuccessState } from "./UnifiedLogisticSuccessState";
 
 export function UnifiedScannerPage() {
   const {
     scannerStep,
-    phase,
-    locationMode,
-    selectedLocation,
+    selectedItem,
     isCameraReady,
     cameraError,
-    onClearLocationScan,
   } = useUnifiedScannerPageContext();
   const [manualInputMode, setManualInputMode] = useState<
     "item" | "location" | null
   >(null);
+  const [showPreviewStarting, setShowPreviewStarting] = useState(false);
+  const previewMessageDelayMs =
+    scannerStep === "location" && selectedItem ? 1500 : 500;
+
+  useEffect(() => {
+    if (isCameraReady || cameraError) {
+      setShowPreviewStarting(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setShowPreviewStarting(true);
+    }, previewMessageDelayMs);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [cameraError, isCameraReady, previewMessageDelayMs]);
 
   return (
     <section
@@ -37,6 +51,7 @@ export function UnifiedScannerPage() {
       <div className="absolute inset-0 z-20 overflow-hidden">
         <motion.div
           className="flex h-full w-[200%]"
+          initial={{ x: scannerStep === "location" ? "-50%" : "0%" }}
           animate={{ x: scannerStep === "location" ? "-50%" : "0%" }}
           transition={{
             type: "spring",
@@ -52,10 +67,10 @@ export function UnifiedScannerPage() {
         </motion.div>
       </div>
 
-      {!isCameraReady && !cameraError ? (
+      {showPreviewStarting ? (
         <div className="pointer-events-none absolute inset-x-4 top-1/2 z-[21] -translate-y-1/2">
           <div className="mx-auto max-w-sm rounded-2xl bg-slate-950/85 px-5 py-4 text-center text-sm font-semibold text-slate-100 shadow-xl ring-1 ring-white/10">
-            Opening camera...
+            Starting preview...
           </div>
         </div>
       ) : null}
@@ -65,18 +80,6 @@ export function UnifiedScannerPage() {
           {cameraError}
         </div>
       ) : null}
-
-      <AnimatePresence>
-        {phase === "placed" &&
-        locationMode === "logistic" &&
-        selectedLocation?.mode === "logistic" ? (
-          <UnifiedLogisticSuccessState
-            locationLabel={selectedLocation.location}
-            onChangeLocation={onClearLocationScan}
-            onDone={unifiedScannerActions.closeScanner}
-          />
-        ) : null}
-      </AnimatePresence>
 
       <AnimatePresence>
         {manualInputMode === "item" ? (

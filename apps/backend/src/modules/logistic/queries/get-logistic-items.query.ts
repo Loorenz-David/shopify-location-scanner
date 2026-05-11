@@ -86,23 +86,44 @@ export const getLogisticItemsQuery = async (input: {
     }
   }
 
-  // Cursor-based pagination: cursor format is "<updatedAt ISO>|<id>"
-  // Sort is updatedAt DESC, id ASC — next page has updatedAt < cursorDate
-  // OR (updatedAt = cursorDate AND id > cursorId)
+  // Cursor-based pagination: cursor format is "<orderNumber|\"null\">|<id>"
+  // Sort is orderNumber DESC, id ASC.
+  // For non-null cursor orderNumber: next page has lower orderNumber,
+  // OR same orderNumber with id > cursorId, OR null orderNumber values.
+  // For null cursor orderNumber: next page has null orderNumber with id > cursorId.
   if (filters.cursor) {
     const separatorIndex = filters.cursor.indexOf("|");
-    const isoStr = filters.cursor.slice(0, separatorIndex);
+    const rawOrderNumber = filters.cursor.slice(0, separatorIndex);
     const cursorId = filters.cursor.slice(separatorIndex + 1);
-    const cursorDate = new Date(isoStr);
-    where.AND = [
-      ...(where.AND ?? []),
-      {
-        OR: [
-          { updatedAt: { lt: cursorDate } },
-          { AND: [{ updatedAt: cursorDate }, { id: { gt: cursorId } }] },
-        ],
-      },
-    ];
+    const cursorOrderNumber =
+      rawOrderNumber === "null"
+        ? null
+        : Number.parseInt(rawOrderNumber, 10);
+
+    if (cursorOrderNumber === null) {
+      where.AND = [
+        ...(where.AND ?? []),
+        {
+          AND: [{ orderNumber: null }, { id: { gt: cursorId } }],
+        },
+      ];
+    } else if (!Number.isNaN(cursorOrderNumber)) {
+      where.AND = [
+        ...(where.AND ?? []),
+        {
+          OR: [
+            { orderNumber: { lt: cursorOrderNumber } },
+            {
+              AND: [
+                { orderNumber: cursorOrderNumber },
+                { id: { gt: cursorId } },
+              ],
+            },
+            { orderNumber: null },
+          ],
+        },
+      ];
+    }
   }
 
   const limit = filters.ids
@@ -111,7 +132,7 @@ export const getLogisticItemsQuery = async (input: {
 
   const records = await prisma.scanHistory.findMany({
     where,
-    orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+    orderBy: [{ orderNumber: "desc" }, { id: "asc" }],
     ...(limit !== undefined ? { take: limit + 1 } : {}),
     include: {
       logisticEvents: {
@@ -191,7 +212,7 @@ export const getLogisticItemsQuery = async (input: {
   const lastRecord = pageRecords[pageRecords.length - 1];
   const nextCursor =
     hasMore && lastRecord
-      ? `${lastRecord.updatedAt.toISOString()}|${lastRecord.id}`
+      ? `${lastRecord.orderNumber ?? "null"}|${lastRecord.id}`
       : null;
 
   return { orders, hasMore, nextCursor };
