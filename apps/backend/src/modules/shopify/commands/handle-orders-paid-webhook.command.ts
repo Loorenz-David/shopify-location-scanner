@@ -94,6 +94,8 @@ export const handleOrdersPaidWebhookCommand = async (input: {
       orderNumber,
       salesChannel,
       lineItemCount: input.payload.line_items.length,
+      normalizedTags: input.payload.tags,
+      normalizedTagCount: input.payload.tags.length,
       markers,
       lineItems: buildOrderWebhookLineItemDebugSummary(
         input.payload.line_items,
@@ -179,7 +181,7 @@ export const handleOrdersPaidWebhookCommand = async (input: {
       shopId: input.shopId,
       orderId,
       markers,
-      ...(input.payload.tags ? { tags: input.payload.tags } : {}),
+      tags: input.payload.tags,
     });
   }
 
@@ -211,6 +213,8 @@ export const handleOrdersPaidWebhookCommand = async (input: {
     intention: markers.intention,
     fixItem: markers.fixItem,
     internalMarkerCount,
+    normalizedTags: input.payload.tags,
+    normalizedTagCount: input.payload.tags.length,
     processedProducts,
     skippedProducts,
   });

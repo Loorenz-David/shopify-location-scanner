@@ -91,6 +91,28 @@ const ShopifyNoteAttributeSchema = z.object({
   value: z.string().trim().nullable().optional(),
 });
 
+const normalizeWebhookTags = (value: unknown): string[] => {
+  if (Array.isArray(value)) {
+    return value
+      .map((tag) => (typeof tag === "string" ? tag.trim() : ""))
+      .filter((tag) => tag.length > 0);
+  }
+
+  if (typeof value === "string") {
+    return value
+      .split(",")
+      .map((tag) => tag.trim())
+      .filter((tag) => tag.length > 0);
+  }
+
+  return [];
+};
+
+const ShopifyWebhookTagsSchema = z.preprocess(
+  normalizeWebhookTags,
+  z.array(z.string()),
+);
+
 export const ShopifyOrdersPaidWebhookPayloadSchema = z.object({
   id: z.union([z.number().int().positive(), z.string().trim().min(1)]),
   order_number: z.number().int().positive().nullable().optional(),
@@ -100,7 +122,7 @@ export const ShopifyOrdersPaidWebhookPayloadSchema = z.object({
   source_name: z.string().trim().nullable().optional(),
   app_id: z.number().int().nullable().optional(),
   note_attributes: z.array(ShopifyNoteAttributeSchema).optional(),
-  tags: z.array(z.string().trim().min(1)).optional(),
+  tags: ShopifyWebhookTagsSchema,
   line_items: z.array(ShopifyOrderLineItemSchema),
 });
 
@@ -114,7 +136,7 @@ export const ShopifyOrdersCreateWebhookPayloadSchema = z.object({
   source_name: z.string().trim().nullable().optional(),
   app_id: z.number().int().nullable().optional(),
   note_attributes: z.array(ShopifyNoteAttributeSchema).optional(),
-  tags: z.array(z.string().trim().min(1)).optional(),
+  tags: ShopifyWebhookTagsSchema,
   line_items: z.array(ShopifyOrderLineItemSchema),
 });
 
