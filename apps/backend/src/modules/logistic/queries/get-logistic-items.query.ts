@@ -23,18 +23,23 @@ export const getLogisticItemsQuery = async (input: {
   filters: GetLogisticItemsQuery;
 }): Promise<LogisticItemsPage> => {
   const { shopId, filters } = input;
+  const usesCompletedStatusRules =
+    filters.lastLogisticEventType === "fulfilled";
 
   const where: any = {
     shopId,
     isSold: true,
-    intention: filters.noIntention
-      ? null
-      : {
-          not: null,
-          notIn: ["customer_took_it"],
-        },
-    logisticsCompletedAt: null,
+    logisticsCompletedAt: usesCompletedStatusRules ? { not: null } : null,
   };
+
+  if (filters.noIntention) {
+    where.intention = null;
+  } else if (!usesCompletedStatusRules) {
+    where.intention = {
+      not: null,
+      notIn: ["customer_took_it"],
+    };
+  }
 
   if (typeof filters.fixItem === "boolean") {
     where.fixItem = filters.fixItem;
