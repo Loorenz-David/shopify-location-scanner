@@ -18,6 +18,7 @@
  *       - Zone type  (for_delivery / for_pickup / for_fixing)
  *     Creates LogisticLocation records (skips any that already exist).
  *
+ *
  *   Phase 3 — CORRECTIONS
  *     For each affected ScanHistory item:
  *       - Creates ScanHistoryLogistic "placed" events for each post-sold movement
@@ -197,7 +198,8 @@ async function discoverAffectedItems(shopId: string): Promise<AffectedItem[]> {
       .slice(0, soldTerminalIdx)
       .filter((e) => e.eventType === "location_update");
     const preSoldLocation =
-      preSoldLocationUpdates[preSoldLocationUpdates.length - 1]?.location ?? null;
+      preSoldLocationUpdates[preSoldLocationUpdates.length - 1]?.location ??
+      null;
 
     affected.push({
       id: item.id,
@@ -242,7 +244,9 @@ async function interactiveLocationSetup(
   log("\nPhase 2 — Logistic Location Setup: configuring locations...");
 
   const uniqueLocationStrings = Array.from(
-    new Set(items.flatMap((item) => item.postSoldEvents.map((e) => e.location))),
+    new Set(
+      items.flatMap((item) => item.postSoldEvents.map((e) => e.location)),
+    ),
   ).sort();
 
   log(
@@ -258,7 +262,10 @@ async function interactiveLocationSetup(
     select: { id: true, location: true, zoneType: true },
   });
 
-  const locationMap = new Map<string, { id: string; zoneType: LogisticZoneType }>(
+  const locationMap = new Map<
+    string,
+    { id: string; zoneType: LogisticZoneType }
+  >(
     existing.map((l) => [
       l.location,
       { id: l.id, zoneType: l.zoneType as LogisticZoneType },
@@ -268,7 +275,9 @@ async function interactiveLocationSetup(
   if (existing.length > 0) {
     log(
       `${existing.length} location(s) already exist as LogisticLocation records:`,
-      Object.fromEntries(existing.map((l) => [l.location, `${l.id} (${l.zoneType})`])),
+      Object.fromEntries(
+        existing.map((l) => [l.location, `${l.id} (${l.zoneType})`]),
+      ),
     );
   }
 
@@ -306,7 +315,10 @@ async function interactiveLocationSetup(
         },
         select: { id: true, zoneType: true },
       });
-      const entry = { id: created.id, zoneType: created.zoneType as LogisticZoneType };
+      const entry = {
+        id: created.id,
+        zoneType: created.zoneType as LogisticZoneType,
+      };
       locationMap.set(originalLocation, entry);
       if (confirmedLocation !== originalLocation) {
         locationMap.set(confirmedLocation, entry);
@@ -394,9 +406,18 @@ async function applyCorrections(
         ZONE_TYPE_DEFAULT_INTENTION[finalLogisticLocation.zoneType] ?? null;
     }
 
-    log(`  preSoldLocation    : ${item.preSoldLocation ?? "(none — will be set to null)"}`, {});
-    log(`  finalLogisticLoc   : ${finalLogisticLocation.id} (${finalLogisticLocation.zoneType})`, {});
-    log(`  intention          : ${finalIntention ?? "(not derivable, left null)"}`, {});
+    log(
+      `  preSoldLocation    : ${item.preSoldLocation ?? "(none — will be set to null)"}`,
+      {},
+    );
+    log(
+      `  finalLogisticLoc   : ${finalLogisticLocation.id} (${finalLogisticLocation.zoneType})`,
+      {},
+    );
+    log(
+      `  intention          : ${finalIntention ?? "(not derivable, left null)"}`,
+      {},
+    );
     log(`  postSoldMovements  : ${mappedEvents.length}`, {});
 
     if (!DRY_RUN) {
@@ -461,9 +482,9 @@ async function applyCorrections(
     } else {
       log(
         `  [DRY_RUN] Would create ${mappedEvents.length} ScanHistoryLogistic event(s),` +
-        ` delete ${mappedEvents.length} post-sold ScanHistoryEvent(s),` +
-        ` update ScanHistory (lastModifiedAt: ${lastMapped.event.happenedAt.toISOString()}),` +
-        ` and decrement LocationStatsDaily.itemsReceived for ${mappedEvents.length} location movement(s)`,
+          ` delete ${mappedEvents.length} post-sold ScanHistoryEvent(s),` +
+          ` update ScanHistory (lastModifiedAt: ${lastMapped.event.happenedAt.toISOString()}),` +
+          ` and decrement LocationStatsDaily.itemsReceived for ${mappedEvents.length} location movement(s)`,
       );
     }
 
@@ -485,7 +506,9 @@ async function applyCorrections(
           });
         }
       } else {
-        log(`  [DRY_RUN] Would update Shopify metafield to "${item.preSoldLocation}"`);
+        log(
+          `  [DRY_RUN] Would update Shopify metafield to "${item.preSoldLocation}"`,
+        );
         shopifyUpdated++;
       }
     } else if (!item.preSoldLocation) {
@@ -561,7 +584,9 @@ async function main(): Promise<void> {
   log(`Shop: ${shop.shopDomain} (id: ${shop.id})`);
 
   if (!shop.accessToken) {
-    warn("Shop has no Shopify access token — Shopify metafield updates will be skipped.");
+    warn(
+      "Shop has no Shopify access token — Shopify metafield updates will be skipped.",
+    );
   }
 
   try {
