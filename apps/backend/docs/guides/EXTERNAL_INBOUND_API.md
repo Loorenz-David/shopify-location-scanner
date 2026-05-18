@@ -79,7 +79,8 @@ x-request-id: <request id>
 
 ### `POST /api/external/orders/schedule`
 
-Sets `scheduledDate` on all sold `ScanHistory` items that match the given `shopId` and `orderId`.
+Sets `scheduledDate` on all sold `ScanHistory` items that match the given `orderId`.
+If `scheduledDate` is an empty string, the backend clears the date (`null`) on all matching sold items.
 
 This endpoint is intended for external apps that need to schedule all items in an order after the order already exists in the backend.
 
@@ -94,7 +95,6 @@ Content-Type: application/json
 
 ```json
 {
-  "shopId": "clxxxxxx",
   "orderId": "987654321",
   "scheduledDate": "2026-05-10"
 }
@@ -102,14 +102,21 @@ Content-Type: application/json
 
 ### Field Rules
 
-- `shopId`: required, non-empty string
 - `orderId`: required, non-empty string
-- `scheduledDate`: required, must be in `yyyy-mm-dd` format
+- `scheduledDate`: required, must be either:
+  - a `yyyy-mm-dd` date string, or
+  - an empty string (`""`) to clear the scheduled date
+
+Resolution behavior:
+
+- The backend resolves the target shop from sold `ScanHistory` rows for the provided `orderId`
+- If the `orderId` matches sold rows in more than one shop, the request is rejected with `409 Conflict`
 
 Example valid values:
 
 - `2026-05-10`
 - `2026-12-01`
+- `""` (clears the scheduled date)
 
 Example invalid values:
 
@@ -143,6 +150,12 @@ Meaning:
 Status:
 
 `401 Unauthorized`
+
+### Multiple shops matched for the orderId
+
+Status:
+
+`409 Conflict`
 
 Example:
 

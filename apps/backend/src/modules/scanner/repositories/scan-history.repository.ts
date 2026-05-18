@@ -410,28 +410,46 @@ export const scanHistoryRepository = {
   },
 
   async scheduleSoldItemsByOrder(input: {
-    shopId: string;
     orderId: string;
-    scheduledDate: Date;
-  }): Promise<string[]> {
+    scheduledDate: Date | null;
+  }): Promise<{
+    updatedItemIds: string[];
+    resolvedShopId: string | null;
+    matchedShopIds: string[];
+  }> {
     const items = await prisma.scanHistory.findMany({
       where: {
-        shopId: input.shopId,
         orderId: input.orderId,
         isSold: true,
       },
       select: {
         id: true,
+        shopId: true,
       },
     });
 
     if (items.length === 0) {
-      return [];
+      return {
+        updatedItemIds: [],
+        resolvedShopId: null,
+        matchedShopIds: [],
+      };
     }
+
+    const matchedShopIds = Array.from(new Set(items.map((item) => item.shopId)));
+    if (matchedShopIds.length !== 1) {
+      return {
+        updatedItemIds: [],
+        resolvedShopId: null,
+        matchedShopIds,
+      };
+    }
+
+    const resolvedShopId = matchedShopIds[0];
 
     await prisma.scanHistory.updateMany({
       where: {
-        shopId: input.shopId,
+        shopId: resolvedShopId,
         id: {
           in: items.map((item) => item.id),
         },
@@ -441,7 +459,11 @@ export const scanHistoryRepository = {
       },
     });
 
-    return items.map((item) => item.id);
+    return {
+      updatedItemIds: items.map((item) => item.id),
+      resolvedShopId,
+      matchedShopIds,
+    };
   },
 
   async appendLocationEvent(
