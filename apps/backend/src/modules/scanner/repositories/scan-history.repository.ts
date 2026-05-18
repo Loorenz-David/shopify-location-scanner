@@ -446,6 +446,13 @@ export const scanHistoryRepository = {
     }
 
     const resolvedShopId = matchedShopIds[0];
+    if (!resolvedShopId) {
+      return {
+        updatedItemIds: [],
+        resolvedShopId: null,
+        matchedShopIds,
+      };
+    }
 
     await prisma.scanHistory.updateMany({
       where: {
