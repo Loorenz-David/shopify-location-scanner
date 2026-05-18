@@ -34,6 +34,7 @@ export type LogisticEvent = {
 export type LogisticItemSummary = {
   id: string;
   productId: string;
+  quantity: number;
   itemSku: string | null;
   itemBarcode: string | null;
   itemImageUrl: string | null;

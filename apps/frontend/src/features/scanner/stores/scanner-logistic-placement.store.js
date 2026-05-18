@@ -1,0 +1,25 @@
+import { create } from "zustand";
+export const useScannerLogisticPlacementStore = create((set) => ({
+    scanHistoryId: null,
+    confirmedLocationId: null,
+    confirmedLocationName: null,
+    warning: null,
+    isPlacing: false,
+    pendingPlacementMatch: null,
+    requiresZoneMismatchConfirm: false,
+    setScanHistoryId: (scanHistoryId) => set({ scanHistoryId }),
+    setConfirmedLocation: (confirmedLocationId, confirmedLocationName) => set({ confirmedLocationId, confirmedLocationName }),
+    setWarning: (warning) => set({ warning }),
+    setPlacing: (isPlacing) => set({ isPlacing }),
+    setPendingPlacementMatch: (pendingPlacementMatch) => set({ pendingPlacementMatch }),
+    setRequiresZoneMismatchConfirm: (requiresZoneMismatchConfirm) => set({ requiresZoneMismatchConfirm }),
+    reset: () => set({
+        scanHistoryId: null,
+        confirmedLocationId: null,
+        confirmedLocationName: null,
+        warning: null,
+        isPlacing: false,
+        pendingPlacementMatch: null,
+        requiresZoneMismatchConfirm: false,
+    }),
+}));

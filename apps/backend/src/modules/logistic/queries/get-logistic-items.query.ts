@@ -96,9 +96,7 @@ export const getLogisticItemsQuery = async (input: {
     const rawOrderNumber = filters.cursor.slice(0, separatorIndex);
     const cursorId = filters.cursor.slice(separatorIndex + 1);
     const cursorOrderNumber =
-      rawOrderNumber === "null"
-        ? null
-        : Number.parseInt(rawOrderNumber, 10);
+      rawOrderNumber === "null" ? null : Number.parseInt(rawOrderNumber, 10);
 
     if (cursorOrderNumber === null) {
       where.AND = [
@@ -151,6 +149,7 @@ export const getLogisticItemsQuery = async (input: {
     return {
       id: record.id,
       productId: record.productId,
+      quantity: record.quantity,
       itemSku: record.itemSku ?? null,
       itemBarcode: record.itemBarcode ?? null,
       itemImageUrl: record.itemImageUrl ?? null,

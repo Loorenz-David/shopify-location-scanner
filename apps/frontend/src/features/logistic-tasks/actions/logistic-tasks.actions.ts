@@ -8,6 +8,10 @@ import { markItemFixedApi } from "../api/mark-item-fixed.api";
 import { markPlacementApi } from "../api/mark-placement.api";
 import { updateFixNotesApi } from "../api/update-fix-notes.api";
 import {
+  markHistoryItemCompletedApi,
+  markHistoryItemUncompletedApi,
+} from "../../item-scan-history/api/mark-history-item-completion.api";
+import {
   loadLogisticTasksController,
   loadMoreLogisticTasksController,
   refreshLogisticTasksByIdsController,
@@ -53,9 +57,13 @@ export const logisticTasksActions = {
   },
 
   openMarkIntentionOverlay(scanHistoryId: string): void {
+    logisticTasksActions.openItemOptions(scanHistoryId);
+  },
+
+  openItemOptions(scanHistoryId: string): void {
     homeShellActions.openOverlayPage(
-      `logistic-tasks-mark-intention:${scanHistoryId}`,
-      "Set Intention",
+      `logistic-tasks-options:${scanHistoryId}`,
+      "Task Settings",
     );
   },
 
@@ -198,6 +206,45 @@ export const logisticTasksActions = {
       useLogisticTasksStore
         .getState()
         .finishWithError("Unable to mark item as fixed. Please try again.");
+    }
+  },
+
+  async markTaskCompletion(
+    scanHistoryId: string,
+    completed: boolean,
+  ): Promise<void> {
+    const existing = useLogisticTasksStore
+      .getState()
+      .items.find((i) => i.id === scanHistoryId);
+
+    if (existing) {
+      const optimisticEventType = completed
+        ? "fulfilled"
+        : existing.logisticLocation
+          ? "placed"
+          : existing.intention
+            ? "marked_intention"
+            : null;
+      useLogisticTasksStore
+        .getState()
+        .upsertItem({ ...existing, lastEventType: optimisticEventType });
+    }
+
+    try {
+      if (completed) {
+        await markHistoryItemCompletedApi({ scanHistoryId });
+      } else {
+        await markHistoryItemUncompletedApi({ scanHistoryId });
+      }
+    } catch {
+      if (existing) {
+        useLogisticTasksStore.getState().upsertItem(existing);
+      }
+      useLogisticTasksStore
+        .getState()
+        .finishWithError(
+          `Unable to mark task as ${completed ? "completed" : "uncompleted"}. Please try again.`,
+        );
     }
   },
 

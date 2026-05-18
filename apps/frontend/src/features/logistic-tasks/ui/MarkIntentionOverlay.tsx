@@ -6,6 +6,7 @@ import {
   LOGISTIC_INTENTION_LABELS,
   LOGISTIC_INTENTION_ORDER,
 } from "../domain/logistic-tasks.domain";
+import { useLogisticTasksStore } from "../stores/logistic-tasks.store";
 import type { LogisticIntention } from "../types/logistic-tasks.types";
 
 interface MarkIntentionOverlayProps {
@@ -14,11 +15,37 @@ interface MarkIntentionOverlayProps {
 }
 
 const todayIso = new Date().toISOString().split("T")[0]!;
+const CONFIRM_TIMEOUT_MS = 1800;
+
+function toDateInputValue(value: Date | string | null | undefined): string {
+  if (!value) return "";
+
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().split("T")[0] ?? "";
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed) return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) return trimmed;
+
+    const parsed = new Date(trimmed);
+    if (!Number.isNaN(parsed.getTime())) {
+      return parsed.toISOString().split("T")[0] ?? "";
+    }
+  }
+
+  return "";
+}
 
 export function MarkIntentionOverlay({
   scanHistoryId,
   onClose,
 }: MarkIntentionOverlayProps) {
+  const item = useLogisticTasksStore((state) =>
+    state.items.find((candidate) => candidate.id === scanHistoryId),
+  );
+  const isCompleted = item?.lastEventType === "fulfilled";
   const [selected, setSelected] = useState<LogisticIntention | null>(null);
   const [fixItem, setFixItem] = useState(false);
   const [fixNotes, setFixNotes] = useState("");
@@ -26,14 +53,44 @@ export function MarkIntentionOverlay({
   const [pastDateConfirmed, setPastDateConfirmed] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [hasInitializedFromItem, setHasInitializedFromItem] = useState(false);
   const fixNotesRef = useRef<HTMLTextAreaElement>(null);
+  const shouldAutofocusFixNotesRef = useRef(false);
 
   useEffect(() => {
-    if (fixItem) {
+    if (fixItem && shouldAutofocusFixNotesRef.current) {
       const t = setTimeout(() => fixNotesRef.current?.focus(), 80);
+      shouldAutofocusFixNotesRef.current = false;
       return () => clearTimeout(t);
     }
   }, [fixItem]);
+
+  useEffect(() => {
+    setSelected(null);
+    setFixItem(false);
+    setFixNotes("");
+    setScheduledDate("");
+    setPastDateConfirmed(false);
+    setValidationError(null);
+    setHasInitializedFromItem(false);
+    shouldAutofocusFixNotesRef.current = false;
+  }, [scanHistoryId]);
+
+  useEffect(() => {
+    if (!item || hasInitializedFromItem) return;
+
+    const nextScheduledDate = toDateInputValue(item.scheduledDate);
+    setSelected(item.intention ?? null);
+    shouldAutofocusFixNotesRef.current = false;
+    setFixItem(item.fixItem);
+    setFixNotes(item.fixNotes ?? "");
+    setScheduledDate(nextScheduledDate);
+    // Keep persisted past dates valid on open; changing the date still re-requires explicit confirm.
+    setPastDateConfirmed(
+      nextScheduledDate.length > 0 && nextScheduledDate < todayIso,
+    );
+    setHasInitializedFromItem(true);
+  }, [hasInitializedFromItem, item]);
 
   const isPastDate = scheduledDate.length > 0 && scheduledDate < todayIso;
   const showDateWarning = isPastDate && !pastDateConfirmed;
@@ -126,6 +183,7 @@ export function MarkIntentionOverlay({
                 }`}
                 onClick={() => {
                   const next = !fixItem;
+                  shouldAutofocusFixNotesRef.current = next;
                   setFixItem(next);
                   if (!next) setFixNotes("");
                 }}
@@ -200,6 +258,27 @@ export function MarkIntentionOverlay({
               )}
             </div>
 
+            <div className="w-full">
+              <ConfirmActionButton
+                label={
+                  isCompleted ? "Mark as uncompleted" : "Mark as completed"
+                }
+                confirmLabel={
+                  isCompleted
+                    ? "Tap again to uncomplete"
+                    : "Tap again to complete"
+                }
+                tone={isCompleted ? "neutral" : "success"}
+                onConfirm={async () => {
+                  await logisticTasksActions.markTaskCompletion(
+                    scanHistoryId,
+                    !isCompleted,
+                  );
+                  onClose();
+                }}
+              />
+            </div>
+
             {validationError && (
               <p className="text-sm text-rose-600">{validationError}</p>
             )}
@@ -216,5 +295,100 @@ export function MarkIntentionOverlay({
         </div>
       </section>
     </div>
+  );
+}
+
+interface ConfirmActionButtonProps {
+  label: string;
+  confirmLabel: string;
+  tone: "success" | "neutral";
+  onConfirm: () => Promise<void>;
+}
+
+function ConfirmActionButton({
+  label,
+  confirmLabel,
+  tone,
+  onConfirm,
+}: ConfirmActionButtonProps) {
+  const [isArmed, setIsArmed] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!isArmed) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setIsArmed(false);
+    }, CONFIRM_TIMEOUT_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isArmed]);
+
+  const toneClasses =
+    tone === "success"
+      ? {
+          idle: "border-emerald-200 bg-white text-emerald-700",
+          fill: "bg-emerald-600",
+          filledText: "text-white",
+        }
+      : {
+          idle: "border-slate-300 bg-white text-slate-700",
+          fill: "bg-slate-700",
+          filledText: "text-white",
+        };
+
+  const displayLabel = isSubmitting
+    ? "Updating..."
+    : isArmed
+      ? confirmLabel
+      : label;
+  const fillWidth = isArmed || isSubmitting ? "100%" : "0%";
+
+  const handleClick = () => {
+    if (isSubmitting) return;
+
+    if (!isArmed) {
+      setIsArmed(true);
+      return;
+    }
+
+    setIsSubmitting(true);
+    setIsArmed(false);
+    void onConfirm().finally(() => {
+      setIsSubmitting(false);
+    });
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleClick}
+      disabled={isSubmitting}
+      className={`relative h-11 w-full overflow-hidden rounded-full border px-5 text-sm font-semibold transition disabled:opacity-60 ${toneClasses.idle}`}
+    >
+      <span
+        className={`absolute inset-y-0 left-0 transition-[width] ease-linear ${toneClasses.fill}`}
+        style={{
+          width: fillWidth,
+          transitionDuration: isArmed ? `${CONFIRM_TIMEOUT_MS}ms` : "180ms",
+        }}
+        aria-hidden="true"
+      />
+      <span className="relative z-10">{displayLabel}</span>
+      <span
+        className={`pointer-events-none absolute inset-0 z-20 flex items-center justify-center overflow-hidden whitespace-nowrap ${toneClasses.filledText}`}
+        style={{
+          clipPath: `inset(0 calc(100% - ${fillWidth}) 0 0)`,
+          transition: isArmed
+            ? `clip-path ${CONFIRM_TIMEOUT_MS}ms linear`
+            : "clip-path 180ms ease",
+        }}
+        aria-hidden="true"
+      >
+        {displayLabel}
+      </span>
+    </button>
   );
 }

@@ -15,8 +15,12 @@ export function LogisticTasksPageProvider({
   );
 
   const openMarkIntention = (scanHistoryId: string) => {
+    openItemOptions(scanHistoryId);
+  };
+
+  const openItemOptions = (scanHistoryId: string) => {
     setActiveScanHistoryId(scanHistoryId);
-    logisticTasksActions.openMarkIntentionOverlay(scanHistoryId);
+    logisticTasksActions.openItemOptions(scanHistoryId);
   };
 
   const openFixItemDetail = (scanHistoryId: string) => {
@@ -26,7 +30,12 @@ export function LogisticTasksPageProvider({
 
   return (
     <LogisticTasksPageContext.Provider
-      value={{ activeScanHistoryId, openMarkIntention, openFixItemDetail }}
+      value={{
+        activeScanHistoryId,
+        openMarkIntention,
+        openItemOptions,
+        openFixItemDetail,
+      }}
     >
       {children}
     </LogisticTasksPageContext.Provider>

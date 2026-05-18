@@ -1,0 +1,53 @@
+import { useItemImageViewerStore } from "../stores/item-image-viewer.store";
+import { normalizeImageUrls, parseImageUrls } from "../domain/item-image-viewer.domain";
+import { prefetchFullscreenImage } from "../domain/item-image-prefetch.domain";
+export const itemImageViewerActions = {
+    openImageViewer: (input, imageIndex) => {
+        const isLegacyItem = "imageUrl" in input;
+        const images = isLegacyItem
+            ? parseImageUrls(input.imageUrl)
+            : normalizeImageUrls(input.imageUrls);
+        const startIndex = isLegacyItem
+            ? (imageIndex ?? 0)
+            : (input.startIndex ?? imageIndex ?? 0);
+        const title = isLegacyItem ? input.title : input.title;
+        if (images.length === 0) {
+            return; // No images to view
+        }
+        const safeIndex = Math.max(0, Math.min(startIndex, images.length - 1));
+        void prefetchFullscreenImage(images[safeIndex], { priority: true });
+        useItemImageViewerStore
+            .getState()
+            .openImageViewer(images, safeIndex, title ?? undefined);
+    },
+    prefetchItemImages(input) {
+        const images = typeof input === "object" && input !== null && !Array.isArray(input)
+            ? parseImageUrls(input.imageUrl)
+            : normalizeImageUrls(input);
+        const [firstImage] = images;
+        if (firstImage) {
+            void prefetchFullscreenImage(firstImage, { priority: true });
+        }
+    },
+    closeImageViewer: () => {
+        useItemImageViewerStore.getState().closeImageViewer();
+    },
+    navigateToImage: (index, totalImages) => {
+        if (index < 0 || index >= totalImages) {
+            return; // Boundary check
+        }
+        useItemImageViewerStore.getState().goToImage(index);
+    },
+    navigatePrevious: () => {
+        const state = useItemImageViewerStore.getState();
+        if (state.currentImageIndex > 0) {
+            state.goToPrevious();
+        }
+    },
+    navigateNext: (totalImages) => {
+        const state = useItemImageViewerStore.getState();
+        if (state.currentImageIndex < totalImages - 1) {
+            state.goToNext();
+        }
+    },
+};

@@ -17,6 +17,16 @@ export function LogisticTasksOverlayHost({
     return <LogisticTasksFiltersPanel onClose={onClose} />;
   }
 
+  if (overlayPageId?.startsWith("logistic-tasks-options:")) {
+    const scanHistoryId = overlayPageId.slice("logistic-tasks-options:".length);
+    return (
+      <MarkIntentionOverlay
+        scanHistoryId={scanHistoryId}
+        onClose={homeShellActions.closeOverlayPage}
+      />
+    );
+  }
+
   if (overlayPageId?.startsWith("logistic-tasks-mark-intention:")) {
     const scanHistoryId = overlayPageId.slice(
       "logistic-tasks-mark-intention:".length,

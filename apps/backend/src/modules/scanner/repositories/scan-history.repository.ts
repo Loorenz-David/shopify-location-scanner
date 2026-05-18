@@ -436,7 +436,9 @@ export const scanHistoryRepository = {
       };
     }
 
-    const matchedShopIds = Array.from(new Set(items.map((item) => item.shopId)));
+    const matchedShopIds = Array.from(
+      new Set(items.map((item) => item.shopId)),
+    );
     if (matchedShopIds.length !== 1) {
       return {
         updatedItemIds: [],
@@ -1517,7 +1519,8 @@ export const scanHistoryRepository = {
       const statsDate = startOfUtcDay(soldAt);
       const salesChannel: SalesChannel =
         (soldEvent?.salesChannel as SalesChannel | null) ??
-        ((existing.lastSoldChannel as SalesChannel | null) ?? "unknown");
+        (existing.lastSoldChannel as SalesChannel | null) ??
+        "unknown";
 
       const arrivedEvent = await tx.scanHistoryEvent.findFirst({
         where: {

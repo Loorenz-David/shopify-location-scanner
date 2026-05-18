@@ -19,13 +19,34 @@ interface LogisticTasksCardProps {
   cardAction: LogisticTaskCardAction;
 }
 
+function resolveFixStatusBadge(item: LogisticTaskItem): {
+  label: string;
+  className: string;
+} | null {
+  if (!item.fixItem) return null;
+
+  if (item.isItemFixed) {
+    return {
+      label: "Is fixed",
+      className: "bg-emerald-100 text-emerald-700",
+    };
+  }
+
+  return {
+    label: "Needs fix",
+    className: "bg-amber-100 text-amber-700",
+  };
+}
+
 export function LogisticTasksCard({
   item,
   cardAction,
 }: LogisticTasksCardProps) {
+  void cardAction;
   const ctx = useContext(LogisticTasksPageContext);
   const latestLocationLabel =
     item.logisticLocation ?? item.location ?? "No scans yet";
+  const fixStatusBadge = resolveFixStatusBadge(item);
   const quantityPillProps = resolveItemQuantityPillProps({
     quantity: item.quantity,
     itemCategory: item.itemCategory,
@@ -33,9 +54,7 @@ export function LogisticTasksCard({
   });
 
   const handleAction = () => {
-    if (cardAction === "markItemIntention" || !item.intention) {
-      ctx?.openMarkIntention(item.id);
-    } else if (item.fixItem === true && item.isItemFixed === false) {
+    if (item.fixItem === true && item.isItemFixed === false) {
       ctx?.openFixItemDetail(item.id);
     } else {
       logisticTasksActions.openPlacementScanner(item);
@@ -71,7 +90,9 @@ export function LogisticTasksCard({
               </p>
             </div>
             <p className="m-0 mt-1 min-h-4 truncate text-xs text-slate-600">
-              {item.scheduledDate ? formatScheduledDate(item.scheduledDate) : " "}
+              {item.scheduledDate
+                ? formatScheduledDate(item.scheduledDate)
+                : " "}
             </p>
           </div>
 
@@ -81,6 +102,24 @@ export function LogisticTasksCard({
                 {LOGISTIC_INTENTION_LABELS[item.intention]}
               </span>
             ) : null}
+            <button
+              type="button"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 text-emerald-700 active:bg-emerald-100"
+              aria-label="Open task settings"
+              onClick={(e) => {
+                e.stopPropagation();
+                ctx?.openItemOptions(item.id);
+              }}
+            >
+              <span
+                className="flex flex-col items-center gap-0.5"
+                aria-hidden="true"
+              >
+                <span className="h-1 w-1 rounded-full bg-current" />
+                <span className="h-1 w-1 rounded-full bg-current" />
+                <span className="h-1 w-1 rounded-full bg-current" />
+              </span>
+            </button>
           </div>
 
           <div className="col-span-2 grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-x-2 rounded-2xl bg-emerald-50 px-3 py-2">
@@ -91,6 +130,13 @@ export function LogisticTasksCard({
               <p className="m-0 truncate text-sm font-semibold text-slate-900">
                 {latestLocationLabel}
               </p>
+              {fixStatusBadge ? (
+                <span
+                  className={`inline-flex w-fit shrink-0 items-center rounded-full px-2 py-0.5 text-xs font-semibold ${fixStatusBadge.className}`}
+                >
+                  {fixStatusBadge.label}
+                </span>
+              ) : null}
             </div>
           </div>
         </div>

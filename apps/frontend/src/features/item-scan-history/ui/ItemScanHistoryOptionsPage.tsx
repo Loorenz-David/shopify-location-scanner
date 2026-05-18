@@ -1,9 +1,9 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useContext, useEffect, useState, type ReactNode } from "react";
 
 import { CloseIcon } from "../../../assets/icons";
 import { itemScanHistoryActions } from "../actions/item-scan-history.actions";
 import type { ItemScanHistoryItem } from "../types/item-scan-history.types";
-import { useRoleCapabilities } from "../../role-context/hooks/use-role-capabilities";
+import { RoleContext } from "../../role-context/context/role-context";
 
 interface ItemScanHistoryOptionsPageProps {
   item: ItemScanHistoryItem | null;
@@ -19,11 +19,13 @@ export function ItemScanHistoryOptionsPage({
   item,
   onClose,
 }: ItemScanHistoryOptionsPageProps) {
-  const { can_mark_scan_history_completion } = useRoleCapabilities();
+  const roleCapabilities = useContext(RoleContext);
+  const canMarkScanHistoryCompletion =
+    roleCapabilities?.can_mark_scan_history_completion ?? true;
   const isCompleted = Boolean(item?.logisticsCompletedAt);
 
   const optionActions: ItemOptionAction[] =
-    item && can_mark_scan_history_completion
+    item && canMarkScanHistoryCompletion
       ? [
           {
             id: "completion",
@@ -38,9 +40,13 @@ export function ItemScanHistoryOptionsPage({
                     : "Tap again to complete"
                 }
                 tone={isCompleted ? "neutral" : "success"}
-                onConfirm={() =>
-                  itemScanHistoryActions.markCompletion(item, !isCompleted)
-                }
+                onConfirm={async () => {
+                  await itemScanHistoryActions.markCompletion(
+                    item,
+                    !isCompleted,
+                  );
+                  onClose();
+                }}
               />
             ),
           },

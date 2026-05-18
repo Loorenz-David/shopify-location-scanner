@@ -1,0 +1,8 @@
+import { jsx as _jsx, jsxs as _jsxs } from "react/jsx-runtime";
+import { motion } from "framer-motion";
+export function UnifiedLogisticSuccessState({ locationLabel, onChangeLocation, onDone, }) {
+    return (_jsxs(motion.div, { className: "absolute inset-0 z-30 flex flex-col items-center justify-center gap-8 bg-slate-950 px-6", style: {
+            paddingTop: "max(1.5rem, env(safe-area-inset-top))",
+            paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))",
+        }, initial: { opacity: 0 }, animate: { opacity: 1 }, exit: { opacity: 0 }, transition: { duration: 0.2, ease: "easeOut" }, children: [_jsxs("div", { className: "flex flex-col items-center gap-4 text-center", children: [_jsx("div", { className: "grid h-16 w-16 place-items-center rounded-full bg-emerald-600/20 ring-2 ring-emerald-400", children: _jsx("svg", { className: "h-8 w-8 text-emerald-400", fill: "none", viewBox: "0 0 24 24", stroke: "currentColor", strokeWidth: 2.5, "aria-hidden": "true", children: _jsx("path", { strokeLinecap: "round", strokeLinejoin: "round", d: "M5 13l4 4L19 7" }) }) }), _jsx("p", { className: "m-0 text-base font-semibold text-slate-300", children: "Placed at" }), _jsx("p", { className: "m-0 text-2xl font-bold text-white", children: locationLabel })] }), _jsxs("div", { className: "flex w-full flex-col gap-3", children: [_jsx("button", { type: "button", className: "w-full rounded-xl border border-white/15 bg-white/10 py-3 text-sm font-semibold text-slate-100 active:bg-white/20", onClick: onChangeLocation, children: "Change Location" }), _jsx("button", { type: "button", className: "w-full rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white active:bg-emerald-700", onClick: onDone, children: "Done" })] })] }));
+}
