@@ -23,6 +23,7 @@ FRONTEND_BUILD_TIMEOUT_SECONDS="${FRONTEND_BUILD_TIMEOUT_SECONDS:-300}"
 MIGRATE_TIMEOUT_SECONDS="${MIGRATE_TIMEOUT_SECONDS:-120}"
 PM2_TIMEOUT_SECONDS="${PM2_TIMEOUT_SECONDS:-90}"
 HEALTHCHECK_TIMEOUT_SECONDS="${HEALTHCHECK_TIMEOUT_SECONDS:-15}"
+ENABLE_TSC_EXTENDED_DIAGNOSTICS="${ENABLE_TSC_EXTENDED_DIAGNOSTICS:-false}"
 
 timestamp() {
   date +"%Y-%m-%d %H:%M:%S"
@@ -55,6 +56,21 @@ run_with_timeout() {
   fi
 
   "$@"
+}
+
+run_timed_step() {
+  local label="$1"
+  local started_at
+  local finished_at
+  local duration
+  shift
+
+  started_at="$(date +%s)"
+  log "Starting ${label}"
+  "$@"
+  finished_at="$(date +%s)"
+  duration="$((finished_at - started_at))"
+  log "Finished ${label} in ${duration}s"
 }
 
 dump_pm2_diagnostics() {
@@ -394,40 +410,47 @@ main() {
   local runtime_node_env="${NODE_ENV:-production}"
 
   if [[ "${backend_manifest_changed}" == true || ! -d "${BACKEND_DIR}/node_modules" ]]; then
-    log "Installing backend dependencies"
-    run_with_timeout "${NPM_INSTALL_TIMEOUT_SECONDS}" \
+    run_timed_step "backend dependency install" \
+      run_with_timeout "${NPM_INSTALL_TIMEOUT_SECONDS}" \
       bash -c 'npm_install_with_dev_dependencies "$1"' -- "${BACKEND_DIR}"
   else
     log "Skipping backend dependency install"
   fi
 
   if [[ "${backend_manifest_changed}" == true || "${prisma_changed}" == true ]]; then
-    log "Generating Prisma client"
-    run_with_timeout "${BUILD_TIMEOUT_SECONDS}" \
+    run_timed_step "Prisma client generation" \
+      run_with_timeout "${BUILD_TIMEOUT_SECONDS}" \
       npm --prefix "${BACKEND_DIR}" run prisma:generate
   else
     log "Skipping Prisma client generation"
   fi
 
   if [[ "${backend_code_changed}" == true || "${backend_manifest_changed}" == true || "${prisma_changed}" == true ]]; then
-    log "Building backend with incremental TypeScript cache"
-    run_with_timeout "${BUILD_TIMEOUT_SECONDS}" \
-      npm --prefix "${BACKEND_DIR}" run build:fast
+    if [[ "${ENABLE_TSC_EXTENDED_DIAGNOSTICS}" == true ]]; then
+      log "TypeScript extended diagnostics enabled for this deploy"
+      run_timed_step "backend TypeScript build" \
+        run_with_timeout "${BUILD_TIMEOUT_SECONDS}" \
+        npm --prefix "${BACKEND_DIR}" exec tsc -p tsconfig.build.json --incremental --tsBuildInfoFile dist/.tsbuildinfo --extendedDiagnostics
+    else
+      run_timed_step "backend TypeScript build" \
+        run_with_timeout "${BUILD_TIMEOUT_SECONDS}" \
+        npm --prefix "${BACKEND_DIR}" run build:fast
+    fi
   else
     log "Skipping backend build"
   fi
 
   if [[ "${frontend_manifest_changed}" == true || ! -d "${FRONTEND_DIR}/node_modules" ]]; then
-    log "Installing frontend dependencies"
-    run_with_timeout "${NPM_INSTALL_TIMEOUT_SECONDS}" \
+    run_timed_step "frontend dependency install" \
+      run_with_timeout "${NPM_INSTALL_TIMEOUT_SECONDS}" \
       bash -c 'npm_install_with_dev_dependencies "$1"' -- "${FRONTEND_DIR}"
   else
     log "Skipping frontend dependency install"
   fi
 
   if [[ "${frontend_changed}" == true ]]; then
-    log "Building frontend"
-    run_with_timeout "${FRONTEND_BUILD_TIMEOUT_SECONDS}" \
+    run_timed_step "frontend build" \
+      run_with_timeout "${FRONTEND_BUILD_TIMEOUT_SECONDS}" \
       npm --prefix "${FRONTEND_DIR}" run build
   else
     log "Skipping frontend build"
@@ -437,25 +460,24 @@ main() {
     log "Stopping backend PM2 apps before migrations"
     stop_backend_apps
 
-    log "Applying Prisma migrations"
-    run_with_timeout "${MIGRATE_TIMEOUT_SECONDS}" \
+    run_timed_step "Prisma migrations" \
+      run_with_timeout "${MIGRATE_TIMEOUT_SECONDS}" \
       npm --prefix "${BACKEND_DIR}" run prisma:migrate:deploy
   else
     log "Skipping Prisma migrations"
   fi
 
   if [[ "${backend_changed}" == true ]]; then
-    log "Reloading PM2 ecosystem"
     export NODE_ENV="${runtime_node_env}"
-    run_with_timeout "${PM2_TIMEOUT_SECONDS}" \
+    run_timed_step "PM2 ecosystem reload" \
+      run_with_timeout "${PM2_TIMEOUT_SECONDS}" \
       pm2 startOrReload "${ECOSYSTEM_FILE}" --env production
     pm2 save
 
     log "Verifying PM2 process state"
     assert_pm2_online
 
-    log "Running backend health checks"
-    health_check
+    run_timed_step "backend health checks" health_check
   fi
 
   log "Deployment finished successfully at ${current_sha}"

@@ -10,7 +10,6 @@ type RawLocationRow = {
   itemSku: string | null;
   latestLocation: string | null;
   logisticLocation: string | null;
-  latestMatched: number;
 };
 
 export const getManagerAppItemsLocationQuery = async (
@@ -22,35 +21,34 @@ export const getManagerAppItemsLocationQuery = async (
         sh."itemBarcode" AS "itemBarcode",
         sh."itemSku" AS "itemSku",
         sh."latestLocation" AS "latestLocation",
-        ll."location" AS "logisticLocation",
-        CASE
-          WHEN sh."latestLocation" IS NOT NULL
-            AND LOWER(TRIM(sh."latestLocation")) = LOWER(TRIM(${input.q}))
-          THEN 1
-          ELSE 0
-        END AS "latestMatched"
+        ll."location" AS "logisticLocation"
       FROM "ScanHistory" sh
       LEFT JOIN "LogisticLocation" ll ON ll."id" = sh."logisticLocationId"
       WHERE
-        (
-          sh."latestLocation" IS NOT NULL
-          AND LOWER(TRIM(sh."latestLocation")) = LOWER(TRIM(${input.q}))
-        )
+        ${input.item_identity.includes("sku")
+          ? Prisma.sql`
+              (
+                sh."itemSku" IS NOT NULL
+                AND LOWER(TRIM(sh."itemSku")) = LOWER(TRIM(${input.q}))
+              )
+            `
+          : Prisma.sql`0 = 1`}
         OR
-        (
-          ll."location" IS NOT NULL
-          AND LOWER(TRIM(ll."location")) = LOWER(TRIM(${input.q}))
-        )
+        ${input.item_identity.includes("article_number")
+          ? Prisma.sql`
+              (
+                sh."itemBarcode" IS NOT NULL
+                AND LOWER(TRIM(sh."itemBarcode")) = LOWER(TRIM(${input.q}))
+              )
+            `
+          : Prisma.sql`0 = 1`}
       ORDER BY sh."updatedAt" DESC, sh."id" ASC
     `,
   );
 
   return rows.map((row) => {
     const item: ManagerAppLocationItem = {
-      item_position:
-        row.latestMatched === 1
-          ? (row.latestLocation as string)
-          : (row.logisticLocation as string),
+      item_position: row.logisticLocation ?? row.latestLocation ?? "",
     };
 
     if (input.item_identity.includes("article_number")) {

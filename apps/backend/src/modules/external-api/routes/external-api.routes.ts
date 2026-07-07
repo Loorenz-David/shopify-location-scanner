@@ -4,8 +4,10 @@ import { externalApiController } from "../controllers/external-api.controller.js
 import { authenticateExternalApiMiddleware } from "../middleware/authenticate-external-api.middleware.js";
 
 export const externalApiRouter = Router();
+export const externalManagerAppRouter = Router();
 
 externalApiRouter.use(authenticateExternalApiMiddleware);
+externalManagerAppRouter.use(authenticateExternalApiMiddleware);
 
 externalApiRouter.post(
   "/orders/schedule",
@@ -19,5 +21,15 @@ externalApiRouter.get(
 
 externalApiRouter.patch(
   "/manager-app/items/location",
+  asyncHandler(externalApiController.updateManagerAppItemsLocation),
+);
+
+externalManagerAppRouter.get(
+  "/items/location",
+  asyncHandler(externalApiController.getManagerAppItemsLocation),
+);
+
+externalManagerAppRouter.patch(
+  "/items/location",
   asyncHandler(externalApiController.updateManagerAppItemsLocation),
 );

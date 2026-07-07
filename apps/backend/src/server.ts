@@ -31,7 +31,10 @@ import { zonesRouter } from "./modules/zones/routes/zones.routes.js";
 import { floorPlanRouter } from "./modules/floor-plan/routes/floor-plan.routes.js";
 import { logisticRouter } from "./modules/logistic/routes/logistic.routes.js";
 import { usersRouter } from "./modules/users/routes/users.routes.js";
-import { externalApiRouter } from "./modules/external-api/routes/external-api.routes.js";
+import {
+  externalApiRouter,
+  externalManagerAppRouter,
+} from "./modules/external-api/routes/external-api.routes.js";
 import { outboundWebhookRouter } from "./modules/outbound-webhook/routes/outbound-webhook.routes.js";
 
 const app = express();
@@ -140,6 +143,7 @@ app.use("/api/floor-plans", floorPlanRouter);
 app.use("/api/logistic", logisticRouter);
 app.use("/api/users", usersRouter);
 app.use("/api/external", externalApiRouter);
+app.use("/api/manager-app", externalManagerAppRouter);
 app.use("/api/outbound-webhooks", outboundWebhookRouter);
 app.use("/api/internal/webhooks", webhookAdminRouter);
 
