@@ -11,3 +11,13 @@ externalApiRouter.post(
   "/orders/schedule",
   asyncHandler(externalApiController.scheduleOrderItems),
 );
+
+externalApiRouter.get(
+  "/manager-app/items/location",
+  asyncHandler(externalApiController.getManagerAppItemsLocation),
+);
+
+externalApiRouter.patch(
+  "/manager-app/items/location",
+  asyncHandler(externalApiController.updateManagerAppItemsLocation),
+);

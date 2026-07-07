@@ -12,7 +12,8 @@ import { logger } from "../../../shared/logging/logger.js";
 
 export const updateItemLocationCommand = async (input: {
   shopId: string;
-  userId: string;
+  userId: string | null;
+  username?: string;
   resolvedProductId: string;
   originalItemId: string;
   idType: "product_id" | "handle" | "sku" | "barcode";
@@ -89,12 +90,13 @@ export const updateItemLocationCommand = async (input: {
     requestedLocation: input.payload.location,
   });
 
-  const user = await userRepository.findById(input.userId);
+  const user = input.userId ? await userRepository.findById(input.userId) : null;
+  const username = input.username ?? user?.username ?? "unknown";
 
   const historyItem = await scanHistoryRepository.appendLocationEvent({
     shopId: shop.id,
     userId: input.userId,
-    username: user?.username ?? "unknown",
+    username,
     currentPrice: after.price,
     itemHeight: after.itemHeight,
     itemWidth: after.itemWidth,
@@ -116,6 +118,7 @@ export const updateItemLocationCommand = async (input: {
   logger.info("Scan history append completed", {
     shopId: input.shopId,
     userId: input.userId,
+    username,
     resolvedProductId: input.resolvedProductId,
     historyItemId: historyItem.id,
     finalLocation: after.location ?? input.payload.location,

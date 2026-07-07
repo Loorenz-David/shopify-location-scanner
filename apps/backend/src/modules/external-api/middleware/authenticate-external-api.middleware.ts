@@ -7,7 +7,9 @@ export const authenticateExternalApiMiddleware = (
   _res: Response,
   next: NextFunction,
 ): void => {
-  const apiKeyHeader = req.header("x-api-key");
+  const authorizationHeader = req.header("authorization");
+  const bearerToken = authorizationHeader?.match(/^Bearer\s+(.+)$/i)?.[1];
+  const apiKeyHeader = bearerToken ?? req.header("x-api-key");
 
   if (!apiKeyHeader || apiKeyHeader !== env.EXTERNAL_API_KEY) {
     next(new UnauthorizedError("Invalid or missing API key"));
