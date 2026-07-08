@@ -10,6 +10,7 @@ import type {
   ManagerAppPatchItemsLocationResponse,
   ManagerAppPatchResult,
   ManagerAppPatchSuccessResult,
+  ManagerAppPatchTarget,
 } from "../contracts/external-api.contract.js";
 
 type ResolvedScanHistory = {
@@ -32,42 +33,59 @@ const normalizeOptionalString = (value?: string | null): string | null => {
 
 const failure = (
   position: string,
+  target: ManagerAppPatchTarget,
   errorCode: ManagerAppPatchFailureResult["errorCode"],
   message: string,
 ): ManagerAppPatchFailureResult => ({
   status: "failed",
   position,
+  target,
   errorCode,
   message,
 });
 
 const success = (
   position: string,
+  target: ManagerAppPatchTarget,
   route: ManagerAppPatchSuccessResult["route"],
   scanHistoryId: string,
 ): ManagerAppPatchSuccessResult => ({
   status: "updated",
   position,
+  target,
   route,
   scanHistoryId,
+});
+
+const toPatchTarget = (target: ManagerAppItemTarget): ManagerAppPatchTarget => ({
+  article_number: normalizeOptionalString(target.article_number),
+  sku: normalizeOptionalString(target.sku),
 });
 
 const resolveByField = async (
   field: "itemSku" | "itemBarcode",
   value: string,
 ): Promise<ResolvedScanHistory[]> => {
-  return prisma.scanHistory.findMany({
-    where: { [field]: value },
-    select: {
-      id: true,
-      shopId: true,
-      productId: true,
-      itemSku: true,
-      itemBarcode: true,
-      isSold: true,
-    },
-    orderBy: { updatedAt: "desc" },
-  });
+  const column =
+    field === "itemSku"
+      ? Prisma.sql`sh."itemSku"`
+      : Prisma.sql`sh."itemBarcode"`;
+
+  return prisma.$queryRaw<ResolvedScanHistory[]>(
+    Prisma.sql`
+      SELECT
+        sh."id" AS "id",
+        sh."shopId" AS "shopId",
+        sh."productId" AS "productId",
+        sh."itemSku" AS "itemSku",
+        sh."itemBarcode" AS "itemBarcode",
+        sh."isSold" AS "isSold"
+      FROM "ScanHistory" sh
+      WHERE ${column} IS NOT NULL
+        AND LOWER(TRIM(${column})) = LOWER(TRIM(${value}))
+      ORDER BY sh."updatedAt" DESC
+    `,
+  );
 };
 
 const resolveTarget = async (
@@ -171,10 +189,23 @@ const updateTarget = async (input: {
   username: string;
   target: ManagerAppItemTarget;
 }): Promise<ManagerAppPatchResult> => {
+  const target = toPatchTarget(input.target);
   const resolved = await resolveTarget(input.target);
 
   if (resolved.status === "failed") {
-    return failure(input.position, resolved.errorCode, resolved.message);
+    logger.warn("External manager-app item target could not be resolved", {
+      position: input.position,
+      target,
+      errorCode: resolved.errorCode,
+      message: resolved.message,
+    });
+
+    return failure(
+      input.position,
+      target,
+      resolved.errorCode,
+      resolved.message,
+    );
   }
 
   const { record } = resolved;
@@ -198,16 +229,18 @@ const updateTarget = async (input: {
         payload: { location: input.position },
       });
 
-      return success(input.position, "scanner", record.id);
+      return success(input.position, target, "scanner", record.id);
     } catch (error) {
       logger.warn("External manager-app scanner update failed", {
         scanHistoryId: record.id,
         shopId: record.shopId,
+        target,
         error: error instanceof Error ? error.message : "unknown",
       });
 
       return failure(
         input.position,
+        target,
         "SHOPIFY_UPDATE_FAILED",
         "Unable to update unsold item location through Shopify",
       );
@@ -220,8 +253,18 @@ const updateTarget = async (input: {
   });
 
   if (logisticLocation.status === "failed") {
+    logger.warn("External manager-app logistic location could not be resolved", {
+      scanHistoryId: record.id,
+      shopId: record.shopId,
+      position: input.position,
+      target,
+      errorCode: logisticLocation.errorCode,
+      message: logisticLocation.message,
+    });
+
     return failure(
       input.position,
+      target,
       logisticLocation.errorCode,
       logisticLocation.message,
     );
@@ -238,16 +281,18 @@ const updateTarget = async (input: {
       },
     });
 
-    return success(input.position, "logistic", record.id);
+    return success(input.position, target, "logistic", record.id);
   } catch (error) {
     logger.warn("External manager-app logistic placement failed", {
       scanHistoryId: record.id,
       shopId: record.shopId,
+      target,
       error: error instanceof Error ? error.message : "unknown",
     });
 
     return failure(
       input.position,
+      target,
       "UPDATE_FAILED",
       "Unable to update sold item logistic location",
     );

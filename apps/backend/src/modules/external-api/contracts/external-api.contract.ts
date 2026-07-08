@@ -87,9 +87,15 @@ export type ManagerAppLocationItem = {
 
 export type ManagerAppPatchRoute = "scanner" | "logistic";
 
+export type ManagerAppPatchTarget = {
+  article_number: string | null;
+  sku: string | null;
+};
+
 export type ManagerAppPatchSuccessResult = {
   status: "updated";
   position: string;
+  target: ManagerAppPatchTarget;
   route: ManagerAppPatchRoute;
   scanHistoryId: string;
 };
@@ -97,6 +103,7 @@ export type ManagerAppPatchSuccessResult = {
 export type ManagerAppPatchFailureResult = {
   status: "failed";
   position: string;
+  target: ManagerAppPatchTarget;
   errorCode:
     | "ITEM_NOT_FOUND"
     | "ITEM_CONFLICT"
