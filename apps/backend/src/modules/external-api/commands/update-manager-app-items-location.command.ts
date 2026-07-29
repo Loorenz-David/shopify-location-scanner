@@ -184,6 +184,53 @@ const findLogisticLocation = async (input: {
   };
 };
 
+const updateViaShopify = async (input: {
+  position: string;
+  username: string;
+  target: ManagerAppPatchTarget;
+  rawTarget: ManagerAppItemTarget;
+  record: ResolvedScanHistory;
+  resolvedBy: "sku" | "barcode";
+}): Promise<ManagerAppPatchResult> => {
+  const { record } = input;
+
+  try {
+    const originalItemId =
+      input.resolvedBy === "sku"
+        ? (record.itemSku ?? input.rawTarget.sku ?? record.productId)
+        : (record.itemBarcode ??
+            input.rawTarget.article_number ??
+            record.productId);
+
+    await updateItemLocationCommand({
+      shopId: record.shopId,
+      userId: null,
+      username: input.username,
+      resolvedProductId: record.productId,
+      originalItemId,
+      idType: input.resolvedBy === "sku" ? "sku" : "barcode",
+      payload: { location: input.position },
+    });
+
+    return success(input.position, input.target, "scanner", record.id);
+  } catch (error) {
+    logger.warn("External manager-app scanner update failed", {
+      scanHistoryId: record.id,
+      shopId: record.shopId,
+      target: input.target,
+      isSold: record.isSold,
+      error: error instanceof Error ? error.message : "unknown",
+    });
+
+    return failure(
+      input.position,
+      input.target,
+      "SHOPIFY_UPDATE_FAILED",
+      "Unable to update item location through Shopify",
+    );
+  }
+};
+
 const updateTarget = async (input: {
   position: string;
   username: string;
@@ -211,40 +258,14 @@ const updateTarget = async (input: {
   const { record } = resolved;
 
   if (!record.isSold) {
-    try {
-      const originalItemId =
-        resolved.resolvedBy === "sku"
-          ? (record.itemSku ?? input.target.sku ?? record.productId)
-          : (record.itemBarcode ??
-              input.target.article_number ??
-              record.productId);
-
-      await updateItemLocationCommand({
-        shopId: record.shopId,
-        userId: null,
-        username: input.username,
-        resolvedProductId: record.productId,
-        originalItemId,
-        idType: resolved.resolvedBy === "sku" ? "sku" : "barcode",
-        payload: { location: input.position },
-      });
-
-      return success(input.position, target, "scanner", record.id);
-    } catch (error) {
-      logger.warn("External manager-app scanner update failed", {
-        scanHistoryId: record.id,
-        shopId: record.shopId,
-        target,
-        error: error instanceof Error ? error.message : "unknown",
-      });
-
-      return failure(
-        input.position,
-        target,
-        "SHOPIFY_UPDATE_FAILED",
-        "Unable to update unsold item location through Shopify",
-      );
-    }
+    return updateViaShopify({
+      position: input.position,
+      username: input.username,
+      target,
+      rawTarget: input.target,
+      record,
+      resolvedBy: resolved.resolvedBy,
+    });
   }
 
   const logisticLocation = await findLogisticLocation({
@@ -253,6 +274,29 @@ const updateTarget = async (input: {
   });
 
   if (logisticLocation.status === "failed") {
+    // Sold items may move to shop locations too: when the position is not a
+    // logistic location, fall back to the shop route (the item stays sold).
+    // A conflict among logistic locations is still a hard failure.
+    if (logisticLocation.errorCode === "LOGISTIC_LOCATION_NOT_FOUND") {
+      logger.info(
+        "External manager-app sold item falling back to shop location update",
+        {
+          scanHistoryId: record.id,
+          shopId: record.shopId,
+          position: input.position,
+        },
+      );
+
+      return updateViaShopify({
+        position: input.position,
+        username: input.username,
+        target,
+        rawTarget: input.target,
+        record,
+        resolvedBy: resolved.resolvedBy,
+      });
+    }
+
     logger.warn("External manager-app logistic location could not be resolved", {
       scanHistoryId: record.id,
       shopId: record.shopId,

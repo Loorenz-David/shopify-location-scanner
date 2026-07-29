@@ -1,7 +1,8 @@
 export type ScanHistoryEventType =
   | "location_update"
   | "unknown_position"
-  | "sold_terminal";
+  | "sold_terminal"
+  | "returned_to_store";
 
 export type ScanHistoryPriceTerminalType =
   | "unknown_position"
@@ -75,6 +76,7 @@ export type ScanHistoryRecord = {
   logisticEvent: ScanHistoryLogisticEvent | null;
   logisticEvents: ScanHistoryLogisticEvent[];
   logisticsCompletedAt: Date | null;
+  restockedAt: Date | null;
   lastModifiedAt: Date;
   events: ScanHistoryEvent[];
   priceHistory: ScanHistoryPricePoint[];

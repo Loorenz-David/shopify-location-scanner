@@ -106,9 +106,9 @@ export function UnifiedScannerPage() {
         {manualInputMode === "location" ? (
           <UnifiedLocationManualInputPanel
             onClose={() => setManualInputMode(null)}
-            onSelectValue={(value) => {
+            onSelectValue={(value, kind) => {
               setManualInputMode(null);
-              unifiedScannerActions.applyLocationByValue(value);
+              unifiedScannerActions.applyLocationByValue(value, kind);
             }}
           />
         ) : null}

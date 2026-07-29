@@ -428,11 +428,13 @@ function toItemScanHistoryEntryDto(
     itemWidth: historyItem.itemWidth,
     itemDepth: historyItem.itemDepth,
     volume: historyItem.volume,
+    properties: historyItem.properties,
     quantity: historyItem.quantity ?? 1,
     lastModifiedAt: historyItem.lastModifiedAt,
     latestLocation: historyItem.latestLocation,
     lastLogisticLocation: historyItem.lastLogisticLocation,
     logisticsCompletedAt: historyItem.logisticsCompletedAt,
+    lastSoldChannel: historyItem.lastSoldChannel,
     events: historyItem.events.map((event) => ({
       username: event.username,
       eventType: event.eventType,

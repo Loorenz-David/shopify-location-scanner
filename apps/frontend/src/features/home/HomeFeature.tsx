@@ -30,8 +30,11 @@ import { useItemImageViewerStore } from "../item-scan-history/stores/item-image-
 import { ItemImageCarouselPage } from "../item-scan-history/ui/ItemImageCarouselPage";
 import { PlacementItemFixedPopup } from "../scanner/ui/PlacementItemFixedPopup";
 import { PlacementZoneMismatchPopup } from "../scanner/ui/PlacementZoneMismatchPopup";
+import { unifiedScannerActions } from "../unified-scanner/actions/unified-scanner.actions";
+import { UNIFIED_SCANNER_POPUP_IDS } from "../unified-scanner/types/unified-scanner.types";
 import { UnifiedScannerFeature } from "../unified-scanner/UnifiedScannerFeature";
 import { UnifiedFixCheckPopup } from "../unified-scanner/ui/UnifiedFixCheckPopup";
+import { UnifiedReturnCheckPopup } from "../unified-scanner/ui/UnifiedReturnCheckPopup";
 import { UnifiedZoneMismatchPopup } from "../unified-scanner/ui/UnifiedZoneMismatchPopup";
 import { LogisticTasksOverlayHost } from "../logistic-tasks/LogisticTasksOverlayHost";
 import { useLogisticTasksRealtimeFlow } from "../logistic-tasks/flows/use-logistic-tasks-realtime.flow";
@@ -243,9 +246,22 @@ export function HomeFeature({ onLogout }: HomeFeatureProps) {
             {popupPageId === "unified-scanner-zone-mismatch" && (
               <UnifiedZoneMismatchPopup />
             )}
+            {popupPageId === "unified-scanner-return-check" && (
+              <UnifiedReturnCheckPopup />
+            )}
           </>
         }
-        onClosePopup={homeShellActions.closePopupPage}
+        onClosePopup={() => {
+          if (
+            popupPageId !== null &&
+            Object.values(UNIFIED_SCANNER_POPUP_IDS).includes(popupPageId)
+          ) {
+            unifiedScannerActions.cancelPlacement();
+            return;
+          }
+
+          homeShellActions.closePopupPage();
+        }}
         onSelectPage={homeShellActions.selectNavigationPage}
       />
 

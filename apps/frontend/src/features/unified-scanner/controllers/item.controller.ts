@@ -60,6 +60,7 @@ export function applyItemController(
   const store = useUnifiedScannerStore.getState();
   const locationMode = resolveLocationScannerMode(item);
   const pendingLocationValue = store.pendingLocationValue;
+  const pendingLocationKind = store.pendingLocationKind;
   const transition = options?.transition ?? "immediate";
   const nextPhase =
     store.phase === "scanning-location"
@@ -89,6 +90,9 @@ export function applyItemController(
   homeShellActions.closeOverlayPage();
 
   if (pendingLocationValue && nextPhase === "scanning-location") {
-    applyLocationByValueController(pendingLocationValue);
+    applyLocationByValueController(
+      pendingLocationValue,
+      pendingLocationKind ?? undefined,
+    );
   }
 }

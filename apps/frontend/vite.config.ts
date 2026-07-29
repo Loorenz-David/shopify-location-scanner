@@ -21,6 +21,11 @@ function injectSwBuildVersion(): Plugin {
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss(), svgr(), injectSwBuildVersion()],
+  resolve: {
+    // TS sources must win over stale compiled .js siblings; Vite's default
+    // order tries .js before .ts.
+    extensions: [".mts", ".ts", ".tsx", ".mjs", ".js", ".jsx", ".json"],
+  },
   build: {
     rollupOptions: {
       output: {

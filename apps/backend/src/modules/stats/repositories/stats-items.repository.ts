@@ -157,9 +157,11 @@ function toDomain(record: any): StatsItem {
   // For correction/backfill records, lastModifiedAt (= Shopify order processed_at)
   // can predate createdAt (= when the DB row was inserted). A negative duration
   // is meaningless, so return null — the item was never scanned before the sale.
+  // Items returned to store restart their clock at restockedAt.
+  const stockedSince = record.restockedAt ?? record.createdAt;
   const rawTimeToSell = record.isSold
     ? Math.round(
-        (record.lastModifiedAt.getTime() - record.createdAt.getTime()) / 1000,
+        (record.lastModifiedAt.getTime() - stockedSince.getTime()) / 1000,
       )
     : null;
   const timeToSellSeconds =
@@ -187,6 +189,7 @@ function toDomain(record: any): StatsItem {
     fixItem: record.fixItem ?? null,
     lastKnownPrice,
     timeToSellSeconds,
+    restockedAt: record.restockedAt ?? null,
     lastModifiedAt: record.lastModifiedAt,
     createdAt: record.createdAt,
   };

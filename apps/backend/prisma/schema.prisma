@@ -18,6 +18,7 @@ enum ScanHistoryEventType {
   location_update
   unknown_position
   sold_terminal
+  returned_to_store
 }
 
 enum ScanHistoryPriceTerminalType {
@@ -140,6 +141,7 @@ model ScanHistory {
   lastLogisticEventType LogisticEventType?
   logisticLocationId   String?
   logisticsCompletedAt DateTime?
+  restockedAt          DateTime?
   properties       Json?
   lastModifiedAt   DateTime @default(now())
   createdAt        DateTime @default(now())

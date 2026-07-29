@@ -12,7 +12,7 @@ import { useLocationOptionsStore } from "../stores/location-options.store";
 
 interface UnifiedLocationManualInputPanelProps {
   onClose: () => void;
-  onSelectValue: (value: string) => void;
+  onSelectValue: (value: string, kind: LocationKind) => void;
 }
 
 const LETTER_NUMBER_RE = /^([A-Za-z]+)(\d+)$/;
@@ -22,17 +22,31 @@ function parseLetterNumber(name: string): { letter: string; number: string } | n
   return m ? { letter: m[1].toUpperCase(), number: m[2] } : null;
 }
 
+type LocationKind = "shop" | "logistic";
+
 interface LocationItem {
   key: string;
   value: string;
   label: string;
-  kind: "shop" | "logistic";
+  kind: LocationKind;
 }
 
 interface LetterGroup {
   letter: string;
   items: LocationItem[];
 }
+
+interface LocationSection {
+  kind: LocationKind;
+  title: string;
+  groups: LetterGroup[];
+  unstructured: LocationItem[];
+}
+
+const SECTION_TITLES: Record<LocationKind, string> = {
+  shop: "Shop locations",
+  logistic: "Logistic locations",
+};
 
 function buildLetterGroups(items: LocationItem[]): {
   groups: LetterGroup[];
@@ -70,7 +84,10 @@ export function UnifiedLocationManualInputPanel({
 }: UnifiedLocationManualInputPanelProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [query, setQuery] = useState("");
-  const [selectedLetter, setSelectedLetter] = useState<string | null>(null);
+  const [selectedGroup, setSelectedGroup] = useState<{
+    kind: LocationKind;
+    letter: string;
+  } | null>(null);
   const { locationMode } = useUnifiedScannerPageContext();
   const shopOptions = useLocationOptionsStore((state) => state.options);
   const logisticLocations = useLogisticLocationsStore((state) => state.locations);
@@ -97,53 +114,51 @@ export function UnifiedLocationManualInputPanel({
     [logisticLocations],
   );
 
-  const browseItems = useMemo<LocationItem[]>(() => {
-    if (locationMode === "shop") return shopItems;
-    if (locationMode === "logistic") return logisticItems;
-    return [...shopItems, ...logisticItems];
-  }, [locationMode, shopItems, logisticItems]);
+  const kindOrder = useMemo<LocationKind[]>(
+    () => (locationMode === "logistic" ? ["logistic", "shop"] : ["shop", "logistic"]),
+    [locationMode],
+  );
 
-  const { groups, unstructured } = useMemo(
-    () => buildLetterGroups(browseItems),
-    [browseItems],
+  const sections = useMemo<LocationSection[]>(
+    () =>
+      kindOrder
+        .map((kind) => {
+          const items = kind === "shop" ? shopItems : logisticItems;
+          const { groups, unstructured } = buildLetterGroups(items);
+          return { kind, title: SECTION_TITLES[kind], groups, unstructured };
+        })
+        .filter((section) => section.groups.length > 0 || section.unstructured.length > 0),
+    [kindOrder, shopItems, logisticItems],
   );
 
   const searchResults = useMemo<LocationItem[]>(() => {
     if (!query.trim()) return [];
 
-    const logistic =
-      locationMode !== "shop"
-        ? filterLogisticLocations(logisticLocations, query).map((loc) => ({
-            key: `${loc.id}-${loc.location}`,
-            value: loc.location,
-            label: loc.location,
-            kind: "logistic" as const,
-          }))
-        : [];
-
     const q = query.trim().toLowerCase();
-    const shop =
-      locationMode !== "logistic"
-        ? shopOptions
-            .filter(
-              (opt) =>
-                opt.label.toLowerCase().includes(q) ||
-                opt.value.toLowerCase().includes(q),
-            )
-            .map((opt) => ({
-              key: opt.value,
-              value: opt.value,
-              label: opt.label,
-              kind: "shop" as const,
-            }))
-        : [];
+    const shop = shopItems.filter(
+      (item) =>
+        item.label.toLowerCase().includes(q) ||
+        item.value.toLowerCase().includes(q),
+    );
+    const logistic = filterLogisticLocations(logisticLocations, query).map(
+      (loc) => ({
+        key: `${loc.id}-${loc.location}`,
+        value: loc.location,
+        label: loc.location,
+        kind: "logistic" as const,
+      }),
+    );
 
-    return [...shop, ...logistic];
-  }, [locationMode, logisticLocations, query, shopOptions]);
+    return kindOrder[0] === "shop"
+      ? [...shop, ...logistic]
+      : [...logistic, ...shop];
+  }, [kindOrder, logisticLocations, query, shopItems]);
 
   const isSearching = query.trim().length > 0;
-  const activeGroup = selectedLetter
-    ? (groups.find((g) => g.letter === selectedLetter) ?? null)
+  const activeGroup = selectedGroup
+    ? (sections
+        .find((section) => section.kind === selectedGroup.kind)
+        ?.groups.find((group) => group.letter === selectedGroup.letter) ?? null)
     : null;
 
   return (
@@ -156,15 +171,15 @@ export function UnifiedLocationManualInputPanel({
       aria-label="Manual unified location input"
     >
       <header className="flex items-center gap-2 border-b border-slate-900/15 px-4 py-4">
-        {selectedLetter && !isSearching && (
+        {selectedGroup && !isSearching && (
           <button
             type="button"
             className="flex h-11 shrink-0 items-center gap-1 rounded-xl border border-slate-800/20 bg-white px-3 text-sm font-bold text-sky-900"
-            onClick={() => setSelectedLetter(null)}
+            onClick={() => setSelectedGroup(null)}
             aria-label="Back to letter selection"
           >
             <span>←</span>
-            <span>{selectedLetter}</span>
+            <span>{selectedGroup.letter}</span>
           </button>
         )}
         <SearchBar
@@ -174,7 +189,7 @@ export function UnifiedLocationManualInputPanel({
           value={query}
           onChange={(event) => {
             setQuery(event.target.value);
-            setSelectedLetter(null);
+            setSelectedGroup(null);
           }}
           placeholder="Search location"
           aria-label="Search location"
@@ -197,17 +212,15 @@ export function UnifiedLocationManualInputPanel({
             <div className="grid grid-cols-4 gap-2">
               {searchResults.map((item) => (
                 <button
-                  key={item.key}
+                  key={`${item.kind}-${item.key}`}
                   type="button"
                   className="flex aspect-square flex-col items-center justify-center rounded-2xl border border-slate-800/20 bg-white p-2 text-center text-sky-900"
-                  onClick={() => onSelectValue(item.value)}
+                  onClick={() => onSelectValue(item.value, item.kind)}
                 >
                   <span className="text-sm font-semibold leading-tight">{item.label}</span>
-                  {locationMode === null && (
-                    <span className="mt-0.5 text-[10px] text-slate-500">
-                      {item.kind === "shop" ? "Shop" : "Logistic"}
-                    </span>
-                  )}
+                  <span className="mt-0.5 text-[10px] text-slate-500">
+                    {item.kind === "shop" ? "Shop" : "Logistic"}
+                  </span>
                 </button>
               ))}
             </div>
@@ -221,7 +234,7 @@ export function UnifiedLocationManualInputPanel({
                   key={item.key}
                   type="button"
                   className="flex aspect-square flex-col items-center justify-center rounded-2xl border border-slate-800/20 bg-white p-2 text-center text-sky-900"
-                  onClick={() => onSelectValue(item.value)}
+                  onClick={() => onSelectValue(item.value, item.kind)}
                 >
                   <span className="text-xl font-bold">
                     {parsed ? parsed.number : item.label}
@@ -230,46 +243,59 @@ export function UnifiedLocationManualInputPanel({
               );
             })}
           </div>
-        ) : groups.length === 0 && unstructured.length === 0 ? (
+        ) : sections.length === 0 ? (
           <p className="m-0 text-sm text-slate-500">No locations found.</p>
         ) : (
-          <div className="flex flex-col gap-4">
-            {groups.length > 0 && (
-              <div className="grid grid-cols-4 gap-2">
-                {groups.map((group) => (
-                  <button
-                    key={`letter-${group.letter}`}
-                    type="button"
-                    className="flex aspect-square flex-col items-center justify-center rounded-2xl border border-slate-800/20 bg-white p-2 text-center text-sky-900"
-                    onClick={() => setSelectedLetter(group.letter)}
-                  >
-                    <span className="text-xl font-bold">{group.letter}</span>
-                    <span className="mt-0.5 text-[10px] text-slate-500">
-                      {group.items.length}
-                    </span>
-                  </button>
-                ))}
-              </div>
-            )}
-            {unstructured.length > 0 && (
-              <div className="grid grid-cols-4 gap-2">
-                {unstructured.map((item) => (
-                  <button
-                    key={item.key}
-                    type="button"
-                    className="flex aspect-square flex-col items-center justify-center rounded-2xl border border-slate-800/20 bg-white p-2 text-center text-sky-900"
-                    onClick={() => onSelectValue(item.value)}
-                  >
-                    <span className="text-sm font-semibold leading-tight">{item.label}</span>
-                    {locationMode === null && (
-                      <span className="mt-0.5 text-[10px] text-slate-500">
-                        {item.kind === "shop" ? "Shop" : "Logistic"}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
+          <div className="flex flex-col gap-6">
+            {sections.map((section) => (
+              <section
+                key={section.kind}
+                aria-label={section.title}
+                className="flex flex-col gap-2"
+              >
+                <p className="m-0 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  {section.title}
+                </p>
+                {section.groups.length > 0 && (
+                  <div className="grid grid-cols-4 gap-2">
+                    {section.groups.map((group) => (
+                      <button
+                        key={`${section.kind}-letter-${group.letter}`}
+                        type="button"
+                        className="flex aspect-square flex-col items-center justify-center rounded-2xl border border-slate-800/20 bg-white p-2 text-center text-sky-900"
+                        onClick={() =>
+                          setSelectedGroup({
+                            kind: section.kind,
+                            letter: group.letter,
+                          })
+                        }
+                      >
+                        <span className="text-xl font-bold">{group.letter}</span>
+                        <span className="mt-0.5 text-[10px] text-slate-500">
+                          {group.items.length}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {section.unstructured.length > 0 && (
+                  <div className="grid grid-cols-4 gap-2">
+                    {section.unstructured.map((item) => (
+                      <button
+                        key={item.key}
+                        type="button"
+                        className="flex aspect-square flex-col items-center justify-center rounded-2xl border border-slate-800/20 bg-white p-2 text-center text-sky-900"
+                        onClick={() => onSelectValue(item.value, item.kind)}
+                      >
+                        <span className="text-sm font-semibold leading-tight">
+                          {item.label}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
+            ))}
           </div>
         )}
       </div>

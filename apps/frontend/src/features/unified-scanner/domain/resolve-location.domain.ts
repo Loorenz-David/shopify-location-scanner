@@ -58,9 +58,17 @@ export function resolveLocation(
     return null;
   }
 
+  // The mode is a preference, not a restriction: when a value exists in both
+  // sets, the item's preferred set wins.
   if (mode === "shop") {
-    return resolveShopLocation(value, shopOptions);
+    return (
+      resolveShopLocation(value, shopOptions) ??
+      resolveLogisticLocation(value, logisticLocations)
+    );
   }
 
-  return resolveLogisticLocation(value, logisticLocations);
+  return (
+    resolveLogisticLocation(value, logisticLocations) ??
+    resolveShopLocation(value, shopOptions)
+  );
 }

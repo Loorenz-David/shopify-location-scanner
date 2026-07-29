@@ -1,4 +1,7 @@
-import { NotFoundError } from "../../../shared/errors/http-errors.js";
+import {
+  NotFoundError,
+  ValidationError,
+} from "../../../shared/errors/http-errors.js";
 import type {
   ShopifyProductLocationDto,
   UpdateItemLocationInput,
@@ -39,6 +42,26 @@ export const updateItemLocationCommand = async (input: {
       resolvedProductId: input.resolvedProductId,
     });
     throw new NotFoundError("Linked Shopify store not found");
+  }
+
+  const returnToStore = input.payload.returnToStore === true;
+
+  if (returnToStore) {
+    const existingHistory = await scanHistoryRepository.findByShopAndProduct({
+      shopId: input.shopId,
+      productId: input.resolvedProductId,
+    });
+
+    if (!existingHistory?.isSold) {
+      logger.warn("Update item location aborted: return-to-store on unsold item", {
+        shopId: input.shopId,
+        userId: input.userId,
+        resolvedProductId: input.resolvedProductId,
+      });
+      throw new ValidationError(
+        "Return to store is only allowed for sold items",
+      );
+    }
   }
 
   const before = await shopifyAdminApi.getProductWithLocation({
@@ -97,6 +120,7 @@ export const updateItemLocationCommand = async (input: {
     shopId: shop.id,
     userId: input.userId,
     username,
+    eventType: returnToStore ? "returned_to_store" : "location_update",
     currentPrice: after.price,
     itemHeight: after.itemHeight,
     itemWidth: after.itemWidth,
@@ -123,6 +147,23 @@ export const updateItemLocationCommand = async (input: {
     historyItemId: historyItem.id,
     finalLocation: after.location ?? input.payload.location,
   });
+
+  if (returnToStore) {
+    logger.info("Sold item returned to store", {
+      shopId: input.shopId,
+      resolvedProductId: input.resolvedProductId,
+      historyItemId: historyItem.id,
+      restockedAt: historyItem.restockedAt,
+      location: after.location ?? input.payload.location,
+    });
+  } else if (historyItem.isSold) {
+    logger.info("Post-sale shop location move", {
+      shopId: input.shopId,
+      resolvedProductId: input.resolvedProductId,
+      historyItemId: historyItem.id,
+      location: after.location ?? input.payload.location,
+    });
+  }
 
   return {
     product: {

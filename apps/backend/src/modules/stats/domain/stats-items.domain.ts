@@ -20,8 +20,10 @@ export type StatsItem = {
   fixItem: boolean | null;
   /** Latest price entry from priceHistory, null if none recorded */
   lastKnownPrice: string | null;
-  /** (lastModifiedAt - createdAt) in seconds. Only set when isSold = true */
+  /** (lastModifiedAt - (restockedAt ?? createdAt)) in seconds. Only set when isSold = true */
   timeToSellSeconds: number | null;
+  /** Last time the item re-entered the pipeline via a customer return, null if never returned */
+  restockedAt: Date | null;
   lastModifiedAt: Date;
   createdAt: Date;
 };

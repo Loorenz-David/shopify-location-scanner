@@ -55,11 +55,12 @@ export type ResolvedLocation =
       zoneType: LogisticZoneType;
     };
 
-export type LocationWarningType = "fix-check" | "zone-mismatch";
+export type LocationWarningType = "fix-check" | "zone-mismatch" | "return-check";
 
 export const UNIFIED_SCANNER_POPUP_IDS: Record<LocationWarningType, string> = {
   "fix-check": "unified-scanner-fix-check",
   "zone-mismatch": "unified-scanner-zone-mismatch",
+  "return-check": "unified-scanner-return-check",
 };
 
 export interface LocationWarning {
@@ -169,6 +170,7 @@ export interface LinkItemLocationInput {
   idType: ScannerItemIdType;
   itemId: string;
   location: string;
+  returnToStore?: boolean;
 }
 
 export interface LinkItemPositionsBatchRequest {
@@ -205,11 +207,13 @@ export interface LinkHistoryItemResponse {
   itemWidth: number | null;
   itemDepth: number | null;
   volume: number | null;
+  properties?: Record<string, string | number> | null;
   quantity: number;
   lastModifiedAt: string;
   latestLocation?: string | null;
   lastLogisticLocation?: string | null;
   logisticsCompletedAt?: string | null;
+  lastSoldChannel?: SalesChannel | null;
   events: Array<{
     username: string;
     eventType: ScanHistoryEventType;

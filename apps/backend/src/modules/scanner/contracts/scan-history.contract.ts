@@ -141,7 +141,12 @@ export const AppendScanLocationHistorySchema = z.object({
   userId: z.string().min(1).nullable().optional(),
   username: z.string().trim().min(1).max(80),
   eventType: z
-    .enum(["location_update", "unknown_position", "sold_terminal"])
+    .enum([
+      "location_update",
+      "unknown_position",
+      "sold_terminal",
+      "returned_to_store",
+    ])
     .optional(),
   currentPrice: z.string().trim().min(1).max(80).nullable().optional(),
   itemHeight: z.number().positive().nullable().optional(),

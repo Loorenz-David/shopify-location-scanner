@@ -38,6 +38,7 @@ export async function placementController(): Promise<void> {
         idType: item.idType,
         itemId: item.itemId,
         location: location.code,
+        ...(store.returnToStore ? { returnToStore: true } : {}),
       });
 
       itemScanHistoryActions.commitOptimisticLocationUpdate(

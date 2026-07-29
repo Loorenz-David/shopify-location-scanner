@@ -1,16 +1,24 @@
 import { homeShellActions } from "../../home/actions/home-shell.actions";
 import { useLogisticLocationsStore } from "../../logistic-locations/stores/logistic-locations.store";
 import { placementController } from "./placement.controller";
-import { resolveLocation } from "../domain/resolve-location.domain";
+import {
+  resolveLocation,
+  resolveLogisticLocation,
+  resolveShopLocation,
+} from "../domain/resolve-location.domain";
 import { evaluateLocationWarnings } from "../domain/warning-rules.domain";
 import { useLocationOptionsStore } from "../stores/location-options.store";
 import { useUnifiedScannerStore } from "../stores/unified-scanner.store";
 import {
   UNIFIED_SCANNER_POPUP_IDS,
+  type LocationScannerMode,
   type ResolvedLocation,
 } from "../types/unified-scanner.types";
 
-export function applyLocationByValueController(value: string): void {
+export function applyLocationByValueController(
+  value: string,
+  kind?: LocationScannerMode,
+): void {
   const store = useUnifiedScannerStore.getState();
   const normalizedValue = value.trim();
 
@@ -21,18 +29,24 @@ export function applyLocationByValueController(value: string): void {
   }
 
   if (!store.locationMode) {
-    store.setPendingLocationValue(normalizedValue);
+    store.setPendingLocationValue(normalizedValue, kind ?? null);
     return;
   }
 
   const shopOptions = useLocationOptionsStore.getState().options;
   const logisticLocations = useLogisticLocationsStore.getState().locations;
-  const location = resolveLocation(
-    normalizedValue,
-    store.locationMode,
-    shopOptions,
-    logisticLocations,
-  );
+  // An explicit kind (tapped tile in the manual panel) wins over the item's
+  // preferred mode, so overlapping names resolve to the tapped set.
+  const location = kind
+    ? kind === "shop"
+      ? resolveShopLocation(normalizedValue, shopOptions)
+      : resolveLogisticLocation(normalizedValue, logisticLocations)
+    : resolveLocation(
+        normalizedValue,
+        store.locationMode,
+        shopOptions,
+        logisticLocations,
+      );
 
   if (!location) {
     store.setLocationWarningBanner(
@@ -52,6 +66,8 @@ export function applyResolvedLocationController(location: ResolvedLocation): voi
   if (!selectedItem) {
     return;
   }
+
+  store.setReturnToStore(false);
 
   const warnings = evaluateLocationWarnings(selectedItem, location);
 

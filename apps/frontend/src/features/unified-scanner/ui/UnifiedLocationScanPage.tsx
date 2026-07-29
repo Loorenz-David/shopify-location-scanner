@@ -20,7 +20,6 @@ export function UnifiedLocationScanPage({
   const {
     locationFrozenFrame,
     locationDecodedText,
-    locationMode,
     selectedLocation,
     phase,
     selectedItem,
@@ -148,7 +147,7 @@ export function UnifiedLocationScanPage({
               </div>
             </div>
 
-            {locationMode === "shop" && selectedLocation ? (
+            {selectedLocation?.mode === "shop" ? (
               <button
                 type="button"
                 className={`w-full rounded-lg px-3 py-3 text-md font-bold ${

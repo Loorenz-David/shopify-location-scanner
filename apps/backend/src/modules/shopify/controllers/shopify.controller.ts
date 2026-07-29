@@ -288,6 +288,7 @@ export const shopifyController = {
             idType: input.idType,
             payload: {
               location: input.location,
+              returnToStore: input.returnToStore,
             },
           });
 

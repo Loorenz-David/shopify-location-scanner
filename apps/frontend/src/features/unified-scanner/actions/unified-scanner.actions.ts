@@ -10,10 +10,12 @@ import {
 } from "../controllers/location.controller";
 import { placementController } from "../controllers/placement.controller";
 import { useUnifiedScannerStore } from "../stores/unified-scanner.store";
-import type {
-  ResolvedLocation,
-  ScannerLens,
-  UnifiedScannerItem,
+import {
+  UNIFIED_SCANNER_POPUP_IDS,
+  type LocationScannerMode,
+  type ResolvedLocation,
+  type ScannerLens,
+  type UnifiedScannerItem,
 } from "../types/unified-scanner.types";
 
 interface ApplyItemActionOptions {
@@ -53,11 +55,7 @@ function openNextWarningIfAny(): boolean {
     return false;
   }
 
-  homeShellActions.popupFeaturePage(
-    nextWarning.type === "fix-check"
-      ? "unified-scanner-fix-check"
-      : "unified-scanner-zone-mismatch",
-  );
+  homeShellActions.popupFeaturePage(UNIFIED_SCANNER_POPUP_IDS[nextWarning.type]);
 
   return true;
 }
@@ -72,8 +70,8 @@ export const unifiedScannerActions = {
   applyLocation(location: ResolvedLocation): void {
     applyResolvedLocationController(location);
   },
-  applyLocationByValue(value: string): void {
-    applyLocationByValueController(value);
+  applyLocationByValue(value: string, kind?: LocationScannerMode): void {
+    applyLocationByValueController(value, kind);
   },
   goToLocationStep(): void {
     const store = useUnifiedScannerStore.getState();
@@ -200,6 +198,21 @@ export const unifiedScannerActions = {
   confirmZoneMismatch(): void {
     homeShellActions.closePopupPage();
     finishPendingPlacement();
+  },
+  confirmReturnToStore(): void {
+    homeShellActions.closePopupPage();
+    useUnifiedScannerStore.getState().setReturnToStore(true);
+
+    if (!openNextWarningIfAny()) {
+      finishPendingPlacement();
+    }
+  },
+  confirmPlaceWithoutReturn(): void {
+    homeShellActions.closePopupPage();
+
+    if (!openNextWarningIfAny()) {
+      finishPendingPlacement();
+    }
   },
   cancelPlacement(): void {
     homeShellActions.closePopupPage();

@@ -20,10 +20,12 @@ interface UnifiedScannerStore extends Record<string, unknown> {
   locationMode: LocationScannerMode | null;
   selectedLocation: ResolvedLocation | null;
   pendingLocationValue: string | null;
+  pendingLocationKind: LocationScannerMode | null;
   pendingLocation: ResolvedLocation | null;
   pendingWarnings: LocationWarning[];
   activeWarning: LocationWarning | null;
   requiresZoneMismatchAfterFixCheck: boolean;
+  returnToStore: boolean;
   frozenFrameAt: string | null;
   isLookingUpItem: boolean;
   itemLookupError: string | null;
@@ -39,11 +41,15 @@ interface UnifiedScannerStore extends Record<string, unknown> {
   setSelectedItem: (item: UnifiedScannerItem | null) => void;
   setLocationMode: (mode: LocationScannerMode | null) => void;
   setSelectedLocation: (location: ResolvedLocation | null) => void;
-  setPendingLocationValue: (value: string | null) => void;
+  setPendingLocationValue: (
+    value: string | null,
+    kind?: LocationScannerMode | null,
+  ) => void;
   setPendingLocation: (location: ResolvedLocation | null) => void;
   setPendingWarnings: (warnings: LocationWarning[]) => void;
   setActiveWarning: (warning: LocationWarning | null) => void;
   setRequiresZoneMismatchAfterFixCheck: (value: boolean) => void;
+  setReturnToStore: (value: boolean) => void;
   setFrozenFrameAt: (value: string | null) => void;
   setIsLookingUpItem: (value: boolean) => void;
   setItemLookupError: (value: string | null) => void;
@@ -66,10 +72,12 @@ const initialCycleState = {
   locationMode: null,
   selectedLocation: null,
   pendingLocationValue: null,
+  pendingLocationKind: null,
   pendingLocation: null,
   pendingWarnings: [] as LocationWarning[],
   activeWarning: null,
   requiresZoneMismatchAfterFixCheck: false,
+  returnToStore: false,
   frozenFrameAt: null,
   isLookingUpItem: false,
   itemLookupError: null,
@@ -92,12 +100,14 @@ export const useUnifiedScannerStore = create<UnifiedScannerStore>((set) => ({
   setSelectedItem: (selectedItem) => set({ selectedItem }),
   setLocationMode: (locationMode) => set({ locationMode }),
   setSelectedLocation: (selectedLocation) => set({ selectedLocation }),
-  setPendingLocationValue: (pendingLocationValue) => set({ pendingLocationValue }),
+  setPendingLocationValue: (pendingLocationValue, kind = null) =>
+    set({ pendingLocationValue, pendingLocationKind: kind }),
   setPendingLocation: (pendingLocation) => set({ pendingLocation }),
   setPendingWarnings: (pendingWarnings) => set({ pendingWarnings }),
   setActiveWarning: (activeWarning) => set({ activeWarning }),
   setRequiresZoneMismatchAfterFixCheck: (requiresZoneMismatchAfterFixCheck) =>
     set({ requiresZoneMismatchAfterFixCheck }),
+  setReturnToStore: (returnToStore) => set({ returnToStore }),
   setFrozenFrameAt: (frozenFrameAt) => set({ frozenFrameAt }),
   setIsLookingUpItem: (isLookingUpItem) => set({ isLookingUpItem }),
   setItemLookupError: (itemLookupError) => set({ itemLookupError }),

@@ -1,4 +1,5 @@
 import { fixCheckRule } from "./warning-rules/fix-check.rule";
+import { returnCheckRule } from "./warning-rules/return-check.rule";
 import { zoneMismatchRule } from "./warning-rules/zone-mismatch.rule";
 import type {
   LocationWarning,
@@ -10,6 +11,7 @@ import type {
 const LOCATION_WARNING_RULES: LocationWarningRule[] = [
   fixCheckRule,
   zoneMismatchRule,
+  returnCheckRule,
 ];
 
 export function evaluateLocationWarnings(

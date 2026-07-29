@@ -1,4 +1,5 @@
 import { prisma } from "../../../shared/database/prisma-client.js";
+import { ValidationError } from "../../../shared/errors/http-errors.js";
 import { logger } from "../../../shared/logging/logger.js";
 import type { SalesChannel } from "../../../shared/sales-channel/classify-sales-channel.js";
 import { startOfUtcDay } from "../../../shared/utils/date.js";
@@ -304,6 +305,7 @@ const toDomain = (record: any): ScanHistoryRecord => {
     logisticEvent: latestLogisticEvent ? latestLogisticEvent : null,
     logisticEvents,
     logisticsCompletedAt: record.logisticsCompletedAt ?? null,
+    restockedAt: record.restockedAt ?? null,
     lastModifiedAt: record.lastModifiedAt,
     events: (record.events ?? []).map((entry: any) => ({
       username: entry.username,
@@ -516,6 +518,12 @@ export const scanHistoryRepository = {
       });
 
       if (!existing) {
+        if (eventType === "returned_to_store") {
+          throw new ValidationError(
+            "Cannot return an item to store: no sold scan history exists for it",
+          );
+        }
+
         logger.info("Scan history record not found; creating new record", {
           shopId: input.shopId,
           productId: input.productId,
@@ -615,7 +623,20 @@ export const scanHistoryRepository = {
         location: normalizedLocation,
       });
 
-      if (normalizeLocation(existing.latestLocation) === normalizedLocation) {
+      const isReturnToStore = eventType === "returned_to_store";
+
+      if (isReturnToStore && !existing.isSold) {
+        throw new ValidationError(
+          "Cannot return an item to store: item is not sold",
+        );
+      }
+
+      // A return to the same location must still run the lifecycle reset and
+      // append its event, so only unchanged normal moves short-circuit here.
+      if (
+        !isReturnToStore &&
+        normalizeLocation(existing.latestLocation) === normalizedLocation
+      ) {
         return tx.scanHistory.findUniqueOrThrow({
           where: { id: existing.id },
           include: {
@@ -658,8 +679,36 @@ export const scanHistoryRepository = {
             : {}),
           quantity,
           latestLocation: normalizedLocation,
-          isSold: eventType === "sold_terminal",
-          lastModifiedAt: happenedAt,
+          // A location move must never un-sell an item; only an explicit
+          // return to store puts it back into the selling pipeline.
+          isSold:
+            eventType === "sold_terminal"
+              ? true
+              : isReturnToStore
+                ? false
+                : existing.isSold,
+          // For sold items lastModifiedAt is read as the sold timestamp by
+          // stats, so post-sale moves must not touch it.
+          lastModifiedAt:
+            existing.isSold && !isReturnToStore && eventType !== "sold_terminal"
+              ? existing.lastModifiedAt
+              : happenedAt,
+          ...(isReturnToStore
+            ? {
+                lastSoldChannel: null,
+                orderId: null,
+                orderNumber: null,
+                intention: null,
+                fixItem: null,
+                isItemFixed: false,
+                fixNotes: null,
+                scheduledDate: null,
+                lastLogisticEventType: null,
+                logisticLocationId: null,
+                logisticsCompletedAt: null,
+                restockedAt: happenedAt,
+              }
+            : {}),
         },
       });
 
@@ -673,7 +722,9 @@ export const scanHistoryRepository = {
         },
       });
 
-      if (eventType === "location_update") {
+      // A return to store means the location genuinely receives the item
+      // back into stock, so it counts as received like a normal shop move.
+      if (eventType === "location_update" || isReturnToStore) {
         const statsDate = startOfUtcDay(happenedAt);
 
         await tx.locationStatsDaily.upsert({
@@ -1040,11 +1091,16 @@ export const scanHistoryRepository = {
         }
       }
 
+      // Sold events from before the last return to store belong to a previous
+      // sale lifecycle — they must not suppress a genuine second sale.
       const alreadyTerminalForLocation = await tx.scanHistoryEvent.findFirst({
         where: {
           scanHistoryId: existing.id,
           eventType: "sold_terminal",
           location: normalizedSoldLocation,
+          ...(existing.restockedAt
+            ? { happenedAt: { gt: existing.restockedAt } }
+            : {}),
         },
       });
 
@@ -1113,10 +1169,14 @@ export const scanHistoryRepository = {
         },
       });
 
+      // The item "arrived" at the location it last moved to before this sale —
+      // a return to store starts a new arrival, and moves that happen after
+      // the sale time (late webhooks) must not steal the attribution.
       const arrivedEvent = await tx.scanHistoryEvent.findFirst({
         where: {
           scanHistoryId: existing.id,
-          eventType: "location_update",
+          eventType: { in: ["location_update", "returned_to_store"] },
+          happenedAt: { lte: happenedAt },
         },
         orderBy: {
           happenedAt: "desc",
@@ -1522,10 +1582,14 @@ export const scanHistoryRepository = {
         (existing.lastSoldChannel as SalesChannel | null) ??
         "unknown";
 
+      // This runs long after the sale, so the arrived location must be the
+      // one the item was at when it sold — moves recorded after soldAt
+      // (post-sale relocations, returns) must not steal the attribution.
       const arrivedEvent = await tx.scanHistoryEvent.findFirst({
         where: {
           scanHistoryId: existing.id,
-          eventType: "location_update",
+          eventType: { in: ["location_update", "returned_to_store"] },
+          happenedAt: { lte: soldAt },
         },
         orderBy: {
           happenedAt: "desc",
