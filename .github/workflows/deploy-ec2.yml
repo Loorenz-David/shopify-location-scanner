@@ -76,3 +76,5 @@ jobs:
             -o ConnectTimeout=30 \
             "${EC2_USER}@${EC2_HOST}" \
             "cd '${EC2_REPO_PATH}' && DEPLOY_BRANCH='${deploy_branch}' ENV_FILE='${EC2_BACKEND_ENV_FILE:-/etc/item-scanner/backend.env}' bash ./apps/backend/scripts/deploy-ec2.sh"
+
+
