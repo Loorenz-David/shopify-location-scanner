@@ -50,6 +50,7 @@ export const ManagerAppItemTargetSchema = z
   .object({
     article_number: z.string().trim().min(1).max(120).nullable().optional(),
     sku: z.string().trim().min(1).max(120).nullable().optional(),
+    needs_fixing: z.boolean().optional(),
   })
   .refine(
     (value) => Boolean(value.article_number?.trim() || value.sku?.trim()),

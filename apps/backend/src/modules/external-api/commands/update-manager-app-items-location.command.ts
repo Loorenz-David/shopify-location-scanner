@@ -257,6 +257,13 @@ const updateTarget = async (input: {
 
   const { record } = resolved;
 
+  if (input.target.needs_fixing) {
+    await prisma.scanHistory.update({
+      where: { id: record.id },
+      data: { fixItem: true },
+    });
+  }
+
   if (!record.isSold) {
     return updateViaShopify({
       position: input.position,
