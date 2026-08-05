@@ -3,6 +3,7 @@ import { prisma } from "../../../shared/database/prisma-client.js";
 import { logger } from "../../../shared/logging/logger.js";
 import { markLogisticPlacementCommand } from "../../logistic/commands/mark-logistic-placement.command.js";
 import { updateItemLocationCommand } from "../../shopify/commands/update-item-location.command.js";
+import { broadcastToShop } from "../../ws/ws-broadcaster.js";
 import type {
   ManagerAppItemTarget,
   ManagerAppPatchFailureResult,
@@ -20,6 +21,7 @@ type ResolvedScanHistory = {
   itemSku: string | null;
   itemBarcode: string | null;
   isSold: boolean;
+  orderId: string | null;
 };
 
 type LogisticLocationMatch = {
@@ -79,7 +81,8 @@ const resolveByField = async (
         sh."productId" AS "productId",
         sh."itemSku" AS "itemSku",
         sh."itemBarcode" AS "itemBarcode",
-        sh."isSold" AS "isSold"
+        sh."isSold" AS "isSold",
+        sh."orderId" AS "orderId"
       FROM "ScanHistory" sh
       WHERE ${column} IS NOT NULL
         AND LOWER(TRIM(${column})) = LOWER(TRIM(${value}))
@@ -273,6 +276,12 @@ const updateTarget = async (input: {
     });
 
     logger.info("External manager-app fixItem write completed", fixed);
+
+    broadcastToShop(record.shopId, {
+      type: "logistic_items_updated",
+      itemIds: [record.id],
+      orderId: record.orderId,
+    });
   }
 
   if (!record.isSold) {
