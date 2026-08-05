@@ -78,3 +78,5 @@ jobs:
             "cd '${EC2_REPO_PATH}' && DEPLOY_BRANCH='${deploy_branch}' ENV_FILE='${EC2_BACKEND_ENV_FILE:-/etc/item-scanner/backend.env}' bash ./apps/backend/scripts/deploy-ec2.sh"
 
 
+
+
