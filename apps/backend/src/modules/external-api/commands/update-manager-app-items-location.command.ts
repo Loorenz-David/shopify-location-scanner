@@ -257,11 +257,22 @@ const updateTarget = async (input: {
 
   const { record } = resolved;
 
+  logger.info("External manager-app needs_fixing evaluated", {
+    scanHistoryId: record.id,
+    sku: record.itemSku,
+    barcode: record.itemBarcode,
+    resolvedBy: resolved.resolvedBy,
+    needsFixing: input.target.needs_fixing ?? false,
+  });
+
   if (input.target.needs_fixing) {
-    await prisma.scanHistory.update({
+    const fixed = await prisma.scanHistory.update({
       where: { id: record.id },
       data: { fixItem: true },
+      select: { id: true, fixItem: true, intention: true },
     });
+
+    logger.info("External manager-app fixItem write completed", fixed);
   }
 
   if (!record.isSold) {
