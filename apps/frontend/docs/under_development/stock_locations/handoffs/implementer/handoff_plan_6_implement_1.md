@@ -173,15 +173,35 @@ Modified (all narrowly authorized by the prompt §9):
 Files a probe touched and reverted (no net change): `ui/StockLocationsPage.tsx` (M1),
 `ui/StockThresholdLadder.tsx` (A, B, C), `ui/StockWizardStep1View.tsx` (D). Throwaway preview
 harness `__stock_preview.html` + `src/__stock_preview.tsx` created and deleted before the stamp.
+Post-stamp edit: `ui/StockWizardStep1View.tsx` line 29 only (NUL sentinel → `"__any_value__"`,
+see the stamp section).
 
 Not touched: the tracker, `stock-allowlist.test.ts`, `api/`, fixtures, any P1–P5 domain / store /
 flow / test file, `StockThresholdStrip.tsx`, the sibling worktree.
 
-## Closing L4 stamp (one run, on the handed-over tree)
+## Closing L4 stamp (re-taken once — see provenance) and tree identity
 
-Tree: dirty on `4b4c652`, tracked-diff sha256 prefix `00645eb56d77e3cb` plus 8 untracked files
-listed above; committed unchanged as the checkpoint commit that contains this handoff (subject
-`CHECKPOINT (not approved): implement stock wizard UI P6`, parent `4b4c652`) — cite that SHA.
+**Provenance, read this first.** Two things happened between the first stamp and the commit:
+
+1. **My working files were swept into a coordinator commit.** While this session was running,
+   commit `75cfbb5` ("stock locations: sequence the backend merge as a step between P6 and P7",
+   a `master_plan.md` amendment) was made in this repo and it staged **all 11 of my then-uncommitted
+   source files** alongside it (the three modified + eight created files listed above, identical to
+   my tree at that moment). So the phase's code is in `75cfbb5`, not in a `CHECKPOINT` commit, and
+   my first `CHECKPOINT (not approved): implement stock wizard UI P6` (`655dec5`) contains only the
+   Review log entry and this handoff. I did not rewrite either commit (charter: checkpoints are never
+   squashed). The perimeter is still verifiable: `git diff 4b4c652..HEAD -- src` is exactly my
+   declared write perimeter, and `75cfbb5`'s only non-mine content is `master_plan.md`.
+2. **A NUL byte in `StockWizardStep1View.tsx`, found and fixed after the first stamp.** Git showed
+   the file as `Bin` in `75cfbb5`; the cause was `const ANY_VALUE_ID = "\x00any-value"` — my
+   earlier `sed` rename of that sentinel had silently not matched. Harmless at runtime (a NUL inside
+   a string literal; the sentinel is only compared against itself) but garbage in the tree. Replaced
+   with `"__any_value__"`; no other file I wrote contains a NUL (all scanned). Because this changed
+   the tree after the stamp, **the stamp below is the re-take on the corrected tree** (the first run,
+   on the NUL tree, had identical numbers).
+
+Tree: clean after the second checkpoint commit `CHECKPOINT (not approved): fix NUL sentinel in
+wizard step 1 (P6)` — **cite that SHA** (its parent is `655dec5`).
 
 - `npm test` → **19 files, 123 tests, all passed** (baseline 16 / 114 → +3 files, +9 tests;
   failure-ID delta ∅ → ∅)
