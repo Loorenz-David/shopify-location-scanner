@@ -67,4 +67,30 @@ must be correct when the selected category binds **only** universal keys. That i
 common path, and a criterion covering it belongs here rather than in the wizard phase.
 
 ## Review log
-(empty)
+- **2026-09-01 · round 1 (implementation) · Codex · IMPLEMENTED pending coordinator
+  consumption.** Added the pure MC6 criteria builder/rendering functions and the MC7/MC8
+  threshold/band functions, with colocated tests. The implementation accepts a criteria draft
+  as an ordered list of property rows (`key`, selected display-cased values, optional
+  `anyValue`); omitted rows and empty selections are omitted from the request, while an
+  explicit wildcard is `null`. Chips use the supplied options vocabulary for case-insensitive
+  display casing, preserve property-option order, and render the ratified wildcard text.
+  Threshold commits return new drafts, reject non-integer/non-numeric input, clamp absolute
+  floors, and cascade in the ratified direction. Bands return state metadata plus numeric
+  bounds so consumers can render labels/colors and verify membership without duplicating
+  state constants.
+
+  Judgment calls: normal-value chips are one display-cased value per chip; wildcard chips
+  identify their key in uppercase because D9 fixes that wizard-surface text. Unknown keys are
+  retained after known vocabulary keys and sorted deterministically; unknown values fall back
+  to the raw wire value. Numeric threshold input accepts integer numbers and integer strings;
+  empty strings are treated as invalid typed input and revert. No changes were made to the
+  P1 types, fixtures, state domain, API seam, or any UI/store/controller file.
+
+  Pre-edit baseline after adding the executable phase tests but before production edits:
+  targeted collection run found the two new test files but could not resolve the two absent
+  domain modules, so it recorded 0 executed test IDs and 2 failed test suites. The existing
+  stock suite before adding those tests was 3 files / 32 tests passing. After implementation,
+  the phase tests passed at 2 files / 18 tests and the stock-domain suite passed at 5 files /
+  50 tests. The two named mutations were both executed at the `commitThreshold` definition,
+  each observed red on its prescribed row, and restored; details are in the implementer
+  handoff.
