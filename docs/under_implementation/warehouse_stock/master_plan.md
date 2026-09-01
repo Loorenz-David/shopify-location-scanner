@@ -17,8 +17,9 @@ Extend the location domain so users configure per-location stock definitions (`l
 | Property-options map content (owner selection) | `context/property-options-selection.md` |
 | Shared skeleton, naming registry, environment, tracker | this file |
 | Phase goal/tasks/criteria/review log | `plans/plan_<n>_*.md` |
-| Frontend-facing API contract | `contracts/frontend-api-contract.md` — regenerated from this file's registry on any change, never hand-drifted |
+| Frontend-facing API contract | `contracts/frontend-api-contract.md` (**v1.2**) — regenerated from this file's registry on any change, never hand-drifted. **Delivery is not automatic:** the frontend track works from a copy under `apps/frontend/` on `main`, the coordinator never writes there, and a version is undelivered until the owner routes the file across branches |
 | Session prompts / handoffs | `prompts/<role>/`, `handoffs/<role>/`, archived per charter — tables created 2026-09-01, semantics in each folder's `README.md` |
+| Cross-track traffic with the frontend (both directions) | `handoffs/frontend/` — **not a charter table**; its README records the deviation and the direction column. Created 2026-09-01 after a frontend request arrived at a non-table path and was found only by a manual sweep |
 | Actor assignment, doctrine paths, coordinator failure modes | `prompts/coordinator/coordinator_role.md` (standing, never archives) |
 
 **Fold-back rule:** semantic changes amend the intention (lettered sections, never renumber); skeleton/naming changes amend this file; phase plans are never patched into divergence. Any registry change that touches an endpoint or DTO **must** regenerate the frontend contract doc in the same session and note it in the tracker row.
@@ -37,11 +38,11 @@ Charter state machine per phase: `NOT_STARTED → (PROJECTED) → PROMPT_READY �
 
 | Phase | State | Date | Actor | Note |
 |---|---|---|---|---|
-| P1 schema + domain | NOT_STARTED | 2026-09-01 | coordinator | gate SATISFIED (owner selection final); pre-dispatch lint **PASS** → `prompts/coordinator/plan_lint_1.md`; projection r0 dispatched → `prompts/reviewer/prompt_plan1_projection_r0.md`. Implementer prompt compiles only after that ledger is routed (§3) |
+| P1 schema + domain | **PROJECTED** | 2026-09-01 | coordinator | lint PASS; projection r0 AMENDMENTS_REQUIRED, all 7 findings folded + 5 delegations granted (plan Review log). Sizing exception: **9 criteria**, reason recorded there. Implementer prompt may now compile |
 | P2 repository + reconciliation | NOT_STARTED | | | |
 | P3 configuration API | NOT_STARTED | | | |
 | P4 item-transition hooks | NOT_STARTED | | | |
-| P5 report | NOT_STARTED | | | after P3 (shares controller/routes files) |
+| P5 report | NOT_STARTED | 2026-09-01 | coordinator | after P3 (shares controller/routes files). **Plan rewritten** under intention §26 (owner-approved report amendment): 6 criteria → 3, contract reissued v1.2 |
 | P6 maintenance + verification sweep | NOT_STARTED | | | closeout |
 
 ## 5. Contract resolution
@@ -108,11 +109,21 @@ model StockThresholdsLocation {
 | File | Exports |
 |---|---|
 | `stock-state.ts` | `STOCK_STATES` (`as const`, severity-ascending, single source for sorting §0.20), `StockState`, `CONFIGURABLE_THRESHOLD_STATES` (`["low_in_stock","medium_in_stock","normal_in_stock"] as const`), `calculateStockState(quantity, thresholds)`, `validateThresholds(thresholds)` |
-| `property-criteria.ts` | `StockCriteria` (`Record<string, string[] \| null>` — canonical), `StockCriteriaInput` (`Record<string, string \| string[] \| null>`), `tokenizePropertyValue(stored): Set<string>` (§0.5), `normalizeCriteria(input): StockCriteria` (§23.1; throws on empty-array-after-normalization), `canonicalCriteriaString(criteria): string` (key-sorted JSON), `matchesCriteria(itemProperties, criteria): boolean` (§0.5/§0.8/§0.21) |
+| `property-criteria.ts` | `StockCriteria` (`Record<string, string[] \| null>` — canonical), `StockCriteriaInput` (`Record<string, string \| string[] \| null>`), `tokenizePropertyValue(stored): Set<string>` (§0.5), `normalizeCriteria(input): StockCriteria` (§23.1; throws on empty-array-after-normalization), `canonicalCriteriaString(criteria): string` (key-sorted JSON), `matchesCriteria(itemProperties: Record<string, string> \| null, criteria: StockCriteria): boolean` (§0.5/§0.8/§0.21) |
 | `best-match.ts` | `specificityScore(criteria)` (§0.13 components), `resolveBestMatch(candidates, itemProperties)` — candidates carry `{ id, createdAt, criteria }`; returns winner or null |
 | `conflict.ts` | `findConflict(candidate: StockCriteria, siblings: Array<{id, criteria}>): { conflictingId } \| null` (§23.2; caller excludes self on update) |
 
 Threshold shape everywhere in domain/service code: `{ state: StockState; thresholdQuantity: number }`.
+
+**Item-properties input type — fixed 2026-09-01 (P1 projection F1).** Everywhere the domain
+or a service receives an *item's* property bag it is typed `Record<string, string> | null`,
+never `Json`, never `Record<string, unknown>`. **Reducing the Prisma `Json` value to that
+type is the caller's job** (P2's repository, on the way out of `toDomain`): drop non-string
+values, drop empty-after-trim values, and pass `null` for an absent bag — the same reduction
+`normalizeStoredProperties` performs inside `scan-history.repository.ts`, which is **not
+exported and out of perimeter (§9.6)**, so the stock module re-implements it rather than
+importing it. This keeps `domain/` pure and makes the "property present but tokenizes to
+nothing" case identical to key-absent (P1 projection D4).
 
 ### 6.3 Options map (`src/shared/item-properties/item-property-options.ts`)
 
@@ -125,7 +136,7 @@ Threshold shape everywhere in domain/service code: `{ state: StockState; thresho
 | `contracts/stock.contract.ts` | zod schemas + DTO types (below) |
 | `repositories/location-stock.repository.ts` | `locationStockRepository` object literal; ALL Prisma access; guarded decrement (§0.15); `{}` round-trips as `{}` (§0.21); accepts optional `tx` |
 | `services/stock-reconciliation.service.ts` | `reconcileGroup(shopId, location, itemCategory)` double-pass (§0.17 + §23.6), `reconcileAllGroups(shopId)` |
-| `services/apply-item-stock-change.service.ts` | `applyItemStockChange({ shopId, before, after, operation })` (§0.7/§0.10/§0.15); `before/after: { location, itemCategory, properties, quantity, isSold } | null` |
+| `services/apply-item-stock-change.service.ts` | `applyItemStockChange({ shopId, before, after, operation })` (§0.7/§0.10/§0.15); `before/after: { location: string \| null, itemCategory: string \| null, properties: Record<string, string> \| null, quantity: number, isSold: boolean } | null` — `properties` typed per §6.2's fixed input type |
 | `commands/create-location-stocks.command.ts` | batch create, all-or-nothing (§23.5) |
 | `commands/update-location-stock.command.ts` | update incl. full threshold replacement, 1–2 group reconciliation |
 | `commands/delete-location-stock.command.ts` | delete + group reconciliation |
@@ -136,7 +147,16 @@ Threshold shape everywhere in domain/service code: `{ state: StockState; thresho
 | `controllers/stock.controller.ts` | zod parse, envelopes |
 | `routes/stock.routes.ts` | `authenticateUserMiddleware` + `requireShopLinkMiddleware` (§0.18); no admin gate |
 
-Maintenance scripts (P6): `scripts/report-stock-property-drift.ts`, `scripts/rebuild-location-stock.ts` (env `DRY_RUN`, `SHOP_ID` per `scripts/reconcile-active-sold-items.ts` convention). Domain verification script (P1, committed): `scripts/verify-stock-domain.ts`.
+Maintenance scripts (P6): `scripts/report-stock-property-drift.ts`, `scripts/rebuild-location-stock.ts` (env `DRY_RUN`, `SHOP_ID` per `scripts/reconcile-active-sold-items.ts` convention).
+
+**Committed criterion instruments** (the §9.1b scripts — all committed, all re-runnable):
+
+| Script | Authored by | Covers |
+|---|---|---|
+| `scripts/verify-stock-domain.ts` | P1 | P1 C2–C8 (pure domain; no DB) |
+| `scripts/verify-stock-reconciliation.ts` | P2 | P2 C1–C6 (scratch DB copy) |
+| `scripts/verify-stock-report.ts` | P5 | P5 C1–C6 aggregation rows (scratch DB copy) |
+| `scripts/verify-all.ts` | P2 | runs every `verify-*.ts` above in sequence — the regression seam (§9.1d) |
 
 ### 6.5 HTTP surface (mounted in `server.ts` at BOTH `/stock` and `/api/stock`)
 
@@ -148,7 +168,7 @@ Maintenance scripts (P6): `scripts/report-stock-property-drift.ts`, `scripts/reb
 | `POST /stock/configurations` | batch create `{ configurations: CreateLocationStockInput[] }` | `201 { data: LocationStockDto[] }` |
 | `PATCH /stock/configurations/:id` | update | `200 { data: LocationStockDto }` |
 | `DELETE /stock/configurations/:id` | delete | `200 { ok: true }` |
-| `GET /stock/report` | report query (`states?` CSV of StockState, `groupByLocation?` boolean) | `200 { data: StockReportDto }` (P5) |
+| `GET /stock/report` | report query — **no query parameters** (intention §26.1) | `200 { data: StockReportDto }` (P5) |
 
 **DTOs** (`stock.contract.ts`):
 
@@ -162,8 +182,12 @@ CreateLocationStockInput = { location, itemCategory, properties?: StockCriteriaI
 
 UpdateLocationStockInput = { location?, itemCategory?, properties?, thresholds? }  // thresholds = full replacement
 
-StockReportDto = { rows: [{ itemCategory, properties, quantity, stockState, locations: string[] }] }
-  | { groups: [{ location, entries: [{ itemCategory, properties, quantity, stockState }] }] }
+StockReportDto = { entries: [{ location, itemCategory, properties, mergeKey, quantity, stockState }] }
+  // intention §26. One entry per definition — uncompacted, unfiltered, unordered.
+  // mergeKey: opaque string, equal iff itemCategory + canonical properties are equal.
+  //   Derived as `${itemCategory}|${propertiesCanonical}` from the stored §6.1 column;
+  //   the client groups on mergeKey + stockState and never parses the key (§26.2, §26.4).
+  // The v1.1 `rows`/`groups` dual shape and `locations[]` are removed.
 ```
 
 Errors: existing `ValidationError`/`NotFoundError`/`ConflictError`; conflict details carry `{ conflictingId, batchIndex? }`. Envelope + error shape per context §3.4.
@@ -192,7 +216,13 @@ No archgraph in this repo — skip silently. Sessions verify write perimeters vi
 
 ## 9. Standing rules — project deviations from charter (each owner-ratified)
 
-1. **No automated tests (§0.11 / intention §22.10).** Charter rule 1 is exempted project-wide. Replacements, binding: (a) `npm run typecheck` green is the automated gate for every phase; (b) enumerated pure-domain criteria are checked by the **committed** `scripts/verify-stock-domain.ts` (prints one PASS/FAIL line per criterion row, exits non-zero on failure) run manually with output pasted into the Review log; (c) API/integration criteria are checked by the phase's Manual Scenarios section (curl/UI steps with expected quantity + state after each), executed by implementer and re-executed by reviewer.
+1. **No automated tests (§0.11 / intention §22.10).** Charter rule 1 is exempted project-wide. Replacements, binding: (a) `npm run typecheck` green is the automated gate for every phase; (b) enumerated criteria decidable without a live HTTP surface are checked by a **committed** `scripts/verify-*.ts` (one PASS/FAIL line per criterion row, exits non-zero on failure), run with output pasted into the Review log — the §6.4 instrument table names which script covers which phase; (c) criteria needing the running app, the worker, or Shopify are checked by the phase's Manual Scenarios section (curl/UI steps with expected quantity + state after each), executed by implementer and re-executed by reviewer.
+
+   **(d) The regression seam — owner decision, 2026-09-01.** `scripts/verify-all.ts` runs every committed `verify-*.ts` in sequence and is a **phase-close instrument for P2 and every phase after it**, so a later phase cannot silently break an earlier phase's rules. Without it, the next full re-check of P1's domain rules is P6 — five phases of latency on exactly the defect class phase gating exists to contain.
+
+   Binding on its construction: **a script that did not run must never read as green.** A child script that refuses (P2's and P5's refuse when `DATABASE_URL` points at the configured dev.db) reports `REFUSED`, and `verify-all.ts` exits non-zero. A missing script file is `MISSING`, also non-zero. The only zero exit is every script present, run, and all-PASS.
+
+   Rationale recorded so a later session does not re-open it: this project already pays the expensive half of a test suite — the assertions and the scratch-DB fixtures live inside these scripts. What §0.11 descoped is a *runner*, not the checks. Chaining scripts that already exist is therefore near-zero cost and buys the one property the manual scheme structurally lacks. **This is not a reversal of §0.11:** no runner, no test framework, no CI, no new dependency, and §11.3 non-finding 1 stands unchanged — the absence of test infrastructure remains a non-finding, and no reviewer may request one.
 2. **Domain purity (intention §22.10b):** `src/modules/stock/domain/` and `item-property-options.ts` import no Prisma and no I/O. Instrument: `grep -rn "prisma\|@prisma" src/modules/stock/domain/ src/shared/item-properties/item-property-options.ts` → empty; run at every phase close.
 3. **One review round** per phase is the target; sizing and full-checklist first reviews serve it.
 4. **`{}` is never collapsed to `null`** on `LocationStock.properties` (§0.21) — the repository must not reuse `toPropertiesUpdateValue`.
@@ -287,6 +317,8 @@ Each is ratified; raising it as a defect, risk, or hardening request is itself a
 14. Style preferences beyond the repo's own conventions and the architecture contract: envelope shapes other modules use, naming tastes, file-splitting opinions where the registry (§6) already fixed names.
 15. Speculative future-proofing: Postgres readiness, event-system extensibility, test-runner scaffolding, config knobs, abstraction layers "for later" — and generally any code, endpoint, or field beyond the naming registry and the phase's criteria.
 16. Pre-existing defects or contract departures in files outside the phase perimeter (context §3.8 catalogues them) — advisory at most, and only when actually encountered.
+17. **The report endpoint performing no compaction, no state filtering, no ordering and no location ranking** — intention **§26** (owner-approved 2026-09-01) moved all four to the client and §26 wins over §19 and context §0.19. Reading §19's prose as still binding on the endpoint, or reporting P5 as incomplete against it, is a review error. The inverse *is* blocking: a P5 implementation that adds any of them back has built scope the contract does not have. Equally settled — the report takes **no query parameters** and ignores rather than rejects any that arrive (§26.1), and `mergeKey`'s encoding is opaque and unversioned (§26.2).
+18. **The client-side compaction key (`mergeKey` + `stockState`) not being enforceable by the backend** — §26.4. The safety property crossed the wire by owner decision; no backend criterion can observe a violation, and asking P5 for one is asking for something the architecture cannot provide.
 
 ### 11.4 One-round discipline
 

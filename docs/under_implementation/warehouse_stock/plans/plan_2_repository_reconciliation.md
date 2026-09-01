@@ -10,7 +10,7 @@ Master plan §5, §6.2, §6.4, §6.6, §9, §10 · intention §8–§9, §23.6, 
 P1 APPROVED.
 
 ## Files expected to change
-New `src/modules/stock/repositories/location-stock.repository.ts` · new `src/modules/stock/services/stock-reconciliation.service.ts` · new `scripts/verify-stock-reconciliation.ts` (committed manual instrument; operates only on a **copy** of dev.db via `DATABASE_URL` override).
+New `src/modules/stock/repositories/location-stock.repository.ts` · new `src/modules/stock/services/stock-reconciliation.service.ts` · new `scripts/verify-stock-reconciliation.ts` (committed manual instrument; operates only on a **copy** of dev.db via `DATABASE_URL` override) · new `scripts/verify-all.ts` (the §9.1d regression seam).
 
 ## Tasks (ordered)
 1. Repository: `createMany` (tx-aware), `updateConfig`, `deleteById`, `listByGroup(shopId, location, itemCategory)`, `listByShop`, `findById`, `listGroupSummaries`, `applyGuardedDecrement(id, shopId, delta)` (§0.15 `updateMany` + `gte`), `applyIncrement`, `writeAbsolute(id, quantity, stockState, updatedByUsername, tx)`, `recalculateState(id)` (read-back + shared `calculateStockState`). `toDomain` maps `properties` through `normalizeCriteria` defensively and **round-trips `{}` as `{}`** — never `Prisma.JsonNull`, never `toPropertiesUpdateValue` (master plan §9.4). `propertiesCanonical` is written by the repository from `canonicalCriteriaString` on every create/update.
@@ -18,6 +18,7 @@ New `src/modules/stock/repositories/location-stock.repository.ts` · new `src/mo
 3. `reconcileGroup(shopId, location, itemCategory)` — pass 1 per §0.17 (configs + eligible items, `resolveBestMatch` per item, tally by **item quantity**, one transaction writing every config's absolute quantity + recomputed state, sentinel username `"system:stock-reconciliation"`); pass 2 per §23.6 (fresh recompute post-commit; write again only on difference; `logger.warn` with group + per-config delta when it differs; exactly two passes). Returns pass-2 values keyed by config id.
 4. `reconcileAllGroups(shopId)` — distinct groups from `listByShop`, sequential `reconcileGroup` calls.
 5. `scripts/verify-stock-reconciliation.ts` — seeds a scratch copy of dev.db (`SHOP_ID` env) with temporary configs across the C3/C4 rows below, runs reconciliation, prints PASS/FAIL per row, exits non-zero on FAIL. It must refuse to run when `DATABASE_URL` points at the default dev.db path.
+6. `scripts/verify-all.ts` (master plan §9.1d) — discovers every `scripts/verify-*.ts` except itself, runs each as a child process passing the environment through, and prints one status line per script plus a summary. Status vocabulary is exactly `PASS` · `FAIL` · `REFUSED` (child exited on its own dev.db guard) · `MISSING` (a script named in the master plan §6.4 table is absent). **Exit 0 only when every script in that table is present, ran, and passed** — `REFUSED` and `MISSING` are non-zero, because a script that did not run must never read as green. Do not parse child stdout for correctness; the child's exit code is the verdict, and its output is echoed verbatim under its heading.
 
 ## Acceptance criteria
 | # | Rows | Trace |
@@ -28,11 +29,15 @@ New `src/modules/stock/repositories/location-stock.repository.ts` · new `src/mo
 | C4 | Double-pass: (a) with no interleaved write, pass 2 computes identical values and performs no second write; (b) with a simulated interleaved item write between passes (script mutates between pass boundaries via injected callback), pass 2 writes corrected values and logs `logger.warn` naming group + delta; (c) exactly two passes — no loop; (d) return value reflects pass 2 | M5, §23.6 |
 | C5 | Reconciliation writes are absolute: seed a drifted quantity (manually set 99), reconcile → correct value restored without any guard refusal | M5, §0.15/§0.17 |
 | C6 | `reconcileAllGroups` reconciles every distinct group exactly once for the shop | M5, §0.17 |
+| C7 | `verify-all.ts` (master plan §9.1d): (a) with both verify scripts passing on a scratch copy, it exits 0 and prints one PASS line per script; (b) when any child script exits non-zero it prints FAIL for that script and exits non-zero; (c) run against the configured dev.db (no scratch override) it prints REFUSED for the reconciliation script and exits non-zero — an unrun script never reads as green; (d) a script named in master plan §6.4 but absent from disk prints MISSING and exits non-zero | §9.1d |
 
-Phase-close instruments: typecheck green; purity grep empty (domain untouched or still pure); verify script all-PASS on a scratch copy, output + the copy's path in Review log; `git diff` perimeter = the three files above (+ no scanner/shopify files).
+Phase-close instruments: typecheck green; purity grep empty (domain untouched or still pure); **`npx tsx scripts/verify-all.ts` all-PASS on a scratch copy** (this is the §9.1d seam's first run — it must chain P1's `verify-stock-domain.ts` as well as this phase's script), output + the copy's path in Review log; `git diff` perimeter = the four files above (+ no scanner/shopify files).
 
 ## Manual scenarios
-Covered by `scripts/verify-stock-reconciliation.ts` (this phase's behavior is not reachable from the UI yet). Reviewer re-runs on a fresh scratch copy and plants one defect (e.g. temporarily tally row count instead of quantity → C3(c) must FAIL; revert).
+Covered by `scripts/verify-stock-reconciliation.ts` (this phase's behavior is not reachable from the UI yet). Reviewer re-runs `verify-all.ts` on a fresh scratch copy and plants **two** defects, reverting each:
+
+1. Temporarily tally row count instead of item quantity → C3(c) must FAIL, and `verify-all.ts` must exit non-zero (proves the reconciliation instrument bites and that the seam propagates a child failure).
+2. Temporarily break a P1 domain rule the *reconciliation* script never touches (e.g. make `-` a separator in `tokenizePropertyValue`) → `verify-stock-domain.ts` must FAIL **through `verify-all.ts`**. This is the seam's own reason to exist: it proves a P1 regression is caught at a later phase's close rather than surviving to P6.
 
 ## Notes
 - `$transaction` default timeout is fine at this data size (context §0.6).

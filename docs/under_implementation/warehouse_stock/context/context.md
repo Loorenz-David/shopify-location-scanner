@@ -352,6 +352,12 @@ Admin-only gating is currently reserved for shop linking, shop unlinking and met
 
 ### 0.19 Report contract details — closes §18.12
 
+> **SUPERSEDED for the endpoint shape by intention §26 (2026-09-01).** The report now takes
+> no query parameters and returns one uncompacted entry per definition plus a `mergeKey`;
+> compaction, state filtering, ordering and location ranking moved to the client. The rules
+> below remain the authority for **what those operations mean** — the client implements them
+> — but no backend endpoint performs them any more. §26 wins over this section.
+
 - **`type`** is the configuration's `itemCategory` (§0.1).
 - **`properties`** in a compacted row is the **configuration's criteria**, not any item's property bag. Compaction keys on `item_type + normalized properties + stock_state`, so every contributing row carries identical criteria by definition.
 - **`locations[]`** is always a list, including when it holds a single entry, per intention §19.

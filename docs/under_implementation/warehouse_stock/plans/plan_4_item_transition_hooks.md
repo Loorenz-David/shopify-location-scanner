@@ -30,7 +30,7 @@ New `src/modules/stock/services/apply-item-stock-change.service.ts` · `src/modu
 | C6 | Failure isolation: with a config quantity manually drifted to 0, a scan-out logs the §0.15 error and the scan itself still succeeds (HTTP 200, ScanHistory updated) | M4, §0.15 |
 | C7 | Perimeter: `git diff --name-only` for the phase = exactly the five files listed; `scan-history.repository.ts` and `ws/*` untouched | §0.10/§0.9 |
 
-Phase-close instruments: typecheck green; purity grep empty; perimeter diff (C7).
+Phase-close instruments: typecheck green; purity grep empty; **`npx tsx scripts/verify-all.ts` all-PASS on a scratch copy** (§9.1d — this phase touches the domain P1 built and the service P2 built; the seam is what makes a regression in either visible here rather than at P6); perimeter diff (C7).
 
 ## Manual scenarios (executed against the running app + worker; expected quantity/state stated per step; configs seeded via P3 endpoints)
 Seed: `LC1 + Dining Chairs + {}` and `H1 + Dining Chairs + {}`, thresholds 10/15/20 each. Record starting quantities Q_LC1, Q_H1.

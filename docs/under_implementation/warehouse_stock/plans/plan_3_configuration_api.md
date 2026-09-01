@@ -30,7 +30,7 @@ New `src/modules/stock/{contracts/stock.contract.ts, commands/create-location-st
 | C6 | Reads: (a) summary counts configurations per location (3 configs at one location → `stockCount: 3`); (b) detail returns full DTO incl. thresholds, audit fields, canonical properties; (c) options returns `itemCategories` + the §23.3 map | M7(partial)/M6, §17/§18/§0.4 |
 | C7 | Mounting & auth: (a) reachable at `/api/stock/...` and `/stock/...`; (b) 401 without token; (c) works for a non-admin role (§0.18); (d) audit usernames recorded from the authenticated user | §0.18/§0.3 |
 
-Phase-close instruments: typecheck green; purity grep empty; perimeter diff matches file list.
+Phase-close instruments: typecheck green; purity grep empty; **`npx tsx scripts/verify-all.ts` all-PASS on a scratch copy** (§9.1d — this phase authors no verify script of its own, but must not regress P1's or P2's); perimeter diff matches file list.
 
 ## Manual scenarios (curl checklist — implementer executes, reviewer re-executes; expected quantity/state stated per step)
 1. `GET /api/stock/options` → categories + map (spot-check one per-category key).
