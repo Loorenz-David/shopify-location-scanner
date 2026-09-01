@@ -51,7 +51,7 @@ Stop and report if any of these does not hold:
 | G3 | Tracker **P5**'s **state cell** reads `PROMPT_READY` — not `IMPLEMENTING`, `IMPLEMENTED` or `APPROVED`. Read the state cell, not the whole row: note cells legitimately mention other phases' states | `master_plan.md` §4 |
 | G4 | `src/features/stock/` has no `ui/` directory yet | `ls src/features/stock/` |
 | G5 | `src/features/stock/actions/stock.actions.ts` and `stores/`, `controllers/`, `flows/` all exist — this phase binds to them | `ls src/features/stock/` |
-| G6 | `domain/stock-criteria.domain.ts` exports `deriveBands` — C4 computes against it | the file |
+| G6 | `domain/stock-thresholds.domain.ts` exports `deriveBands` (C4 computes against it) and `domain/stock-criteria.domain.ts` exports `renderCriteriaChips` (the chips are P3's, not a second mapping) | the two files |
 
 All were re-tested against the committed tree at dispatch. **Do not gate on a clean working
 tree** — `package.json` and `package-lock.json` are legitimately dirty here. The coordinator owns
