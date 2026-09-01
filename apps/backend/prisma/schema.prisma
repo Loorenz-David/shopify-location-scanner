@@ -64,6 +64,14 @@ enum OutboundEventType {
   item_placed
 }
 
+enum StockState {
+  out_of_stock
+  low_in_stock
+  medium_in_stock
+  normal_in_stock
+  high_in_stock
+}
+
 model Shop {
   id            String        @id @default(cuid())
   shopDomain    String        @unique
@@ -79,6 +87,8 @@ model Shop {
   logisticLocations LogisticLocation[]
   scanHistoryLogistics ScanHistoryLogistic[]
   outboundWebhookTargets OutboundWebhookTarget[]
+  locationStocks LocationStock[]
+  stockThresholds StockThresholdsLocation[]
 }
 
 model User {
@@ -406,6 +416,42 @@ model PushSubscription {
   @@index([userId])
 }
 
+model LocationStock {
+  id                  String   @id @default(cuid())
+  shopId              String
+  shop                Shop     @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  location            String
+  itemCategory        String
+  properties          Json
+  propertiesCanonical String
+  quantity            Int      @default(0)
+  stockState          StockState @default(out_of_stock)
+  createdAt           DateTime @default(now())
+  createdByUsername   String
+  updatedAt           DateTime @updatedAt
+  updatedByUsername   String
+  thresholds          StockThresholdsLocation[]
+
+  @@unique([shopId, location, itemCategory, propertiesCanonical])
+  @@index([shopId, location, itemCategory])
+}
+
+model StockThresholdsLocation {
+  id                String     @id @default(cuid())
+  shopId            String
+  shop              Shop       @relation(fields: [shopId], references: [id], onDelete: Cascade)
+  locationStockId   String
+  locationStock     LocationStock @relation(fields: [locationStockId], references: [id], onDelete: Cascade)
+  state             StockState
+  thresholdQuantity Int
+  createdAt         DateTime   @default(now())
+  createdByUsername String
+  updatedAt         DateTime   @updatedAt
+  updatedByUsername String
+
+  @@unique([locationStockId, state])
+  @@index([shopId])
+}
 
 
 
