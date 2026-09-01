@@ -1,0 +1,73 @@
+import { STOCK_STATES } from "../../domain/stock-states.domain";
+import type { LocationStockDto } from "../../types/stock.dto";
+
+export const stockLocationDetailFixture: LocationStockDto[] = [
+  {
+    id: "stock-lc1-walnut",
+    location: "LC1",
+    itemCategory: "Dining Chairs",
+    properties: { wood_type: ["teak"] },
+    quantity: 12,
+    stockState: STOCK_STATES[2],
+    thresholds: [
+      { state: STOCK_STATES[1], thresholdQuantity: 10 },
+      { state: STOCK_STATES[2], thresholdQuantity: 15 },
+      { state: STOCK_STATES[3], thresholdQuantity: 20 },
+    ],
+    createdAt: "2026-09-01T00:00:00.000Z",
+    createdByUsername: "david",
+    updatedAt: "2026-09-01T00:00:00.000Z",
+    updatedByUsername: "david",
+  },
+  {
+    id: "stock-lc1-coffee",
+    location: "LC1",
+    itemCategory: "Coffee Tables",
+    properties: { shape: ["Oval"] },
+    quantity: 22,
+    stockState: STOCK_STATES[4],
+    thresholds: [
+      { state: STOCK_STATES[1], thresholdQuantity: 10 },
+      { state: STOCK_STATES[2], thresholdQuantity: 15 },
+      { state: STOCK_STATES[3], thresholdQuantity: 20 },
+    ],
+    createdAt: "2026-09-01T00:00:00.000Z",
+    createdByUsername: "david",
+    updatedAt: "2026-09-01T00:00:00.000Z",
+    updatedByUsername: "david",
+  },
+  {
+    id: "stock-lc1-table",
+    location: "LC1",
+    itemCategory: "Dining Tables",
+    properties: {},
+    quantity: 18,
+    stockState: STOCK_STATES[3],
+    thresholds: [
+      { state: STOCK_STATES[1], thresholdQuantity: 10 },
+      { state: STOCK_STATES[2], thresholdQuantity: 15 },
+      { state: STOCK_STATES[3], thresholdQuantity: 20 },
+    ],
+    createdAt: "2026-09-01T00:00:00.000Z",
+    createdByUsername: "david",
+    updatedAt: "2026-09-01T00:00:00.000Z",
+    updatedByUsername: "david",
+  },
+  {
+    id: "stock-h1-chairs",
+    location: "H1",
+    itemCategory: "Dining Chairs",
+    properties: { wood_type: ["walnut"] },
+    quantity: 3,
+    stockState: STOCK_STATES[1],
+    thresholds: [
+      { state: STOCK_STATES[1], thresholdQuantity: 10 },
+      { state: STOCK_STATES[2], thresholdQuantity: 15 },
+      { state: STOCK_STATES[3], thresholdQuantity: 20 },
+    ],
+    createdAt: "2026-09-01T00:00:00.000Z",
+    createdByUsername: "david",
+    updatedAt: "2026-09-01T00:00:00.000Z",
+    updatedByUsername: "david",
+  },
+];
