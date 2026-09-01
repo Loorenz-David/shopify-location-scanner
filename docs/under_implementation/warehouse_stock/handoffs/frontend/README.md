@@ -26,6 +26,12 @@ artifact, stamped `CONSUMED` with a note saying where each item landed. **Outbou
 deliverables — they are never archived while the track they address is still building
 against them.
 
+**One document, not two (owner, 2026-09-01).** v1.2 and v1.3 each crossed as a contract *plus* a
+companion notice. From v1.4 the contract carries its own explanation — the amendment is written
+into the section it changes, with the reasoning and a worked example where the reader needs them
+— so **exactly one file crosses** and there is one place to look afterwards. The notices already
+in this table stay as the historical record of those rounds; no new ones are written.
+
 **What crosses, and what does not.** This pipeline owns exactly one frontend-facing
 deliverable (intention §23.4): `contracts/frontend-api-contract.md`. Notices in this table
 explain and announce it; they never replace it. The two tracks sit on different branches, so
