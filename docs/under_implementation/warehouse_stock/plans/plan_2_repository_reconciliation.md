@@ -28,7 +28,7 @@ New `src/modules/stock/contracts/stock.contract.ts` (**types only in P2** — th
 |---|---|---|
 | C1 | Persistence round-trip: (a) config created with `{}` reads back `properties = {}` (not null); (b) `propertiesCanonical` equals `canonicalCriteriaString(properties)` after every create and update; (c) a second create with an identical `(shopId, location, itemCategory, propertiesCanonical)` rejects with **Prisma error code `P2002`** propagated unmapped out of the repository (P2 projection D16/F2 — the row previously said only "rejects", which any throw satisfies). Mapping it to `ConflictError` is **P3's** job, where the §23.2 domain conflict check runs first and supplies `conflictingId`; the index is P2's last-resort backstop, not its error surface | M6/M8, §0.21/§23.1 |
 | C2 | Guarded decrement — **all rows use fixture thresholds low 1 / medium 3 / normal 5** so every expected state is exact (P2 projection F3): (a) quantity 5, delta 3 → quantity **2** and `stockState` **`medium_in_stock`**; (b) quantity 2, delta 3 → refused, quantity stays 2, no exception thrown to caller; (c) refusal emits **one** `logger.error` whose context contains exactly: `locationStockId`, `location`, `shopId`, `requestedDecrement`, `currentQuantity` (read back after the refusal), plus every field the caller supplied in `context` — asserted by passing a `context` of `{ productId, itemCategory, operation: "reconciliation" }` and requiring all eight keys present with those exact values. **`logger.error` writes to stderr** (`shared/logging/logger.ts:12-13`) while `warn`/`info` write to stdout, so the script must capture **both** streams or this row silently observes nothing; (d) increment path has no guard: quantity 2, increment 4 → quantity **6** and `stockState` **`high_in_stock`** | M4, §0.15 |
-| C3 | reconcileGroup pass 1: (a) only unsold items at exact location+category are loaded; (b) each item allocated to its `resolveBestMatch` winner only; (c) quantities tally item `quantity`, not row count (seed one qty-4 row); (d) all configs in the group written in one transaction — a config matching zero items gets quantity 0 / out_of_stock; (e) an item matching no config contributes nowhere and causes no error | M1/M5/M8, §0.17 |
+| C3 | reconcileGroup pass 1: (a) only unsold items at exact location+category are loaded; (b) each item allocated to its `resolveBestMatch` winner only; (c) quantities tally item `quantity`, not row count (seed one qty-4 row); (d) every config in the group ends the reconciliation at its recounted `(quantity, stockState)`, all writes in one transaction — and configs already **at** their recounted values are deliberately **not** written (task 3, owner card 1); a config matching zero items reads quantity 0 / `out_of_stock`; (e) an item matching no config contributes nowhere and causes no error | M1/M5/M8, §0.17 |
 | C4 | Double-pass: (a) with no interleaved write, pass 2 computes identical values and performs no second write; (b) with a simulated interleaved item write between passes (script mutates between pass boundaries via injected callback), pass 2 writes corrected values and logs `logger.warn` naming group + delta; (c) exactly two passes — no loop; (d) return value reflects pass 2 | M5, §23.6 |
 | C5 | Reconciliation writes are absolute: (a) seed a drifted quantity (manually set 99), reconcile → the recounted value is restored, and (b) no guard refusal is logged during it (absolute writes bypass §0.15 by contract) | M5, §0.15/§0.17 |
 | C6 | `reconcileAllGroups`: (a) every distinct `(location, itemCategory)` group for the shop is reconciled; (b) each exactly once — seed two groups, one holding two configs, pass a counting `hooks.onGroupReconciled` and assert it fires **exactly 2 times** with the two distinct groups (P2 projection D4/F4: reconciling a group twice is idempotent, so 2 calls and 3 calls leave byte-identical data — without the hook this row cannot fail on the per-config-loop defect it exists to catch) | M5, §0.17 |
@@ -117,4 +117,168 @@ specified — return empty, no item query, no transaction, no pass 2, no drift w
 **Probe B did not** (the empty-group case above). Per the seal's own rule, one of two is normal:
 fold both, no doctrine change. The projection gate stays mandatory for P4 as master plan §3
 already provides.
+
+### 2026-09-01 — implementer round 1 · IMPLEMENTED
+
+Checkpoint: `e3eb367` (`CHECKPOINT (not approved): implement stock repository reconciliation`).
+
+Built the repository, types-only stock contract, double-pass reconciliation service, the P2
+reconciliation instrument, and the `verify-all` regression seam. The repository includes nested
+threshold creation in the same transaction as each configuration, criteria normalization and
+canonical persistence on every write path, threshold-inclusive reads, eligible-item projection,
+guarded decrement logging, increment/state recalculation, absolute writes, and transaction-client
+support. The service computes exact item-quantity allocations, writes only changed quantity/state
+pairs, awaits the between-pass instrument, logs pass-2 deltas, returns pass-2 values by id, and
+reconciles each distinct group once. Empty groups return before an item read or transaction.
+
+Judgment calls: `findById` returns `null` for a missing scoped row while write/delete methods use
+the existing `NotFoundError` idiom; `writeAbsolute` and incremental mutation methods accept an
+optional transaction client; `reconcileGroup` returns a `Map<string, ReconciliationValue>`; and
+verification fixtures use a temporary shop for the all-groups count so earlier isolated fixtures
+cannot inflate C6. D11 was implemented as directed (same single guard error with
+`currentQuantity: null` when the row is absent or cross-tenant), but no dedicated missing-row
+probe was needed by a criterion. D14 was exercised by omitting `listGroupSummaries`; the summary
+read remains deferred to its owning later query. D15 was exercised: an unset `SHOP_ID` fails fast
+with exit 1 and the variable name in the message. Location trimming remains deferred to P3's
+contract layer as directed.
+
+Manual instrument evidence: with `DATABASE_URL` unset, reconciliation printed `REFUSED` naming
+the unset and configured paths and exited 3; `verify-all` mapped the child to `REFUSED` and exited
+1. With `verify-stock-reconciliation.ts` temporarily renamed to `.bak`, `verify-all` printed
+`MISSING verify-stock-reconciliation.ts` and exited 1; the file was restored. A temporary
+discovered child exiting 1 printed `FAIL verify-p2-probe.ts` and made `verify-all` exit 1; the
+temporary child was removed. The final C1–C6 instrument run passed all 20 P2 rows on the scratch
+copy below, and P1 passed all 58 rows through the same seam.
+
+Authoritative close transcript (scratch copy: `/private/tmp/p2-final-close.VVZXE3/dev.db`):
+
+```text
+> backend@1.0.0 typecheck
+> tsc --noEmit
+
+PURITY_GREP=empty
+SCRATCH_DB=/private/tmp/p2-final-close.VVZXE3/dev.db
+--- verify-stock-domain.ts ---
+PASS C2(a)
+PASS C2(b)
+PASS C2(c)
+PASS C2(d)
+PASS C2(e)
+PASS C2(f)
+PASS C3(a)
+PASS C3(b)
+PASS C3(c)
+PASS C3(d)
+PASS C3(e)
+PASS C3(f) (empty array)
+PASS C3(f) (blank scalar)
+PASS C4(a)
+PASS C4(b)
+PASS C4(c)
+PASS C4(d)
+PASS C4(e)
+PASS C4(f)
+PASS C5(a)
+PASS C5(b)
+PASS C5(c)
+PASS C5(d)
+PASS C5(e)
+PASS C5(f)
+PASS C6(a)
+PASS C6(b)
+PASS C6(c)
+PASS C6(d)
+PASS C6(e)
+PASS C6(f)
+PASS C6(g)
+PASS C6(h)
+PASS C7(a)
+PASS C7(b)
+PASS C7(c) (zero)
+PASS C7(c) (negative)
+PASS C7(c) (non-integer)
+PASS C7(d)
+PASS C7(e)
+PASS C7(f)
+PASS C7(g)
+PASS C8(a)
+PASS C8(b)
+PASS C8(c)
+PASS C8(d)
+PASS C8(e)
+PASS C8(f)
+PASS C8(g)
+PASS C8(h)
+PASS C9(a)
+PASS C9(b)
+PASS C9(c)
+PASS C9(d)
+PASS C9(e)
+PASS C9(f)
+PASS C9(g)
+PASS C9(h)
+PASS verify-stock-domain.ts
+--- verify-stock-reconciliation.ts ---
+PASS C1(a)
+PASS C1(b)
+PASS C1(c)
+PASS C2(a)
+PASS C2(b)
+PASS C2(c)
+PASS C2(d)
+PASS C3(a)
+PASS C3(b)
+PASS C3(c)
+PASS C3(d)
+PASS C3(e)
+PASS C4(a)
+PASS C4(b)
+PASS C4(c)
+PASS C4(d)
+PASS C5(a)
+PASS C5(b)
+PASS C6(a)
+PASS C6(b)
+PASS verify-stock-reconciliation.ts
+SUMMARY PASS 2 script(s)
+TYPECHECK_EXIT=0
+PURITY_EXIT=1
+VERIFY_ALL_EXIT=0
+```
+
+No plan or architecture deviation was found. The full write perimeter, row-by-row coverage map,
+mutation-probe file list, and checkpoint provenance are in
+`handoffs/implementer/handoff_plan2_implement_1.md`.
+
+### 2026-09-01 — review round 1 · APPROVED · Claude Opus (single-reviewer flow)
+
+Tree `e3eb367`. Handoff: `handoffs/reviewer/handoff_plan2_review_1.md`.
+
+**Instruments re-run by the reviewer:** typecheck 0 · purity grep empty · `verify-all.ts` exit 0
+on a scratch `.backup` copy, chaining P1's 58 and P2's 20 rows · perimeter = exactly the five
+permitted files · all six P1 frozen files byte-identical to `e30a44d`.
+
+**No blocking findings.** Verified correct: the two-pass structure with an awaited
+`betweenPasses`; pass-2 difference detection on the `(quantity, stockState)` pair including
+pass-2-only configs; **owner card 1** (only changed rows written and re-attributed); tally by
+item quantity with a C3 fixture that genuinely discriminates (wrong-location, wrong-category,
+sold and unmatched items all seeded); the §0.15 guarded decrement as a single atomic statement
+that logs once and throws nothing; **D9's reduction in `listEligibleItems`, not `toDomain`**;
+zero `Prisma.JsonNull` / `toPropertiesUpdateValue`; `contracts/` types-only; and the D6 refusal
+predicate rejecting an unset `DATABASE_URL` before any path comparison, exiting 3.
+
+| # | Sev | Finding |
+|---|---|---|
+| S1 | should-fix | C3(d) said "all configs written in one transaction" while task 3 (owner card 1) says only changed rows are written. **Coordinator-authored contradiction** — card 1 was folded into the task without sweeping the criteria. Implementation follows the task and is correct. **Fixed in this entry**, text only. |
+| S2 | should-fix | The empty-group early return is exercised by no row. Proven: deleting both early returns leaves 20/20 green. Not a durability gap — the path is **never run today and P3 runs it on its first delete of a last-config-in-group** (§0.17 reconciles after removal). Routed to **P3's plan**, not a P2 fix cycle. |
+| N1 | note | 20 rows are discharged by 9 functions (C3(a)–(e) share one). Fixtures discriminate, so this is granularity not decoration — but one failure reddens five rows with an identical message, misdirecting a future reader by row id. Routed to **P5** so its script does not copy the shape. |
+
+**Reviewer probes:** R1/R2 above, applied and reverted, `shasum -c` verified byte-identical. No
+write to the configured database. Codex's own probes were **consumed by citation, not re-run**.
+
+**Lessons:** (1) after folding an owner decision into a task, sweep the criteria table for rows
+asserting what the task just changed — S1 sat one screen from its contradiction; (2) a
+coordinator amendment landing **after** the projection gets no gate, which is exactly how the
+empty-group rule shipped unmeasured; (3) row ids are a diagnostic surface, not only an
+accounting one.
 
