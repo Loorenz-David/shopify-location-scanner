@@ -39,7 +39,7 @@ Charter state machine per phase: `NOT_STARTED → (PROJECTED) → PROMPT_READY �
 | Phase | State | Date | Actor | Note |
 |---|---|---|---|---|
 | P1 schema + domain | **APPROVED** | 2026-09-01 | reviewer | round 1, no blocking findings. Instruments re-run: typecheck 0, purity grep empty, verify 58/58, perimeter exact. 2 should-fix (S1 §23.2 conjunction untested, S2 delegation D4 unguarded — both proven by reviewer mutation), 4 notes incl. 2 forward hazards for P2/P3. Owner **declined** the fix cycle (§9.7): code verified correct, and no later phase's perimeter contains P1's files. S1/S2 closed as notes |
-| P2 repository + reconciliation | NOT_STARTED | 2026-09-01 | coordinator | gate SATISFIED (P1 APPROVED); pre-dispatch lint **PASS after 5 folds** → `prompts/coordinator/plan_lint_2.md` (L1 made the phase impossible to close, L4 made a criterion impossible to satisfy); projection r0 dispatched → `prompts/reviewer/prompt_plan2_projection_r0.md`. Implementer prompt compiles only after that ledger is routed (§3) |
+| P2 repository + reconciliation | NOT_STARTED | 2026-09-01 | coordinator | gate SATISFIED (P1 APPROVED); pre-dispatch lint **PASS after 5 folds** → `prompts/coordinator/plan_lint_2.md` (L1 made the phase impossible to close, L4 made a criterion impossible to satisfy); projection r0 **AMENDMENTS_REQUIRED**, all 16 ledger rows + 8 findings folded, owner card 1 answered (recount stamps only changed rows). Two findings hit master plan §6.2/§6.4. Perimeter 4→5 files; still 7 criteria / 24 rows. Implementer prompt may now compile |
 | P3 configuration API | NOT_STARTED | | | |
 | P4 item-transition hooks | NOT_STARTED | | | |
 | P5 report | NOT_STARTED | 2026-09-01 | coordinator | after P3 (shares controller/routes files). **Plan rewritten** under intention §26 (owner-approved report amendment): 6 criteria → 3, contract reissued v1.2 |
@@ -115,19 +115,45 @@ model StockThresholdsLocation {
 
 Threshold shape everywhere in domain/service code: `{ state: StockState; thresholdQuantity: number }`.
 
+**Reconciliation hooks — fixed 2026-09-01 (P2 projection D3/F6).** `reconcileGroup` and
+`reconcileAllGroups` take a final **optional** `hooks` argument, defaulting to no-op:
+`hooks?: { betweenPasses?: () => Promise<void>; onGroupReconciled?: (group) => void }`.
+`betweenPasses` is **awaited** between pass 1's commit and pass 2's read — without that it
+cannot write to the database, and P2's C4(b) (the interleaved-write probe that is §23.6's only
+instrument) is unbuildable. `onGroupReconciled` makes `reconcileAllGroups`' per-group work
+observable, which C6(b) requires and idempotence otherwise hides.
+This is registered here rather than left in a plan note because §6 is declared fixed and §9.3
+makes any deviation a stop-and-fold-back: a plan requiring a parameter the registry forbids
+tells the implementer two incompatible things. **These hooks are instruments with required
+callers (the verify script), not scaffolding** — charter rule 4 is satisfied.
+
 **Guarded-decrement log context — fixed 2026-09-01 (P2 lint L4).** `applyGuardedDecrement` takes a fourth argument carrying the §0.15 diagnostic fields the *caller* knows:
 `applyGuardedDecrement(id, shopId, delta, context: { productId?, scanHistoryId?, itemCategory?, locationFrom?, locationTo?, operation })`.
 The repository supplies the fields it owns (`locationStockId`, `location`, `requestedDecrement`, `currentQuantity` read back after refusal); everything identifying the *item* and the *triggering operation* is only knowable by the caller, which is why P4's `applyItemStockChange` already carries `operation` and `itemIdentifiers` "solely for §0.15 log context". Without this parameter the §0.15 field list is unreachable from a three-argument signature, and a criterion demanding it cannot be satisfied.
 
-**Item-properties input type — fixed 2026-09-01 (P1 projection F1).** Everywhere the domain
+**Item-properties input type — fixed 2026-09-01 (P1 projection F1), corrected 2026-09-01 (P2 projection D9/F7).** Everywhere the domain
 or a service receives an *item's* property bag it is typed `Record<string, string> | null`,
 never `Json`, never `Record<string, unknown>`. **Reducing the Prisma `Json` value to that
-type is the caller's job** (P2's repository, on the way out of `toDomain`): drop non-string
-values, drop empty-after-trim values, and pass `null` for an absent bag — the same reduction
+type is the caller's job**, and the caller is **`listEligibleItems`** (P2 task 2), which is
+where an *item's* `ScanHistory.properties` enters the stock module: drop non-string values,
+drop empty-after-trim values, and pass `null` for an absent bag — the same reduction
 `normalizeStoredProperties` performs inside `scan-history.repository.ts`, which is **not
 exported and out of perimeter (§9.6)**, so the stock module re-implements it rather than
 importing it. This keeps `domain/` pure and makes the "property present but tokenizes to
 nothing" case identical to key-absent (P1 projection D4).
+
+> **Correction, and why it mattered.** This note first said the reduction belonged "on the way
+> out of `toDomain`". That was wrong and actively dangerous: `toDomain` maps
+> `LocationStock.properties` — *criteria*, whose values are string **arrays** or `null` — so
+> "drop non-string values" applied there deletes every criterion, while the item path it was
+> meant to describe stays unreduced. An implementer following the old wording literally would
+> have corrupted the allocator's input, caught only by `npm run typecheck` failing on
+> `resolveBestMatch`'s parameter type. Two different property shapes share the word
+> "properties"; the registry now names the function for each.
+> *Secondary wording fix:* `normalizeStoredProperties` returns `{}` for an absent bag, never
+> `null`. Against `matchesCriteria` the two are equivalent (`property-criteria.ts:59-64` returns
+> `true` for empty criteria before consulting the bag), so `null` remains the specified value
+> here — but the "same reduction" phrasing overstated the correspondence.
 
 ### 6.3 Options map (`src/shared/item-properties/item-property-options.ts`)
 
@@ -139,7 +165,7 @@ nothing" case identical to key-absent (P1 projection D4).
 |---|---|
 | `contracts/stock.contract.ts` | zod schemas + DTO types (below) |
 | `repositories/location-stock.repository.ts` | `locationStockRepository` object literal; ALL Prisma access; guarded decrement (§0.15); `{}` round-trips as `{}` (§0.21); accepts optional `tx` |
-| `services/stock-reconciliation.service.ts` | `reconcileGroup(shopId, location, itemCategory)` double-pass (§0.17 + §23.6), `reconcileAllGroups(shopId)` |
+| `services/stock-reconciliation.service.ts` | `reconcileGroup(shopId, location, itemCategory, hooks?)` double-pass (§0.17 + §23.6), `reconcileAllGroups(shopId, hooks?)` |
 | `services/apply-item-stock-change.service.ts` | `applyItemStockChange({ shopId, before, after, operation })` (§0.7/§0.10/§0.15); `before/after: { location: string \| null, itemCategory: string \| null, properties: Record<string, string> \| null, quantity: number, isSold: boolean } | null` — `properties` typed per §6.2's fixed input type |
 | `commands/create-location-stocks.command.ts` | batch create, all-or-nothing (§23.5) |
 | `commands/update-location-stock.command.ts` | update incl. full threshold replacement, 1–2 group reconciliation |
