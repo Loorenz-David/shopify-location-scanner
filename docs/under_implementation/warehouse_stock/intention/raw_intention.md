@@ -1,6 +1,12 @@
 Intention — Location Stock System
 
-> **Amended 2026-09-01.** Sections 13 and 22.10 below were rewritten after the system-context review; both previously required behaviour this codebase cannot provide as written.
+**Status: RATIFIED**
+
+> **Changelog**
+> - 2026-09-01 — System-context review: sections 13 and 22.10 rewritten; both previously required behaviour this codebase cannot provide as written. Twenty-two decisions resolved by the product owner, recorded in `context/context.md` §0 (binding).
+> - 2026-09-01 — Mechanism-inventory round: six further decisions ratified by the product owner (David) in session, recorded in §23 below. Ratification surface: six decision cards (canonical criteria form, conflict rule, category-grouped options map, frontend scope, batch atomicity, reconciliation double-pass) plus the measurement ledger in §24. Where §23 disagrees with earlier sections or context §0, **§23 wins**.
+> - 2026-09-01 — Status stamped RATIFIED by the product owner (David), confirming the context §0 decisions of the same date as the ratification act.
+> - 2026-09-01 — §25 (Review Doctrine) ratified by the product owner: single-reviewer flow (orchestrator model doubles as reviewer; a separate implementer model), findings bounded by ratified artifacts, enumerated non-findings maintained in the master plan §11.
 >
 > Resolved decisions live in `docs/under_implementation/warehouse_stock/context/context.md` §0 (22 entries) and are **binding**. Where this intention and context §0 disagree, §0 wins. In particular §0 settles: `item_type` means `ScanHistory.itemCategory` (not `ScanHistory.itemType`); the database is SQLite, so "JSONB" means a Prisma `Json?` column that cannot be queried in SQL; property matching semantics; specificity scoring; the non-negative quantity guard; reconciliation scope; and tenancy via `shopId`.
 
@@ -357,9 +363,9 @@ The codebase already contains machinery responsible for marking items as sold. T
 
 Sold-state integration point:
 
-[INSERT EXISTING SOLD-STATE FILE PATH HERE]
+/Users/davidloorenz/Desktop/Developer/BeyoApps_2025/Item-Scanner-Shopify/apps/backend/src/modules/scanner/repositories/scan-history.repository.ts
 
-The planning agent should inspect this flow before determining the exact hook location.
+The planning agent should inspect this flow before determining the exact hook location. (Resolved: hook call sites are fixed by context §0.10 — command and job layer, after commit.)
 
 ⸻
 
@@ -484,9 +490,9 @@ the planning phase should determine whether the inverse operation should restore
 
 Integration point:
 
-[INSERT EXISTING SOLD-STATE FILE PATH HERE]
+/Users/davidloorenz/Desktop/Developer/BeyoApps_2025/Item-Scanner-Shopify/apps/backend/src/modules/scanner/repositories/scan-history.repository.ts
 
-Inspect the existing sold-state machinery before planning this integration.
+Inspect the existing sold-state machinery before planning this integration. (Resolved: `isSold: true → false` — the `returned_to_store` event — IS in scope and restores the item to its best-matching stock instance; see context §0.7.)
 
 ⸻
 
@@ -817,3 +823,94 @@ The behaviours the original list named remain the things to verify, now by hand 
 12. Surface contradictions or missing domain decisions before implementation rather than silently choosing behavior.
 
 for the event emition to the client this happens at: /Users/davidloorenz/Desktop/Developer/BeyoApps_2025/Item-Scanner-Shopify/apps/backend/src/modules/ws/ws-server.ts
+
+⸻
+
+23. Mechanism Contracts — ratified 2026-09-01 (round 2)
+
+Six decisions ratified by the product owner after the mechanism-inventory pass. Where these disagree with earlier sections or context §0, §23 wins.
+
+23.1 Canonical criteria form
+
+A property criterion set is normalized to exactly one canonical form before any storage, comparison, matching, or conflict check:
+
+- Every accepted-value entry becomes an **array**: a scalar value `"Teak"` normalizes to `["teak"]`. `{ "wood_type": "Teak" }` and `{ "wood_type": ["Teak"] }` are therefore the same criterion, and creating both is an exact-duplicate conflict.
+- Array members are lowercased, trimmed, de-duplicated, and sorted lexicographically. An empty array after normalization hard-fails validation.
+- `null` (wildcard) is preserved as `null` — it is not an empty array.
+- Keys are sorted lexicographically in the canonical serialization.
+- `{}` (the catch-all) is preserved as `{}` — never collapsed to `null` (context §0.21).
+- The canonical JSON string of the normalized object is the identity used for duplicate detection and report compaction.
+- API inputs may use scalar or array shapes; API responses always return the canonical form.
+
+23.2 Conflict-rejection rule (generalizes §6)
+
+A new or updated configuration C is rejected with a conflict error when any existing sibling E — same shop + location + item_type, excluding the row being updated — satisfies BOTH:
+
+1. C and E have the **exact same set of criterion keys** (the empty key set counts: two catch-alls collide), and
+2. on **every** key, C's accepted-value set and E's accepted-value set **intersect**, where a wildcard (`null`) intersects everything.
+
+Consequences, all intended: exact duplicates are rejected (rule's special case); `{upholstery: "Up"}` is rejected against `{upholstery: null}` (§6's worked example); `{wood_type: ["Teak"]}` is rejected against `{wood_type: ["Teak","Oak"]}`; `{wood_type: ["Teak"]}` and `{wood_type: ["Oak"]}` may coexist (disjoint sets — no item can match both); adding or removing a key dimension always avoids conflict (`{upholstery: null}` + `{upholstery: "Up", wood_type: "Teak"}` coexist, per §6). The error identifies the conflicting existing configuration.
+
+23.3 Category-grouped property options map
+
+The curated options map (context §0.4) carries a category dimension:
+
+```
+ITEM_PROPERTY_OPTIONS: ReadonlyArray<{
+  key: string;
+  values: readonly string[];        // canonical display casing
+  categories: "universal" | readonly ItemCategory[];
+}>
+```
+
+- `"universal"` keys are offered and valid for every item type; category-listed keys only for those item types.
+- Validation is category-aware: a criterion key that is neither universal nor listed for the configuration's item_type is rejected at create/update, as is any value not in the key's value list.
+- The map's **content** (which keys, which values, which grouping) is selected by the product owner from the candidate inventory extracted from real data; that selection is a gate for the phase that authors the module. The structure above is fixed now so the API contract and frontend can proceed.
+- The configuration-options endpoint returns this map verbatim alongside `itemCategories`, so the frontend renders only the keys valid for the selected item type.
+
+23.4 Frontend scope for this pipeline
+
+This pipeline delivers the **backend only**, plus one frontend-facing artifact: a self-contained API contract document (endpoints, request/response shapes, semantics, sequencing, and the intention behind each surface) that a separate frontend planning agent consumes. No frontend code phases are planned here. The contract document is a first-class deliverable, frozen at the end of planning and amended only through the coordinator.
+
+23.5 Batch create is all-or-nothing
+
+The multi-create endpoint validates and creates all submitted configurations in a single transaction. Any validation or conflict failure — including conflicts between two members of the same batch — fails the entire request; nothing is written. The error names the offending batch index. Group reconciliation for all affected groups runs after the batch commits.
+
+23.6 Reconciliation double-pass (amends §0.17's single inline run)
+
+To shrink the window in which a concurrent item write (e.g. the webhook worker) invalidates freshly computed absolute quantities, `reconcileGroup` runs **two passes**:
+
+1. Pass 1 — as context §0.17: load configurations and eligible items, resolve winners, write every configuration's quantity and stock_state in one transaction, inline in the request.
+2. Pass 2 — immediately after pass 1 commits: recompute from a fresh read. If the recomputed values differ from what pass 1 wrote, write the corrected values (again one transaction) and log a `logger.warn` naming the group and the delta — a differing pass 2 means a concurrent mutation interleaved.
+
+Bounded at exactly two passes; a race against pass 2 itself is accepted residual drift, repairable by any later reconciliation. The HTTP response reflects pass 2's values.
+
+⸻
+
+24. Measurement Ledger
+
+The observable outcomes that, verified true, mean this intention shipped. Automated tests are descoped (§22.10); each entry is verified by the enumerated manual scenarios the plans must carry per phase. Every phase acceptance criterion traces to one of these IDs.
+
+- **M1 — Allocation correctness.** An eligible item is counted by exactly one configuration: the best match per §0.5/§0.13, wildcard and catch-all semantics per §0.8/§0.21. Guards: silent misallocation, double-counting.
+- **M2 — State boundary correctness.** Every threshold boundary (0, low, low+1, medium, medium+1, normal, normal+1) yields the §3 state. Guards: off-by-one state drift.
+- **M3 — Quantity conservation on item transitions.** Scans in/out, Shopify-admin moves, sales, returns, and quantity/property/category syncs move exactly the item's quantity between the affected instances (§0.7). Guards: incremental drift.
+- **M4 — Non-negative integrity.** No operation drives a quantity negative; a guard refusal logs the §0.15 context and never fails the parent operation. Guards: corrupted counters, broken business flows.
+- **M5 — Configuration-lifecycle reconciliation.** Create/update/delete leaves every affected group (two groups on a location/type move, §0.17) with quantities equal to a fresh full recount, via the §23.6 double-pass. Guards: stale sibling counters.
+- **M6 — Conflict prevention.** Every §23.2-conflicting submission is rejected with the conflicting id; every non-conflicting one is accepted. Guards: ambiguous allocation.
+- **M7 — Report fidelity.** Compaction, state filtering, ordering, and location ranking exactly per §19/§0.19. Guards: wrong restock priorities.
+- **M8 — Group-total accounting.** A group with a catch-all sums to its true eligible inventory; without one, a shortfall is expected and not diagnosed as drift (§0.21). Guards: false drift alarms, missed real drift.
+
+⸻
+
+25. Review Doctrine — ratified 2026-09-01
+
+This project runs with a **single reviewer session per phase** (the orchestrator model also reviews; a different model implements). Because automated tests are descoped (§22.10), the reviewer's job is adversarial **correctness verification of the code against the ratified artifacts** — re-deriving each acceptance criterion against the implementation, running the manual instruments, and hunting real logic defects.
+
+Four binding principles:
+
+1. **Findings are bounded by ratified artifacts.** A blocking finding must cite the specific plan criterion row, intention/context contract section, or architecture-contract rule it violates — or demonstrate a concrete incorrect behavior (specific input/state → wrong output) on the production path. Anything else is advisory at most.
+2. **Ratified decisions are not findings.** Every decision recorded in context §0 and §23 — including every accepted risk, residual race, and descoped concern — is settled. The master plan §11 maintains the enumerated non-findings list; the reviewer must not raise them as defects, "risks", or requests for defensive code.
+3. **Disagreement escalates, never blocks.** A reviewer who believes a ratified decision is itself wrong routes a decision card to the owner via the coordinator. The phase's verdict is computed as if the decision stands.
+4. **No invented scope.** The reviewer never requests tests, features, endpoints, fields, refactors, or hardening beyond the phase plan's criteria and file perimeter. Real defects noticed in passing inside the perimeter are reportable (charter rule) but must satisfy principle 1.
+
+The operational review contract — finding format, severity ladder, reviewer obligations, and the full non-findings enumeration — is master plan §11 and binds every reviewer prompt.

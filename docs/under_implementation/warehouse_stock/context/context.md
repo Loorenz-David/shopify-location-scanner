@@ -14,6 +14,8 @@ It is **descriptive, not prescriptive**. Where the intention assumes something t
 
 Decided by the product owner on 2026-09-01 after review of this document. The intention document is being amended to match; where the two disagree, **§0 wins**. Each entry names the §18 item it closes.
 
+> **Round 2 (mechanism inventory, 2026-09-01):** six further ratified decisions live in the intention's **§23** — canonical criteria form, the general conflict-rejection rule, the category-grouped property-options map, frontend scope (backend-only pipeline + contract handoff document), all-or-nothing batch create, and a reconciliation **double-pass** that amends §0.17's single inline run. The intention's measurement ledger is **§24**. Where §23 disagrees with this document, **§23 wins**.
+
 ### 0.1 `item_type` means `ScanHistory.itemCategory` — closes §17 row 2
 
 The stock system's item type is `ScanHistory.itemCategory`, validated against the `ITEM_CATEGORIES` constant in `shared/category/item-categories.ts`. `ScanHistory.itemType` (the identifier kind) is not involved anywhere in this feature.
