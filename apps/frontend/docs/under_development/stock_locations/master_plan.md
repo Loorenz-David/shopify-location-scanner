@@ -55,7 +55,7 @@ fidelity to the design screenshots is approved by the owner looking at the runni
 
 | phase | title | implementer | state | date | actor | note |
 |---|---|---|---|---|---|---|
-| P1 | Test infra, types, state system, API seam | Codex | IMPLEMENTED | 2026-09-01 | Codex | round-1 implementation: 32 tests pass; typecheck pass; scoped lint pass; repo lint has documented pre-existing failures |
+| P1 | Test infra, types, state system, API seam | Codex | IMPLEMENTED | 2026-09-01 | Codex | round 2 implemented the contract v1.3 item-category amendment; targeted API test 11/11 passed, typecheck passed; awaiting first review |
 | P2 | Report domain (compaction, ordering, filters) | Codex | NOT_STARTED | — | — | — |
 | P3 | Config domain (criteria, thresholds, bands) | Codex | NOT_STARTED | — | — | — |
 | P4 | Stores, controllers, flows | Codex | NOT_STARTED | — | — | — |

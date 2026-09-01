@@ -185,18 +185,37 @@ describe("stock API seam", () => {
     ]);
   });
 
-  it("C4(b): options expose exactly the nine selected item categories in order", async () => {
+  it("C4(b): options expose exactly the 28 item categories in order", async () => {
     vi.stubEnv("VITE_STOCK_API_MODE", "mock");
     expect((await getStockOptions()).itemCategories).toEqual([
+      "Dining Chairs",
+      "Easy Chairs",
+      "Armchairs",
+      "Sofas",
+      "Stools",
+      "Seating Benches",
+      "Serving Trolleys",
       "Dining Tables",
       "Bedside Tables",
       "Coffee Tables",
       "Side Tables",
       "Hall Tables",
+      "Writing Desks",
       "Nest Of Tables",
-      "Dining Chairs",
-      "Easy Chairs",
-      "Armchairs",
+      "Sideboards",
+      "Highboards",
+      "Bookshelves",
+      "Shelving Units",
+      "Chest of Drawers",
+      "Secretary Cabinets",
+      "Bar Cabinets",
+      "Wardrobes",
+      "Storage Cabinets",
+      "Posters",
+      "Mirrors",
+      "Porcelain",
+      "Carpets",
+      "Lamps",
     ]);
   });
 
