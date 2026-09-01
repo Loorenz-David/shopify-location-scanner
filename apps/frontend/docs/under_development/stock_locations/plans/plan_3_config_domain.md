@@ -94,3 +94,10 @@ common path, and a criterion covering it belongs here rather than in the wizard 
   50 tests. The two named mutations were both executed at the `commitThreshold` definition,
   each observed red on its prescribed row, and restored; details are in the implementer
   handoff.
+
+  Closing L4 stamp on clean checkpoint `4b64c46`: `npm test` passed with 5 files / 50 tests;
+  `npm run typecheck` passed with no diagnostics; `npm run lint` reported the unchanged
+  repository baseline of 48 errors / 14 warnings (62 problems), all outside this phase's
+  perimeter, with zero problems in the four phase files. An earlier closing attempt found
+  one test-only spread typing error and was superseded by checkpoint `4b64c46`; the final
+  stamp was taken after that correction. No tracker row was edited by the implementer.
