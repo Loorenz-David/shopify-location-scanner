@@ -22,14 +22,18 @@ New `scripts/report-stock-property-drift.ts` · new `scripts/rebuild-location-st
 |---|---|---|
 | C1 | Drift script: (a) a value planted in a scratch item (`wood_type: "Bamboo"`) is reported under `wood_type` with count; (b) map values all present in data produce no false positives; (c) read-only — dev.db byte-identical after a run (checksum before/after) | §0.4 |
 | C2 | Rebuild script: (a) `DRY_RUN=1` prints deltas, writes nothing (checksum); (b) live run repairs a planted drifted quantity; (c) output lists every group touched | M5, §9/§20 |
-| C3 | End-to-end sweep executed and recorded — every §22.10a scenario: scan into a configured location; scan out; a sale; a return to store; a Shopify-admin location edit; a config created against existing inventory; a config deleted with fallback to a broader one. Each with expected quantity AND state written before execution | M1–M5, §22.10a |
+| C3 | End-to-end sweep executed and recorded — **run `verification/end-to-end-runbook.md`, which is this row's instrument** (owner, 2026-09-01: P4's seven unexecuted scenarios were re-routed here rather than gating P4, because they are end-to-end and easier to drive through the finished frontend). It carries the fixture set, live-derived expected values, and the §22.10a scenarios; **P4's hooks have never been observed firing in a real flow, so this is their first and only runtime verification** — every §22.10a scenario: scan into a configured location; scan out; a sale; a return to store; a Shopify-admin location edit; a config created against existing inventory; a config deleted with fallback to a broader one. Each with expected quantity AND state written before execution | M1–M5, §22.10a |
 | C4 | Ledger closeout row per measurement: M1–M8 each marked verified with a pointer to the evidence (P1–P5 Review logs or C3 steps). M6→P1-C8/P3-C1–C2, M7→`verify-stock-report.ts` all-PASS plus the P5 curl steps, M8→the catch-all/no-catch-all totals check run once each way | M1–M8, §24 |
 | C5 | Regression seam final run (§9.1d): `verify-all.ts` exits 0 with every script in the master plan §6.4 table reported PASS — none `REFUSED`, none `MISSING`. Output pasted whole into the Review log, since this is the project's single strongest piece of evidence that no phase silently broke an earlier one | §9.1d |
 
 Phase-close instruments: typecheck green; purity grep empty; **`npx tsx scripts/verify-all.ts` all-PASS on a scratch copy** (§9.1d — the project's final regression run, chaining P1, P2 and P5's scripts), full output in the Review log; perimeter diff (2 files).
 
 ## Manual scenarios
-C3 IS the scenario list (the §22.10a set). M8 reminder for every totals check: a group without a catch-all legitimately sums short — expected, not drift (§0.21).
+`verification/end-to-end-runbook.md` IS the scenario list — self-contained, with setup, fixtures
+and expected values. C3 is discharged by completing it and pasting the record into this Review log.
+Two things it flags that a reader must not misread: a group without a catch-all legitimately sums
+**short** of its physical inventory (§0.21), and a step that could not be run is recorded as such
+rather than marked passed. Previously (the §22.10a set). M8 reminder for every totals check: a group without a catch-all legitimately sums short — expected, not drift (§0.21).
 
 ## Notes
 - Scripts run with `npx tsx scripts/<name>.ts` from `apps/backend`; destructive steps (planted drift) on a scratch copy of dev.db per master plan §10.

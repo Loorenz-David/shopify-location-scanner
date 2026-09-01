@@ -201,3 +201,28 @@ scenarios and nothing gated on them. (2) `verify-all.ts` covering no P4 row is s
 seam protects earlier phases from later ones, but P4 contributes nothing to it, so no future
 phase's close re-checks the hooks. Decide at P6 whether the hook matrix deserves a script.
 
+### 2026-09-01 — owner disposition of round 1 · B1 re-routed · phase APPROVED
+
+**Owner's call:** the seven unexecuted scenarios are genuinely end-to-end, are far easier to drive
+through the finished frontend than by hand, and belong to a final sweep rather than to this
+phase's gate. Accepted, and it is the better framing — these criteria were never really phase-4
+shaped; they exercise the whole chain from a scan to a counter.
+
+**B1 is therefore re-routed, not waived.** Its instrument now exists as a committed artifact:
+`verification/end-to-end-runbook.md`, carrying all seven scenarios plus the fixture set, with
+expected values derived live from the database (LC1/Dining Chairs = **221** units, H1 = **80**,
+the LC1 teak split = **107/114**) rather than asserted. Plan 6's C3 is its home, and P6 is the
+phase that runs it.
+
+**What this phase closes on:** code review found no defect; the perimeter was exact; the frozen
+files were byte-identical; and the reviewer executed the resolution matrix directly against seeded
+configurations — the replay no-op, the two-quantity case, the null-before case and the
+null-category case are all confirmed by running them, not by reading.
+
+**What is knowingly unverified until the sweep runs:** that the hooks fire at the right moment
+inside the real flows — a scan, a return, a webhook-driven move, a sale. The risk is recorded
+rather than dissolved: if a hook is attached to the wrong branch, every number it writes is
+arithmetically perfect and consistently wrong.
+
+**Phase 4 is APPROVED** on that basis, with the sweep carried to P6 as a named obligation.
+
