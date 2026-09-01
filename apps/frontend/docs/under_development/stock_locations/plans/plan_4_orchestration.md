@@ -85,6 +85,47 @@ correct-looking report with wrong numbers.
   was changed. The implementation handoff carries the row-by-row coverage map, baseline,
   mutation ledger, and closing stamp.
 
+- **2026-09-02 · round 1 consumption · coordinator · APPROVED.** No independent review session
+  ran (§3A). What was checked, by hand: the declared write perimeter matched the tree exactly
+  (19 files declared, 19 changed across the two checkpoint commits, no strays, tracker
+  untouched); the closing stamp re-ran green (12 files / 105 tests, typecheck clean, repository
+  lint unchanged at 48 errors / 14 warnings, scoped lint over `src/features/stock` 0/0); all 23
+  P4 test names were enumerated against the coverage map with no orphans and every criterion
+  row present.
+
+  **Named mutation re-planted unfiltered.** C3/M1 (drop `previousLocation` from
+  `locationsToRefresh`) reddened exactly `C3(changed)` and nothing else — 1 failed / 104 passed
+  over the full stock scope, confirming the handoff's claim at full blast radius. Two further
+  adversarial probes the plan did not require: deleting the thresholds triple from the create
+  request reddened `C2` and `C2(wizard submit path)`; forcing the 409 mapping to ignore
+  `conflictingId` reddened `C5(create/present)` and `C5(patch/present)`. C2, C3 and C5 are
+  live guards.
+
+  **C9 shipped hollow, and was repaired before approval.** The plan argued C9 into existence
+  because an empty `keyOrder` "sorts deterministically but wrong, with nothing to observe".
+  Planting exactly that mutation — `currentKeyOrder()` returning `[]` — left all 105 tests
+  green. The criterion's *shape* was correct (it computes `buildReportView` on both sides and
+  asserts a non-empty key order), but its *input* discriminated nothing: the five-entry report
+  fixture never reaches MC2a's properties comparison, so the real vocabulary and an empty one
+  produce byte-identical views in both compact and grouped modes, and the non-emptiness clause
+  asserts against a `keyOrder` the test derives itself rather than the one the controller
+  passes. Both clauses were satisfiable by a controller that ignores the vocabulary entirely.
+  This is charter rule 15 — a guard must ship with proof it can fail.
+
+  The production code was read and is correct; only the guard was defective. Rather than spend
+  a dispatch round on one test, the coordinator authored `C9(vocabulary)` in
+  `stock-report.controller.test.ts`: two rows tying on state, quantity and category so the
+  properties comparison alone decides them, ordered `oak` before `pine` under the fetched key
+  order and reversed under code points, plus a second assertion that the empty-vocabulary view
+  differs — so the input cannot silently stop discriminating later. Verified to fail for the
+  right reason: the empty-`keyOrder` mutation now reds it and only it, and deleting the GET 4.1
+  options fetch reds `C1(report)`, `C9`, `C9(vocabulary)` and `C9(filter)`. Suite is 106 tests;
+  the stamp above was re-run on the corrected tree.
+
+  Known and accepted: the coordinator wrote this one test, so it carries no independent review
+  beyond the mutation proof above — which is the strongest evidence available here. The v1.4
+  intra-batch 409 branch remains deliberately unhandled per S9.
+
 
 ## Inherited note — contract v1.4 splits the 409, and it changes nothing here
 

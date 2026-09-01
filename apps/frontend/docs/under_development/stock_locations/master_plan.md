@@ -58,7 +58,7 @@ fidelity to the design screenshots is approved by the owner looking at the runni
 | P1 | Test infra, types, state system, API seam | Codex | APPROVED | 2026-09-01 | coordinator | approved on coordinator verification (no independent review session — see §3A); 32 tests, 5/5 mutations, lint clean in perimeter |
 | P2 | Report domain (compaction, ordering, filters) | Codex | APPROVED | 2026-09-01 | coordinator | approved on coordinator verification (no independent review session — see §3A); round 0 projection routed all 15 ledger rows; 82 tests, 31 new, no orphans; both named mutations re-planted **unfiltered** by the coordinator plus one adversarial third probe, each reddening exactly its predicted row; lint 0/0 in perimeter |
 | P3 | Config domain (criteria, thresholds, bands) | Codex | APPROVED | 2026-09-01 | coordinator | approved on coordinator verification (no independent review session — see §3A); 50 tests, 18 new, no orphans, 2/2 mutations (1 re-planted by the coordinator), lint 0/0 in perimeter |
-| P4 | Stores, controllers, flows | Codex | PROMPT_READY | 2026-09-01 | coordinator | **Next to dispatch**; no projection (§3A); coordinator plan-lint added the report-composition criterion C9, the options/`keyOrder` hydration gap and 1 named mutation; `prompts/implementer/plan_4_round_1_implement.md` queued |
+| P4 | Stores, controllers, flows | Codex | APPROVED | 2026-09-02 | coordinator | approved on coordinator verification (no independent review session — see §3A); 106 tests, 24 new, no orphans; C3's named mutation re-planted **unfiltered** by the coordinator plus two adversarial probes (C2, C5), each reddening exactly its row; **C9 shipped hollow** — its fixture reached no properties comparison, so an empty `keyOrder` passed — repaired by the coordinator with `C9(vocabulary)` and proved to fail; lint 0/0 in perimeter |
 | P5 | Settings UI (screens 06–07) + stock design tokens | Claude | NOT_STARTED | — | — | — |
 | P6 | Instance wizard UI (screens 08–09) | Claude | NOT_STARTED | — | — | — |
 | P7 | Report UI (screens 01–04) | Claude | NOT_STARTED | — | — | — |
@@ -406,6 +406,24 @@ Charter standing rules 1–16 apply. Project-specific additions:
     the message must be built from the two indices ("row 2 overlaps row 1"). MC12b would then
     need a third branch, and plan 4 C5 a third row. Recorded here so that work is not discovered
     at integration time.
+- **S10 — a criterion that recomputes the production expression proves the call site, not the
+  argument** *(added 2026-09-02, plan-4 consumption)*. Plan 4's C9 asserted that the report
+  controller's view equals `buildReportView(entries, filter, keyOrder)` computed directly, plus a
+  non-empty `keyOrder`. Both clauses passed with the controller hard-wired to `[]`. Two reasons,
+  and both generalize:
+  - **The input discriminated nothing.** The five-entry report fixture never ties far enough to
+    reach MC2a's properties comparison, so the real vocabulary and an empty one produce
+    byte-identical views. A comparison between two computations is only evidence if the inputs
+    can tell the two computations apart.
+  - **The test derived the argument itself.** `keyOrder` was mapped from the store's options
+    inside the test, not read from what the controller passed, so its non-emptiness said
+    nothing about the controller.
+  **The rule:** when a criterion's subject is a *value flowing into* a proven function, assert on
+  an input where a wrong value changes the output, and pin the assertion to observable output
+  rather than to a quantity the test reconstructs. Ship it with the mutation that reds it — this
+  is charter rule 15 applied to arguments rather than to guards. The repaired row,
+  `C9(vocabulary)`, additionally asserts that its own input still discriminates, so it cannot
+  quietly decay into the same state.
 - **S7:** A criterion row whose subject is build/test infrastructure rather than product
   behavior (a runner starting, typecheck/lint passing) is an **infra-enabler row**: it
   traces to no measurement-ledger entry because it measures no product outcome. Its trace
