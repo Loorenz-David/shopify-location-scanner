@@ -225,3 +225,37 @@ PASS C3(d)
 PASS verify-stock-report.ts
 SUMMARY PASS 3 script(s)
 ```
+
+### 2026-09-02 — review round 1 · APPROVED · phase closed
+
+Handoff: `handoffs/reviewer/handoff_plan5_review_1.md`. Tree `dedf415`; perimeter exactly the six
+permitted files, additive only in the three shared with P3, `verify-all.ts` limited to the
+`EXPECTED_SCRIPTS` line.
+
+Instruments: typecheck 0 · purity empty · `verify-all.ts` **`SUMMARY PASS 3 script(s)`** (58 P1 +
+20 P2 + **14 P5**) on a scratch copy · refusal guard exit **3** in all three forms (unset,
+relative, absolute) · `prisma/dev.db` untouched, still 0 definitions and 1 shop after a run that
+seeds a second one.
+
+All three manual scenarios re-executed by the reviewer against a live server on real inventory.
+`{data:{entries:[…]}}` with exactly six fields per entry; a **scalar**-created LC1 teak definition
+and an **array**-created H1 teak definition returned the **same `mergeKey`** (C2(b) demonstrated
+outside the fixture); a zero-match Sofas definition present at `0`/`out_of_stock`;
+`?states=…&groupByLocation=…&limit=…&sort=…` byte-identical to the bare call and a malformed
+`?bogus=%%%` still 200; both mounts 200 with identical payloads; 401 without a token.
+
+**Reviewer mutation probes (four, independent of the implementer's).** M2 key omits
+`itemCategory` → C2(d) red. M3 key includes `location` → C2(a)(b)(e)(f) red. M4 drops
+zero-quantity rows → 8 rows red, each with its own true message. **M1 — the plan's own named
+probe — reddened nothing**, confirming the implementer's upstream note. All reverted; tree clean.
+
+**N1 (plan defect, not code):** the named probe cannot fail, because `propertiesCanonical` and
+`JSON.stringify(properties)` are provably identical for all reachable data — both derive from
+`normalizeCriteria`, which already sorts keys and values, and the only two writers write them
+together. The scalar/array unification C2(b) names is settled upstream at write time. The failure
+mode the probe targeted **is** covered, by C2(d) (merging) and C2(a)/(e)/(f) (splitting), proven
+by M2 and M3. Using the stored column remains correct regardless (§26.2, §21/§0.5). No fix cycle.
+**N2:** C3(d) is partly a source-text `includes()` match — proves registration, not reachability;
+backed by the curl steps, which were re-executed.
+
+Phase closed.
