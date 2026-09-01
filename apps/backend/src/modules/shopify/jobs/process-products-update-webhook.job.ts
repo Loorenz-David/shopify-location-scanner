@@ -6,6 +6,10 @@ import { shopifyAdminApi } from "../integrations/shopify-admin-api.integration.j
 import { shopRepository } from "../repositories/shop.repository.js";
 import { logger } from "../../../shared/logging/logger.js";
 import { itemPropertiesResolver } from "../../../shared/item-properties/item-properties-resolver.service.js";
+import {
+  applyItemStockChange,
+  toStockItemSnapshot,
+} from "../../stock/services/apply-item-stock-change.service.js";
 
 const WEBHOOK_ACTOR = "system:shopify-webhook";
 
@@ -226,6 +230,29 @@ export const processProductsUpdateWebhookJob = async (
       }
     }
   }
+
+  const afterHistory = await scanHistoryRepository.findByShopAndProduct({
+    shopId: intake.shopId,
+    productId,
+  });
+  const scanHistoryId = afterHistory?.id ?? existingHistory?.id;
+  const stockChange = await applyItemStockChange({
+    shopId: intake.shopId,
+    before: toStockItemSnapshot(existingHistory),
+    after: toStockItemSnapshot(afterHistory),
+    operation: "products_update_sync",
+    itemIdentifiers: {
+      productId,
+      ...(scanHistoryId !== undefined ? { scanHistoryId } : {}),
+    },
+  });
+  logger.info("Stock change applied for Shopify products/update", {
+    shopId: intake.shopId,
+    productId,
+    scanHistoryId: afterHistory?.id ?? existingHistory?.id ?? null,
+    operation: "products_update_sync",
+    changed: stockChange.changed,
+  });
 
   if (priceUpdated || locationUpdated || productSnapshotUpdated) {
     await broadcast(intake.shopId, {
