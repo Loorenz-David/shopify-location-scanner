@@ -1,5 +1,9 @@
 Intention — Location Stock System
 
+> **Amended 2026-09-01.** Sections 13 and 22.10 below were rewritten after the system-context review; both previously required behaviour this codebase cannot provide as written.
+>
+> Resolved decisions live in `docs/under_implementation/warehouse_stock/context/context.md` §0 (22 entries) and are **binding**. Where this intention and context §0 disagree, §0 wins. In particular §0 settles: `item_type` means `ScanHistory.itemCategory` (not `ScanHistory.itemType`); the database is SQLite, so "JSONB" means a Prisma `Json?` column that cannot be queried in SQL; property matching semantics; specificity scoring; the non-negative quantity guard; reconciliation scope; and tenancy via `shopId`.
+
 We will implement a Location Stock System.
 
 The purpose of this system is to extend the existing location domain so that users can configure stock definitions for combinations of:
@@ -488,13 +492,18 @@ Inspect the existing sold-state machinery before planning this integration.
 
 13. Stock Events / Frontend Reactivity
 
-Stock mutations should communicate through the application’s existing event/realtime system so frontend consumers can react accordingly.
+**Amended — see context §0.9. This section previously required a stock-specific event that never fires on a stock no-op. That is not what V1 does.**
 
-Determine whether an existing event can represent stock changes or whether a new event key/type is required.
+V1 introduces no new event type. The existing `scan_history_updated` event already fires on every item-driven stock trigger — location moves from the scanner, location moves arriving via the Shopify `products/update` webhook, sales, returns to store, and quantity/property/category syncs — including from the webhook worker process, which publishes over Redis for the API server to re-broadcast.
 
-Events should represent successfully committed stock changes and should not be emitted for stock no-ops.
+The stock pages consume it the way the analytics page already does: ignore the payload, refetch. The `WsOutboundEvent` union and its hand-mirrored frontend twin are left untouched.
 
-The planning phase should inspect existing event conventions and define the appropriate payload and emission point.
+Two accepted consequences:
+
+- Configuration changes emit nothing. Creating, updating or deleting a LocationStock changes quantities through reconciliation without touching any item, so no event fires. The editing user receives the result in the HTTP response; other users reload the page. This is a deliberate V1 scope decision.
+- `scan_history_updated` also fires for item changes that cannot affect stock — price updates, sold-quantity syncs, and changes in locations or item types with no stock configuration. The stock pages will refetch unnecessarily in those cases, which is negligible at current data volumes.
+
+Adding a dedicated `location_stock_updated` event later is one arm on each of the two union types plus an emission from the shared stock primitive, which already reports whether anything changed.
 
 ⸻
 
@@ -794,24 +803,15 @@ Before implementation:
 7. Determine the smallest appropriate transaction/locking mechanism for safe quantity updates.
 8. Define the stock-change event contract and integration with the existing realtime/event system.
 9. Produce a multi-phase implementation plan, including migrations, domain machinery, configuration APIs, reconciliation, transition integrations, events, read APIs, reporting, and tests.
-10. Define tests for:
+10. **Amended — see context §0.11. This section previously required automated tests. This repository has no test runner, no test files and no test dependencies; `npm test` fails by design, and the only automated gate is `npm run typecheck`.**
 
-- every threshold boundary,
-- property normalization,
-- wildcard matching,
-- multi-value matching,
-- best-match precedence,
-- ambiguous/conflicting configurations,
-- duplicate prevention,
-- zero quantity,
-- reconciliation,
-- create/update/delete reallocation,
-- location transitions,
-- sold-item removal,
-- negative-quantity protection,
-- report aggregation,
-- report state filtering,
-- location grouping and ranking.
+Automated tests are descoped for V1. Correctness is verified manually by the product owner. Two requirements replace them:
+
+a. The plan must enumerate, per phase, the concrete manual scenarios to exercise and the expected quantity and stock state after each — at minimum: a scan into a configured location, a scan out of one, a sale, a return to store, a location edit made directly in the Shopify admin, a configuration created against existing inventory, and a configuration deleted so its items fall back to a broader one.
+
+b. The domain machinery — property tokenization and normalization, matching, best-match specificity, stock-state calculation, and conflict detection — must remain pure and free of any Prisma import, living in `domain/` or `shared/`. This costs nothing now, keeps manual reasoning tractable, and means automated tests can be added later without a rewrite.
+
+The behaviours the original list named remain the things to verify, now by hand rather than by test: every threshold boundary, property normalization, wildcard matching, multi-value matching, best-match precedence, ambiguous/conflicting configurations, duplicate prevention, zero quantity, reconciliation, create/update/delete reallocation, location transitions, sold-item removal, negative-quantity protection, report aggregation, report state filtering, and location grouping and ranking.
 
 11. Preserve existing behavior outside this feature.
 12. Surface contradictions or missing domain decisions before implementation rather than silently choosing behavior.
