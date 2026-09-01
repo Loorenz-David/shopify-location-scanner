@@ -61,7 +61,29 @@ P7 component whose review is an owner visual pass (§3A). A wrongly-argued call 
 correct-looking report with wrong numbers.
 
 ## Review log
-(empty)
+- **2026-09-02 · round 1 (implementation) · Codex · IMPLEMENTED pending coordinator
+  consumption.** Added the four stock stores, three orchestration controllers, the single
+  actions facade, and the two lifecycle/WS flows. Settings mutations use the POST/PATCH
+  response DTOs as authoritative data, then refetch affected location details; a moved
+  definition refreshes both the old and new locations. The report controller fetches report
+  entries and GET 4.1 options together, derives the property key order from those options,
+  and exposes the result of P2's `buildReportView` composition. Wizard edit-prefill stores
+  P3-rendered criteria chips, and root wizard entry computes instance-less locations from
+  bootstrap options minus the hydrated 4.2 root.
+
+  Judgment calls: structured mutation errors retain an `error` object plus the repo-idiomatic
+  `errorMessage` selector; stored-definition conflicts expose the category and rendered
+  criteria-chip strings, while id-less v1.4 conflicts expose only the envelope message. A
+  wizard entered from a location exposes that preselected location even when the root marks it
+  occupied; root entry alone uses the instance-less selector. Wizard success unwinds internal
+  wizard steps back to `location-detail`, resetting there when no detail is on the stack. The
+  report filter reset restores filter defaults without discarding hydrated report data.
+
+  The v1.4 intra-batch 409 shape receives no special client branch: V1 submits one-entry
+  batches, so the absent-`conflictingId` message-only branch is the complete reachable
+  behavior. No domain, API, fixture, allowlist, UI, tracker, sibling-worktree, or graph file
+  was changed. The implementation handoff carries the row-by-row coverage map, baseline,
+  mutation ledger, and closing stamp.
 
 
 ## Inherited note — contract v1.4 splits the 409, and it changes nothing here

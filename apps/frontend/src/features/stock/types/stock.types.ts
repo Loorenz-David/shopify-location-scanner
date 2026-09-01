@@ -64,6 +64,14 @@ export interface StockFilterState {
   groupByLocation: boolean;
 }
 
+export interface StockOperationError {
+  message: string;
+  conflicting?: {
+    category: string;
+    properties: string[];
+  };
+}
+
 export interface WizardDraft {
   location: string;
   itemCategory: string;
