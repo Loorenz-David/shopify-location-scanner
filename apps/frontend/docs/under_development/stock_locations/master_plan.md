@@ -55,7 +55,7 @@ fidelity to the design screenshots is approved by the owner looking at the runni
 
 | phase | title | implementer | state | date | actor | note |
 |---|---|---|---|---|---|---|
-| P1 | Test infra, types, state system, API seam | Codex | IMPLEMENTED | 2026-09-01 | Codex | round 2 implemented the contract v1.3 item-category amendment; targeted API test 11/11 passed, typecheck passed; awaiting first review |
+| P1 | Test infra, types, state system, API seam | Codex | APPROVED | 2026-09-01 | coordinator | approved on coordinator verification (no independent review session — see §3A); 32 tests, 5/5 mutations, lint clean in perimeter |
 | P2 | Report domain (compaction, ordering, filters) | Codex | NOT_STARTED | — | — | — |
 | P3 | Config domain (criteria, thresholds, bands) | Codex | NOT_STARTED | — | — | — |
 | P4 | Stores, controllers, flows | Codex | NOT_STARTED | — | — | — |
@@ -66,13 +66,38 @@ fidelity to the design screenshots is approved by the owner looking at the runni
 | P9 | PDF document + Generate sheet UI (screens 05, 10) | Claude | NOT_STARTED | — | — | — |
 | P10 | Live integration (gated on backend P3/P5) | Codex | NOT_STARTED | — | — | — |
 
-**Projection gate:** mandatory for P2 and P3 (silent-failure mechanisms MC2–MC9 —
-charter rule 6); waivable with recorded justification elsewhere. Self-retiring per
-charter. **P1 amendment (owner directive, 2026-09-01):** the coordinator proposed
-waiving P1's projection; the owner directed it be run. P1 therefore runs round 0 —
-justified independently by MC1's ordering comparator (charter rule 6 names ordering)
-and by P1 being the foundation every later phase binds to. This does not change the
-gate's status elsewhere.
+**Projection gate (owner decision, 2026-09-01 — revised):** **P2 only.** It was mandatory
+for P2 and P3 and was additionally run on P1 by owner directive, where it earned its keep
+(26 routed decisions, zero of six criterion rows writable as they stood). It is now retained
+only for P2, whose compaction mechanism is the project's one silent-failure-critical
+mechanism, and waived for every other phase. Waiver rationale: P1 was the foundation nine
+phases bind to; the remaining phases have no comparable leverage, and the owner's scope
+decision in §3A applies.
+
+## 3A. Review policy (owner decision, 2026-09-01)
+
+**Standing constraint from the owner:** this app is a working interim build, to be rebuilt
+from scratch later. The goal is software that works for its users, not a codebase optimised
+for long-term maintenance. Review effort is therefore spent only where a defect would be
+**silent and user-visible**, never on process hygiene whose cost lands on future maintainers
+who will not exist.
+
+| phase | review |
+|---|---|
+| P2 | **Independent review session**, scoped to the compaction and ordering mechanisms — not a full checklist |
+| P1, P3, P4, P8, P10 | **No review session.** The coordinator consumes the implementer handoff adversarially: perimeter against the tree, named mutations executed and correctly sited, orphan-test enumeration, and independent re-derivation of any measured claim |
+| P5, P6, P7, P9 (UI) | **No review session.** The owner's visual pass against the running app is the gate, alongside the phase's RTL criteria |
+
+Why P2 keeps its review: compaction groups on `mergeKey` **and** `stockState`. Grouping on
+`mergeKey` alone merges a shortage in one location into healthy stock in another — the report
+shows a comfortable number, nobody reorders, the shelf is empty. No backend check can observe
+it (contract v1.2 §4.7 moved the obligation to the client), and it does not announce itself in
+testing unless someone looks for it. That is the one place where being wrong is both silent
+and expensive.
+
+**Honesty rule for this policy:** a phase approved without an independent review says so in
+its tracker note and Review log. "APPROVED" here means the coordinator verified it, not that
+a second agent re-derived it — the record must never imply more scrutiny than was bought.
 
 ## 5. Contract resolution
 

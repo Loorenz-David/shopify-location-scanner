@@ -209,4 +209,23 @@ mutation; they are observational rows over fixtures, spies and resolved URLs.
   but that checkpoint does not stand alone as a record. Lesson for this project: **amendments
   are committed before the round that implements them is dispatched** — a checkpoint whose code
   and rules disagree cannot serve as the provenance the pipeline keeps checkpoints for.
-
+- **2026-09-01 · APPROVED by the coordinator — no independent review session was run.**
+  Recorded plainly so the record does not overclaim: this phase was **not** re-derived by a
+  second agent. It was approved on the coordinator's verification of the two implementer
+  handoffs — write perimeter diffed against the tree; five named mutations confirmed executed,
+  correctly sited at the definitions their criteria name, observed red, reverted; all 32 test
+  names enumerated and each carrying a criterion row id, zero orphans; the lint claim
+  independently re-derived (48/14 repo-wide, zero in the phase perimeter); the options fixture
+  parsed and compared to contract v1.3 §4.1 as an ordered list (identical); C4(b) confirmed to
+  be a full-array equality rather than a length check; and C5(b) read directly — it spies on
+  `fetch`, so it observes the URL after `buildRequestUrl` composes it, and asserts
+  `!url.includes("/api/api/")`, which closes round 0's highest-severity finding at the right
+  level.
+  **Known and accepted, not fixed:** (1) C4(b) has never been observed failing — round 2's
+  baseline was green because the old fixture and old assertion agreed; the fixture was instead
+  verified directly against the contract, which is stronger evidence about the data and weaker
+  evidence about the test. (2) The three C6 allowlist probes were all planted in one file
+  (`api/get-stock-options.api.ts`), so the scans are unproven against site variation. Both are
+  process-hygiene risks whose cost lands on future maintenance; under the owner's review policy
+  (master plan §3A) that cost is explicitly not being paid on this build.
+  A drafted first-review prompt existed and was **not dispatched**; it is archived unused.
