@@ -59,7 +59,7 @@ fidelity to the design screenshots is approved by the owner looking at the runni
 | P2 | Report domain (compaction, ordering, filters) | Codex | APPROVED | 2026-09-01 | coordinator | approved on coordinator verification (no independent review session — see §3A); round 0 projection routed all 15 ledger rows; 82 tests, 31 new, no orphans; both named mutations re-planted **unfiltered** by the coordinator plus one adversarial third probe, each reddening exactly its predicted row; lint 0/0 in perimeter |
 | P3 | Config domain (criteria, thresholds, bands) | Codex | APPROVED | 2026-09-01 | coordinator | approved on coordinator verification (no independent review session — see §3A); 50 tests, 18 new, no orphans, 2/2 mutations (1 re-planted by the coordinator), lint 0/0 in perimeter |
 | P4 | Stores, controllers, flows | Codex | APPROVED | 2026-09-02 | coordinator | approved on coordinator verification (no independent review session — see §3A); 106 tests, 24 new, no orphans; C3's named mutation re-planted **unfiltered** by the coordinator plus two adversarial probes (C2, C5), each reddening exactly its row; **C9 shipped hollow** — its fixture reached no properties comparison, so an empty `keyOrder` passed — repaired by the coordinator with `C9(vocabulary)` and proved to fail; lint 0/0 in perimeter |
-| P5 | Settings UI (screens 06–07) + stock design tokens | Claude | PROMPT_READY | 2026-09-02 | coordinator | **Next to dispatch**; no projection (§3A), owner visual pass is the gate (S5); coordinator plan-lint added 1 named mutation (C4) and applied **S10** to C4/C6/C7 — the detail fixture's four instances all carry identical thresholds, so C4 could not discriminate; a narrow thresholds-only fixture edit is authorized in the plan; `prompts/implementer/plan_5_round_1_implement.md` queued |
+| P5 | Settings UI (screens 06–07) + stock design tokens | Claude | APPROVED | 2026-09-02 | coordinator | approved on coordinator verification plus **the owner's visual pass** (S5), which is this phase's real gate; no independent review session (§3A); 114 tests, 7 new + 1 coordinator guard, no orphans; C4's named mutation re-planted **unfiltered** (reds C4 alone) and three absence-guard probes recorded; authorized fixture edit confirmed thresholds-only; **F1 fixed by the coordinator** — the settings path never fetched the GET 4.1 vocabulary, so screen 07 rendered wire casing (`teak`) on a cold visit and display casing (`Teak`) after a wizard or report visit; guarded by `C4(cold)` and proved to fail; F2 routed to P6, F3/F5 accepted and recorded; lint 0 in perimeter |
 | P6 | Instance wizard UI (screens 08–09) | Claude | NOT_STARTED | — | — | — |
 | P7 | Report UI (screens 01–04) | Claude | NOT_STARTED | — | — | — |
 | P8 | PDF data assembly + delivery | Codex | NOT_STARTED | — | — | — |
@@ -234,6 +234,15 @@ stack for pushed screens/sheets; view ids: `report`, `report-entry-detail`,
 `controllers/stock-report.controller.ts`, `controllers/stock-wizard.controller.ts` ·
 `actions/stock.actions.ts` (single facade) · `flows/use-stock-report.flow.ts`,
 `flows/use-stock-settings.flow.ts` (both subscribe `scan_history_updated`, MC12c).
+
+**The vocabulary has three loaders, not two** *(amended 2026-09-02, P5 consumption)*. GET 4.1
+options are needed by anything that renders a property value, because `displayValueFor` maps wire
+casing to display casing. The wizard controller (`ensureWizardOptions`, cached) and the report
+controller (alongside the report, plan 4 C9) both load it — and `use-stock-settings.flow` now does
+too, through the facade's `ensureOptions`, because screen 07 renders chips and previously showed
+`teak` where every other screen shows `Teak`. **A new screen that renders a property value owns
+loading the vocabulary**; inheriting it from wherever the user happened to go first is the defect,
+not the design.
 
 **UI** (Claude phases) — pages `ui/StockReportPage.tsx`, `ui/StockLocationsPage.tsx`;
 pushed views `ui/StockLocationDetailView.tsx`, `ui/StockWizardStep1View.tsx`,
@@ -424,6 +433,15 @@ Charter standing rules 1–16 apply. Project-specific additions:
   is charter rule 15 applied to arguments rather than to guards. The repaired row,
   `C9(vocabulary)`, additionally asserts that its own input still discriminates, so it cannot
   quietly decay into the same state.
+
+  **Third occurrence, and a second sub-shape** *(P5, 2026-09-02)*. Plan 5's C4 asserted screen 07's
+  chips against `renderCriteriaChips(properties, options)` — and passed, because its render helper
+  called `setOptions(stockOptionsFixture)` first. **The test supplied an argument the production
+  path never fetches**: nothing on the settings side hydrated the GET 4.1 vocabulary, so a real cold
+  visit rendered `teak` where the wizard and report screens render `Teak`. The rule generalizes: a
+  test that *seeds* state to make a component work is asserting on a world the user may never be in.
+  Seed only what a user's own path would have already loaded, or add a row that renders cold.
+  Plan 5's `C4(cold)` is that row.
 - **S7:** A criterion row whose subject is build/test infrastructure rather than product
   behavior (a runner starting, typecheck/lint passing) is an **infra-enabler row**: it
   traces to no measurement-ledger entry because it measures no product outcome. Its trace

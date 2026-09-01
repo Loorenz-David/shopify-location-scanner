@@ -73,6 +73,50 @@ the **owner's approval pass** on the running app (S5) — criteria above are the
 automated floor, not the whole bar. Thin by design; refine at prompt time.
 
 ## Review log
+- **2026-09-02 · round 1 consumption · coordinator · APPROVED.** The owner's visual pass is this
+  phase's gate (S5) and the owner has given it. No independent review session ran (§3A).
+
+  Verified by hand: the declared write perimeter matched the tree exactly (22 files declared, 22
+  changed, tracker and `stock-allowlist.test.ts` untouched, no P1–P4 domain/store/controller/flow
+  file touched); the closing stamp re-ran green (16 files / 113 tests, typecheck clean, lint
+  unchanged at 48 errors / 14 warnings, scoped lint 0); all 7 test names enumerated against the
+  coverage map with no orphans and every criterion C1–C7 present. The authorized fixture edit was
+  confirmed thresholds-only on a single instance (`stock-lc1-coffee`, 10/15/20 → 5/12/18, with
+  quantity 22 still above the new 18 so its state is unchanged), and no approved P1–P4 test moved.
+  No probe residue: the throwaway preview harness is gone and both mutation markers scan clean.
+
+  **C4's named mutation re-planted unfiltered** by the coordinator (render the first instance's
+  ladder on every card): reddened exactly `C4` and nothing else, 1 failed / 112 passed across the
+  whole suite — the handoff's claim confirmed at full blast radius. The three absence-guard probes
+  (A/B/C) are recorded with their reds; C4 additionally carries an **S10 self-check** asserting the
+  fixture yields more than one distinct band set *before* relying on it, which is exactly the
+  anti-decay clause the lint asked for. This phase is the first to ship that pattern unprompted.
+
+  **F1 was a real silent defect and the coordinator fixed it.** The handoff disclosed it honestly
+  rather than burying it, and it is the class this project spends effort on: `renderCriteriaChips`
+  needs the GET 4.1 vocabulary to turn wire values into display casing, and **nothing on the
+  settings path ever fetched it** — only the wizard and report controllers do. A cold visit to
+  screen 07 rendered `teak` and `oval` where the same screen renders `Teak` and `Oval` after the
+  user has been to the wizard or the report, so the display depended on where they had already
+  been. C4 did not catch it because its helper seeds `setOptions(stockOptionsFixture)` before
+  rendering — the test supplied an argument production never fetches, the same shape as plan 4's
+  C9 (**S10** again, third occurrence).
+
+  Fix: `ensureWizardOptions` (already cached) is exported and exposed on the facade as
+  `ensureOptions`, and `use-stock-settings.flow` fires it when a location is present, error-swallowed
+  so a failed vocabulary fetch degrades chips to wire values instead of taking the screen down.
+  Guard: **`C4(cold)`** renders the detail view with no options seeded — the production path a user
+  actually takes — and asserts display casing. Proved to fail: removing the one added line reds
+  `C4(cold)` and only it (1 failed / 113 passed). Suite is 114 tests; the stamp was re-run after.
+
+  Known and accepted: the coordinator wrote that fix and its test, so they carry no independent
+  review beyond the mutation proof. **F2 is a genuine requirement gap routed forward to P6** — D3
+  restricts only the dashed row, while design 06 says the floating pill opens step 08 "with no
+  location preselected", so the root pill must offer *all* locations; it is not user-reachable yet
+  because P5's wizard is a placeholder. F3 (Settings tab not highlighted) is cosmetic, sits in the
+  shell outside every stock perimeter, and the owner's visual pass accepted it. F5 is an accepted
+  charter-rule-4 exception: `StockStateBadge` ships with its C7 test and no production consumer
+  until P7's report rows — recorded so it is not later mistaken for dead code.
 
 **2026-09-02 — implement round 1 (Claude, Fable 5).** Built `ui/` (6 parts + page + view, 4 RTL
 files, 7 tests), stock tokens/fonts in `index.css`, 3 icons, shell + settings wiring; fixture

@@ -37,11 +37,35 @@ contract **v1.4** §2, §3 (the two 409 shapes), §4.4–4.5 (error envelope).
 | C4 | Step 2 renders exactly three steppers (derived High/Out rows have no input — assert absence); stepper and typed edits go through `commitThreshold` and the displayed triple always satisfies low<med<norm (drive the D14 push case: raising low past med shifts med in the UI). | MC7, M3 |
 | C5 | Save (create) calls the create action with the draft; save (edit) calls update with the instance id and CTA reads `Save changes`; success pops to location detail (nav store asserted). | M1 |
 | C6 | 409 path: action rejecting with conflict info renders the message naming the conflicting definition's category; form stays open, values intact. | M1, MC12b |
-| C7 | Edit-prefill: opening from an instance shows its location/category/chips/thresholds (via P4 prefill — assert two fields incl. a wildcard chip). | M1, M4 |
+| C7 | Edit-prefill: opening from an instance shows its location/category/chips/thresholds (via P4 prefill — assert two fields incl. a wildcard chip). **Prefill from an instance other than the first**, against a fixture whose instances differ in category and thresholds (S10). | M1, M4 |
+| C8 | **The two root entry points offer different location sets.** The dashed `New location` row offers only instance-less locations (D3); the floating `New instance` pill offers **all** bootstrap locations with none preselected (design 06 line 11). Assert both sets explicitly against a fixture where they differ — with every location occupied or every location free they coincide and the row proves nothing. **Named mutation M1:** point the pill at the dashed row's selector → this row reds. Without it a user on screen 06 cannot add a second instance to any location that already has one, and the wizard simply opens with that location missing from the list. | M1 (D3, design 06) |
 
 ## Notes
 Visual pass by owner against `08.png`/`09.png` (S5). Ladder rail/typography per
 00-global; derived-row `derived` badges mono. Refine at prompt time.
+
+**Mutation count 1** — C8 (M1, the root pill's location selector).
+
+**C8 is a defect routed forward from P5** *(coordinator, 2026-09-02)*. P5 bound both root entry
+points to `initializeNewStockWizardController()` with no argument, which returns the instance-less
+set. That is correct for the dashed row and wrong for the pill: **D3 restricts only the dashed
+row**, and design 06 line 11 says the pill opens step 08 "with no location preselected" — not
+"with most locations missing". It was not user-reachable in P5 because the wizard was a
+placeholder, which is why P5 shipped; it becomes reachable the moment this phase exists. The
+controller seam is P4's and approved — P4's C7 asserts the no-argument behavior and must keep
+passing — so add a distinct entry point rather than changing what the existing one means.
+
+**The threshold adapter needs both directions** *(routed from P5 findings F4 and judgment call 2)*.
+`WizardDraft.thresholds` is the DTO array; `commitThreshold` works on `ThresholdDraft {low, medium,
+normal}`; P5 already wrote a one-way DTO→ladder adapter inside `ui/StockThresholdStrip.tsx` that
+throws on a missing threshold. C4 drives the ladder in both directions, so decide once where that
+adapter lives — if it moves to the thresholds domain it needs its own criterion there, and P5's
+copy must then call it rather than duplicating it (charter rule 4).
+
+**S10 applies to C2, C3, C4 and C7** as much as to C8: each compares a rendered value against a
+domain function the test computes, which proves the call site and not the argument. Every one of
+them needs an input where a wrong argument changes the output, and none may seed state the user's
+own path would not have loaded — that is exactly how P5's chip casing defect (F1) stayed green.
 
 ## Inherited hazard — the item-category vocabulary is 28, and 19 of them carry no property
 

@@ -102,6 +102,29 @@ describe("StockLocationDetailView (screen 07)", () => {
     });
   });
 
+  it("C4(cold): chips show display casing on a first visit, with no options preloaded", async () => {
+    // F1, routed from the P5 handoff. renderCriteriaChips needs the GET 4.1 vocabulary
+    // to turn wire values into display casing, and nothing on the settings path fetched
+    // it: a cold visit rendered "teak" where the wizard and report screens render "Teak",
+    // so the same screen read differently depending on where the user had already been.
+    // No setOptions here on purpose — this is the production path a user actually takes.
+    const chipped = locationInstances.find(
+      (instance) => Object.keys(instance.properties).length > 0,
+    )!;
+    const expectedChips = renderCriteriaChips(chipped.properties, stockOptionsFixture);
+    expect(expectedChips.some((chip) => /[A-Z][a-z]/.test(chip.split("·").pop()!))).toBe(true);
+
+    render(<StockLocationDetailView location={LOCATION} />);
+    const cards = await screen.findAllByTestId("stock-instance-card");
+    const card = cards[locationInstances.indexOf(chipped)]!;
+
+    await waitFor(() => {
+      expect(
+        within(card).getAllByTestId("stock-property-chip").map((chip) => chip.textContent),
+      ).toEqual(expectedChips);
+    });
+  });
+
   it("C5: header shows the location code only — no zone name, no Rename", async () => {
     await renderDetail();
 

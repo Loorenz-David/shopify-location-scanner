@@ -33,7 +33,7 @@ function newDraft(location = ""): WizardDraft {
   };
 }
 
-async function ensureWizardOptions(): Promise<StockOptionsDto> {
+export async function ensureWizardOptions(): Promise<StockOptionsDto> {
   const currentOptions = useStockWizardStore.getState().options;
   if (currentOptions !== null) {
     return currentOptions;

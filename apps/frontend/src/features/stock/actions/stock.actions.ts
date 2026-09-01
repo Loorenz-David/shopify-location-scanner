@@ -13,6 +13,7 @@ import {
 import {
   getInstanceLessStockLocations,
   initializeEditStockWizardController,
+  ensureWizardOptions,
   initializeNewStockWizardController,
   setStockWizardStep,
   submitStockWizardController,
@@ -33,6 +34,7 @@ export const stockActions = {
     originalLocation?: string,
   ) => updateStockConfigurationController(id, patch, originalLocation),
   deleteConfiguration: deleteStockConfigurationController,
+  ensureOptions: ensureWizardOptions,
   startNewWizard: initializeNewStockWizardController,
   startNewWizardFromRoot: () => initializeNewStockWizardController(),
   startNewWizardFromLocation: initializeNewStockWizardController,
