@@ -126,7 +126,7 @@ signatures, zod shapes, transaction boundaries, control flow, per-file sketches 
 runnable code). The moment you must stop and choose, that is the product. Classify each point as
 **plan gap** (propose an amendment), **intention gap** (route upstream, never patch downstream),
 or **free choice** (propose an explicit delegation, so the implementer's freedom is granted
-rather than taken). Then the reality checks, the decidability pass over all **31** lettered rows,
+rather than taken). Then the reality checks, the decidability pass over all **28** lettered rows,
 and trace verification both ways.
 
 Pay attention to **preconditions P1 and P2 carry into P3**. P3 is the first phase that composes

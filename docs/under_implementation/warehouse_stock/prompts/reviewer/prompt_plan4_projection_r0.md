@@ -134,7 +134,7 @@ Follow `plan-projection.md` §Procedure. Derive the concrete skeleton each task 
 signatures, call-site placement, control flow, what is read before what is written. The moment
 you must stop and choose, that is the product. Classify each point as **plan gap**, **intention
 gap** (route upstream), or **free choice** (propose an explicit delegation). Then the reality
-checks, the decidability pass over all **28** lettered rows, and trace verification both ways.
+checks, the decidability pass over all **25** lettered rows, and trace verification both ways.
 
 Because this phase edits live code, spend part of your budget on the **existing behaviour the
 plan must not break**: read what each of the four files already does and ask whether the
