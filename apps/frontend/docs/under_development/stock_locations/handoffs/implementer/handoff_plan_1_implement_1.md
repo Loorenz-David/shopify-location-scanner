@@ -1,7 +1,7 @@
 ---
 plan: 1
 role: implement
-state: IMPLEMENTING
+state: IMPLEMENTED
 date: 2026-09-01
 actor: Codex
 ---
@@ -69,11 +69,10 @@ reconstructed result.
 
 ## Evidence
 
-Final code-tree stamp before documentation/tracker edits: `npm test` passed 3 files / 32
-tests; `npm run typecheck` passed; `npm run lint` reported 48 pre-existing errors and 14
-warnings (62 problems), all outside the P1 write perimeter; scoped lint over all new files
-passed. The post-checkpoint stamp is re-taken after the checkpoint commit and recorded in
-the final handoff update below.
+Pre-checkpoint code-tree stamp: `npm test` passed 3 files / 32 tests; `npm run typecheck`
+passed; `npm run lint` reported 48 pre-existing errors and 14 warnings (62 problems), all
+outside the P1 write perimeter; scoped lint over all new files passed. A post-checkpoint
+stamp is required because the checkpoint tree is the handover identity.
 
 Named mutations: declared 5 = C2 (2) + C6 (3); executed 5 = declared 5.
 
@@ -150,3 +149,11 @@ Master plan P1 row is `IMPLEMENTED` on 2026-09-01 under Codex. Checkpoint commit
 
 No architecture graph exists in this repository. No other tracker row was touched. Pre-existing
 owner changes remain unstaged and were not included in the checkpoint.
+
+## Post-checkpoint closing stamp
+
+Checkpoint tree identity: commit `574d56b` with the repository's unrelated pre-existing owner
+changes still present outside the checkpoint; the scoped P1 file set is clean at this commit.
+`npm test` → 3 files / 32 tests passed. `npm run typecheck` → passed with no diagnostics.
+`npm run lint` → the same documented repository baseline: 48 pre-existing errors and 14
+warnings (62 problems), all outside the P1 perimeter. Scoped lint over the P1 files → passed.
