@@ -72,7 +72,11 @@ describe("stock threshold domain", () => {
   ] as const)(
     "%s: labels and colors cover every quantity without gaps or overlap",
     (_name, thresholds, expectedLabels, maximum) => {
-      const bands = deriveBands(...thresholds);
+      const bands = deriveBands(
+        thresholds[0],
+        thresholds[1],
+        thresholds[2],
+      );
 
       expect(bands.map((band) => band.label)).toEqual(expectedLabels);
       expect(bands.map((band) => band.state)).toEqual([...STOCK_STATES]);
