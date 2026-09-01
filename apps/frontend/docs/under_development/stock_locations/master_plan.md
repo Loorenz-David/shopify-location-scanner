@@ -56,7 +56,7 @@ fidelity to the design screenshots is approved by the owner looking at the runni
 | phase | title | implementer | state | date | actor | note |
 |---|---|---|---|---|---|---|
 | P1 | Test infra, types, state system, API seam | Codex | APPROVED | 2026-09-01 | coordinator | approved on coordinator verification (no independent review session — see §3A); 32 tests, 5/5 mutations, lint clean in perimeter |
-| P2 | Report domain (compaction, ordering, filters) | Codex | PROMPT_READY | 2026-09-01 | coordinator | round 0 projection: AMENDMENTS_REQUIRED, 15 ledger rows (8 wrong-number weight). All 15 routed, none waived. **Next to dispatch** — P3 now APPROVED; `prompts/implementer/plan_2_round_1_implement.md` queued |
+| P2 | Report domain (compaction, ordering, filters) | Codex | PROMPT_READY | 2026-09-01 | coordinator | round 0 projection: AMENDMENTS_REQUIRED, 15 ledger rows (8 wrong-number weight). All 15 routed, none waived. **Next to dispatch** — its P3 dependency is closed; `prompts/implementer/plan_2_round_1_implement.md` queued |
 | P3 | Config domain (criteria, thresholds, bands) | Codex | APPROVED | 2026-09-01 | coordinator | approved on coordinator verification (no independent review session — see §3A); 50 tests, 18 new, no orphans, 2/2 mutations (1 re-planted by the coordinator), lint 0/0 in perimeter |
 | P4 | Stores, controllers, flows | Codex | NOT_STARTED | — | — | — |
 | P5 | Settings UI (screens 06–07) + stock design tokens | Claude | NOT_STARTED | — | — | — |
@@ -374,7 +374,10 @@ Charter standing rules 1–16 apply. Project-specific additions:
   the artifacts they read — a gate self-tested mid-amendment proves nothing about dispatch time.
   Tracker gates in particular should assert the state the coordinator is about to leave the phase
   in, and should also exclude the already-ran states (`IMPLEMENTING`, `IMPLEMENTED`, `APPROVED`),
-  which is the check that actually protects against a double dispatch.
+  which is the check that actually protects against a double dispatch. **State that the check
+  reads the state *cell*, not the row** — a note cell legitimately mentions other phases' states,
+  and a row-wide match on `APPROVED` will trip on it. That variant was caught in self-test on
+  the P2 prompt, one phase after the halt that produced this rule.
 - **S7:** A criterion row whose subject is build/test infrastructure rather than product
   behavior (a runner starting, typecheck/lint passing) is an **infra-enabler row**: it
   traces to no measurement-ledger entry because it measures no product outcome. Its trace

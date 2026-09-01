@@ -48,7 +48,7 @@ Stop and report if any of these does not hold:
 | G1 | Intention header reads `**Status: RATIFIED**` | `intention/raw_intention.md` line 3 |
 | G2 | Master plan tracker **P1** reads `APPROVED` | `master_plan.md` §4 |
 | G3 | Master plan tracker **P3** reads `APPROVED` — this phase depends on it | `master_plan.md` §4 |
-| G4 | Master plan tracker **P2** reads `PROMPT_READY`, and does **not** read `IMPLEMENTING`, `IMPLEMENTED` or `APPROVED` | `master_plan.md` §4 |
+| G4 | Master plan tracker **P2**'s **state column** reads `PROMPT_READY` — not `IMPLEMENTING`, `IMPLEMENTED` or `APPROVED`, which would mean a session already ran. Read the state cell, not the whole row: the note cell legitimately mentions other phases' states | `master_plan.md` §4 |
 | G5 | `src/features/stock/domain/stock-report.domain.ts` does not exist | `ls src/features/stock/domain/` |
 | G6 | `domain/stock-criteria.domain.ts` exports `displayValueFor(key, wireValue, options)` — C8 calls it | the file |
 | G7 | Intention §4B contains **MC2a** and **MC3a** | `intention/raw_intention.md` |
