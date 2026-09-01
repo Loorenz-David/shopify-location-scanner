@@ -56,9 +56,9 @@ fidelity to the design screenshots is approved by the owner looking at the runni
 | phase | title | implementer | state | date | actor | note |
 |---|---|---|---|---|---|---|
 | P1 | Test infra, types, state system, API seam | Codex | APPROVED | 2026-09-01 | coordinator | approved on coordinator verification (no independent review session — see §3A); 32 tests, 5/5 mutations, lint clean in perimeter |
-| P2 | Report domain (compaction, ordering, filters) | Codex | PROMPT_READY | 2026-09-01 | coordinator | round 0 projection: AMENDMENTS_REQUIRED, 15 ledger rows (8 wrong-number weight). All 15 routed, none waived. **Next to dispatch** — its P3 dependency is closed; `prompts/implementer/plan_2_round_1_implement.md` queued |
+| P2 | Report domain (compaction, ordering, filters) | Codex | APPROVED | 2026-09-01 | coordinator | approved on coordinator verification (no independent review session — see §3A); round 0 projection routed all 15 ledger rows; 82 tests, 31 new, no orphans; both named mutations re-planted **unfiltered** by the coordinator plus one adversarial third probe, each reddening exactly its predicted row; lint 0/0 in perimeter |
 | P3 | Config domain (criteria, thresholds, bands) | Codex | APPROVED | 2026-09-01 | coordinator | approved on coordinator verification (no independent review session — see §3A); 50 tests, 18 new, no orphans, 2/2 mutations (1 re-planted by the coordinator), lint 0/0 in perimeter |
-| P4 | Stores, controllers, flows | Codex | NOT_STARTED | — | — | — |
+| P4 | Stores, controllers, flows | Codex | PROMPT_READY | 2026-09-01 | coordinator | **Next to dispatch**; no projection (§3A); coordinator plan-lint added the report-composition criterion C9, the options/`keyOrder` hydration gap and 1 named mutation; `prompts/implementer/plan_4_round_1_implement.md` queued |
 | P5 | Settings UI (screens 06–07) + stock design tokens | Claude | NOT_STARTED | — | — | — |
 | P6 | Instance wizard UI (screens 08–09) | Claude | NOT_STARTED | — | — | — |
 | P7 | Report UI (screens 01–04) | Claude | NOT_STARTED | — | — | — |
@@ -162,6 +162,15 @@ kept only `locations: string` — the rendered `H1 · LC1` join — so per-locat
 were gone by the time MC5's re-quantification and MC9's entry detail needed them. The type
 gains `contributions: { location: string; quantity: number }[]`, sorted by location code
 points, and `locations` is derived from it rather than stored independently.
+
+**The report controller owns the `buildReportView` call** *(added 2026-09-01, coordinator lint
+of plan 4)*. P2 proved the composition *order* with a named mutation; nothing proved that the
+call is made correctly. Plan 4 C9 puts it under an automated criterion in the controller —
+which is where this plan's own goal sentence puts orchestration of "API + domain + stores" —
+rather than in a P7 component whose review is an owner visual pass. The controller also hydrates
+GET 4.1 options, because `buildReportView` needs `propertyOptions` key order for MC2 key 4 and
+the report screen has no other reason to fetch them; an empty `keyOrder` sorts deterministically
+in the *wrong* order, observable nowhere.
 
 **Comparators are factories, not bare functions** *(intention §4B MC2a)*. MC2's key 4
 renders `properties` against the GET 4.1 key order, which the comparator cannot fetch.

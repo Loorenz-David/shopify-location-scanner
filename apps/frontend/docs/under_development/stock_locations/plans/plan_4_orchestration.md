@@ -1,6 +1,6 @@
 # Plan 4 — Stores, controllers, actions, flows
 
-**Implementer:** Codex · **Depends on:** P3 APPROVED
+**Implementer:** Codex · **Depends on:** P2 APPROVED (which transitively required P1 and P3)
 
 ## Goal
 The complete non-visual runtime: zustand stores, controllers orchestrating API + domain
@@ -24,7 +24,10 @@ authoritative — pending state, not optimistic quantities).
    delete → refetch; 409 mapping per MC12b. 3. Wizard controller: draft lifecycle
    (new-from-root, new-from-location, edit-prefill), instance-less-location selector
    (D3: bootstrap options minus locations present in 4.2 result), submit paths.
-4. Report controller: hydrate (report fetch → store raw entries), filter mutations.
+4. Report controller: hydrate — **fetch GET 4.1 options alongside the report** (see C9) —
+store raw entries, filter mutations, and **expose the composed view by calling P2's
+`buildReportView`**; the controller orchestrates domain + api + stores, so composition
+belongs here rather than in a P7 component.
 5. Flows: `use-stock-report.flow` / `use-stock-settings.flow` — load on mount +
    `scan_history_updated` refetch (MC12c, analytics idiom). 6. Navigation store (view
    stack push/pop/reset).
@@ -34,17 +37,28 @@ authoritative — pending state, not optimistic quantities).
 |---|---|---|
 | C1 | Hydration: settings root and location detail land in the store from mocks; loading flag toggles around the call; a rejected api sets the error string and clears loading (one row per: root, detail, report). | M1, M5 |
 | C2 | Create: submit builds the single-entry batch from the wizard draft (assert exact request payload incl. thresholds triple); the response DTO's quantity/state appear in the store (never 0-defaulted); location detail is refetched (mock call count). | M1 |
-| C3 | Patch with changed location refetches BOTH old and new location details; patch without location change refetches one (call-count assertions on the mock). | M1 |
+| C3 | Patch with changed location refetches BOTH old and new location details; patch without location change refetches one (call-count assertions on the mock). **Named mutation M1:** delete the old-location refetch at the patch definition → this row reds. Without it a moved definition leaves a stale row on its former location's screen, and nothing errors. | M1 |
 | C4 | Delete removes via 4.6 and refetches the detail; store row gone. | M1 |
 | C5 | 409 mapping: an `ApiClientError` whose data carries `conflictingId` present in the loaded detail exposes `{message, conflicting: {category, properties}}`; absent id ⇒ message only; no retry issued (call count 1). Exercised on the create path and the patch path (two rows — contract error semantics, charter rule 2 on error contracts). | MC12b, M1 |
 | C6 | WS: dispatching `scan_history_updated` through the flow triggers a report refetch and a settings-detail refetch when mounted; payload ignored (fires with arbitrary payload). | M5, MC12c |
 | C7 | Instance-less selector: bootstrap options {L1,L2,L3} with 4.2 returning {L1} yields {L2,L3}; empty 4.2 yields all (D3). | M1 |
 | C8 | Navigation store: push/pop/reset transitions across the registry's view ids; pop on empty stack is a no-op returning root. | M1 (enabler for W1/W2) |
+| C9 | Report composition and its vocabulary: (a) the report controller's exposed view equals a direct `buildReportView(entries, appliedFilter, keyOrder)` call on the same inputs — computed both sides, not typed; (b) `keyOrder` is derived from the loaded GET 4.1 `propertyOptions` and is **non-empty** after hydration. Rationale: MC2 key 4 orders on the vocabulary's key order, and the report screen does not otherwise fetch options (they are fetched "once per wizard entry"). An empty `keyOrder` still sorts deterministically — every key falls into MC2a's unknown-key branch — so the rows render in a stable but **wrong** order with nothing to observe. | MC2, MC2a, M2 |
 
 ## Notes
 Controllers are tested through the store (production path, charter rule 3) with the
 api layer in mock mode + spies. Wizard edit-prefill uses P3's render functions —
 no duplicated mapping.
+
+**Mutation count 1** — C3 (M1, old-location refetch), applied at the patch definition.
+
+**Composition lives here, not in P7** *(coordinator lint, 2026-09-01)*. Master plan §6 gives
+`buildReportView` sole ownership of compact → filter+re-quantify → sort, and P2 proved that
+order with a named mutation. What P2 could not prove is that anyone *calls* it correctly. This
+plan's own goal sentence says controllers orchestrate "API + domain + stores", so the report
+controller is where the call belongs — under an automated criterion (C9) rather than inside a
+P7 component whose review is an owner visual pass (§3A). A wrongly-argued call produces a
+correct-looking report with wrong numbers.
 
 ## Review log
 (empty)

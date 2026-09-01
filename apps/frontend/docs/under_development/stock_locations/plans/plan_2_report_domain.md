@@ -106,3 +106,51 @@ silently)*:
   projection's reasoning is adopted — every ledger row was a paragraph amendment rather
   than new scope, and under §3A a second implement-and-consume cycle buys process rigor
   the owner has explicitly declined to pay for. C9 is a one-line guard, not a ninth subject.
+
+- **APPROVED (coordinator, 2026-09-01) - no independent review session ran.** Per §3A this phase
+  was approved on coordinator consumption. Stated plainly so the record is not read as more
+  scrutiny than it had. This is nonetheless the most heavily verified phase in the pipeline,
+  because it is the one carrying M2A.
+
+  **Both named mutations re-planted by the coordinator, unfiltered**, rather than accepted on
+  report - the handoff probed each under a `-t` filter, so its blast radius was unknown:
+  - **M1** (drop `stockState` from the grouping key, `stock-report.domain.ts:162`) reds
+    **exactly C2**, 1 failed / 81 passed. Precisely the row the plan predicted, and nothing else.
+  - **M2** (filter before compact in `buildReportView`) reds **exactly C5(f)**, 1 failed /
+    81 passed.
+  - **Adversarial third probe, not required by the plan:** over-grouping the key with `location`
+    so nothing ever merges reds **C1(a), C1(c) and C8 detail**, 3 failed / 79 passed. This
+    executes the claim the round-0 projection made on paper - that C1(a) catches the one
+    implementation C2 alone would miss. It holds, three rows over. **Both doors into the M2A
+    defect are guarded, and so is its complement.** Tree restored and re-verified 82/82 after
+    each probe.
+
+  **Verified independently against the tree:** perimeter matched `git status` exactly (6 declared
+  files, 6 changed, tree clean); stamp re-run by hand - 82/82 tests, typecheck clean, lint
+  **48/14** exactly at baseline with **0/0** across all five phase files; all 46 P2/P3-domain test
+  names enumerated against the criteria table with **no orphans** and every row present.
+
+  **MC2a read in the source, not the report:** the group separator is `U+001E`, the key/value
+  separator `U+001F`, the wildcard token `*`, the whole string is lowercased, and
+  `compareCodePoints` is a genuine code-point walk - **zero `localeCompare` in the file**. This is
+  the ordering MC2a exists to make deterministic across devices.
+
+  **S2 holds:** the report domain contains **zero** state names, order indices or hexes (grep);
+  `countByStateBucket` keeps that knowledge in the state domain. `stock-allowlist.test.ts` is
+  absent from the diff and passes - C9 satisfied by the shipped guard rather than by inspection.
+
+  **Two ratified decisions read in the test source** because both would fail silently:
+  C6 computes the grouped length as `groups.reduce((n, g) => n + g.entries.length, 0)` - entries,
+  not groups, which is D12; and C4(e2)'s fixture (H1 = 1 out / 0 low, LC1 = 1 out / 4 low)
+  genuinely flips `["LC1","H1"]` to `["H1","LC1"]` under the state filter, so MC3a is proven
+  rather than asserted, and option B would red it.
+
+  **Known and accepted, not fixed** *(§3A)*:
+  1. **C6 compares two implementations against each other** - `countPendingRows` against
+     `buildReportView` - so a misconception shared by both would pass. That is what D12's
+     invariant asks for ("equals the row count actually rendered"), and the alternative is a
+     typed constant, which the plan explicitly forbids. Recorded, not a defect.
+  2. **The pre-edit red baseline was partial.** The report suite could not run before its module
+     existed, so only the `countByStateBucket` row was observed red first. The two mutation
+     probes cover what that baseline would have shown, and the coordinator's unfiltered
+     re-plants cover it better.
