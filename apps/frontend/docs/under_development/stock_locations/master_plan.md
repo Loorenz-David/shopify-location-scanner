@@ -64,7 +64,7 @@ fidelity to the design screenshots is approved by the owner looking at the runni
 | P7 | Report UI (screens 01–04) | Claude | NOT_STARTED | — | — | — |
 | P8 | PDF data assembly + delivery | Codex | NOT_STARTED | — | — | — |
 | P9 | PDF document + Generate sheet UI (screens 05, 10) | Claude | NOT_STARTED | — | — | — |
-| P10 | Live integration (gated on backend P3/P5) | Codex | NOT_STARTED | — | — | — |
+| P10 | Live integration (gated on backend P3/P5) | Codex | NOT_STARTED | — | — | **Backend gate met** — the backend track finished on `warehouse-stock-backend` (owner, 2026-09-02). Branch merges into `main` **after P6 is APPROVED**, before P7 (§7A): zero-file overlap, all seven routes and the `{data}` envelope match the shipped api layer. P10 is now live-data verification and repair, not a wait — §7A lists the seven checks a green frontend suite cannot make |
 
 **Projection gate (owner decision, 2026-09-01 — revised):** **P2 only.** It was mandatory
 for P2 and P3 and was additionally run on P1 by owner directive, where it earned its keep
@@ -300,8 +300,56 @@ copying. Building the report domain first would have forced either a second casi
 an invented parameter convention. Rationale for the block order (logic P1–P4, then UI P5–P7, then
 PDF P8–P9, then integration): every Claude phase starts with its entire interface
 APPROVED, so the owner can dispatch Claude exactly at P5, P6, P7, P9 and review UI
-without logic churn underneath. P10 additionally gates on backend availability
-(config endpoints after backend P3; report endpoint after backend P5 — contract §7).
+without logic churn underneath.
+
+### 7A. The backend merge — a step between P6 and P7 *(owner instruction, 2026-09-02)*
+
+The backend track **finished** on branch `warehouse-stock-backend`. The owner wants it merged
+into `main` **after P6 is APPROVED**, before P7 — not at P10 — so real endpoints, real
+interactions and real data can be exercised as soon as the settings and wizard flows exist.
+That is the right moment: after P6 the create / edit / delete workflows are complete, and those
+are the ones that need real data. P7–P9 (report UI, PDF) then continue on a merged tree.
+
+**The merge itself is trivial, verified read-only on 2026-09-02** (frontend worktree only; the
+backend branch was not touched):
+
+- Merge base `4424a3b`. `main` is 26 commits ahead, `warehouse-stock-backend` 29.
+- `main` changed **117 files, all under `apps/frontend/`**. The backend branch changed **74
+  files, all under `apps/backend/` and `docs/under_implementation/`**.
+- **The intersection of the two change sets is empty.** Zero files were touched on both sides,
+  so there is no textual conflict surface at all. Root configs and lockfiles are untouched by
+  both.
+
+**The seams line up too**, checked against the shipped frontend api layer:
+
+- Router mounted at both `/stock` and `/api/stock` (`apps/backend/src/server.ts`).
+- All seven routes match what the frontend calls, one for one: `GET /options`, `GET /locations`,
+  `GET /locations/:location`, `GET /report`, `POST /configurations`,
+  `PATCH /configurations/:id`, `DELETE /configurations/:id`.
+- Response envelope is `{ data }`, which is what `apiClient` unwraps.
+
+**So the merge is not the work — verification after it is.** A clean merge proves only that no
+two edits collided; it proves nothing about whether the backend's payloads match contract v1.4.
+What P10 must check on real data, none of which a green frontend suite can tell us:
+
+1. **Property value casing.** Contract line 34 says the backend normalizes to lowercase. Our
+   fixtures were corrected to wire casing (S4c) and `displayValueFor` maps back up. If live
+   payloads come back capitalized, chips still render — just via the fallback branch — and
+   nothing errors.
+2. **`mergeKey` stability and semantics.** The entire P2 compaction groups on it. A `mergeKey`
+   that varies per row, or that already includes state, silently changes every quantity on the
+   report.
+3. **`stockState` vocabulary** must be exactly the five MC1 values; anything else throws through
+   `requireStockState`.
+4. **`propertyOptions` key order**, which is the report's sort vocabulary (plan 4 C9 / MC2a).
+   Order is meaningful, not decorative.
+5. **The 409 envelope** — `details.conflictingId` present on stored-definition conflicts (S9).
+6. **DELETE returns `{ ok: true }`**, not a `{ data }` envelope; confirm `apiClient` tolerates
+   that on a void return.
+7. **`VITE_STOCK_API_MODE`** must move off `mock` for any of this to be exercised at all.
+
+P10's original gate (config endpoints after backend P3, report after backend P5 — contract §7)
+is **met**; P10 is now verification-and-repair against live data rather than a wait.
 
 ## 8. Tool protocols
 

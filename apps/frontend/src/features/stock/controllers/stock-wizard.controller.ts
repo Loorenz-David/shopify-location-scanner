@@ -56,18 +56,23 @@ export async function ensureWizardOptions(): Promise<StockOptionsDto> {
   }
 }
 
-export function getInstanceLessStockLocations(): string[] {
+function getBootstrapStockLocations(): string[] {
   const bootstrapOptions = useBootstrapStore.getState().payload?.shopify.metafields.options ?? [];
+  return bootstrapOptions.map(({ value }) => value);
+}
+
+export function getInstanceLessStockLocations(): string[] {
   const occupiedLocations = new Set(
     useStockSettingsStore.getState().locations.map(({ location }) => location),
   );
 
-  return bootstrapOptions
-    .map(({ value }) => value)
-    .filter((location) => !occupiedLocations.has(location));
+  return getBootstrapStockLocations().filter(
+    (location) => !occupiedLocations.has(location),
+  );
 }
 
-export async function initializeNewStockWizardController(
+async function startNewStockWizard(
+  availableLocations: string[],
   location?: string,
 ): Promise<void> {
   await ensureWizardOptions();
@@ -75,12 +80,26 @@ export async function initializeNewStockWizardController(
   store.setDraft(newDraft(location));
   store.setEditingId(null);
   store.setOriginalLocation(location ?? null);
-  store.setAvailableLocations(
-    location === undefined ? getInstanceLessStockLocations() : [location],
-  );
+  store.setAvailableLocations(availableLocations);
   store.setRenderedCriteriaChips([]);
   store.setStep(1);
   store.setError(null);
+}
+
+export async function initializeNewStockWizardController(
+  location?: string,
+): Promise<void> {
+  await startNewStockWizard(
+    location === undefined ? getInstanceLessStockLocations() : [location],
+    location,
+  );
+}
+
+// Screen 06's floating pill (design 06 line 11): every bootstrap location on offer, none
+// preselected. D3's instance-less restriction binds only the dashed row, which keeps using
+// the no-argument controller above (plan 6 C8).
+export async function initializeNewStockWizardOverAllLocationsController(): Promise<void> {
+  await startNewStockWizard(getBootstrapStockLocations());
 }
 
 export async function initializeEditStockWizardController(

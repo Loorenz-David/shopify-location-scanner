@@ -21,6 +21,8 @@ import {
 } from "../stores/stock-wizard.store";
 import { StockFloatingPill } from "./StockFloatingPill";
 import { StockLocationDetailView } from "./StockLocationDetailView";
+import { StockWizardStep1View } from "./StockWizardStep1View";
+import { StockWizardStep2View } from "./StockWizardStep2View";
 
 function pluralize(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? "" : "s"}`;
@@ -147,34 +149,12 @@ function StockLocationsRootView({ onOpenLocation }: StockLocationsRootViewProps)
         </button>
       </div>
 
+      {/* Design 06 line 11: the pill offers every location, none preselected. D3's
+          instance-less restriction binds only the dashed row above (plan 6 C8). */}
       <StockFloatingPill
         label="New instance"
-        onPress={() => void openWizard(stockActions.startNewWizardFromRoot())}
+        onPress={() => void openWizard(stockActions.startNewWizardOverAllLocations())}
       />
-    </section>
-  );
-}
-
-// Placeholder until P6 ships the wizard screens (08–09); keeps the demo from dead-ending.
-function StockWizardPendingView() {
-  return (
-    <section className="stock-area-font mx-auto flex w-full max-w-[720px] flex-col gap-3 px-5">
-      <header className="flex items-center gap-3">
-        <button
-          type="button"
-          className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full bg-[var(--stock-surface)] text-[var(--stock-heading)] shadow-[var(--stock-card-shadow)]"
-          onClick={() => stockActions.popView()}
-          aria-label="Back"
-        >
-          <ChevronLeftIcon className="h-5 w-5" aria-hidden="true" />
-        </button>
-        <h1 className="m-0 text-[21px] font-bold leading-tight text-[var(--stock-heading)]">
-          Stock instance
-        </h1>
-      </header>
-      <div className="rounded-[24px] bg-[var(--stock-surface)] px-5 py-6 text-[15px] text-[var(--stock-body)] shadow-[var(--stock-card-shadow)]">
-        The instance wizard arrives with the next build phase.
-      </div>
     </section>
   );
 }
@@ -201,8 +181,13 @@ export function StockLocationsPage() {
     }
   }
 
-  if (currentView === "wizard-step1" || currentView === "wizard-step2") {
-    return <StockWizardPendingView />;
+  if (currentView === "wizard-step1") {
+    return <StockWizardStep1View />;
+  }
+
+  if (currentView === "wizard-step2") {
+    // A saved instance lands on its location's detail, whatever detail was open before.
+    return <StockWizardStep2View onSaved={setDetailLocation} />;
   }
 
   return <StockLocationsRootView onOpenLocation={openLocation} />;
