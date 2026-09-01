@@ -114,3 +114,45 @@ Recorded limit, unchanged: this lint catches omission, arithmetic and contradict
 see a criterion row whose assertion is weaker than the row, and it has never caught a guard that
 cannot fail. That is what the projection gate is for, and two calibration probes are sealed
 outside the repository before dispatch.
+
+---
+
+## Re-lint before dispatch — 2026-09-01 (post-projection fold)
+
+The plan changed materially after the first lint: 16 ledger rows and 8 findings folded, the
+perimeter grew 4 → 5 files, two amendments landed on the master plan registry. Fresh run of the
+five properties at source, not a re-reading of the earlier verdict.
+
+| Property | Result |
+|---|---|
+| 1 — references | all 5 perimeter files correctly absent; `reconcileGroup(…, hooks?)` present in §6.4; §6.2 now names `listEligibleItems`; P1's 4 frozen domain files present and untouched |
+| 2 — counts | **7** criteria · **24** lettered rows (`C1 3 · C2 4 · C3 5 · C4 4 · C5 2 · C6 2 · C7 4`) · **5** perimeter files, and the phase-close line now says five |
+| 3 — addressable | every row `C<n>(<letter>)`; whole-file sweep finds no acceptance claim stranded in a task |
+| 4 — exact outcomes | disjunction sweep → **zero hits**. F3's fold removed the last soft row ("state recalculated", satisfied by `state !== undefined`) |
+| 5 — traces | cells: C1 M6/M8 · C2 M4 · C3 M1/M5/M8 · C4 M5 · C5 M5 · C6 M5 · C7 §9.1d. Reverse: P2 claims **M1, M4, M5, M6, M8**, each served by ≥1 row |
+
+**One recorded exception to property 5.** C7's cell carries **no `M` id, by design**. Its rows
+assert exit codes and status words of a script runner; they measure no allocation, boundary or
+conflict. The scripts it chains serve M1/M2/M6 — the parent does not, and a trace saying
+otherwise reads as coverage it does not provide (P2 projection F5). Recorded here rather than
+silently tolerated, because the charter's manifest expects every row to trace: an
+instrument-integrity criterion is the one shape where the honest cell is a process rule.
+This also **retired a defect this lint's first pass introduced** — L2 gave C7 `M1/M2/M6`, which
+made P2 appear to serve M2 while no P2 row measured a threshold boundary. M2 is served by P1 C6,
+verified at source.
+
+**The three extra checks.** Perimeter-vs-guard collision: still none — zero occurrence-count or
+absence assertions exist anywhere in `src` (no test infrastructure), and `EXPECTED_SCRIPTS` at
+P2 lists exactly the two scripts that will exist, which is the specific collision the first pass
+caught and fixed. No deletion task. Standing instructions naming plan 2: §3 (projection —
+**done**, folded), §7 (gate satisfied), §9.1(d) (P2 authors `verify-all.ts` — in the plan),
+§9.7 and §9.8 (reviewer rules, quoted into the review prompt when that compiles).
+
+**Gate self-test, run from `apps/backend` against the tree the session will open:** intention
+RATIFIED · branch `warehouse-stock-backend` · P1 APPROVED in the tracker with its four domain
+files present · `npm run typecheck` exit 0 · `verify-stock-domain.ts` 58/58 exit 0. All pass.
+Content-only, so dispatching cannot invalidate it.
+
+**Sizing.** 7 criteria, at target.
+
+**Verdict: RE-LINT PASS — `prompts/implementer/prompt_plan2_implement_r1.md` may be dispatched.**
