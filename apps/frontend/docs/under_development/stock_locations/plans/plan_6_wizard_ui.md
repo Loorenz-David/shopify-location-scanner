@@ -90,7 +90,47 @@ need care is the property step: for 19 of 28 categories `Add property` offers th
 universal keys only.
 
 ## Review log
-(empty)
+**2026-09-02 — implement round 1 (Claude, Fable 5).** Built `ui/StockWizardStep1View.tsx`,
+`StockWizardStep2View.tsx`, `StockThresholdLadder.tsx`, subcomponents `StockWizardPicker.tsx` +
+`StockWizardChrome.tsx`, 3 RTL files / 9 tests; replaced `StockWizardPendingView` in
+`StockLocationsPage.tsx`; added the C8 entry point (`initializeNewStockWizardOverAllLocationsController`
++ facade key `startNewWizardOverAllLocations`) and pointed the root pill at it. L4: 19 files / 123
+tests, typecheck clean, lint 48/14 = baseline, 0 in perimeter. M1 run unfiltered: reds C8 only.
+Absence guard C4(b) proven with two probes (A: input in a derived row reds C4(a); B: button in a
+derived row reds C4(b) itself — rule 12), plus two S10 argument probes (C: typed edit bypassing
+`commitThreshold` reds the D14 row; D: property rows skipping `displayValueFor` reds C7). Screens
+checked in a browser through the P5 throwaway harness (deleted). Full detail:
+`handoffs/implementer/handoff_plan_6_implement_1.md`.
+
+Judgment calls:
+- **Threshold adapter stays in the UI** (plan Notes / P5 F4): both directions live privately in
+  `ui/StockThresholdLadder.tsx`; P5's one-way copy in `StockThresholdStrip.tsx` is untouched. Moving
+  it to `stock-thresholds.domain.ts` would have meant editing an approved P3 domain file and a P5 UI
+  file without a criterion for either; the duplicated lookup is ~10 lines, state-keyed via
+  `STOCK_STATES[1..3]`, and this is an interim build (§3A). Two copies, declared.
+- **C8 seam:** a private `startNewStockWizard(availableLocations, location?)` was extracted from
+  `initializeNewStockWizardController` so the new controller does not duplicate it; the existing
+  function's behaviour is byte-for-byte the same (P4 C7 and P5 C3 stayed green throughout).
+  `startNewWizardFromRoot` still means "instance-less set" and the dashed row still calls it.
+- **Category change drops properties the new category does not bind** (M4 phantom keys): a
+  `shape` row chosen under Dining Tables is removed when the type becomes Sofas, rather than being
+  submitted for a 400. The `properties` object is left untouched when nothing is dropped.
+- **Pickers are local view state**, not navigation views: item type / definition / values render as
+  pushed panels inside step 1 (`PickerState`), matching the plan's "pushed picker" reading of 08.
+- **Tapping a property row reopens its value picker** ("change values"); the mockup shows only ×.
+- **Step 2 reports the saved location to the page** (`onSaved` → `detailLocation`) so a create from
+  screen 06 lands on the new instance's location rather than the last-opened detail.
+- **× discard only pops the view**; the wizard store keeps its draft/error until the next wizard
+  start (no facade key resets it — see handoff finding F1).
+- **Fixed footer above the visible tab bar** (same shell constraint P5 recorded: pushed views live
+  inside a plain page, so the tab bar stays); scroll inset `pb-28` on the wizard sections.
+- **"−" disabled at floor** is computed by asking `commitThreshold` whether stepping down changes
+  the value — no floor literal in the UI. Typed non-numeric input reverts (MC7).
+- **Property row labels show the raw key** (`wood_type`, uppercased by CSS) — the vocabulary carries
+  no display name for keys, and P3's chips already spell `UPHOLSTERY · any`.
+- **C5's "calls the create/update action"** is discharged one level deeper, at the API seam the
+  action calls (`createStockConfigurations` body / `updateStockConfiguration(id, patch)`), because
+  the UI binds through `submitWizard`, which calls the controllers directly, not through the facade.
 
 
 ## Inherited note — contract v1.4 splits the 409, and it changes nothing here
