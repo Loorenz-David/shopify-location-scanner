@@ -103,11 +103,11 @@ Mutation arithmetic: declared 1 named mutation (C2 / Notes planted-defect probe)
 ## Closing evidence
 
 Final authoritative close used the clean code checkpoint and a scratch copy made with
-`sqlite3 prisma/dev.db ".backup '/private/tmp/p3-final-close.ESCevr/dev.db'"`:
+`sqlite3 prisma/dev.db ".backup '/private/tmp/p3-final-close-r2.8vTj7s/dev.db'"`:
 
 - `npm run typecheck` — exit 0.
 - Purity grep `rg -n 'prisma|@prisma' src/modules/stock/domain src/shared/item-properties/item-property-options.ts` — empty (`PURITY_GREP=empty`).
-- `DATABASE_URL=file:/private/tmp/p3-final-close.ESCevr/dev.db SHOP_ID=cmnractlq0000qr53y8so42t3 npx tsx scripts/verify-all.ts` — exit 0; 58 P1 rows and 20 P2 rows all PASS; `SUMMARY PASS 2 script(s)`.
+- `DATABASE_URL=file:/private/tmp/p3-final-close-r2.8vTj7s/dev.db SHOP_ID=cmnractlq0000qr53y8so42t3 npx tsx scripts/verify-all.ts` — exit 0; 58 P1 rows and 20 P2 rows all PASS; `SUMMARY PASS 2 script(s)`.
 - Manual HTTP server runs used `DATABASE_URL=file:/private/tmp/p3-manual.osnNf9/dev.db`
   on port 4403, then were stopped. The configured `prisma/dev.db` was not written.
 

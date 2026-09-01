@@ -108,9 +108,9 @@ Closing instruments on the final implementation tree:
 
 - `npm run typecheck` — exit 0.
 - Purity grep — `PURITY_GREP=empty`.
-- `npx tsx scripts/verify-all.ts` with `DATABASE_URL=file:/private/tmp/p3-final-close.ESCevr/dev.db`
+- `npx tsx scripts/verify-all.ts` with `DATABASE_URL=file:/private/tmp/p3-final-close-r2.8vTj7s/dev.db`
   and `SHOP_ID=cmnractlq0000qr53y8so42t3` — exit 0; scratch copy was made with
-  `sqlite3 prisma/dev.db ".backup '/private/tmp/p3-final-close.ESCevr/dev.db'"`.
+  `sqlite3 prisma/dev.db ".backup '/private/tmp/p3-final-close-r2.8vTj7s/dev.db'"`.
 - Manual curl checklist — all seven scenarios exercised against disposable
   `/private/tmp/p3-manual.osnNf9/dev.db`: options returned the complete 28-category and
   8-option map; LC1 catch-all initialized to the live eligible sum 221 and high state;
@@ -121,7 +121,7 @@ Closing instruments on the final implementation tree:
   summary count 3, threshold-only state change, and last-config deletion were also
   exercised.
 
-Authoritative `verify-all` output from `/private/tmp/p3-final-close.ESCevr/dev.db`:
+Authoritative `verify-all` output from `/private/tmp/p3-final-close-r2.8vTj7s/dev.db`:
 
 ```text
 --- verify-stock-domain.ts ---
