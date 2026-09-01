@@ -15,7 +15,7 @@ restates semantics; it fixes the shared skeleton so parallel sessions cannot div
 | content | artifact |
 |---|---|
 | Product semantics, ledger, mechanism contracts | `intention/raw_intention.md` |
-| Wire contract (endpoints, shapes, errors) | `backend_handoff/frontend-api-contract.md` (**v1.2**) |
+| Wire contract (endpoints, shapes, errors) | `backend_handoff/frontend-api-contract.md` (**v1.3** — §4.1 `itemCategories` un-elided, 2026-09-01; v1.2 replaced §4.7) |
 | Visual target | `design_handoff/` (00-global once per session + the phase's screen folders) |
 | Repo grounding (architecture, design language, PDF lib) | `context/*.md` |
 | Shared skeleton, naming registry, environment, tracker | this file |
@@ -267,15 +267,32 @@ Charter standing rules 1–16 apply. Project-specific additions:
   client (e.g. §4.7's same-`mergeKey`/different-`stockState` case, which the contract
   demands the client handle and its example does not itself contain). Such an entry is
   contract-faithful; inventing a field or a value is not.
-- **S4a — the demo item-category list (owner decision, 2026-09-01).** Contract §4.1 elides
-  `itemCategories` with `...`, so the mock must supply it. The owner chose **the nine
-  categories already written down in the contract**, and no others. Derived from
-  §4.1's `categories` bindings, in the contract's own order — the six table types bound to
-  `shape`/`extension_*`, then the three chair types bound to `upholstery`:
-  `Dining Tables, Bedside Tables, Coffee Tables, Side Tables, Hall Tables, Nest Of Tables,
-  Dining Chairs, Easy Chairs, Armchairs` (count: 9, derived by scan of the §4.1 table).
-  A confirmation request is filed to the backend track; if it returns a longer list, this
-  rule and the fixture change together, and nothing else does.
+- **S4a — the item-category list (contract v1.3, 2026-09-01).** `itemCategories` is
+  **28 values**, in payload order, taken verbatim from contract §4.1:
+  `Dining Chairs, Easy Chairs, Armchairs, Sofas, Stools, Seating Benches, Serving Trolleys,
+  Dining Tables, Bedside Tables, Coffee Tables, Side Tables, Hall Tables, Writing Desks,
+  Nest Of Tables, Sideboards, Highboards, Bookshelves, Shelving Units, Chest of Drawers,
+  Secretary Cabinets, Bar Cabinets, Wardrobes, Storage Cabinets, Posters, Mirrors,
+  Porcelain, Carpets, Lamps` (count 28, derived by parsing the §4.1 payload; all distinct).
+  It is a static `as const` list on the backend — not derived from Shopify product types,
+  does not vary by shop, does not grow on its own.
+  - **Superseded: the nine-category rule.** Until 2026-09-01 this rule named nine categories,
+    inferred from the `categories` column of §4.1's property table because the payload example
+    elided the list with a literal `...`. **The inference was wrong** — that column answers
+    "which categories get an extra property", not "which categories exist", and is a strict
+    subset by construction. The backend confirmed 28 and reissued the contract as v1.3 with
+    the list written out. Against current data the 19 missing categories hold **152 unsold
+    units** (largest: Sideboards 41, Mirrors 19, Chest of Drawers 17); a wizard offering only
+    nine would have made them permanently unconfigurable **with nothing erroring** — the user
+    simply never finds `Sideboards` and cannot learn why.
+  - **The sentinel `"unknown"` is deliberately absent** and cannot be configured. Items whose
+    Shopify product type matches nothing land on it and are counted by no definition.
+  - **19 of the 28 carry no category-specific property at all** and are configured with the
+    four universal keys alone (`wood_type`, `years`, `weight_definition`, `country`). Only the
+    six table types and three chair types appear in the property table's `categories` column.
+    *(The backend's answer document states "twenty-two" in one line; that contradicts its own
+    text twice and our own derivation — 28 total minus 9 with category-specific properties is
+    **19**. Correction sent to the backend track; 19 is the number this project uses.)*
 - **S4b — example vs. final table** *(projection L26)*: where contract §4.1's JSON example
   and its "final vocabulary" table disagree (the example gives `shape` one category, the
   table gives six), **the table wins** — it says of itself that it is "the exact payload
@@ -288,8 +305,16 @@ Charter standing rules 1–16 apply. Project-specific additions:
   rare; a row asserting anything a user could observe is not one.
 - **S5:** UI phases: RTL criteria prove behavior/structure; visual fidelity is the
   owner's approval pass (master plan §3). Screenshot comparison is not automated.
-- **S6:** `dist/` is never edited; `npm run typecheck` and `npm run lint` must pass at
-  every IMPLEMENTED stamp alongside the test suite.
+- **S6:** `dist/` is never edited. `npm test` and `npm run typecheck` must pass cleanly at
+  every IMPLEMENTED stamp. **Lint is measured against a baseline, not required to be zero**
+  *(amended 2026-09-01, round 1 — the original "`npm run lint` must pass" was unsatisfiable
+  on this repo and no baseline had been recorded, so the first phase to reach a stamp had to
+  discover it)*. The repo baseline is **48 errors / 14 warnings**, all in files that predate
+  this project; independently verified at round 1 with **zero** problems in any file P1
+  created or touched. The obligation at each stamp is therefore: **no lint problem in the
+  phase's own write perimeter, and the repo totals do not grow.** A phase that raises the
+  totals reports which file and why; cleaning up unrelated pre-existing errors is not this
+  project's work and would put edits outside every phase perimeter.
 
 ## 10. Environment topology (verified 2026-09-01; if reality disagrees, update here)
 
@@ -308,7 +333,7 @@ Charter standing rules 1–16 apply. Project-specific additions:
   `npx vitest run src/features/stock` · L4 `npm test` (full suite) + `npm run
   typecheck` + `npm run lint`. Baseline caveat: repo has zero pre-existing tests, so
   the first L4 baseline is P1's own enumeration.
-- Backend endpoints: NOT live (mock-first). Report contract v1.2 is authoritative; the
+- Backend endpoints: NOT live (mock-first). Contract **v1.3** is authoritative; the
   live copy sits on branch `warehouse-stock-backend`
   (`docs/under_implementation/warehouse_stock/contracts/frontend-api-contract.md`);
   our copy in `backend_handoff/` matches it (synced round 6).

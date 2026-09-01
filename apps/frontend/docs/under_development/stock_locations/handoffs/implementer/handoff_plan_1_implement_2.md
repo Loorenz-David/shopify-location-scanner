@@ -114,6 +114,10 @@ passed; `npm run typecheck` → passed with no diagnostics; `npm run lint` → 4
 warnings (62 problems), unchanged from baseline and all outside this round's implementation
 perimeter. Failure-ID delta: 0 (32 passed / 0 failed before and after).
 
-Final checkpoint identity is recorded after committing this handoff update. The repository
-retains unrelated pre-existing owner changes outside the cycle-scoped perimeter; the scoped
-implementation files and handoff are clean at the cited checkpoint.
+Final checkpoint identity: commit `9a3f84f8ec0562eebab04ea0ffbfee7df2babcfe`; the scoped
+implementation files and handoff are clean at that checkpoint. The repository retains
+unrelated pre-existing owner changes outside the cycle-scoped perimeter; for the dirty-tree
+identity of the non-handoff paths, `git diff --binary -- .
+':(exclude)docs/under_development/stock_locations/handoffs/implementer/handoff_plan_1_implement_2.md'
+| shasum -a 256` was
+`659e1849c6c83df75cdcc0d53253ff760db10e665435d54b2c8930df4f7fbf8c`.

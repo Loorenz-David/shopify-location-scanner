@@ -63,10 +63,10 @@ writable as they stood. Row ids are stable; the sub-rows are the addressable obl
 
 | id | criterion | trace |
 |---|---|---|
-| C1 | `npm test` runs vitest and exits clean; `npm run typecheck` and `npm run lint` pass with all new files in place. **Charter rule 1 exemption:** this is an environment-lifecycle check, met by running commands rather than by a test. Its automated proxy is the rest of this phase's suite (a broken runner or config cannot produce a green C2–C6), and the implementer records the three commands with their output in the Review log at IMPLEMENTED. | infra-enabler row (master plan S7) — D8; charter rule 1 exemption |
+| C1 | `npm test` runs vitest and exits clean; `npm run typecheck` passes; **lint shows no problem in any file this phase created or touched, and the repo totals do not grow beyond the recorded baseline of 48 errors / 14 warnings** (master plan S6 — the repo has pre-existing lint errors in unrelated files and cannot be made to pass outright). **Charter rule 1 exemption:** this is an environment-lifecycle check, met by running commands rather than by a test. Its automated proxy is the rest of this phase's suite (a broken runner or config cannot produce a green C2–C6), and the implementer records the three commands with their output in the Review log at IMPLEMENTED. | infra-enabler row (master plan S7) — D8; charter rule 1 exemption |
 | C2 | MC1 + intention §4B, one row per case: (a) `STOCK_STATES` holds exactly five states in contract §1 order; (b) `getStockStateMeta` returns label/text/tint/solid for each of the five — enumerated, one assertion row per state, exact hex from `design_handoff/00-global/00-global.md`; (c) `getStockStateMeta("not_a_state")` throws `UnknownStockStateError`; (d) `compareByStateIndex("not_a_state", "low_in_stock")` **also** throws `UnknownStockStateError` (MC1a — an untested comparator resolves it to index `-1` and ranks it ahead of `out_of_stock`); (e) sorting a shuffled array of the five distinct states with the comparator reproduces the canonical order; (f) `compareByStateIndex(s, s)` returns **exactly `0`** for each of the five states (MC1b — case (e) uses distinct values and can never observe this). **Named mutations, both applied at the `compareByStateIndex` *definition* in `stock-states.domain.ts`, not at a call site:** M1 — delete its unknown-state guard → (d) must redden; M2 — change its equal-state return from `0` to `1` → (f) must redden, and (e) must stay green, proving the two rows divide the labour. | MC1, MC1a, MC1b |
 | C3 | Mock `get-stock-report` fixture, one row per case: (a) every entry carries exactly the six fields of contract §4.7 — `location`, `itemCategory`, `properties`, `mergeKey`, `quantity`, `stockState` — no extra key, no missing key; (b) **exactly two** entries share one `mergeKey` **with the same `stockState`**, in two different locations, reproducing the §4.7 example pair — "verbatim" governs the five non-opaque fields; the pair shares **one implementer-chosen opaque string**, because the contract's own two literals (`"<opaque>"`, `"<same opaque value>"`) are placeholders and are *different strings*, so copying them literally would produce entries that do not share a key at all; (c) **exactly two** entries share a second `mergeKey` **with differing `stockState`s**, in two different locations; (d) **exactly one** entry has `quantity: 0`, its `stockState` is `out_of_stock` (contract §1: `0 → out_of_stock`), and it sits under a **third** `mergeKey` so it cannot disturb (b) or (c)'s exact counts. | MC11, S4 |
-| C4 | Mock `get-stock-options` returns the §4.1 vocabulary: (a) all 8 property keys with exact values and exact `categories` bindings, enumerated against the contract's **final vocabulary table**, which wins over the JSON example where they differ (S4b); (b) `itemCategories` holds exactly the nine categories fixed in master plan S4a, in that order. | MC11, M4 |
+| C4 | Mock `get-stock-options` returns the §4.1 vocabulary: (a) all 8 property keys with exact values and exact `categories` bindings, enumerated against the contract's **final vocabulary table**, which wins over the JSON example where they differ (S4b); (b) `itemCategories` holds **exactly the 28 categories** fixed in master plan S4a, in contract §4.1 payload order — asserted as the full ordered list, not a count. *(Was nine until 2026-09-01; contract v1.3 un-elided the list and the nine were a wrong inference from the property table. See S4a.)* | MC11, M4 |
 | C5 | Seam (MC11), one row per mode value, over each of the seven api functions at their master plan §6 signatures: (a) `VITE_STOCK_API_MODE="mock"` — every function resolves from fixtures and the fetch spy records **exactly zero** calls; (b) `VITE_STOCK_API_MODE="live"` — every function issues **exactly one** `apiClient` call, and the URL the spy observes is the contract §4 path **without** the `/api` prefix (e.g. `getStockOptions` → a URL ending `/stock/options`, **not** `/api/stock/options`; asserted against the resolved URL, so a doubled prefix reddens this row); (c) `VITE_STOCK_API_MODE` unset — observably identical to (b) (default `live`, MC11); (d) MC12a: `getStockLocationDetail("L 1")` requests the path segment `L%201`; (e) mock mutation state — `createStockConfigurations` followed by `getStockLocationDetail` for that location returns the created row, and `deleteStockConfiguration` followed by the same read does not (master plan §6, "Mock mutation semantics"; a constant-returning stub passes (a) and fails this). | MC11, MC12a |
 | C6 | Three allowlist assertions over the scan input set fixed in master plan S2 (`**/*.ts(x)` under `src/features/stock`, **excluding `**/*.test.ts(x)`** — tests legitimately contain every forbidden string, and without the exclusion all three assertions fail on the tree this phase must produce), each asserting that the **set of files** containing a match **equals** its allowlist exactly — set equality, never an occurrence count (charter rule 15): (a) `VITE_STOCK_API_MODE` appears in `{api/stock-api-mode.ts}` and nowhere else (S3); (b) a state **hex** (case-insensitive) appears in `{domain/stock-states.domain.ts}` and nowhere else (S2); (c) a state **name string** appears in `{domain/stock-states.domain.ts, types/stock.dto.ts, api/mocks/*.fixture.ts}` and nowhere else (S2). Scan is raw source text. **Mechanism:** the scan is a pure function over an **injected file list**, so each probe passes a synthetic extra file; and one further assertion pins the **shipped call site** to the real file list, so the probes cannot be proving a helper production never uses (charter rule 15's fifth instance). *Planted-defect probe, one per assertion, three total: a synthetic violating file must turn that assertion red — an assertion whose red is never observed does not ship.* | MC11, MC1 |
 
@@ -160,3 +160,53 @@ mutation; they are observational rows over fixtures, spies and resolved URLs.
   1 passed / 13 skipped. C6(a), C6(b), and C6(c) each injected one violating comment into
   `api/get-stock-options.api.ts`; their respective allowlist L1 runs each observed 1 failed
   assertion with the extra API file in the matched set. Every mutant was reverted.
+
+- **2026-09-01 · round 1 handoff consumed by coordinator.** Verified independently, not taken
+  on trust: **write perimeter** — declared 33 files, tree agrees, nothing undeclared; **named
+  mutations** — 5 declared, 5 executed, each sited at the definition the criterion names, each
+  observed red, all reverted, and the C2 M2 row correctly carried a green control on C2(e) to
+  show the two rows divide the labour; **orphan tests** — enumerated all 32 test names, every
+  one carries its criterion row id, zero orphans; **lint claim** — independently re-derived: 48
+  errors / 14 warnings repo-wide and **zero** in any file P1 created or touched, so the claim
+  holds; **two L4 stamps** — not over budget: the second was taken because the first's tree was
+  superseded by the checkpoint, which is the charter's tree rule working as intended, and the
+  second checkpoint (`b32b458`) touched only this handoff document, no source file, so the code
+  tree at the cited `574d56b` is the tree handed over.
+- **2026-09-01 · coordinator amendments after round 1 (no review finding — both upstream).**
+  (1) **C4(b): nine categories → 28.** Contract v1.3 un-elided §4.1; the nine were a wrong
+  inference from the property table and the backend measured the cost at 152 unsold units
+  across 19 categories that would have been permanently unconfigurable. **This is not a defect
+  against the implementer** — Codex built exactly what S4a said at dispatch, and its test is
+  correct for the artifacts it was given. (2) **C1 and master plan S6: lint.** The rule demanded
+  `npm run lint` pass; the repo has 48 pre-existing errors and no baseline had ever been
+  recorded, so the first phase to reach a stamp had to discover it. Codex reported it honestly
+  and scoped its own lint instead of quietly widening the rule — the right call. S6 now measures
+  against the baseline, and C1 matches.
+  Forward hazards routed to plans 3 and 6: 19 of the 28 categories bind only universal property
+  keys, which is the majority case, not the exception.
+
+- **2026-09-01 · round 2 (implementation) · Codex · IMPLEMENTED.** Applied the coordinator's
+  contract v1.3 amendment to C4(b): replaced the nine-value options fixture with the complete
+  28-value `itemCategories` payload in contract order and updated the C4(b) assertion to compare
+  the full ordered list. No other implementation behavior changed. The targeted API test passed
+  with 1 file / 11 tests, and `npm run typecheck` passed. The pre-edit targeted baseline was
+  already green at 1 file / 11 tests with zero failing IDs because the old fixture and assertion
+  agreed; the amendment therefore changes the contract coverage rather than repairing a red test.
+  No mutations are named for this round. Closing L4 stamp: `npm test` → 3 files / 32 tests
+  passed; `npm run typecheck` → passed with no diagnostics; `npm run lint` → 48 errors / 14
+  warnings (62 problems), unchanged from the documented repository baseline and all outside
+  this round's two-file implementation perimeter. The L4 failure-ID delta is zero: 32 passed /
+  0 failed before and after the amendment. The first stamp was taken on checkpoint `5ea7e30`;
+  the handoff/log recording requires the charter-permitted re-stamp on the final tree.
+- **2026-09-01 · round 2 handoff consumed by coordinator.** Verified: fixture is byte-identical
+  to contract v1.3 §4.1 and in payload order (parsed both, compared as ordered lists); C4(b)
+  uses `toEqual` on the full 28-value array, so it detects omission *and* ordering drift, not a
+  length; test roster still 32 with every name carrying a criterion id and no test added; lint
+  unchanged at 48/14. Perimeter matched the declaration. **One provenance defect, the
+  coordinator's:** checkpoint `5ea7e30` carries the 28-value fixture while its own committed
+  master plan still reads S4a as nine, because the coordinator's amendments were left
+  uncommitted when the round was dispatched. The working tree is correct and nothing was lost,
+  but that checkpoint does not stand alone as a record. Lesson for this project: **amendments
+  are committed before the round that implements them is dispatched** — a checkpoint whose code
+  and rules disagree cannot serve as the provenance the pipeline keeps checkpoints for.
+
