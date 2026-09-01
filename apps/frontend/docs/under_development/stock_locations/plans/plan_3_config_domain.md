@@ -101,3 +101,47 @@ common path, and a criterion covering it belongs here rather than in the wizard 
   perimeter, with zero problems in the four phase files. An earlier closing attempt found
   one test-only spread typing error and was superseded by checkpoint `4b64c46`; the final
   stamp was taken after that correction. No tracker row was edited by the implementer.
+
+- **APPROVED (coordinator, 2026-09-01) — no independent review session ran.** Per master plan
+  §3A this phase was approved on coordinator consumption of the implementer handoff. Stated
+  plainly so the record is not read as more scrutiny than it had.
+
+  **Verified independently against the tree, not taken from the handoff:** write perimeter
+  matched `git status` exactly (6 declared files, 6 changed, nothing else, tree clean); the
+  closing stamp re-run by hand — 50/50 tests, typecheck clean, lint **48 errors / 14 warnings**
+  precisely at the recorded baseline, and **0 errors / 0 warnings** across all four phase files;
+  all 50 test names enumerated with **no orphans** (18 new, every one mapping to a criterion
+  row); both production modules confirmed pure by grep for `fetch`/`import.meta`/store/storage;
+  and all eight C5 triples re-derived from MC7 against the plan — `5/13/14`, `1/2/3`, `4/5/39`,
+  `15/16/39`, `39/40/41`, `5/39/40`, unchanged-on-non-numeric, `1/15/39` — all matching.
+
+  **`displayValueFor(key: string, wireValue: string, options: StockOptionsDto): string`** is the
+  signature master plan §6 fixed, checked in the source because plan 2's C8 binds to it. C4 was
+  read rather than trusted: it inserts keys as country/wood_type/weight_definition/years and
+  expects wood_type/years/weight_definition/country, so it genuinely proves vocabulary order
+  beats insertion order. C2 asserts the `UPHOLSTERY · any` literal directly.
+
+  **Mutation 1 re-planted by the coordinator**, not accepted on report: deleting
+  `next.medium = Math.max(next.medium, next.low + 1)` reddened C5(d), C5(e) **and** C6, with
+  C5(e) receiving exactly `{low: 39, medium: 15, normal: 39}` as the handoff stated. The handoff
+  reported only C5(e) because it probed under a `-t 'C5\(e\)'` filter — narrower than reality,
+  not wrong. Tree restored and re-verified green.
+
+  **The S2 state-name/hex allowlist survived untouched**, which C7's color assertions made a
+  real question: the shipped P1 guard still passes, so the threshold domain derives its band
+  colors from the state domain rather than restating hexes. That was proven by the guard
+  itself, not by inspection.
+
+  **Known and accepted, not fixed** *(§3A — neither produces a wrong number)*:
+  1. **Mutation 2 (lowering cascade) was verified arithmetically, not re-planted.** Its reported
+     receipt `{5, 15, 14}` is exactly what deleting that branch produces from the 5/15/39
+     fixture, and mutation 1's independent re-plant established the probe protocol was really
+     followed. A second re-plant would buy little.
+  2. **`comparePropertyKeys` falls back to `localeCompare` for keys absent from the vocabulary.**
+     Locale collation is device-dependent, so two devices could order *drifted* keys' chips
+     differently. Cosmetic, only under vocabulary drift, and it never changes a quantity.
+     Recorded because P2's MC2a deliberately chose code points for the analogous case; if these
+     are ever unified, this is the site.
+  3. **C2's round-trip filters chips with the same literal it later asserts.** Mildly
+     self-referential; the separate `toContain("UPHOLSTERY · any")` assertion carries the real
+     proof, so the row still bites.
