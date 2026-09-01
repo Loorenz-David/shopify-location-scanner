@@ -7,7 +7,7 @@ Report across all locations with cross-location compaction ON. Default landing s
 ## Elements
 - **Segmented `Compact | By location`** — `group_by_location` false/true. Switching to By location goes to screen 02.
 - **Filter pill** — count of active state filters; opens screen 03.
-- **Counter strip** — entries per state from the unfiltered result; four tiles (Out, Low, Medium, Rest).
+- **Counter strip** — entries per state, respecting the location filter and ignoring the state filter (D13 = A; the original "unfiltered result" wording predates that decision); four tiles (Out, Low, Medium, Rest).
 - **Entry row** — thumbnail, `type`, `properties` chips, `quantity` + unit, then a state-tinted bar: `stock_state` label left, contributing `location` codes right (`L1 · L3`).
 - **Floating `Generate PDF`** — opens screen 05.
 

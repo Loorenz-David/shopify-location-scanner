@@ -20,7 +20,7 @@ export const stockReportFixture: StockReportEntryDto[] = [
   {
     location: "LC1",
     itemCategory: "Dining Tables",
-    properties: { shape: ["Oval"] },
+    properties: { shape: ["oval"] },
     mergeKey: "report-state-split",
     quantity: 18,
     stockState: "normal_in_stock",
@@ -28,7 +28,7 @@ export const stockReportFixture: StockReportEntryDto[] = [
   {
     location: "H1",
     itemCategory: "Dining Tables",
-    properties: { shape: ["Oval"] },
+    properties: { shape: ["oval"] },
     mergeKey: "report-state-split",
     quantity: 4,
     stockState: "low_in_stock",

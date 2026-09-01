@@ -23,7 +23,7 @@ export const stockLocationDetailFixture: LocationStockDto[] = [
     id: "stock-lc1-coffee",
     location: "LC1",
     itemCategory: "Coffee Tables",
-    properties: { shape: ["Oval"] },
+    properties: { shape: ["oval"] },
     quantity: 22,
     stockState: STOCK_STATES[4],
     thresholds: [

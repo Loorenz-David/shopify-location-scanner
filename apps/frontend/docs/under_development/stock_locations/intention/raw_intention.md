@@ -97,7 +97,7 @@ responses; other users see changes on next load (deliberate V1, contract §5).
 **Facts vs derived (never stored, always recomputed for display):**
 
 - Five-band strip bounds on instance cards: `0 | 1–low | low+1–med | med+1–norm | norm+1+` from the three thresholds.
-- Counter tiles: counts per state over the *unfiltered* current report result.
+- Counter tiles: counts per state over the current report result **as filtered by location, ignoring the state filter** (D13 = A; §4B MC3a records why the group ranking differs). The earlier "unfiltered result" wording predates D13.
 - Filter CTA count: size of the result under the pending filter selection.
 - Threshold ladder derived rows: High = above normal limit; Out of stock = 0. Never rendered as inputs.
 - PDF page count: measured from the actual render, never assumed.
@@ -261,6 +261,64 @@ the equal case; a comparator returning a non-zero constant for equals passes it 
 destabilising every downstream sort that uses this as the first key of a chain — MC2 uses it
 as key 1 of 5, MC3 as key 1 of 2. Row-level comparators are P2's (MC2/MC3) and compose over
 this one. → M2.
+
+**MC2a — The properties comparison string (MC2 key 4).** MC2 orders on "canonical
+`properties` rendered to a comparison string (keys in GET 4.1 order, values as returned)".
+That sentence does not determine one string: key-order source, value shape, wildcard
+rendering, separators and casing are all open, and two implementers would produce two
+different total orders while every row still renders. This addendum fixes the rendering.
+
+- **Signature.** `propertiesComparisonString(properties: StockPropertiesDto, keyOrder:
+  readonly string[]): string`, pure. `keyOrder` is `StockOptionsDto.propertyOptions`
+  mapped to its keys, in payload order, passed in by the caller. Receiving vocabulary as
+  a parameter is **not** IO: plan 2's "no IO" clause forbids the function fetching it,
+  not being given it. The row comparators are therefore produced by factories —
+  `makeCompactRowComparator(keyOrder)`, `makeGroupEntryComparator(keyOrder)` — each
+  returning a plain `(a, b) => number` suitable for `sort`.
+- **Which keys, in which order.** The keys present on the row, ordered by their index in
+  `keyOrder`. A key absent from `keyOrder` (vocabulary drift) is not an error: such keys
+  follow all known keys, ordered among themselves by code points. Never throw here — MC6
+  already fixed the direction for drift (render, stay visible, never crash).
+- **Value tokens.** `null` (wildcard) renders the single token `*` (U+002A). A scalar
+  string renders as itself. An array renders its values **in the order returned** — the
+  backend canonicalizes (lowercase, dedupe, sort; contract §2), and the client never
+  re-sorts.
+- **Assembly.** Each key group is the key followed by its value tokens, joined with
+  U+001F. Groups are joined with U+001E. Both separators are C0 controls that cannot
+  occur in a wire key or value, so no value can imitate a separator; this is what closes
+  the collision a printable separator would open, where `{a: ["x,y"]}` and
+  `{a: ["x","y"]}` render identically and tie.
+- **Comparison.** The assembled string is lowercased, then compared by code points
+  (`<` / `>`, never `localeCompare`) — consistent with MC2 key 3's case-insensitive
+  category comparison, and it removes casing from the ordering question entirely.
+- **Catch-all.** `{}` renders the empty string, which sorts first.
+- *Invariant:* equal `properties` objects produce equal strings; objects differing in any
+  key, any value, or a wildcard produce different strings. *Residual, accepted:* a wire
+  value literally equal to `*` would tie with a wildcard on that key. Unreachable from the
+  current vocabulary, and its consequence is an ordering wobble, never a wrong quantity.
+  → M2.
+
+**MC3a — Group ranking is computed after the filter.** (Owner decision, 2026-09-01,
+plan-2 projection card 1 = A.) The three counts MC3 ranks groups on — `count(out)`,
+`count(low)`, `count(medium)` — are computed over the entries that **remain after the
+active filter**, not over the group's unfiltered contents. A group with no surviving
+entries does not appear.
+
+Recorded rationale, because this reads at first glance as contradicting D13: tiles and
+group ranking do different jobs. The counter tiles are a navigation surface, and ignoring
+the state filter is precisely what lets them tell you what exists *outside* the view you
+have narrowed to (D13 = A). The group ranking orders the rows immediately beneath it; if
+it ranked on rows the filter has hidden, the order would argue with the filter just set.
+The sharpest case: filter to `{low_in_stock}`; a warehouse with three empty shelves and no
+low rows at all would head your low-stock list on the strength of `count(out)`, while
+rendering no rows underneath itself. (The projection's card argued A from a summed
+problem-count example — design 02's reading, which D11 overrode; the conclusion holds, the
+arithmetic in it did not.) Both rules
+serve "match what the user is looking at"; they differ because one summarizes the whole
+report and the other orders the visible list.
+
+*Invariant:* for any filter selection, group order is a function of the rendered entries
+alone. → M2.
 
 ## 5. Report data mechanism (owner decision D7 — backend amendment)
 
@@ -575,3 +633,20 @@ No plan, prompt or code before this document's header reads RATIFIED.
   raised were answered in conversation and folded downstream, not here: the mock/live
   route is an environment fact (master plan §10) and the demo item-category list is
   fixture population (master plan §9 S4a), neither of which is intention content.
+
+- **2026-09-01 (round 8, coordinator fold-back from plan-2 projection round 0):** Added to
+  **§4B**: **MC2a** — the properties comparison string, fixing key-order source, value
+  tokens, wildcard rendering, separators and casing, because MC2 key 4 as written admits
+  several different total orders in which every row still renders correctly and only the
+  sequence differs; and **MC3a** — group ranking counts are computed after the active
+  filter (**owner card 1 = A**, answered in conversation), with the rationale recorded for
+  why this coexists with D13 rather than contradicting it (tiles summarize the whole
+  report and so ignore the state filter; the group ranking orders the visible list and so
+  must not rank on hidden rows). MC2a completes declared behavior and adds no semantics.
+  MC3a resolves an ambiguity §4A left open and was decided by the owner, so it is a
+  ratified addition rather than a completion. **Status header unchanged (RATIFIED).**
+  Also corrected two lines predating D13's ratification which still described the counter
+  tiles as computed "from the unfiltered result": §4's domain line and design handoff
+  01 line 10. D13 makes the tiles respect the location filter; only the state filter is
+  ignored. Left uncorrected, P7 would have computed the tiles over all locations while
+  the list below showed one, which is the precise mismatch D13's story rejected.

@@ -56,8 +56,8 @@ fidelity to the design screenshots is approved by the owner looking at the runni
 | phase | title | implementer | state | date | actor | note |
 |---|---|---|---|---|---|---|
 | P1 | Test infra, types, state system, API seam | Codex | APPROVED | 2026-09-01 | coordinator | approved on coordinator verification (no independent review session — see §3A); 32 tests, 5/5 mutations, lint clean in perimeter |
-| P2 | Report domain (compaction, ordering, filters) | Codex | NOT_STARTED | — | — | — |
-| P3 | Config domain (criteria, thresholds, bands) | Codex | NOT_STARTED | — | — | — |
+| P2 | Report domain (compaction, ordering, filters) | Codex | PROJECTED | 2026-09-01 | reviewer | round 0 projection: AMENDMENTS_REQUIRED, 15 ledger rows (8 wrong-number weight). All 15 routed, none waived. **Runs after P3** — see §7 |
+| P3 | Config domain (criteria, thresholds, bands) | Codex | NOT_STARTED | — | — | **Next to dispatch** — swapped ahead of P2 on 2026-09-01 (§7); no projection (§3A) |
 | P4 | Stores, controllers, flows | Codex | NOT_STARTED | — | — | — |
 | P5 | Settings UI (screens 06–07) + stock design tokens | Claude | NOT_STARTED | — | — | — |
 | P6 | Instance wizard UI (screens 08–09) | Claude | NOT_STARTED | — | — | — |
@@ -133,13 +133,40 @@ makes "exactly five and only five" a type-level fact); `STOCK_STATE_META` is a
 `Record<StockState, StockStateMeta>` holding the fifteen design hexes. Exact comparator
 signature, per intention MC1b: `compareByStateIndex(a: StockState, b: StockState): number`,
 returning exactly `0` for equal states. Both exported functions throw
-`UnknownStockStateError` on a string outside `STOCK_STATES` (MC1a). · `domain/stock-report.domain.ts`
-(MC2–MC5, MC9: `compactEntries`, `compareCompactRows`, `compareGroups`,
-`applyStockFilters`, `countPendingRows`, `computeCounterTiles`,
-`deriveEntryDetail`) · `domain/stock-criteria.domain.ts` (MC6: `buildCriteria`,
+`UnknownStockStateError` on a string outside `STOCK_STATES` (MC1a). It additionally exports
+`countByStateBucket(states: Iterable<StockState>) => { out: number; low: number; medium: number;
+rest: number }` *(added 2026-09-01, plan-2 projection L11)* — the single place that knows which
+states are problems and which make up "Rest". MC5's tiles and MC3's group ranking both need that
+split; without this export the report domain would have to spell state names or restate order
+indices, which MC1 forbids and which the shipped C6(c) allowlist guard would turn red. Bucket keys
+are deliberately `out`/`low`/`medium`/`rest`, not the wire names, so the allowlist stays satisfied
+unchanged. · `domain/stock-report.domain.ts`
+(MC2–MC5, MC9: `compactEntries`, `makeCompactRowComparator`, `makeGroupEntryComparator`,
+`compareGroups`, `applyStockFilters`, `countPendingRows`, `computeCounterTiles`,
+`deriveEntryDetail`, `buildReportView`) · `domain/stock-criteria.domain.ts` (MC6: `buildCriteria`,
 `renderCriteriaChips`, `displayValueFor`) · `domain/stock-thresholds.domain.ts`
 (MC7+MC8: `commitThreshold`, `deriveBands`) · `domain/stock-pdf.domain.ts` (MC10:
 `buildPdfModel`, `pdfFilename`).
+
+**The report pipeline has one owner** *(added 2026-09-01, plan-2 projection F1)*.
+`buildReportView(entries, filter, keyOrder)` composes the report in this order and no
+other: **compact → filter (re-quantifying over the selected contributing locations only)
+→ sort**. Without it the composition lands inline in a P7 component, whose review is an
+owner visual pass, and compact-then-filter *without* re-quantification returns each row's
+full cross-location quantity — the row renders, the number is simply too high, and nothing
+errors. That is M2A's defect family arriving through a second door while C2 guards the
+first. `countPendingRows` compares against what this function returns.
+
+**`CompactedReportRow` carries its contributions** *(plan-2 projection F3)*. The P1 shape
+kept only `locations: string` — the rendered `H1 · LC1` join — so per-location quantities
+were gone by the time MC5's re-quantification and MC9's entry detail needed them. The type
+gains `contributions: { location: string; quantity: number }[]`, sorted by location code
+points, and `locations` is derived from it rather than stored independently.
+
+**Comparators are factories, not bare functions** *(intention §4B MC2a)*. MC2's key 4
+renders `properties` against the GET 4.1 key order, which the comparator cannot fetch.
+`makeCompactRowComparator(keyOrder)` and `makeGroupEntryComparator(keyOrder)` take that key
+list and return a plain `(a, b) => number`. Receiving vocabulary as a parameter is not IO.
 
 **API** — one file per endpoint, one exported function each. **Signatures are fixed here**
 (added 2026-09-01, projection L15 — P4's controllers and every UI phase bind to them, and
@@ -168,7 +195,7 @@ observe and which first breaks at P10.
 
 Seam: `api/stock-api-mode.ts` reading `import.meta.env.VITE_STOCK_API_MODE`
 (`"mock" | "live"`, **default `"live"`**, MC11) · mocks in `api/mocks/` (fixtures named
-`<endpoint>.fixture.ts`, encoding contract v1.2 examples + §4.1 vocabulary verbatim).
+`<endpoint>.fixture.ts`, encoding contract v1.3 examples + §4.1 vocabulary verbatim).
 
 **Flag read site** *(projection L10)*: `stock-api-mode.ts` exports a **function**
 (`resolveStockApiMode(): "mock" | "live"`) that reads `import.meta.env` **on each call**,
@@ -245,8 +272,14 @@ the same phase (charter rule 4).
 
 ## 7. Sequencing & gates
 
-Linear: P1 → P2 → P3 → P4 → P5 → P6 → P7 → P8 → P9 → P10. A phase starts only when the
-previous is APPROVED. Rationale for the block order (logic P1–P4, then UI P5–P7, then
+Linear: P1 → **P3 → P2** → P4 → P5 → P6 → P7 → P8 → P9 → P10. A phase starts only when the
+previous is APPROVED. **P2 and P3 were swapped on 2026-09-01** (plan-2 projection F5); phase
+IDs are unchanged, only their order. The declared dependency ran backwards: plan 3's content
+(`stock-criteria.domain.ts`, `stock-thresholds.domain.ts`, reading MC6–MC8 and contract
+§2/§4.1) touches nothing plan 2 produces, while plan 2's MC9 config label needs
+`displayValueFor` — which plan 3 builds, and which MC6's round-trip invariant forbids
+copying. Building the report domain first would have forced either a second casing map or
+an invented parameter convention. Rationale for the block order (logic P1–P4, then UI P5–P7, then
 PDF P8–P9, then integration): every Claude phase starts with its entire interface
 APPROVED, so the owner can dispatch Claude exactly at P5, P6, P7, P9 and review UI
 without logic churn underneath. P10 additionally gates on backend availability
@@ -284,7 +317,7 @@ Charter standing rules 1–16 apply. Project-specific additions:
   which cannot carry `stockState` values without state name strings; the amended version
   then collided with the phase's own colocated tests. Both were guards no phase could pass.)*
 - **S3:** `VITE_STOCK_API_MODE` is read in exactly one file (`api/stock-api-mode.ts`).
-- **S4:** Mock fixtures copy contract v1.2 examples verbatim — a fixture that "improves"
+- **S4:** Mock fixtures copy contract v1.3 examples verbatim — a fixture that "improves"
   on the contract is a defect. **Scope clause:** S4 governs *shape and vocabulary* — no
   invented field, no value outside the contract's own vocabulary. It does **not** freeze
   the fixture *population*: a fixture may contain additional entries built entirely from
@@ -322,6 +355,17 @@ Charter standing rules 1–16 apply. Project-specific additions:
   and its "final vocabulary" table disagree (the example gives `shape` one category, the
   table gives six), **the table wins** — it says of itself that it is "the exact payload
   content, safe to hardcode in mocks". Recorded so no reviewer re-derives it.
+- **S4c — fixtures carry wire casing, not display casing** *(added 2026-09-01, plan-2
+  projection F6)*. Contract §2 states the backend normalizes property values (lowercase,
+  dedupe, sort) and that responses return that canonical form — `"Teak"` becomes
+  `["teak"]`. Display casing lives in exactly one place, GET 4.1's `propertyOptions.values`,
+  and is recovered by MC6's case-insensitive match. So a **response** fixture writes
+  lowercase values; only the options fixture is display-cased. Two report fixtures carried
+  `shape: ["Oval"]` beside correctly lowercased siblings; corrected. All 32 tests stayed
+  green before and after, which is the point: the defect is invisible to the suite. Left in
+  place it would have made P3's display-casing map read as a correct no-op in every test —
+  because the input was already display-cased — and the first live payload would render
+  `oval` in the entry detail.
 - **S7:** A criterion row whose subject is build/test infrastructure rather than product
   behavior (a runner starting, typecheck/lint passing) is an **infra-enabler row**: it
   traces to no measurement-ledger entry because it measures no product outcome. Its trace

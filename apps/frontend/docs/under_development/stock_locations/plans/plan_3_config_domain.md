@@ -1,6 +1,10 @@
 # Plan 3 — Config domain (criteria builder, thresholds, bands)
 
-**Implementer:** Codex · **Depends on:** P2 APPROVED · **Projection: mandatory** (MC6–MC8)
+**Implementer:** Codex · **Depends on:** P1 APPROVED · **Projection: none** (§3A)
+
+*(Amended 2026-09-01, plan-2 projection F5: this phase was swapped ahead of P2 — master
+plan §7. Its declared dependency on P2 was never real; nothing here touches the report
+domain, while P2's MC9 config label needs `displayValueFor`, built in task 1 below.)*
 
 ## Goal
 Pure domain functions for the configuration area: property-criteria building and
@@ -9,7 +13,7 @@ calls.
 
 ## Read first
 Master plan §6 (Domain) · intention §4 (properties row), §4A MC6, MC7, MC8 + §8 (M3,
-M4) · contract v1.2 §2, §4.1.
+M4) · contract v1.3 §2 (value normalization and casing), §4.1.
 
 ## Files expected to change
 `src/features/stock/domain/stock-criteria.domain.ts` (+test),
@@ -25,7 +29,7 @@ M4) · contract v1.2 §2, §4.1.
 | id | criterion | trace |
 |---|---|---|
 | C1 | Builder shapes — one row each: (a) selected values → `{key: ["Teak","Oak"]}` array, never scalar; (b) "Any value" → `{key: null}` (D9); (c) removed definition → key absent; (d) empty properties → `{}`. | MC6, M4 |
-| C2 | Round-trip: wire `{wood_type:["teak"]}` renders chip `Teak` via options map; rebuilding from the rendered state and lower-casing both sides yields identical criteria; wildcard survives the trip. | MC6, M4 |
+| C2 | Round-trip: wire `{wood_type:["teak"]}` renders chip `Teak` via options map; rebuilding from the rendered state and lower-casing both sides yields identical criteria; wildcard survives the trip **and renders the chip `UPHOLSTERY · any` (D9's ratified form — assert the literal)**. | MC6, M4 |
 | C3 | Casing fallback: wire value absent from options (`["mystery"]`) renders raw, no throw. | MC6, M4 |
 | C4 | Chip/key ordering: keys render in GET 4.1 `propertyOptions` order regardless of insertion order. | MC6 |
 | C5 | Threshold cascade, enumerated per row × direction (fixture 5/15/39): (a) lower normal→14 ⇒ med 13, low 5; (b) lower normal→2 ⇒ clamped 3, med 2, low 1; (c) lower med→5 ⇒ low 4; (d) raise low→15 ⇒ med pushed to 16, norm untouched (assert exact triple 15/16/39); (e) raise low→39 ⇒ med 40, norm 41 (D14); (f) raise med→39 ⇒ norm 40; (g) typed non-numeric ⇒ draft unchanged; (h) typed 0 on low ⇒ clamped 1. Each row asserts its one exact output triple (charter rule 2). | MC7, M3 |
@@ -35,6 +39,13 @@ M4) · contract v1.2 §2, §4.1.
 ## Notes
 C5(d)'s inline question is resolved: raising low to 15 pushes med to 16; normal
 already exceeds — assert `15/16/39` exactly. Draft is immutable (returns new object).
+
+**Mutation count 2** — both in C6 (raising-cascade branch, lowering-cascade branch), each
+with its own biting row.
+
+**Two wildcard renderings exist on purpose, do not harmonize them** *(coordinator, 2026-09-01)*. The wizard **chip** is `UPHOLSTERY · any` (D9, ratified, this phase). The entry-detail **config label** is MC9's `{key name} any` using the key exactly as it appears in `propertyOptions` (plan 2 C8). Two ratified texts, two surfaces. Neither implementer nor reviewer should make one match the other; if the owner wants them aligned it is a UI decision taken in P5/P7, not a domain change.
+
+**Value casing** *(master plan S4c)*: values are **submitted** display-cased and come back **lowercase** — the backend normalizes (contract §2). C2's round-trip depends on that direction, so read the fixtures as wire data, not as display data.
 
 ## Inherited hazard — the item-category vocabulary is 28, and 19 of them carry no property
 
