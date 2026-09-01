@@ -190,6 +190,19 @@ export type LocationStockDto = {
   updatedByUsername: string;
 };
 
+export type StockReportEntry = {
+  location: string;
+  itemCategory: string;
+  properties: StockCriteria;
+  mergeKey: string;
+  quantity: number;
+  stockState: StockState;
+};
+
+export type StockReportDto = {
+  entries: StockReportEntry[];
+};
+
 export const toLocationStockDto = (locationStock: LocationStock): LocationStockDto => ({
   id: locationStock.id,
   location: locationStock.location,

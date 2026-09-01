@@ -12,6 +12,7 @@ import { updateLocationStockCommand } from "../commands/update-location-stock.co
 import { getLocationStockDetailQuery } from "../queries/get-location-stock-detail.query.js";
 import { getStockConfigurationOptionsQuery } from "../queries/get-stock-configuration-options.query.js";
 import { getStockLocationsSummaryQuery } from "../queries/get-stock-locations-summary.query.js";
+import { getStockReportQuery } from "../queries/get-stock-report.query.js";
 
 const getRequiredIdParam = (value: string | string[] | undefined): string => {
   if (!value || Array.isArray(value)) {
@@ -46,6 +47,14 @@ export const listStockLocationsController = asyncHandler(
   async (req: Request, res: Response) => {
     const shopId = req.authUser.shopId as string;
     const data = await getStockLocationsSummaryQuery(shopId);
+    res.status(200).json({ data });
+  },
+);
+
+export const getStockReportController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const shopId = req.authUser.shopId as string;
+    const data = await getStockReportQuery(shopId);
     res.status(200).json({ data });
   },
 );

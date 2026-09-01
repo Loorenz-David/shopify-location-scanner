@@ -6,6 +6,7 @@ import {
   deleteLocationStockController,
   getLocationStockDetailController,
   getStockConfigurationOptionsController,
+  getStockReportController,
   listStockLocationsController,
   updateLocationStockController,
 } from "../controllers/stock.controller.js";
@@ -18,6 +19,7 @@ stockRouter.use(requireShopLinkMiddleware);
 stockRouter.get("/options", getStockConfigurationOptionsController);
 stockRouter.get("/locations", listStockLocationsController);
 stockRouter.get("/locations/:location", getLocationStockDetailController);
+stockRouter.get("/report", getStockReportController);
 stockRouter.post("/configurations", createLocationStocksController);
 stockRouter.patch("/configurations/:id", updateLocationStockController);
 stockRouter.delete("/configurations/:id", deleteLocationStockController);

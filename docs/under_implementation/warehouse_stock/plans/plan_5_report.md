@@ -73,3 +73,155 @@ only genuinely new backend behaviour in the amendment — and it is not new mach
 **Net:** six criteria to three; one endpoint shape instead of two; the verify script added
 earlier the same day narrows with it, from compaction-and-ranking rows to identity-and-
 completeness rows. The phase gets smaller, which is why the amendment was worth taking.
+
+### 2026-09-02 — P5 implementer round 1 (Codex)
+
+Implemented the unparameterized report projection. The query delegates shop scoping to
+P2's `listByShop`, emits one entry per returned definition, and builds the opaque
+`mergeKey` from the stored `propertiesCanonical` column. Added the report DTO, controller,
+route, the committed scratch-DB verification script, and the required
+`verify-all.ts` `EXPECTED_SCRIPTS` registration. No compaction, filtering, ordering,
+ranking, mutation, or changes to earlier-phase files were added.
+
+Coverage map (each row has its own executable case/assertion):
+
+- C1(a) → `verify-stock-report.ts` C1(a), exact count plus exactly-one match per fixture definition.
+- C1(b) → C1(b), zero quantity and `out_of_stock` assertion.
+- C1(c) → C1(c), explicit Dining Chairs and Easy Chairs definitions at distinct locations.
+- C1(d) → C1(d), seeded second-shop definition absent from the requested-shop report.
+- C2(a) → C2(a), equal merge keys for same criteria at two locations.
+- C2(b) → C2(b), equal merge keys for scalar-created and array-created equivalent criteria.
+- C2(c) → C2(c), different merge keys for different criteria in one category.
+- C2(d) → C2(d), different merge keys for identical criteria in different categories.
+- C2(e) → C2(e), equal merge keys for catch-alls at two locations.
+- C2(f) → C2(f), equal merge keys for differently ordered equivalent arrays.
+- C3(a) → C3(a), exact six-key entry shape for every entry.
+- C3(b) → C3(b), canonical configuration criteria `{wood_type: ["teak"]}` assertion.
+- C3(c) → C3(c) plus the HTTP curl scenario, direct extra-argument payload equality and byte-identical parameterized response.
+- C3(d) → C3(d) plus the HTTP curl scenario, route and both server mounts inspected and both mounts returned 200.
+
+The pre-edit red baseline was not captured: at the opening gate the report query and its
+criterion instrument did not exist, so there were no executable P5 cases to run. This is
+not reconstructed after the fact. The opening scratch baseline was typecheck 0 and
+`SUMMARY PASS 2 script(s)` at `/private/tmp/warehouse-stock-p5-baseline-ocWSyC/dev.db`.
+
+Evidence on the final tree:
+
+- `npm run typecheck` — exit 0.
+- Purity grep over `src/modules/stock/domain/` and `src/shared/item-properties/item-property-options.ts` — empty.
+- Live-development DB refusal — exit 3 with `REFUSED DATABASE_URL resolves to the configured development database`.
+- Final scratch runner path: `/private/tmp/warehouse-stock-p5-close-54LnLO/dev.db`.
+- Final HTTP scratch path: `/private/tmp/warehouse-stock-p5-http-O54u70/dev.db`.
+- Manual expected vs observed: `/api/stock/report` expected 200 and 3 fixture entries with spot checks; observed 200, `CURL1_ENTRY_COUNT=3`, `CURL1_SPOT_CHECKS=3 PASS`. Parameterized request expected 200 and byte-identical payload; observed 200 and `CURL2_BYTE_IDENTICAL=YES`. Bare `/stock/report` expected reachable; observed 200.
+
+The named probe replacing `mergeKey` with `JSON.stringify(configuration.properties)` was
+executed and returned a false green (exit 0), then reverted. P2's frozen `listByShop`
+normalizes both scalar and array criteria before this query receives them, so this exact
+probe cannot distinguish the forbidden duplicate implementation at the query boundary.
+An independent call-site probe substituting a wrong shop id did redden the instrument
+(exit 1; C1(a), C1(b), C1(c), C2(a–d), C2(e–f), and C3(b) failed), then was reverted.
+This is a candidate upstream instrument note, not a production deviation.
+
+Final `verify-all.ts` output (scratch path above; exact closing tree):
+
+```text
+--- verify-stock-domain.ts ---
+PASS C2(a)
+PASS C2(b)
+PASS C2(c)
+PASS C2(d)
+PASS C2(e)
+PASS C2(f)
+PASS C3(a)
+PASS C3(b)
+PASS C3(c)
+PASS C3(d)
+PASS C3(e)
+PASS C3(f) (empty array)
+PASS C3(f) (blank scalar)
+PASS C4(a)
+PASS C4(b)
+PASS C4(c)
+PASS C4(d)
+PASS C4(e)
+PASS C4(f)
+PASS C5(a)
+PASS C5(b)
+PASS C5(c)
+PASS C5(d)
+PASS C5(e)
+PASS C5(f)
+PASS C6(a)
+PASS C6(b)
+PASS C6(c)
+PASS C6(d)
+PASS C6(e)
+PASS C6(f)
+PASS C6(g)
+PASS C6(h)
+PASS C7(a)
+PASS C7(b)
+PASS C7(c) (zero)
+PASS C7(c) (negative)
+PASS C7(c) (non-integer)
+PASS C7(d)
+PASS C7(e)
+PASS C7(f)
+PASS C7(g)
+PASS C8(a)
+PASS C8(b)
+PASS C8(c)
+PASS C8(d)
+PASS C8(e)
+PASS C8(f)
+PASS C8(g)
+PASS C8(h)
+PASS C9(a)
+PASS C9(b)
+PASS C9(c)
+PASS C9(d)
+PASS C9(e)
+PASS C9(f)
+PASS C9(g)
+PASS C9(h)
+PASS verify-stock-domain.ts
+--- verify-stock-reconciliation.ts ---
+PASS C1(a)
+PASS C1(b)
+PASS C1(c)
+PASS C2(a)
+PASS C2(b)
+PASS C2(c)
+PASS C2(d)
+PASS C3(a)
+PASS C3(b)
+PASS C3(c)
+PASS C3(d)
+PASS C3(e)
+PASS C4(a)
+PASS C4(b)
+PASS C4(c)
+PASS C4(d)
+PASS C5(a)
+PASS C5(b)
+PASS C6(a)
+PASS C6(b)
+PASS verify-stock-reconciliation.ts
+--- verify-stock-report.ts ---
+PASS C1(a)
+PASS C1(b)
+PASS C1(c)
+PASS C1(d)
+PASS C2(a)
+PASS C2(b)
+PASS C2(c)
+PASS C2(d)
+PASS C2(e)
+PASS C2(f)
+PASS C3(a)
+PASS C3(b)
+PASS C3(c)
+PASS C3(d)
+PASS verify-stock-report.ts
+SUMMARY PASS 3 script(s)
+```

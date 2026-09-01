@@ -5,6 +5,7 @@ import { spawnSync } from "node:child_process";
 export const EXPECTED_SCRIPTS = [
   "verify-stock-domain.ts",
   "verify-stock-reconciliation.ts",
+  "verify-stock-report.ts",
 ] as const;
 
 const scriptsDirectory = process.cwd() + "/scripts";
