@@ -22,11 +22,40 @@ export interface CompactedReportRow {
   quantity: number;
   stockState: StockState;
   locations: string;
+  contributions: ReportContribution[];
+}
+
+export interface ReportContribution {
+  location: string;
+  quantity: number;
 }
 
 export interface ReportLocationGroup {
   location: string;
   entries: StockReportEntryDto[];
+}
+
+export interface ReportEntryDetailItem {
+  location: string;
+  quantity: number;
+  stockState: StockState;
+  configLabel: string;
+}
+
+export interface ReportEntryDetail {
+  entries: ReportEntryDetailItem[];
+  isMultiLocation: boolean;
+}
+
+export type ReportView =
+  | { rows: CompactedReportRow[] }
+  | { groups: ReportLocationGroup[] };
+
+export interface CounterTiles {
+  out: number;
+  low: number;
+  medium: number;
+  rest: number;
 }
 
 export interface StockFilterState {

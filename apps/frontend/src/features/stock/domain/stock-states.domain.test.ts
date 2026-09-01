@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   compareByStateIndex,
+  countByStateBucket,
   getStockStateMeta,
   STOCK_STATES,
   UnknownStockStateError,
@@ -66,4 +67,15 @@ describe("stock state domain", () => {
       expect(compareByStateIndex(state, state)).toBe(0);
     },
   );
+
+  it("C7 state buckets: groups out, low, medium, and normal/high as rest", () => {
+    expect(countByStateBucket([
+      "out_of_stock",
+      "low_in_stock",
+      "medium_in_stock",
+      "normal_in_stock",
+      "high_in_stock",
+      "high_in_stock",
+    ])).toEqual({ out: 1, low: 1, medium: 1, rest: 3 });
+  });
 });

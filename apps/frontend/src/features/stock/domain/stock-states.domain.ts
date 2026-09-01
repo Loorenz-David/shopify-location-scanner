@@ -73,3 +73,29 @@ export function compareByStateIndex(a: StockState, b: StockState): number {
 
   return aIndex - bIndex;
 }
+
+export function countByStateBucket(
+  states: Iterable<StockState>,
+): { out: number; low: number; medium: number; rest: number } {
+  const counts = { out: 0, low: 0, medium: 0, rest: 0 };
+
+  for (const state of states) {
+    switch (STOCK_STATES.indexOf(requireStockState(state))) {
+      case 0:
+        counts.out += 1;
+        break;
+      case 1:
+        counts.low += 1;
+        break;
+      case 2:
+        counts.medium += 1;
+        break;
+      case 3:
+      case 4:
+        counts.rest += 1;
+        break;
+    }
+  }
+
+  return counts;
+}
