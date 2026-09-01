@@ -1,7 +1,7 @@
 # Location Stock System — Frontend API Contract
 
 **Audience:** the frontend planning/implementation agent. This document is self-contained: it carries every endpoint shape, the domain meaning behind it, and the reactivity rules. It is generated from the backend master plan's naming registry (`../master_plan.md` §6) — that registry is authoritative; if the two ever disagree, report it, don't guess.
-**Version:** 1.2 (2026-09-01) — **§4.7 (report) replaced.** Answers `frontend_handoffs/frontend-report-endpoint-request.md` (frontend decision D7), approved by the owner and ratified into the backend intention as §26. The report is now one unparameterized read returning uncompacted entries with a `mergeKey`; compaction, filtering, ordering and ranking move to the client. **§§4.1–4.6, transport, auth, envelopes and reactivity are unchanged from v1.1.** Amendments arrive only as new versions of this file via the backend pipeline's coordinator.
+**Version:** 1.3 (2026-09-01) — **§4.1 `itemCategories` un-elided.** The list was written `["Dining Chairs", "Easy Chairs", ...]` in v1.1 and v1.2; the `...` was literal and the real vocabulary is **28** values, not the 9 inferable from the property table's `categories` column. Answers `handoffs/frontend/handoff_item_categories_confirmation.md`. No other section changes. Previously — **1.2 (2026-09-01): §4.7 (report) replaced.** Answers `frontend_handoffs/frontend-report-endpoint-request.md` (frontend decision D7), approved by the owner and ratified into the backend intention as §26. The report is now one unparameterized read returning uncompacted entries with a `mergeKey`; compaction, filtering, ordering and ranking move to the client. **§§4.1–4.6, transport, auth, envelopes and reactivity are unchanged from v1.1.** Amendments arrive only as new versions of this file via the backend pipeline's coordinator.
 
 ## 1. What this feature is
 
@@ -45,7 +45,7 @@ Rules the UI should reflect:
 ### 4.1 `GET /api/stock/options` — configuration form vocabulary
 ```json
 { "data": {
-    "itemCategories": ["Dining Chairs", "Easy Chairs", ...],
+    "itemCategories": ["Dining Chairs","Easy Chairs","Armchairs","Sofas","Stools","Seating Benches","Serving Trolleys","Dining Tables","Bedside Tables","Coffee Tables","Side Tables","Hall Tables","Writing Desks","Nest Of Tables","Sideboards","Highboards","Bookshelves","Shelving Units","Chest of Drawers","Secretary Cabinets","Bar Cabinets","Wardrobes","Storage Cabinets","Posters","Mirrors","Porcelain","Carpets","Lamps"],
     "propertyOptions": [
       { "key": "wood_type", "values": ["Beech","Birch","Cherry","Elm","Mahogany","Oak","Santos Rosewood","Teak","Walnut"], "categories": "universal" },
       { "key": "shape", "values": ["Oval","Rectangular","Round","Square"], "categories": ["Dining Tables"] }
@@ -53,6 +53,12 @@ Rules the UI should reflect:
 } }
 ```
 Static vocabulary (no DB behind it). `categories: "universal"` → offer for every item type; otherwise only when the selected item type is listed. **Locations are NOT here** — the valid location list is already in the bootstrap payload (`shopify.metafields.options`, the same source the scanner uses).
+
+**`itemCategories` is exactly the 28 values above, in that order, complete** (v1.3 — it was elided as `...` in v1.1/v1.2, which was a defect in this document). It is a static `as const` array in backend code, returned verbatim with no query; it is **not** derived from Shopify product types at request time, so it does not vary by shop or grow on its own.
+
+**Most categories carry no category-specific property**, and that is normal, not an omission: only the six table types and the three chair types appear in the `categories` column of the table below. A `Sideboard` or a `Sofa` is configured with the four universal keys alone. **Do not infer the category list from that column** — 19 of the 28 never appear in it, including `Sideboards`, `Bookshelves`, `Wardrobes`, `Mirrors` and `Sofas`, which together account for 152 unsold units in the current data. A UI offering only the nine categories named below would leave those unconfigurable, with no error to reveal it.
+
+The sentinel `"unknown"` is deliberately **not** in the list and cannot be configured (backend context §0.16): items resolve to it when their product type matches nothing, and they are counted by no stock definition.
 
 **Final vocabulary (owner-selected, v1.1)** — the exact payload content, safe to hardcode in mocks:
 
@@ -169,4 +175,5 @@ items, so the unparameterized full fetch stays small.
 3. Endpoint 4.7 (report) — after backend phase P5.
 4. Live quantity movement from scans/sales (worth demoing end-to-end) — after backend phase P4.
 5. ~~Contract v1.1 (final property key/value lists in §4.1)~~ — landed.
-6. ~~Contract v1.2 (report shape per the frontend's request case)~~ — landed; this document is v1.2 and complete. The mocks encoding the request case's §3 shape are now authoritative-matching and can be pointed at the real endpoint once P5 is approved.
+6. ~~Contract v1.2 (report shape per the frontend's request case)~~ — landed.
+7. ~~Contract v1.3 (complete `itemCategories`)~~ — landed; this document is v1.3 and complete. **No vocabulary in it is elided any more** — every closed list is written out in full. The mocks encoding the request case's §3 shape are now authoritative-matching and can be pointed at the real endpoint once P5 is approved.

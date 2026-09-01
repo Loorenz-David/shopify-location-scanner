@@ -17,7 +17,7 @@ Extend the location domain so users configure per-location stock definitions (`l
 | Property-options map content (owner selection) | `context/property-options-selection.md` |
 | Shared skeleton, naming registry, environment, tracker | this file |
 | Phase goal/tasks/criteria/review log | `plans/plan_<n>_*.md` |
-| Frontend-facing API contract | `contracts/frontend-api-contract.md` (**v1.2**) — regenerated from this file's registry on any change, never hand-drifted. **Delivery is not automatic:** the frontend track works from a copy under `apps/frontend/` on `main`, the coordinator never writes there, and a version is undelivered until the owner routes the file across branches |
+| Frontend-facing API contract | `contracts/frontend-api-contract.md` (**v1.3**) — regenerated from this file's registry on any change, never hand-drifted. **Delivery is not automatic:** the frontend track works from a copy under `apps/frontend/` on `main`, the coordinator never writes there, and a version is undelivered until the owner routes the file across branches |
 | Session prompts / handoffs | `prompts/<role>/`, `handoffs/<role>/`, archived per charter — tables created 2026-09-01, semantics in each folder's `README.md` |
 | Cross-track traffic with the frontend (both directions) | `handoffs/frontend/` — **not a charter table**; its README records the deviation and the direction column. Created 2026-09-01 after a frontend request arrived at a non-table path and was found only by a manual sweep |
 | Actor assignment, doctrine paths, coordinator failure modes | `prompts/coordinator/coordinator_role.md` (standing, never archives) |
@@ -39,7 +39,7 @@ Charter state machine per phase: `NOT_STARTED → (PROJECTED) → PROMPT_READY �
 | Phase | State | Date | Actor | Note |
 |---|---|---|---|---|
 | P1 schema + domain | **APPROVED** | 2026-09-01 | reviewer | round 1, no blocking findings. Instruments re-run: typecheck 0, purity grep empty, verify 58/58, perimeter exact. 2 should-fix (S1 §23.2 conjunction untested, S2 delegation D4 unguarded — both proven by reviewer mutation), 4 notes incl. 2 forward hazards for P2/P3. Owner **declined** the fix cycle (§9.7): code verified correct, and no later phase's perimeter contains P1's files. S1/S2 closed as notes |
-| P2 repository + reconciliation | NOT_STARTED | | | |
+| P2 repository + reconciliation | NOT_STARTED | 2026-09-01 | coordinator | gate SATISFIED (P1 APPROVED); pre-dispatch lint **PASS after 5 folds** → `prompts/coordinator/plan_lint_2.md` (L1 made the phase impossible to close, L4 made a criterion impossible to satisfy); projection r0 dispatched → `prompts/reviewer/prompt_plan2_projection_r0.md`. Implementer prompt compiles only after that ledger is routed (§3) |
 | P3 configuration API | NOT_STARTED | | | |
 | P4 item-transition hooks | NOT_STARTED | | | |
 | P5 report | NOT_STARTED | 2026-09-01 | coordinator | after P3 (shares controller/routes files). **Plan rewritten** under intention §26 (owner-approved report amendment): 6 criteria → 3, contract reissued v1.2 |
@@ -115,6 +115,10 @@ model StockThresholdsLocation {
 
 Threshold shape everywhere in domain/service code: `{ state: StockState; thresholdQuantity: number }`.
 
+**Guarded-decrement log context — fixed 2026-09-01 (P2 lint L4).** `applyGuardedDecrement` takes a fourth argument carrying the §0.15 diagnostic fields the *caller* knows:
+`applyGuardedDecrement(id, shopId, delta, context: { productId?, scanHistoryId?, itemCategory?, locationFrom?, locationTo?, operation })`.
+The repository supplies the fields it owns (`locationStockId`, `location`, `requestedDecrement`, `currentQuantity` read back after refusal); everything identifying the *item* and the *triggering operation* is only knowable by the caller, which is why P4's `applyItemStockChange` already carries `operation` and `itemIdentifiers` "solely for §0.15 log context". Without this parameter the §0.15 field list is unreachable from a three-argument signature, and a criterion demanding it cannot be satisfied.
+
 **Item-properties input type — fixed 2026-09-01 (P1 projection F1).** Everywhere the domain
 or a service receives an *item's* property bag it is typed `Record<string, string> | null`,
 never `Json`, never `Record<string, unknown>`. **Reducing the Prisma `Json` value to that
@@ -157,6 +161,9 @@ Maintenance scripts (P6): `scripts/report-stock-property-drift.ts`, `scripts/reb
 | `scripts/verify-stock-reconciliation.ts` | P2 | P2 C1–C6 (scratch DB copy) |
 | `scripts/verify-stock-report.ts` | P5 | P5 C1–C6 aggregation rows (scratch DB copy) |
 | `scripts/verify-all.ts` | P2 | runs every `verify-*.ts` above in sequence — the regression seam (§9.1d) |
+
+**This table is the *eventual* set, not the set expected at any given moment.** `verify-stock-report.ts` does not exist until P5. `verify-all.ts` therefore carries its **own** `EXPECTED_SCRIPTS` constant, which lists only the scripts that exist as of the phase that last edited it; the phase authoring a new `verify-*.ts` adds it to that constant **in the same commit**. `MISSING` is judged against `EXPECTED_SCRIPTS`, never against this table.
+*Earned at P2's pre-dispatch lint: keying `MISSING` to this table would have made `verify-all` exit non-zero at every close before P5 — because a P5 script is listed here — so P2's own phase-close instrument ("verify-all all-PASS") was unsatisfiable by construction. The guard would have turned the phase red in a file the plan does not permit anyone to touch.*
 
 ### 6.5 HTTP surface (mounted in `server.ts` at BOTH `/stock` and `/api/stock`)
 
@@ -235,6 +242,7 @@ No archgraph in this repo — skip silently. Sessions verify write perimeters vi
    - This does **not** relax correctness. A forward hazard in work **not yet written** (P1 review N2 and N3 are the worked examples) is folded into the target plan immediately and costs nothing, because the plan is still being edited. That is the distinction: cheap where the work is ahead of you, expensive where it is behind you.
 
    *Earned: P1 review round 1 recommended a fix cycle for two proven-unguarded behaviours whose code was verified correct. The owner declined, correctly — the guarded regression could only arrive through a perimeter violation that a different, stronger mechanism already blocks. The recommendation cost a round of the owner's attention that the project's own framing had already answered.*
+8. **No closed vocabulary is ever elided in the frontend contract (earned 2026-09-01).** Every enumerable list in `contracts/frontend-api-contract.md` is written out in full; `...` never appears in an example payload that any section describes as exact. *Earned: §4.1 wrote `itemCategories` as `["Dining Chairs", "Easy Chairs", ...]` directly above a table advertising itself as "the exact payload content, safe to hardcode in mocks". The frontend reasonably inferred the vocabulary from the only complete list nearby — the property table's `categories` column — and got **9** of **28**. The 19 missing categories hold 152 unsold units (Sideboards 41, Mirrors 19, Chest of Drawers 17); a wizard built on that list would have made them permanently unconfigurable with no error anywhere. Caught by the frontend asking, not by any check on our side.* Regenerating the contract from §6's registry (§2's fold-back rule) means regenerating **content**, not shape: a registry list becomes a written-out list.
 
 ## 10. Environment topology (verified 2026-09-01; if reality disagrees, update this section)
 
