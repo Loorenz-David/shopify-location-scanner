@@ -214,3 +214,43 @@ the v1.4 frontend contract's §4.4 worked example labels `{}` plus
 this plan's manual scenario 3 allow them because their criterion key sets differ. The
 implementation follows §23.2 and the plan; the coordinator should reconcile the example
 before frontend integration.
+
+### 2026-09-02 — review round 1 · APPROVED · phase closed
+
+Handoff: `handoffs/reviewer/handoff_plan3_review_1.md`. Tree `7b86e53`, isolated from P4's
+`4da4579`; `HEAD` byte-identical to the checkpoint.
+
+**All 31 rows re-executed by the reviewer** against a live server on a scratch copy
+(`sqlite3 … ".backup"`, port 4405, minted admin and worker tokens). `prisma/dev.db` read only —
+still 0 `LocationStock` rows, mtime unchanged. Scratch copy, tokens and probe scripts deleted.
+
+Instruments: typecheck 0 · purity grep empty · `verify-all.ts` exit 0 (58 P1 + 20 P2) · perimeter
+exactly the 11 permitted files · P1/P2/P4 frozen files byte-identical.
+
+Observed, against live inventory: create `LC1·{}` → **221 / high_in_stock / david·david**;
+create `LC1·{wood_type:["Teak"]}` → **teak 107 (david)**, catch-all **221 → 114
+(`system:stock-reconciliation`)** — C7(d)'s owner card 1 on both halves; thresholds-only PATCH →
+**107 unchanged, high → low, sibling untouched** (D1's silent failure disproven live); PATCH to
+`H1` → **LC1 back to 221, H1 teak 34**; worker creates `H1·{}` → **46**; delete teak → `{ok:true}`,
+**3 → 0 threshold rows**, catch-all **80**; delete the last config in the group → **200, no throw,
+LC1 untouched** (C5(d), the path P2's review routed here). `ScanHistory` 1107 → 1107 throughout.
+C2: cross-group catch-alls → **201 both** (D3's trap avoided); intra-batch → **409
+`{batchIndex:1, conflictsWithBatchIndex:0}`, no `conflictingId`, 0 rows written**; existing sibling
+→ **409 `{conflictingId, batchIndex}`**. C1's twelve rows all as specified, including both D2
+PATCH directions. C6: DTO carries exactly the eleven §6.5 fields — no `shopId`, no
+`propertiesCanonical` (D7).
+
+**Reviewer planted-defect probe:** collapsing the create command's group key to a single bucket
+turned C2(a) from "created 2" into the false intra-batch 409 that D3 predicted; reverted, tree
+clean. The row can fail.
+
+**B1 was in the contract, not in this phase.** §4.4's worked example claimed `{}` +
+`{wood_type:["Teak"]}` in one batch is a conflict; the endpoint returns **201**, and that pair is
+the catch-all-plus-carve-out layering the feature is built on. The implementer reported the
+contradiction as a candidate upstream note and followed §23.2 — correctly. Contract reissued
+**v1.5**; master plan §9 gains standing instruction 9.
+
+Notes carried to P6: the `shopId` asymmetry, now with a second instance (`updateState` alongside
+`applyIncrement`), both P2's code, as one item; the command-owned transaction boundary (advisory).
+
+No fix cycle. Phase closed.
