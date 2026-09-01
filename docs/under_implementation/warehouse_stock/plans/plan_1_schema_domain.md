@@ -125,3 +125,126 @@ worse trade.
 (task 7 vs C1 disagreeing on verify-script scope) as F5. Per the seal's own rule, both
 surfacing means the projection gate is earning its round on this project — it stays
 **mandatory for P2 and P4** as master plan §3 already provides.
+
+### 2026-09-01 — implement round 1 · IMPLEMENTED · Codex
+
+Implemented the P1 schema, migration, pure stock domain machinery, owner-selected property
+options map, and the committed domain verification script. The schema adds the `StockState`
+enum, `LocationStock`, `StockThresholdsLocation`, the two `Shop` back-relations, the required
+unique constraints and indexes, and cascading foreign keys. The migration
+`20260901180407_add_location_stock` applied successfully to the worktree's `prisma/dev.db`;
+the configured database was left at migration head and is gitignored.
+
+The domain modules implement canonical criteria normalization, tokenized matching, ordered
+specificity comparison, conflict detection, threshold validation/state calculation, and the
+exact eight-entry property-options map from the owner's final selection. `verify-stock-domain.ts`
+contains 58 executable case lines for the 55 pure-domain criterion rows, expanding C3(f) to
+two cases and C7(c) to three. Its pre-edit baseline was 58 FAIL / 0 PASS / exit 1 because the
+phase modules did not yet exist. The final code-tree checks were: `npm run typecheck` exit 0,
+the purity grep empty, and the verifier all-PASS / exit 0. All eight plan-named mutation probes
+were executed and reverted; each turned its named criterion row FAIL.
+
+Judgment calls were the five granted delegations: D1 uses code-unit `.sort()` for canonical
+keys and values; D2 keeps `quantity <= 0` in `out_of_stock` while `calculateStockState` validates
+its threshold precondition; D3 returns the first conflicting sibling; D4 treats a present item
+property that tokenizes to an empty set as key-absent; D5 returns a three-component tuple from
+`specificityScore`, preserving ordered comparison rather than summing components. No contract
+deviations or candidate criteria were found.
+
+Checkpoint: `afed53a6b178de4b9890d56eeb760d4cb2bcb96e` (`CHECKPOINT (not approved): implement P1 schema and stock domain`).
+The coordinator must consume the handoff, update the P1 tracker state, and dispatch the one
+review session. Full verification output follows:
+
+```text
+PASS C2(a)
+PASS C2(b)
+PASS C2(c)
+PASS C2(d)
+PASS C2(e)
+PASS C2(f)
+PASS C3(a)
+PASS C3(b)
+PASS C3(c)
+PASS C3(d)
+PASS C3(e)
+PASS C3(f) (empty array)
+PASS C3(f) (blank scalar)
+PASS C4(a)
+PASS C4(b)
+PASS C4(c)
+PASS C4(d)
+PASS C4(e)
+PASS C4(f)
+PASS C5(a)
+PASS C5(b)
+PASS C5(c)
+PASS C5(d)
+PASS C5(e)
+PASS C5(f)
+PASS C6(a)
+PASS C6(b)
+PASS C6(c)
+PASS C6(d)
+PASS C6(e)
+PASS C6(f)
+PASS C6(g)
+PASS C6(h)
+PASS C7(a)
+PASS C7(b)
+PASS C7(c) (zero)
+PASS C7(c) (negative)
+PASS C7(c) (non-integer)
+PASS C7(d)
+PASS C7(e)
+PASS C7(f)
+PASS C7(g)
+PASS C8(a)
+PASS C8(b)
+PASS C8(c)
+PASS C8(d)
+PASS C8(e)
+PASS C8(f)
+PASS C8(g)
+PASS C8(h)
+PASS C9(a)
+PASS C9(b)
+PASS C9(c)
+PASS C9(d)
+PASS C9(e)
+PASS C9(f)
+PASS C9(g)
+PASS C9(h)
+```
+
+### 2026-09-01 — review round 1 · APPROVED · Claude Opus (single-reviewer flow, intention §25)
+
+Tree `afed53a`. Handoff: `handoffs/reviewer/handoff_plan1_review_1.md`.
+
+**Instruments, re-run on the handed-over tree:** `npm run typecheck` exit 0 · purity grep empty
+· `npx tsx scripts/verify-stock-domain.ts` **58 PASS / 0 FAIL / exit 0** (matches the derived
+expectation) · `git diff --name-only 7b127ab afed53a` = exactly the eight-file perimeter.
+
+**No blocking findings** (§11.2). Every criterion row re-derived against the code holds. C1
+verified at source: schema matches §6.1 field-for-field, migration creates two tables plus four
+indexes and three cascading FKs and touches no existing table (`RedefineTables` hazard N/A),
+`migrate status` at head with 34 migrations. Options map verified **against the owner's FINAL
+table**, not against the script's fixture: 8 keys, all values, both category groups exact.
+No orphan cases; all 58 carry a row id.
+
+| # | Sev | Finding |
+|---|---|---|
+| S1 | should-fix | C8 has no same-key-set pair with >1 key, so §23.2's conjunction ("on **every** key") is untested. Proven: `.every(` → `.slice(0,1).every(` in `findConflict` leaves 58/58 green. Correction: add C8(i) multi-key partial intersection → NO conflict, C8(j) full intersection → conflict, plus verify cases. |
+| S2 | should-fix | Delegation D4's `itemTokens.size === 0` guard has no row. Proven: deleting it leaves 58/58 green. Correction: add C4(g) — a value tokenizing to the empty set does not satisfy a wildcard. |
+| N1 | note | C9 compares the map to `expectedOptions`, a hand-copy in the same file (charter rule 15's snapshot-writes-its-own-baseline shape). Catches later divergence, not original mistranscription. Transcription independently verified correct — no defect today. |
+| N2 | note | **Forward hazard, P3:** map values are display-cased, `normalizeCriteria` lowercases. §0.5 settles it ("comparison lowercases both sides") but P3's C1(b) does not cite it. |
+| N3 | note | **Forward hazard, P2/P5:** `canonicalCriteriaString` sorts keys but not values and assumes normalized input. P2's `propertiesCanonical` and P5's `mergeKey` both rest on it, so P2's `toDomain` normalization is load-bearing, not defensive. |
+| N4 | note | C7(a) trips the length guard before any per-state logic; `validateThresholds`' all-present check is unreachable by pigeonhole. No defect. |
+
+**Reviewer probes:** R1/R2 above, applied and reverted, checksums verified identical
+(`26c5c3b3…`, `921e540c…`). No DB or state side effects. The implementer's eight declared probes
+were **consumed by citation, not re-run** — tree-bound to the reviewed tree per the charter's
+test-evidence section; the budget went to variation instead, which is what produced S1 and S2.
+
+**Owner decision open:** one short fix cycle to close S1+S2 (two rows, two verify cases, no
+production change) versus carrying them forward. Card in the review handoff.
+

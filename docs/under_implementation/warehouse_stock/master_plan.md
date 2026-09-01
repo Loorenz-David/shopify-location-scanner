@@ -38,7 +38,7 @@ Charter state machine per phase: `NOT_STARTED → (PROJECTED) → PROMPT_READY �
 
 | Phase | State | Date | Actor | Note |
 |---|---|---|---|---|
-| P1 schema + domain | **PROMPT_READY** | 2026-09-01 | coordinator | projection r0 folded (7 findings, 5 delegations); re-lint PASS post-fold; prompt compiled → `prompts/implementer/prompt_plan1_implement_r1.md`, gate self-tested 5/5. Awaiting Codex. Sizing exception: 9 criteria, reason in plan Review log |
+| P1 schema + domain | **APPROVED** | 2026-09-01 | reviewer | round 1, no blocking findings. Instruments re-run: typecheck 0, purity grep empty, verify 58/58, perimeter exact. 2 should-fix (S1 §23.2 conjunction untested, S2 delegation D4 unguarded — both proven by reviewer mutation), 4 notes incl. 2 forward hazards for P2/P3. Owner card open: short fix cycle vs carry-forward |
 | P2 repository + reconciliation | NOT_STARTED | | | |
 | P3 configuration API | NOT_STARTED | | | |
 | P4 item-transition hooks | NOT_STARTED | | | |
