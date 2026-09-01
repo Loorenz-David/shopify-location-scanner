@@ -248,3 +248,28 @@ test-evidence section; the budget went to variation instead, which is what produ
 **Owner decision open:** one short fix cycle to close S1+S2 (two rows, two verify cases, no
 production change) versus carrying them forward. Card in the review handoff.
 
+### 2026-09-01 — owner disposition of round 1 · phase CLOSED
+
+**S1 and S2 closed as notes; no fix cycle.** Owner's reasoning, accepted and now standing law
+as master plan **§9.7**: the code is verified correct, later phases *use* this code but never
+edit it, and this backend is an interim system pending a rebuild. The bar is correct now, not
+durable later.
+
+The reviewer's own check confirms the premise rather than merely deferring to it: **no phase
+P2–P6 lists `stock/domain/`, `item-property-options.ts` or `verify-stock-domain.ts` in its
+"Files expected to change"** — zero occurrences — and every phase close diffs
+`git diff --name-only` against that list with anything outside an automatic finding. So the
+regression S1 and S2 guard against can only arrive through a perimeter violation that a
+stronger, earlier mechanism already blocks. Coverage on frozen code buys nothing here.
+
+**N2 and N3 were folded immediately** and are a different category — forward hazards in work
+not yet written, where a plan edit costs nothing: N2 into plan 3 (task 1 and a new C1(b2): the
+options map holds display casing, `normalizeCriteria` lowercases, so whitelist comparison must
+lowercase both sides per §0.5 — otherwise every legal value is rejected); N3 into plan 2's
+Notes (`canonicalCriteriaString` sorts keys but not values and assumes normalized input, so
+`toDomain`'s normalization is load-bearing for both `propertiesCanonical` and P5's `mergeKey`).
+
+N1 and N4 stand as recorded, no action.
+
+**Phase 1 is APPROVED and closed.** Session artifacts archived to `archive/plan_1/`.
+

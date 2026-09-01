@@ -38,7 +38,7 @@ Charter state machine per phase: `NOT_STARTED → (PROJECTED) → PROMPT_READY �
 
 | Phase | State | Date | Actor | Note |
 |---|---|---|---|---|
-| P1 schema + domain | **APPROVED** | 2026-09-01 | reviewer | round 1, no blocking findings. Instruments re-run: typecheck 0, purity grep empty, verify 58/58, perimeter exact. 2 should-fix (S1 §23.2 conjunction untested, S2 delegation D4 unguarded — both proven by reviewer mutation), 4 notes incl. 2 forward hazards for P2/P3. Owner card open: short fix cycle vs carry-forward |
+| P1 schema + domain | **APPROVED** | 2026-09-01 | reviewer | round 1, no blocking findings. Instruments re-run: typecheck 0, purity grep empty, verify 58/58, perimeter exact. 2 should-fix (S1 §23.2 conjunction untested, S2 delegation D4 unguarded — both proven by reviewer mutation), 4 notes incl. 2 forward hazards for P2/P3. Owner **declined** the fix cycle (§9.7): code verified correct, and no later phase's perimeter contains P1's files. S1/S2 closed as notes |
 | P2 repository + reconciliation | NOT_STARTED | | | |
 | P3 configuration API | NOT_STARTED | | | |
 | P4 item-transition hooks | NOT_STARTED | | | |
@@ -228,6 +228,13 @@ No archgraph in this repo — skip silently. Sessions verify write perimeters vi
 4. **`{}` is never collapsed to `null`** on `LocationStock.properties` (§0.21) — the repository must not reuse `toPropertiesUpdateValue`.
 5. **Group totals:** a short group total without a catch-all is expected, not drift (§0.21/M8) — every Manual Scenarios section states this.
 6. **`scan-history.repository.ts` is out of perimeter for every phase** (§0.10). Any need to touch it is a fold-back, not an edit.
+7. **Working beats lasting — owner decision, 2026-09-01.** This backend is an acknowledged interim system pending a rebuild (context §0.11). The bar for this project is **correct now**, not **durable later**. Concretely, and binding on every reviewer:
+   - A finding must show the code is **wrong**, or that a *ratified* contract is violated. "This would break if someone later changed X" is **not** a finding when nothing in the plan set changes X.
+   - **Perimeters already carry the regression argument.** No phase after P1 has P1's domain files, the options map, or `verify-stock-domain.ts` in its "Files expected to change" list — verified 2026-09-01, zero occurrences across P2–P6 — and every phase close diffs `git diff --name-only` against that list with anything outside an automatic finding. A regression in an earlier phase's code therefore requires an edit the process forbids and would catch first, by a mechanism that does not depend on test coverage.
+   - So **instrument-coverage gaps on frozen code are notes, never fix cycles.** Coverage earns a round only where the code is *live* — the phase being built, or a phase a fix cycle reopens.
+   - This does **not** relax correctness. A forward hazard in work **not yet written** (P1 review N2 and N3 are the worked examples) is folded into the target plan immediately and costs nothing, because the plan is still being edited. That is the distinction: cheap where the work is ahead of you, expensive where it is behind you.
+
+   *Earned: P1 review round 1 recommended a fix cycle for two proven-unguarded behaviours whose code was verified correct. The owner declined, correctly — the guarded regression could only arrive through a perimeter violation that a different, stronger mechanism already blocks. The recommendation cost a round of the owner's attention that the project's own framing had already answered.*
 
 ## 10. Environment topology (verified 2026-09-01; if reality disagrees, update this section)
 
@@ -318,6 +325,7 @@ Each is ratified; raising it as a defect, risk, or hardening request is itself a
 15. Speculative future-proofing: Postgres readiness, event-system extensibility, test-runner scaffolding, config knobs, abstraction layers "for later" — and generally any code, endpoint, or field beyond the naming registry and the phase's criteria.
 16. Pre-existing defects or contract departures in files outside the phase perimeter (context §3.8 catalogues them) — advisory at most, and only when actually encountered.
 17. **The report endpoint performing no compaction, no state filtering, no ordering and no location ranking** — intention **§26** (owner-approved 2026-09-01) moved all four to the client and §26 wins over §19 and context §0.19. Reading §19's prose as still binding on the endpoint, or reporting P5 as incomplete against it, is a review error. The inverse *is* blocking: a P5 implementation that adds any of them back has built scope the contract does not have. Equally settled — the report takes **no query parameters** and ignores rather than rejects any that arrive (§26.1), and `mergeKey`'s encoding is opaque and unversioned (§26.2).
+19. **Durability-only findings on code outside the phase's perimeter** — §9.7. Missing coverage, hardening, or "this would break if someone later changed X" against frozen earlier-phase code is a note at most, never blocking and never a fix cycle. The regression it imagines requires a perimeter violation the phase-close diff already catches.
 18. **The client-side compaction key (`mergeKey` + `stockState`) not being enforceable by the backend** — §26.4. The safety property crossed the wire by owner decision; no backend criterion can observe a violation, and asking P5 for one is asking for something the architecture cannot provide.
 
 ### 11.4 One-round discipline

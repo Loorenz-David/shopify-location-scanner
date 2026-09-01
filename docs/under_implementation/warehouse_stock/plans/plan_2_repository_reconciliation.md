@@ -40,6 +40,7 @@ Covered by `scripts/verify-stock-reconciliation.ts` (this phase's behavior is no
 2. Temporarily break a P1 domain rule the *reconciliation* script never touches (e.g. make `-` a separator in `tokenizePropertyValue`) → `verify-stock-domain.ts` must FAIL **through `verify-all.ts`**. This is the seam's own reason to exist: it proves a P1 regression is caught at a later phase's close rather than surviving to P6.
 
 ## Notes
+- **`toDomain`'s `normalizeCriteria` pass is load-bearing, not defensive (P1 review N3).** `canonicalCriteriaString` sorts *keys* but not *values*, and assumes its input already came through `normalizeCriteria` — given `{wood:["teak","oak"]}` it emits `{"wood":["teak","oak"]}`, where the canonical form is `{"wood":["oak","teak"]}`. `propertiesCanonical` is written from it and the four-column unique index depends on it, and P5's `mergeKey` (intention §26.2) is built on that stored column. A path that reaches `canonicalCriteriaString` without normalizing first silently produces a row identity that neither dedupes nor merges correctly. Normalize on every write path, not just the obvious one.
 - `$transaction` default timeout is fine at this data size (context §0.6).
 - The injected between-pass callback for C4(b) is a test seam on the service (optional param, default no-op) — document it in a block comment; it is the §23.6 instrument, not scaffolding (it has a required caller: the verify script).
 - Repository methods accept an optional `tx` (Prisma transaction client) per the architecture contract.
