@@ -22,6 +22,12 @@ const EnvSchema = z.object({
   REDIS_URL: z.string().url().default("redis://127.0.0.1:6379"),
   SHOPIFY_DEBUG_SKIP_HMAC: z.coerce.boolean().default(false),
   SHOPIFY_DEBUG_ORDER_WEBHOOKS: z.coerce.boolean().default(false),
+  // Beyo Vintage purchase API — the source of extra item attributes, looked up
+  // by the product's barcode. The key is optional so the app boots in
+  // environments without it; the lookup is simply skipped there.
+  BEYO_VINTAGE_API_KEY: z.string().min(1).optional(),
+  BEYO_VINTAGE_API_URL: z.string().url().default("https://api.beyovintage.se"),
+  BEYO_VINTAGE_API_TIMEOUT_MS: z.coerce.number().int().positive().default(4000),
   VAPID_PUBLIC_KEY: z.string().min(1),
   VAPID_PRIVATE_KEY: z.string().min(1),
   VAPID_SUBJECT: z.string().min(1),

@@ -12,6 +12,7 @@ import { scanHistoryRepository } from "../../scanner/repositories/scan-history.r
 import { userRepository } from "../../auth/repositories/user.repository.js";
 import type { ScanHistoryRecord } from "../../scanner/domain/scan-history.js";
 import { logger } from "../../../shared/logging/logger.js";
+import { itemPropertiesResolver } from "../../../shared/item-properties/item-properties-resolver.service.js";
 
 export const updateItemLocationCommand = async (input: {
   shopId: string;
@@ -70,6 +71,11 @@ export const updateItemLocationCommand = async (input: {
     productId: input.resolvedProductId,
   });
 
+  // The barcode is the purchase API's article number, and `before` has already
+  // paid for it. Warming the cache here lets that lookup overlap the Shopify
+  // mutation and refetch below instead of adding its latency after them.
+  itemPropertiesResolver.prefetch(before.barcode);
+
   logger.info("Fetched product location before update", {
     shopId: input.shopId,
     resolvedProductId: input.resolvedProductId,
@@ -103,6 +109,7 @@ export const updateItemLocationCommand = async (input: {
     shopDomain: shop.shopDomain,
     accessToken: shop.accessToken,
     productId: input.resolvedProductId,
+    includeMetafieldProperties: true,
   });
 
   logger.info("Fetched product location after update", {
@@ -111,6 +118,11 @@ export const updateItemLocationCommand = async (input: {
     beforeLocation: before.location,
     afterLocation: after.location,
     requestedLocation: input.payload.location,
+  });
+
+  const properties = await itemPropertiesResolver.resolve({
+    metafieldProperties: after.metafieldProperties,
+    articleNumber: after.barcode,
   });
 
   const user = input.userId ? await userRepository.findById(input.userId) : null;
@@ -128,7 +140,7 @@ export const updateItemLocationCommand = async (input: {
     volume: after.volume,
     productId: input.resolvedProductId,
     quantity: after.quantity,
-    properties: after.properties ?? undefined,
+    properties: properties ?? undefined,
     itemCategory: after.itemCategory,
     itemSku: input.idType === "sku" ? input.originalItemId : after.sku,
     itemBarcode:

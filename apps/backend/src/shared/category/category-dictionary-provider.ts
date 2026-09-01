@@ -1,8 +1,9 @@
 import { CATEGORY_DICTIONARY } from "./category-dictionary.js";
+import type { ItemCategory } from "./item-categories.js";
 
 export type CategoryDictionaryEntry = {
   readonly match: string;
-  readonly category: string;
+  readonly category: ItemCategory;
 };
 
 /**

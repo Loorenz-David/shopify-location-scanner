@@ -5,6 +5,7 @@ import { ShopifyProductsUpdateWebhookPayloadSchema } from "../contracts/shopify.
 import { shopifyAdminApi } from "../integrations/shopify-admin-api.integration.js";
 import { shopRepository } from "../repositories/shop.repository.js";
 import { logger } from "../../../shared/logging/logger.js";
+import { itemPropertiesResolver } from "../../../shared/item-properties/item-properties-resolver.service.js";
 
 const WEBHOOK_ACTOR = "system:shopify-webhook";
 
@@ -110,10 +111,21 @@ export const processProductsUpdateWebhookJob = async (
     const shop = await shopRepository.findById(intake.shopId);
 
     if (shop?.accessToken) {
+      // This branch writes ScanHistory.properties, so it needs the full
+      // metafield set. The sold-item branch above only reads quantity.
       const product = await shopifyAdminApi.getProductWithLocation({
         shopDomain: shop.shopDomain,
         accessToken: shop.accessToken,
         productId,
+        includeMetafieldProperties: true,
+      });
+
+      // Resolved once for every write branch below. A barcode change arriving
+      // on this very webhook is picked up automatically: the lookup keys off
+      // the freshly fetched product, not the stored itemBarcode.
+      const properties = await itemPropertiesResolver.resolve({
+        metafieldProperties: product.metafieldProperties,
+        articleNumber: product.barcode,
       });
 
       if (!isActiveProductStatus(product.status)) {
@@ -141,7 +153,7 @@ export const processProductsUpdateWebhookJob = async (
               volume: product.volume,
               productId,
               quantity: product.quantity,
-              properties: product.properties ?? undefined,
+              properties: properties ?? undefined,
               itemCategory: product.itemCategory,
               itemSku: product.sku,
               itemBarcode: product.barcode,
@@ -181,7 +193,7 @@ export const processProductsUpdateWebhookJob = async (
               itemDepth: product.itemDepth,
               volume: product.volume,
               quantity: product.quantity,
-              properties: product.properties ?? undefined,
+              properties: properties ?? undefined,
               emitBroadcast: false,
             });
 
@@ -197,7 +209,7 @@ export const processProductsUpdateWebhookJob = async (
               volume: product.volume,
               productId,
               quantity: product.quantity,
-              properties: product.properties ?? undefined,
+              properties: properties ?? undefined,
               itemCategory: product.itemCategory,
               itemSku: product.sku,
               itemBarcode: product.barcode,

@@ -2,14 +2,17 @@ import { backendPublicUrl, env } from "../../../config/env.js";
 import { AppError } from "../../../shared/errors/app-error.js";
 import { logger } from "../../../shared/logging/logger.js";
 import { categoryResolverService } from "../../../shared/category/category-resolver.service.js";
+import { isSeatingCategory } from "../../../shared/category/item-categories.js";
 import type { ScanValueType } from "../../../shared/utils/scan-value-normalizer.js";
 import type {
   ProductLocationData,
   ProductLocationSnapshot,
 } from "../domain/shopify-shop.js";
 import {
-  buildShopifyPropertyMetafieldSelection,
-  extractShopifyScanHistoryProperties,
+  buildAllMetafieldsSelection,
+  extractMetafieldProperties,
+  PROMOTED_METAFIELDS,
+  type ShopifyMetafieldNode,
 } from "../domain/shopify-metafield-properties.js";
 import type {
   ShopifyMetafieldOptionsDto,
@@ -25,7 +28,7 @@ type ShopifyProductSearchEdge = {
     featuredImage: {
       url: string;
     } | null;
-    itemCategoryMeta: { value: string | null } | null;
+    productType: string | null;
     quantityMeta: { value: string | null } | null;
     variants: {
       edges: Array<{
@@ -54,10 +57,9 @@ type ShopifyProductSnapshotNode = {
       };
     }>;
   } | null;
-  itemCategoryMeta: { value: string | null } | null;
+  productType: string | null;
   quantityMeta: { value: string | null } | null;
-  extensionTypeMeta: { value: string | null } | null;
-  extensionQuantityMeta: { value: string | null } | null;
+  metafields?: { nodes: ShopifyMetafieldNode[] } | null;
   variants: {
     edges: Array<{
       node: {
@@ -83,8 +85,7 @@ type ShopifyProductSnapshotNode = {
 };
 
 const MAX_PRODUCT_REDIRECT_HOPS = 5;
-const SHOPIFY_PROPERTY_METAFIELD_SELECTION =
-  buildShopifyPropertyMetafieldSelection();
+const ALL_METAFIELDS_SELECTION = buildAllMetafieldsSelection();
 
 const MANAGED_WEBHOOK_SUBSCRIPTIONS: Array<{
   topic: ManagedWebhookTopic;
@@ -358,7 +359,7 @@ const resolveQuantity = (
     if (Number.isInteger(parsed) && parsed > 0) return parsed;
   }
 
-  if (itemCategory === "dining_chair") {
+  if (isSeatingCategory(itemCategory)) {
     const inferred = inferQuantityFromTitle(title);
     if (inferred !== null) return inferred;
   }
@@ -416,10 +417,9 @@ const mapProductNodeToLocationSnapshot = (product: {
       };
     }>;
   } | null;
-  itemCategoryMeta: { value: string | null } | null;
+  productType: string | null;
   quantityMeta: { value: string | null } | null;
-  extensionTypeMeta: { value: string | null } | null;
-  extensionQuantityMeta: { value: string | null } | null;
+  metafields?: { nodes: ShopifyMetafieldNode[] } | null;
   variants: {
     edges: Array<{
       node: {
@@ -451,10 +451,12 @@ const mapProductNodeToLocationSnapshot = (product: {
       ? product.status
       : "UNKNOWN";
 
-  const properties = extractShopifyScanHistoryProperties({
-    extensionTypeMeta: product.extensionTypeMeta,
-    extensionQuantityMeta: product.extensionQuantityMeta,
-  });
+  // `metafields` is only selected by queries that ask for it. Absent means "not
+  // fetched" (null), which write paths must treat as "leave stored properties
+  // alone" — never as "this product has none".
+  const metafieldProperties = product.metafields
+    ? extractMetafieldProperties(product.metafields.nodes)
+    : null;
 
   const dimensions = resolveDimensions({
     height: coalesceMetafieldValue(
@@ -478,7 +480,7 @@ const mapProductNodeToLocationSnapshot = (product: {
   });
 
   const itemCategory = categoryResolverService.resolve(
-    product.itemCategoryMeta?.value,
+    product.productType,
     product.title,
   );
 
@@ -492,7 +494,7 @@ const mapProductNodeToLocationSnapshot = (product: {
       itemCategory,
       product.title,
     ),
-    properties,
+    metafieldProperties,
     sku: product.variants.edges[0]?.node.sku ?? null,
     barcode: product.variants.edges[0]?.node.barcode ?? null,
     price: product.variants.edges[0]?.node.price ?? null,
@@ -533,10 +535,9 @@ type ListProductsWithLocationResponse = {
             };
           }>;
         };
-        itemCategoryMeta: { value: string | null } | null;
+        productType: string | null;
         quantityMeta: { value: string | null } | null;
-        extensionTypeMeta: { value: string | null } | null;
-        extensionQuantityMeta: { value: string | null } | null;
+        metafields?: { nodes: ShopifyMetafieldNode[] } | null;
         variants: {
           edges: Array<{
             node: {
@@ -613,7 +614,17 @@ export const shopifyAdminApi = {
     shopDomain: string;
     accessToken: string;
     productId: string;
+    /**
+     * Fetch every metafield so the snapshot carries an authoritative
+     * `metafieldProperties` set. Off by default: only the paths that WRITE
+     * `ScanHistory.properties` need it, and skipping it keeps the query
+     * cheaper. When off, `metafieldProperties` comes back `null` = "not
+     * fetched", which write paths must not persist.
+     */
+    includeMetafieldProperties?: boolean;
   }): Promise<ProductLocationData> {
+    const includeMetafieldProperties = input.includeMetafieldProperties === true;
+
     const data = await shopifyGraphql<{
       product: {
         id: string;
@@ -630,10 +641,9 @@ export const shopifyAdminApi = {
             };
           }>;
         };
-        itemCategoryMeta: { value: string | null } | null;
+        productType: string | null;
         quantityMeta: { value: string | null } | null;
-        extensionTypeMeta: { value: string | null } | null;
-        extensionQuantityMeta: { value: string | null } | null;
+        metafields?: { nodes: ShopifyMetafieldNode[] } | null;
         variants: {
           edges: Array<{
             node: {
@@ -688,13 +698,11 @@ export const shopifyAdminApi = {
               }
             }
           }
-          itemCategoryMeta: metafield(namespace: "custom", key: "productcategory") {
+          productType
+          quantityMeta: metafield(namespace: "${PROMOTED_METAFIELDS.quantity.namespace}", key: "${PROMOTED_METAFIELDS.quantity.key}") {
             value
           }
-          quantityMeta: metafield(namespace: "custom", key: "quantity") {
-            value
-          }
-          ${SHOPIFY_PROPERTY_METAFIELD_SELECTION}
+          ${includeMetafieldProperties ? ALL_METAFIELDS_SELECTION : ""}
           variants(first: 1) {
             edges {
               node {
@@ -747,15 +755,15 @@ export const shopifyAdminApi = {
       }`,
       {
         id: input.productId,
-        namespace: env.SHOPIFY_METAFIELD_NAMESPACE,
-        locationKey: env.SHOPIFY_METAFIELD_KEY,
-        heightKey: "totalheight",
-        heightKeyAlt: "totalheight",
+        namespace: PROMOTED_METAFIELDS.location.namespace,
+        locationKey: PROMOTED_METAFIELDS.location.key,
+        heightKey: PROMOTED_METAFIELDS.itemHeight.key,
+        heightKeyAlt: PROMOTED_METAFIELDS.itemHeight.key,
         dimensionNamespaceFallback: DIMENSION_NAMESPACE_FALLBACK,
-        widthKey: "totalwidth",
-        widthKeyAlt: "totalwidth",
-        depthKey: "totaldepth",
-        depthKeyAlt: "totaldepth",
+        widthKey: PROMOTED_METAFIELDS.itemWidth.key,
+        widthKeyAlt: PROMOTED_METAFIELDS.itemWidth.key,
+        depthKey: PROMOTED_METAFIELDS.itemDepth.key,
+        depthKeyAlt: PROMOTED_METAFIELDS.itemDepth.key,
       },
     );
 
@@ -814,13 +822,10 @@ export const shopifyAdminApi = {
                 }
               }
             }
-            itemCategoryMeta: metafield(namespace: "custom", key: "productcategory") {
-              value
-            }
+            productType
             quantityMeta: metafield(namespace: "custom", key: "quantity") {
               value
             }
-            ${SHOPIFY_PROPERTY_METAFIELD_SELECTION}
             variants(first: 1) {
               edges {
                 node {
@@ -944,13 +949,10 @@ export const shopifyAdminApi = {
                     }
                   }
                 }
-                itemCategoryMeta: metafield(namespace: "custom", key: "productcategory") {
-                  value
-                }
+                productType
                 quantityMeta: metafield(namespace: "custom", key: "quantity") {
                   value
                 }
-                ${SHOPIFY_PROPERTY_METAFIELD_SELECTION}
                 variants(first: 1) {
                   edges {
                     node {
@@ -1162,9 +1164,7 @@ export const shopifyAdminApi = {
               featuredImage {
                 url
               }
-              itemCategoryMeta: metafield(namespace: "custom", key: "productcategory") {
-                value
-              }
+              productType
               quantityMeta: metafield(namespace: "custom", key: "quantity") {
                 value
               }
@@ -1213,7 +1213,7 @@ export const shopifyAdminApi = {
           }
 
           const itemCategory: string | null = categoryResolverService.resolve(
-            edge.node.itemCategoryMeta?.value,
+            edge.node.productType,
             edge.node.title,
           );
 

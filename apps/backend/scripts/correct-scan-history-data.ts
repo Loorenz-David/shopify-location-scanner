@@ -32,7 +32,11 @@
 import "../src/config/load-env.js";
 import { prisma } from "../src/shared/database/prisma-client.js";
 import { initializeDatabaseRuntime } from "../src/shared/database/sqlite-runtime.js";
-import { categoryParserService } from "../src/shared/category/category-parser.service.js";
+import { categoryResolverService } from "../src/shared/category/category-resolver.service.js";
+import {
+  isSeatingCategory,
+  UNKNOWN_ITEM_CATEGORY,
+} from "../src/shared/category/item-categories.js";
 import { classifyShopifyOrderChannel } from "../src/shared/sales-channel/classify-sales-channel.js";
 import { type SalesChannel } from "@prisma/client";
 
@@ -212,7 +216,7 @@ const resolveQuantity = (
     const n = Number.parseInt(metafieldValue.trim(), 10);
     if (Number.isInteger(n) && n >= 1) return n;
   }
-  if (itemCategory === "dining_chair") {
+  if (isSeatingCategory(itemCategory)) {
     const inferred = inferQuantityFromTitle(title);
     if (inferred !== null) return inferred;
   }
@@ -253,7 +257,7 @@ const batchFetchProducts = async (
           id: string;
           title?: string;
           featuredImage?: { url: string } | null;
-          itemCategoryMeta?: { value: string | null } | null;
+          productType?: string | null;
           quantityMeta?: { value: string | null } | null;
           itemHeight?: { value: string | null } | null;
           itemWidth?: { value: string | null } | null;
@@ -273,7 +277,7 @@ const batchFetchProducts = async (
               id
               title
               featuredImage { url }
-              itemCategoryMeta: metafield(namespace: "custom", key: "productcategory") { value }
+              productType
               quantityMeta: metafield(namespace: "custom", key: "quantity") { value }
               itemHeight: metafield(namespace: "custom", key: "totalheight") { value }
               itemWidth: metafield(namespace: "custom", key: "totalwidth") { value }
@@ -296,9 +300,10 @@ const batchFetchProducts = async (
         const w = parseDimensionCm(node.itemWidth?.value);
         const d = parseDimensionCm(node.itemDepth?.value);
 
-        const metafieldCategory = node.itemCategoryMeta?.value?.trim() || null;
-        const parsedCategory = categoryParserService.parse(node.title);
-        const itemCategory = metafieldCategory ?? parsedCategory ?? "unknown";
+        const itemCategory = categoryResolverService.resolve(
+          node.productType,
+          node.title,
+        );
 
         result.set(node.id, {
           id: node.id,
@@ -938,7 +943,7 @@ const main = async (): Promise<void> => {
   log("=== Phase 6: Fixing unknown categories ===");
 
   const unknownCategoryRecords = await prisma.scanHistory.findMany({
-    where: { shopId: shop.id, itemCategory: "unknown" },
+    where: { shopId: shop.id, itemCategory: UNKNOWN_ITEM_CATEGORY },
     select: { id: true, itemTitle: true },
   });
 
@@ -949,9 +954,9 @@ const main = async (): Promise<void> => {
   let p6Failed = 0;
 
   for (const record of unknownCategoryRecords) {
-    const resolved = categoryParserService.parse(record.itemTitle);
+    const resolved = categoryResolverService.resolve(null, record.itemTitle);
 
-    if (!resolved || resolved === "unknown") {
+    if (resolved === UNKNOWN_ITEM_CATEGORY) {
       p6Unresolved++;
       continue;
     }
@@ -1083,7 +1088,7 @@ const main = async (): Promise<void> => {
   };
 
   for (const record of correctedRecords) {
-    const itemCategory = record.itemCategory ?? "unknown";
+    const itemCategory = record.itemCategory ?? UNKNOWN_ITEM_CATEGORY;
 
     for (let idx = 0; idx < record.events.length; idx++) {
       const event = record.events[idx]!;

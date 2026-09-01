@@ -1,5 +1,6 @@
 import { logger } from "../../../shared/logging/logger.js";
-import type { ProductLocationSnapshot } from "../domain/shopify-shop.js";
+import type { ResolvedProductSnapshot } from "../domain/shopify-shop.js";
+import { itemPropertiesResolver } from "../../../shared/item-properties/item-properties-resolver.service.js";
 import { shopifyAdminApi } from "../integrations/shopify-admin-api.integration.js";
 import { shopRepository } from "../repositories/shop.repository.js";
 
@@ -7,9 +8,9 @@ export const loadProductSnapshotsForOrderService = async (input: {
   shopId: string;
   shopDomain: string;
   productIds: string[];
-}): Promise<Map<string, ProductLocationSnapshot>> => {
+}): Promise<Map<string, ResolvedProductSnapshot>> => {
   const uniqueProductIds = [...new Set(input.productIds)];
-  const snapshots = new Map<string, ProductLocationSnapshot>();
+  const snapshots = new Map<string, ResolvedProductSnapshot>();
 
   if (uniqueProductIds.length === 0) {
     return snapshots;
@@ -31,9 +32,15 @@ export const loadProductSnapshotsForOrderService = async (input: {
         shopDomain: shop.shopDomain,
         accessToken: shop.accessToken,
         productId,
+        includeMetafieldProperties: true,
       });
 
-      snapshots.set(productId, product);
+      const resolvedProperties = await itemPropertiesResolver.resolve({
+        metafieldProperties: product.metafieldProperties,
+        articleNumber: product.barcode,
+      });
+
+      snapshots.set(productId, { ...product, resolvedProperties });
     } catch (error) {
       logger.warn("Failed to enrich order product snapshot", {
         shopId: input.shopId,

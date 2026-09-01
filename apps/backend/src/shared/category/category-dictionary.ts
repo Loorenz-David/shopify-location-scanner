@@ -1,60 +1,70 @@
+import type { ItemCategory } from "./item-categories.js";
+
 /**
- * Static category dictionary derived from Shopify smart collection TITLE CONTAINS rules.
- * Maps one or more title substrings (key) → canonical snake_case category (value).
+ * Title-parsing dictionary: maps lowercase title substrings to a canonical
+ * category. Used only as a fallback for products whose Shopify `productType`
+ * is unset or unrecognised — productType is the authoritative source.
  *
  * Rules:
  *   - Keys are lowercase substrings that appear in product titles.
- *   - Values are canonical, snake_case, singular category identifiers.
- *   - Multiple keys may map to the same canonical (synonyms / plurals).
+ *   - Values are members of ITEM_CATEGORIES; the type enforces this.
+ *   - Multiple keys may map to the same category (synonyms / plurals).
  *   - Entries are ordered longest-key-first so the parser can short-circuit on
- *     the first match without needing to re-sort at runtime.
- *   - Excluded: generic terms ("chairs"), empty-condition collections ("sale",
+ *     the first match without re-sorting at runtime (e.g. "corner cabinet"
+ *     must precede "cabinet", "easy chair" must precede "chair").
+ *   - Excluded: generic terms and empty-condition collections ("sale",
  *     "all products", "chair sales").
  *
- * To extend: add a new entry here; the parser and resolver pick it up automatically.
+ * To extend: add a new entry here; the parser and resolver pick it up
+ * automatically.
  */
 export const CATEGORY_DICTIONARY: ReadonlyArray<{
   readonly match: string;
-  readonly category: string;
+  readonly category: ItemCategory;
 }> = [
   // Multi-word — evaluated before single-word to ensure longest-match wins.
-  // Within this section, longer matches come first so more-specific rules shadow
-  // shorter catch-all rules (e.g. "corner cabinet" must precede "cabinet").
-  { match: "conference table", category: "conference_table" },
-  { match: "chest of drawers", category: "chest_of_drawers" },
-  { match: "chest of drawer",  category: "chest_of_drawers" }, // singular form
-  { match: "serving trolley",  category: "serving_trolley" },
-  { match: "corner cabinet",   category: "corner_cabinet" },
-  { match: "nest of tables",   category: "nest_of_tables" },
-  { match: "bedside table",    category: "bedside_table" },
-  { match: "writing desk",     category: "writing_desk" },
-  { match: "sewing table",     category: "sewing_table" },
-  { match: "dining chair",     category: "dining_chair" },
-  { match: "dining table",     category: "dining_table" },
-  { match: "coffee table",     category: "coffee_table" },
-  { match: "plant stand",      category: "plant_stand" },
-  { match: "round table",      category: "dining_table" },
-  { match: "bar cabinet",      category: "bar_cabinet" },
-  { match: "small table",      category: "small_side_table" },
-  { match: "hall table",       category: "hall_table" },
-  { match: "of drawers",       category: "chest_of_drawers" }, // "chest of 4 drawers" etc.
-  { match: "side table",       category: "side_table" },
-  { match: "secretary",        category: "secretary_cabinet" },
+  // Within this section, longer matches come first so more-specific rules
+  // shadow shorter catch-all rules.
+  { match: "conference table", category: "Dining Tables" },
+  { match: "chest of drawers", category: "Chest of Drawers" },
+  { match: "chest of drawer",  category: "Chest of Drawers" }, // singular form
+  { match: "serving trolley",  category: "Serving Trolleys" },
+  { match: "corner cabinet",   category: "Storage Cabinets" },
+  { match: "nest of tables",   category: "Nest Of Tables" },
+  { match: "bedside table",    category: "Bedside Tables" },
+  { match: "writing desk",     category: "Writing Desks" },
+  { match: "sewing table",     category: "Side Tables" },
+  { match: "dining chair",     category: "Dining Chairs" },
+  { match: "dining table",     category: "Dining Tables" },
+  { match: "coffee table",     category: "Coffee Tables" },
+  { match: "plant stand",      category: "Hall Tables" },
+  { match: "round table",      category: "Dining Tables" },
+  { match: "bar cabinet",      category: "Bar Cabinets" },
+  { match: "small table",      category: "Side Tables" },
+  { match: "easy chair",       category: "Armchairs" }, // before the "chair" catch-all
+  { match: "hall table",       category: "Hall Tables" },
+  { match: "of drawers",       category: "Chest of Drawers" }, // "chest of 4 drawers" etc.
+  { match: "side table",       category: "Side Tables" },
+  { match: "secretaries",      category: "Secretary Cabinets" }, // stem differs from "secretary"
+  { match: "secretary",        category: "Secretary Cabinets" },
   // Single-word
-  { match: "armchairs",  category: "armchair" },
-  { match: "armchair",   category: "armchair" },
-  { match: "highboard",  category: "highboard" },
-  { match: "sideboard",  category: "sideboard" },
-  { match: "bookshelf",  category: "bookshelf" },
-  { match: "shelving",   category: "shelving" },
-  { match: "trolley",    category: "serving_trolley" }, // fallback after "serving trolley"
-  { match: "cabinet",    category: "cabinet" },         // catch-all after specific cabinet types
-  { match: "chairs",     category: "dining_chair" },
-  { match: "chair",      category: "dining_chair" },
-  { match: "mirror",     category: "mirror" },
-  { match: "poster",     category: "poster" },
-  { match: "bench",      category: "bench" },
-  { match: "stool",      category: "stool" },
-  { match: "sofa",       category: "sofa" },
-  { match: "lamp",       category: "lamp" },
+  { match: "armchairs",   category: "Armchairs" },
+  { match: "armchair",    category: "Armchairs" },
+  { match: "highboard",   category: "Highboards" },
+  { match: "sideboard",   category: "Sideboards" },
+  { match: "bookshelves", category: "Bookshelves" }, // stem differs from "bookshelf"
+  { match: "bookshelf",   category: "Bookshelves" },
+  { match: "shelving",    category: "Shelving Units" },
+  { match: "wardrobe",    category: "Storage Cabinets" },
+  { match: "trolley",     category: "Serving Trolleys" }, // fallback after "serving trolley"
+  { match: "cabinet",     category: "Storage Cabinets" }, // catch-all after specific cabinet types
+  { match: "chairs",      category: "Dining Chairs" },
+  { match: "chair",       category: "Dining Chairs" },
+  { match: "carpet",      category: "Carpets" },
+  { match: "mirror",      category: "Mirrors" },
+  { match: "poster",      category: "Posters" },
+  { match: "bench",       category: "Seating Benches" },
+  { match: "stool",       category: "Stools" },
+  { match: "sofa",        category: "Sofas" },
+  { match: "lamp",        category: "Lamps" },
 ];

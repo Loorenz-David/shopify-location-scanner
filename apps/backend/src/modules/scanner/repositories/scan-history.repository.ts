@@ -13,8 +13,7 @@ import type {
   ScanHistoryLogisticEvent,
   ScanHistoryRecord,
 } from "../domain/scan-history.js";
-import type { Prisma } from "@prisma/client";
-import { ScanHistoryEventType } from "@prisma/client";
+import { Prisma, ScanHistoryEventType } from "@prisma/client";
 
 const normalizePrice = (price?: string | null): string | null => {
   const trimmed = price?.trim();
@@ -154,6 +153,19 @@ const normalizeStoredProperties = (
   return normalized;
 };
 
+/**
+ * `properties` is REPLACED wholesale, never merged. The incoming value carries
+ * its own meaning:
+ *
+ *   undefined / null → the caller does not know the current truth (e.g. the
+ *                      Shopify snapshot never fetched metafields). Leave the
+ *                      stored value alone.
+ *   {...}            → the complete, authoritative set. Replace.
+ *   {}               → authoritative *and* empty. Clear the column.
+ *
+ * Merging was the old behaviour and it meant a metafield cleared in Shopify
+ * kept its stale value here forever.
+ */
 const resolvePropertiesForCreate = (
   properties?: Record<string, unknown> | null,
 ): Record<string, string> | undefined => {
@@ -161,20 +173,22 @@ const resolvePropertiesForCreate = (
   return Object.keys(normalized).length > 0 ? normalized : undefined;
 };
 
-const resolvePropertiesForUpdate = (
-  existingProperties: Prisma.JsonValue | null | undefined,
+const resolvePropertiesReplacement = (
   incomingProperties?: Record<string, unknown> | null,
 ): Record<string, string> | undefined => {
-  const normalizedIncoming = normalizeIncomingProperties(incomingProperties);
-  if (Object.keys(normalizedIncoming).length === 0) {
+  if (incomingProperties === null || incomingProperties === undefined) {
     return undefined;
   }
 
-  return {
-    ...normalizeStoredProperties(existingProperties),
-    ...normalizedIncoming,
-  };
+  return normalizeIncomingProperties(incomingProperties);
 };
+
+/** An empty replacement clears the column rather than storing `{}`, so readers
+ * keep seeing `null` for "this item has no properties". */
+const toPropertiesUpdateValue = (
+  replacement: Record<string, string>,
+): Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput =>
+  Object.keys(replacement).length > 0 ? replacement : Prisma.JsonNull;
 
 const sameStringRecord = (
   left: Record<string, string>,
@@ -654,10 +668,7 @@ export const scanHistoryRepository = {
         });
       }
 
-      const propertiesForUpdate = resolvePropertiesForUpdate(
-        existing.properties,
-        input.properties,
-      );
+      const propertiesForUpdate = resolvePropertiesReplacement(input.properties);
 
       await tx.scanHistory.update({
         where: { id: existing.id },
@@ -675,7 +686,7 @@ export const scanHistoryRepository = {
           ...(itemDepth !== null ? { itemDepth } : {}),
           ...(volume !== null ? { volume } : {}),
           ...(propertiesForUpdate !== undefined
-            ? { properties: propertiesForUpdate }
+            ? { properties: toPropertiesUpdateValue(propertiesForUpdate) }
             : {}),
           quantity,
           latestLocation: normalizedLocation,
@@ -1058,10 +1069,7 @@ export const scanHistoryRepository = {
       const resolvedItemType =
         resolveStringForUpdate(input.itemType, existing.itemType) ??
         input.itemType;
-      const propertiesForUpdate = resolvePropertiesForUpdate(
-        existing.properties,
-        input.properties,
-      );
+      const propertiesForUpdate = resolvePropertiesReplacement(input.properties);
 
       if (orderId) {
         const alreadyProcessedForOrder = await tx.scanHistoryEvent.findFirst({
@@ -1120,7 +1128,7 @@ export const scanHistoryRepository = {
             itemType: resolvedItemType,
             itemTitle: resolvedItemTitle,
             ...(propertiesForUpdate !== undefined
-              ? { properties: propertiesForUpdate }
+              ? { properties: toPropertiesUpdateValue(propertiesForUpdate) }
               : {}),
             isSold: true,
             lastSoldChannel: salesChannel,
@@ -1159,7 +1167,7 @@ export const scanHistoryRepository = {
           itemType: resolvedItemType,
           itemTitle: resolvedItemTitle,
           ...(propertiesForUpdate !== undefined
-            ? { properties: propertiesForUpdate }
+            ? { properties: toPropertiesUpdateValue(propertiesForUpdate) }
             : {}),
           isSold: true,
           lastSoldChannel: salesChannel,
@@ -1466,10 +1474,7 @@ export const scanHistoryRepository = {
     const nextItemDepth = normalizeDimension(input.itemDepth);
     const nextVolume = normalizeVolume(input.volume);
     const nextQuantity = normalizeQuantity(input.quantity);
-    const nextProperties = resolvePropertiesForUpdate(
-      existing.properties,
-      input.properties,
-    );
+    const nextProperties = resolvePropertiesReplacement(input.properties);
     const currentProperties = normalizeStoredProperties(existing.properties);
     const propertyValuesChanged =
       nextProperties !== undefined &&
@@ -1507,7 +1512,9 @@ export const scanHistoryRepository = {
         itemDepth: nextItemDepth,
         volume: nextVolume,
         quantity: nextQuantity,
-        ...(nextProperties !== undefined ? { properties: nextProperties } : {}),
+        ...(nextProperties !== undefined
+          ? { properties: toPropertiesUpdateValue(nextProperties) }
+          : {}),
       },
     });
 

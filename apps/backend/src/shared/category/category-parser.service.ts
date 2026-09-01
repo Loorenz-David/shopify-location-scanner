@@ -1,4 +1,5 @@
 import { categoryDictionaryProvider } from "./category-dictionary-provider.js";
+import type { ItemCategory } from "./item-categories.js";
 
 /**
  * Pure, side-effect-free category parsing engine.
@@ -13,7 +14,7 @@ import { categoryDictionaryProvider } from "./category-dictionary-provider.js";
  * adding entries in the correct position in the dictionary is sufficient.
  */
 export const categoryParserService = {
-  parse(title: string): string | null {
+  parse(title: string): ItemCategory | null {
     const normalized = title.toLowerCase().trim();
     if (!normalized) {
       return null;
