@@ -38,7 +38,7 @@ Charter state machine per phase: `NOT_STARTED → (PROJECTED) → PROMPT_READY �
 
 | Phase | State | Date | Actor | Note |
 |---|---|---|---|---|
-| P1 schema + domain | **PROJECTED** | 2026-09-01 | coordinator | lint PASS; projection r0 AMENDMENTS_REQUIRED, all 7 findings folded + 5 delegations granted (plan Review log). Sizing exception: **9 criteria**, reason recorded there. Implementer prompt may now compile |
+| P1 schema + domain | **PROMPT_READY** | 2026-09-01 | coordinator | projection r0 folded (7 findings, 5 delegations); re-lint PASS post-fold; prompt compiled → `prompts/implementer/prompt_plan1_implement_r1.md`, gate self-tested 5/5. Awaiting Codex. Sizing exception: 9 criteria, reason in plan Review log |
 | P2 repository + reconciliation | NOT_STARTED | | | |
 | P3 configuration API | NOT_STARTED | | | |
 | P4 item-transition hooks | NOT_STARTED | | | |
