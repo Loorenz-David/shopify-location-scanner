@@ -361,6 +361,15 @@ Charter standing rules 1–16 apply. Project-specific additions:
     units** (largest: Sideboards 41, Mirrors 19, Chest of Drawers 17); a wizard offering only
     nine would have made them permanently unconfigurable **with nothing erroring** — the user
     simply never finds `Sideboards` and cannot learn why.
+  - **The "22 of 28" wording in the backend's answer document is closed, not routed** *(owner
+    ruling, 2026-09-02)*. That document says "twenty-two of the 28" in prose where its own two
+    other statements say 19. The owner has ruled it out of scope: the vocabulary reaches the
+    client **only** through `GET /stock/options` at runtime, and the frontend hard-codes neither
+    the list nor any count — verified on the tree, where the sole occurrences outside mock
+    fixtures are empty-array fallbacks. A prose miscount in a backend document therefore cannot
+    produce a wrong number in this app, and the real endpoint settles the question at P10
+    integration. **No cross-track handoff will be filed.** What survives is the *shape* hazard
+    below, which holds whether the number is 19 or 22.
   - **The sentinel `"unknown"` is deliberately absent** and cannot be configured. Items whose
     Shopify product type matches nothing land on it and are counted by no definition.
   - **19 of the 28 carry no category-specific property at all** and are configured with the
