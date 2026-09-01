@@ -178,8 +178,29 @@ Four call sites:
 |---|---|
 | `modules/shopify/commands/update-item-location.command.ts` (move + return-to-store) | an added `scanHistoryRepository.findByShopAndProduct` before the write — the same call the command already makes on its `returnToStore` branch (`:53-70`), hoisted so it always runs |
 | `modules/shopify/jobs/process-products-update-webhook.job.ts` | `existingHistory`, already loaded at `:86` before any mutation; apply the stock change **once**, after both `syncProductSnapshotIfHistoryExists` and `appendLocationEvent` have run (§0.7) |
-| `modules/shopify/commands/handle-orders-paid-webhook.command.ts` | derived as `{...after, isSold: false}` — the sold write changes no location, quantity or property, so no extra query is needed |
+| `modules/shopify/commands/handle-orders-paid-webhook.command.ts` | **the row read by `findByShopAndProduct` immediately before the call** (amended 2026-09-01 — see below) |
 | `modules/shopify/commands/handle-orders-create-webhook.command.ts` | same |
+
+> **AMENDED 2026-09-01 — owner-ratified in session (P4 projection card 1 and D1/D3).** These two
+> rows previously read *"derived as `{...after, isSold: false}` … no extra query is needed"*,
+> which **contradicted §0.7's own before/after table**, where the sold row already says `before`
+> is the *existing row*. Only §0.7's reading is sound, for two independent reasons:
+>
+> 1. **The fabricated `before` asserts a false→true transition on every delivery.** The
+>    repository's same-`orderId` guard stops the *item* being marked sold twice — verified: it
+>    returns the row without writing `isSold` again — but the stock hook sits **above** that
+>    guard in the command layer, and the repository returns a `ScanHistoryRecord` with no signal
+>    saying whether this call changed anything. A replayed `orders/paid` after `orders/create`
+>    is indistinguishable from the first, so the primitive decrements twice for one sale. Both
+>    topics fire for the same order in normal operation.
+> 2. **The sold write replaces `properties` and `itemCategory`.** So `{...after}` resolves the
+>    *source* configuration from **post-sale** values; where the snapshot differs from what was
+>    stored, the decrement lands on the wrong sibling configuration.
+>
+> The cost is one read per sold line item on a path that already makes several. The owner
+> approved this directly, so the substance was ratified in session rather than inferred; the
+> intention gate is not re-opened, because this resolves a contradiction *between* two ratified
+> statements in favour of the one the owner endorsed, rather than introducing a new semantic.
 
 Rationale:
 
