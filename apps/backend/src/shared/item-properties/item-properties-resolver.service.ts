@@ -1,5 +1,9 @@
 import { logger } from "../logging/logger.js";
-import { capProperties, type ItemProperties } from "./item-properties.js";
+import {
+  capProperties,
+  EXCLUDED_PURCHASE_ATTRIBUTE_KEYS,
+  type ItemProperties,
+} from "./item-properties.js";
 import {
   fetchPurchaseApiItemAttributes,
   isPurchaseApiConfigured,
@@ -97,6 +101,22 @@ const lookupAttributes = async (
   return request;
 };
 
+/** Applied at merge time rather than at parse time, so the integration stays a
+ * faithful decode of the API and this module owns the policy. */
+const dropExcludedAttributes = (attributes: ItemProperties): ItemProperties => {
+  const kept: ItemProperties = {};
+
+  for (const [key, value] of Object.entries(attributes)) {
+    if (EXCLUDED_PURCHASE_ATTRIBUTE_KEYS.has(key)) {
+      continue;
+    }
+
+    kept[key] = value;
+  }
+
+  return kept;
+};
+
 export const itemPropertiesResolver = {
   /**
    * Builds the complete properties bag for a resolved Shopify product.
@@ -131,9 +151,12 @@ export const itemPropertiesResolver = {
       return capProperties(input.metafieldProperties);
     }
 
+    const keptAttributes = dropExcludedAttributes(attributes);
+
     // Shopify wins collisions: the shop's own edit beats the upstream
-    // catalogue. Collisions are expected to be vanishingly rare.
-    for (const key of Object.keys(attributes)) {
+    // catalogue. In practice these are common — `wood_type`, `shape` and
+    // `extension_type` all exist on both sides, with different vocabularies.
+    for (const key of Object.keys(keptAttributes)) {
       if (key in input.metafieldProperties) {
         logger.info("Shopify metafield overrides a purchase API attribute", {
           articleNumber,
@@ -142,7 +165,7 @@ export const itemPropertiesResolver = {
       }
     }
 
-    return capProperties({ ...attributes, ...input.metafieldProperties });
+    return capProperties({ ...keptAttributes, ...input.metafieldProperties });
   },
 
   /**

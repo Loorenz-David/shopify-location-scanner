@@ -99,21 +99,40 @@ behind work it already does (§2.5). No new queue/worker is needed.
 and `grep -rn properties scripts/` returns nothing — no script writes
 properties, so they are out of the blast radius.
 
-### 1.4 "All metafields" cannot go into the bulk queries
+### 1.4 Query cost — the estimate here was wrong, and it mattered
 
-Shopify's calculated query cost is roughly `2 + first × (cost of each node)`
-per connection, with a **1000-point max per query**. Adding
-`metafields(first: 100)` costs ~102 points per product node:
+**What this section originally claimed:** that Shopify's cost model is
+`2 + first × (node cost)`, so `metafields(first: 100)` would cost ~102 points
+per product node, making all-metafields impossible in any bulk query.
 
-- `product(id:)` single fetch → ~110 points total. **Fine.**
-- `products(first: 100)` (current `listProductsWithLocation` page size) →
-  ~12,200 points. **Rejected outright by Shopify.** It would need a page size
-  of ~10, i.e. ~630 pages for the 6.2k-product catalogue.
+**What the live API actually bills** (measured 2026-09-01 on
+`nodes(ids: [...])` with the full product selection plus
+`metafields(first: 100)`):
 
-So all-metafields is added to the **single-product query only**. The two bulk
-queries drop the metafield selection entirely and return
-`metafieldProperties: null` (= unknown, §1.2), which is exactly right since
-their callers never write properties.
+```
+  ids= 1  requested=27  actual=19    bucket 2000, restore 100/s
+  ids=10  requested=27  actual=27
+  ids=25  requested=27  actual=27
+  ids=50  requested=27  actual=27
+```
+
+**Flat.** Fetching 50 products costs the same 27 points as fetching one. The
+estimate was off by two orders of magnitude, and the consequence was real: the
+first version of the Phase 5 backfill issued one `getProductWithLocation` per
+row, which at ~19-27 points each drained the 2000-point bucket in seconds and
+spent the rest of the run throttled (`Shopify GraphQL throttled request;
+retrying`, observed in production logs).
+
+The correction: `getProductsWithLocation` (the `nodes(ids:)` batch fetch) also
+takes `includeMetafieldProperties`, and the backfill uses it in batches of 50.
+1107 rows went from 1107 queries with throttle-retry backoff to **23 queries in
+25 seconds with zero throttling**.
+
+Unchanged by this: `getProductWithLocation` stays the single-product entry point
+for the three live write paths (one product per event, so nothing to batch), and
+`listProductsWithLocation` still does not fetch metafields — not because it
+cannot afford to, but because its only caller
+(`scripts/restore-scan-history.ts`) does not write properties.
 
 ### 1.5 Metafield values are always strings, but not always useful ones
 
@@ -266,6 +285,9 @@ export const EXCLUDED_PROPERTY_METAFIELD_KEYS = new Set([
   "height_dimension",   // structured duplicate of totalheight
   "width_dimension",    // structured duplicate of totalwidth
   "depth_dimension",    // structured duplicate of totaldepth
+  "damage_details",     // not wanted in the bag (round 6)
+  "link",               // external auction URL, not an item attribute (round 6)
+  "reserved",           // not wanted in the bag (round 6)
 ]);
 ```
 
@@ -299,10 +321,12 @@ is readable from two places. `app.item_location` (→ `latestLocation`) is the
 fifth; it is excluded twice over, by the namespace allowlist and by
 `PROMOTED_METAFIELDS`.
 
-**Also excluded by hand** (review round 2): `custom.location` (the merchant's
-building, `"Västberga Warehouse"` — too easily confused with the scanner's own
-`K1` shelf) and `height_dimension` / `width_dimension` / `depth_dimension`
-(structured duplicates of the `total*` set the app already parses into columns).
+**Also excluded by hand:** `custom.location` (the merchant's building,
+`"Västberga Warehouse"` — too easily confused with the scanner's own `K1` shelf)
+and `height_dimension` / `width_dimension` / `depth_dimension` (structured
+duplicates of the `total*` set the app already parses into columns) — round 2;
+plus `damage_details`, `link` (the external auction URL) and `reserved` —
+round 6.
 
 `custom.extension_dimension` is **kept** — it is not a duplicate of anything the
 app models, it describes the table's extension leaf. It is the one live user of
@@ -333,15 +357,16 @@ is expressed by the caller, not by this function.
 
 ### 2.1a List values are flattened to comma-separated strings
 
-Measured on 36 randomly sampled scanned products: only **three** list-typed keys
-exist on real items — `wood_type` (34/36), `damage_details` (35/36) and
-`reserved` (1/36), with at most 3 members each. Stored values:
+Measured on 36 randomly sampled scanned products: three list-typed keys exist on
+real items — `wood_type` (34/36), `damage_details` (35/36) and `reserved`
+(1/36), with at most 3 members each. Round 6 excluded `damage_details` and
+`reserved`, so **`wood_type` is the only live case**:
 
 ```
-  wood_type       "Teak, Mahogany"
-  damage_details  "Completely restored, Surface has been refinished"
-  reserved        "Non-reserved"
+  wood_type   "Teak, Mahogany"
 ```
+
+The rule stays general — it applies to any `list.*` metafield added later.
 
 **Decision history.** The first draft joined; review round 3 switched to storing
 the raw JSON array to keep the members separable; review round 4 switched back
@@ -673,9 +698,14 @@ properties (§1.2).
 ### Phase 5 — Backfill script
 
 `scripts/backfill-item-properties.ts`: page the 1107 `ScanHistory` rows by shop,
-resolve each product with `includeMetafieldProperties: true`, write via
-`syncProductSnapshotIfHistoryExists`, concurrency 2-4, `DRY_RUN=1` default,
-summary counters in the style of `update-scan-history-item-images.ts`.
+fetch products through **`getProductsWithLocation` in batches of 50** (§1.4 —
+per-row queries get throttled), resolve each through
+`itemPropertiesResolver`, `DRY_RUN=true` default, summary counters in the style
+of `update-scan-history-item-images.ts`.
+
+Full dry run, 2026-09-01: **1107 rows, 23 batches, 25 seconds, zero throttling**
+— 1096 rows would gain properties, 10 already correct, 2 barcodes filled, 34
+still without a barcode in Shopify, 1 product no longer in Shopify, 0 failures.
 
 **It also repairs `itemBarcode`.** 36 of the 1107 rows have no stored barcode
 (19 have no SKU), and the barcode is the purchase API's article number — so a
@@ -700,7 +730,8 @@ cause attributes from the wrong article number to be written.
 
 ## 5. Verification plan
 
-**Run on 2026-08-31, against the live store and the dev DB:**
+**Run on 2026-08-31, re-run after the round-4 list change on 2026-09-01,
+against the live store and the dev DB:**
 
 | # | check | result |
 |---|---|---|
@@ -710,10 +741,13 @@ cause attributes from the wrong article number to be written.
 | 3 | full-replace semantics incl. key removal and `{}` → column cleared | ✅ all six cases, dev DB row restored afterwards |
 | 4 | purchase API reachable, key accepted, envelope as documented | ✅ HTTP 404 `{"success":false,"error":"Item '…' not found."}` for every article number tried |
 | 4b | attribute parsing against all handoff §3 rules | ✅ 16 synthetic cases |
+| 4c | value projection per type (list join, dimension/weight, reference + rich text skipped) | ✅ 13 cases |
+| 4d | namespace allowlist + both exclusion sets | ✅ a 10-metafield input yields only `extension_dimension` + `wood_type` |
 | 5 | happy-path purchase-API lookup, merged end-to-end on real scanned items | ✅ see §5.1 |
 | 5b | cache single-flight + warm hit | ✅ 3 concurrent cold lookups = 1 request (29ms); warm hit 0ms |
 | 6 | metafield edit → `products/update` → stored bag updates; deletion removes the key | ⏳ needs a live edit in Shopify admin |
 | 7 | payload size on `GET /scanner/history?limit=50` | ⏳ after deploy |
+| 8 | `npm run build` after the round-4 change; backfill dry run | ✅ clean |
 
 ### 5.1 The happy path, closed
 
@@ -731,7 +765,6 @@ in Santos rosewood by Skovby*, barcode `0001035`, 15 ms:
   "qty_extensions": "2",              // ← purchase API only
   "wood_type": "Santos Rosewood",     // ← Shopify won over purchase "Mahogany"
   "country": "Denmark",
-  "damage_details": "Surface has been refinished, Completely restored",
   "detailed_condition": "Very Good - …",
   "extension_dimension": "50 cm",
   "extension_quantity": "2",
@@ -769,6 +802,40 @@ Observed purchase-API attribute keys: `drawers_qty`, `material_type`,
 
 Lookup latency was **15-29 ms** cold — far inside the 4 s timeout, which makes
 the §2.5 prefetch a nicety rather than a necessity.
+
+### 5.1a Purchase-API attribute exclusions (review round 5)
+
+The purchase API calls the extension count **`qty_extensions`**; Shopify calls
+it `custom.extension_quantity`. They do not collide, so without a rule both
+would be stored — two near-identical keys, only one of which the UI reads.
+
+Resolved: a **second exclusion set**, mirroring the Shopify one, in
+`src/shared/item-properties/item-properties.ts`:
+
+```ts
+export const EXCLUDED_PURCHASE_ATTRIBUTE_KEYS: ReadonlySet<string> = new Set([
+  "qty_extensions",
+]);
+```
+
+Applied in `itemPropertiesResolver` at merge time (not at parse time), so
+`purchase-api.integration.ts` stays a faithful decode of the API and this module
+owns the policy.
+
+**The consequence to keep in mind:** an ignored attribute is *dropped, not
+renamed*. On an item whose Shopify product has no `custom.extension_quantity`,
+the purchase app's count is now discarded rather than filling in, so the item
+has no extension count at all. That is the deliberate choice — Shopify is the
+catalogue of record for that field. If the opposite is ever wanted, the change
+is an alias map (`qty_extensions → extension_quantity`) instead of an exclusion.
+
+Verified on article `0001035`: the purchase API sends `shape`, `extension_type`,
+`qty_extensions`, `wood_type`; the stored bag has the first two from Shopify
+(logged as overrides), `wood_type` from Shopify, and **no `qty_extensions`**.
+
+Candidate for the set if the redundancy bothers you later: `material_type`
+(`"Teak,Walnut"`), which overlaps Shopify's `wood_type`. Left in — "material"
+and "wood" are not obviously the same field.
 
 ### 5.2 Original checklist
 
@@ -844,7 +911,7 @@ product sample turned up (`judgeme.*`, `booster_apps_seo.config`,
 `mm-google-shopping.*`, `mc-facebook.*`, `global.*`, `product_seo.*`) have no
 definitions at all, which confirms they are app-owned storage.
 
-### A.1 Stored — 22 keys
+### A.1 Stored — 19 keys
 
 `used` = products carrying the metafield today.
 
@@ -854,7 +921,6 @@ definitions at all, which confirms they are app-owned storage.
 | `compare_at_price` | single_line_text_field | raw | 268 |
 | `contains_key` | single_line_text_field | raw | 0 |
 | `country` | single_line_text_field | raw | 2965 |
-| `damage_details` | list.single_line_text_field | join `", "` | 2998 |
 | `designer` | single_line_text_field | raw | 790 |
 | `detailed_condition` | single_line_text_field | raw | 2996 |
 | `dimensionss` | multi_line_text_field | raw | 2001 |
@@ -862,11 +928,9 @@ definitions at all, which confirms they are app-owned storage.
 | `extension_quantity` | single_line_text_field | raw — **existing key, unchanged** | 166 |
 | `extension_type` | single_line_text_field | raw — **existing key, unchanged** | 167 |
 | `extensions_quantity` | number_integer | raw (`"0"` on most products) | 4610 |
-| `link` | url | raw | 960 |
 | `manufacturer` | single_line_text_field | raw | 1263 |
 | `mark_stamp` | single_line_text_field | raw | 0 |
 | `price_st` | single_line_text_field | raw | 3305 |
-| `reserved` | list.single_line_text_field | join `", "` | 33 |
 | `seatheightchairs` | single_line_text_field | raw | 1076 |
 | `shape` | single_line_text_field | raw | 66 |
 | `weight_definition` | single_line_text_field | raw | 3003 |
@@ -886,6 +950,7 @@ code change needed to *add* one, only to exclude one (§2.1's
 | `app.item_location` | D2 — already `latestLocation` |
 | `custom.height_dimension`, `.width_dimension`, `.depth_dimension` | §2.1 key set — structured duplicates of the `total*` set (`extension_dimension` is **kept**) |
 | `custom.location` | §2.1 key set — confusable with the scanner's own location |
+| `custom.damage_details`, `.link`, `.reserved` | §2.1 key set — excluded by request (round 6) |
 | `custom.restoration` (rich_text_field, 2 products) | §2.1 rule 2 — JSON document blob |
 | `custom.video_and_condition` (file_reference, 0 products) | §2.1 rule 1 — gid |
 | `shopify.*` — `color-pattern`(45), `seat-type`(13), `backrest-type`(12), `upholstery-material`, `washing-method`, `back-type`, `chair-features`, `lumber-wood-type` | D8 namespace + §2.1 rule 1: all `list.metaobject_reference`, values are gids |

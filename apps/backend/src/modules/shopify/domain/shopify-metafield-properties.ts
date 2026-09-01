@@ -58,6 +58,9 @@ export const EXCLUDED_PROPERTY_METAFIELD_KEYS: ReadonlySet<string> = new Set([
   "height_dimension", // structured duplicate of totalheight
   "width_dimension", // structured duplicate of totalwidth
   "depth_dimension", // structured duplicate of totaldepth
+  "damage_details", // not wanted in the bag
+  "link", // external auction URL, not an item attribute
+  "reserved", // not wanted in the bag
 ]);
 
 const METAFIELD_SELECTION_PAGE_SIZE = 100;

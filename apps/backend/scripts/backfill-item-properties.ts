@@ -21,8 +21,15 @@
  * Optional env:
  *   DRY_RUN=true        Preview every action without writing
  *   SHOP_ID=<id>        Required when multiple shops exist
- *   CONCURRENCY=<n>     Parallel Shopify lookups (default 3)
+ *   BATCH_SIZE=<n>      Products per Shopify query (default 50)
+ *   CONCURRENCY=<n>     Parallel purchase-API lookups per batch (default 5)
  *   LIMIT=<n>           Stop after n rows (for a smoke run)
+ *
+ * Shopify products are fetched in BATCHES, not one query per row. Shopify bills
+ * the same ~27 points whether a `nodes(ids:)` query asks for 1 product or 50,
+ * so per-row queries burn ~19-27 points each, drain the 2000-point bucket in
+ * seconds and spend the rest of the run being throttled. Batches of 50 turn
+ * 1107 queries into 23.
  *
  * Deliberately surgical: it writes ONLY `properties` and `itemBarcode` with a
  * direct Prisma update, rather than going through
@@ -35,13 +42,18 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "../src/shared/database/prisma-client.js";
 import { initializeDatabaseRuntime } from "../src/shared/database/sqlite-runtime.js";
 import { shopifyAdminApi } from "../src/modules/shopify/integrations/shopify-admin-api.integration.js";
+import type { ProductLocationSnapshot } from "../src/modules/shopify/domain/shopify-shop.js";
 import { itemPropertiesResolver } from "../src/shared/item-properties/item-properties-resolver.service.js";
 
 const DRY_RUN = process.env.DRY_RUN === "true";
 const SHOP_ID = process.env.SHOP_ID?.trim() || null;
+const BATCH_SIZE = Math.min(
+  100,
+  Math.max(1, Number.parseInt(process.env.BATCH_SIZE?.trim() ?? "50", 10) || 50),
+);
 const CONCURRENCY = Math.max(
   1,
-  Number.parseInt(process.env.CONCURRENCY?.trim() ?? "3", 10) || 3,
+  Number.parseInt(process.env.CONCURRENCY?.trim() ?? "5", 10) || 5,
 );
 const LIMIT = Number.parseInt(process.env.LIMIT?.trim() ?? "0", 10) || 0;
 
@@ -112,6 +124,8 @@ const main = async (): Promise<void> => {
     shopId: shop.id,
     shopDomain: shop.shopDomain,
     rows: records.length,
+    batchSize: BATCH_SIZE,
+    batches: Math.ceil(records.length / BATCH_SIZE),
     concurrency: CONCURRENCY,
   });
 
@@ -123,113 +137,163 @@ const main = async (): Promise<void> => {
     barcodeFilled: 0,
     barcodeAlreadyPresent: 0,
     barcodeStillMissing: 0,
+    purchaseAttributesApplied: 0,
+    productMissing: 0,
     failed: 0,
   };
   const stillMissingBarcode: string[] = [];
 
-  let cursor = 0;
-  const worker = async (): Promise<void> => {
-    while (cursor < records.length) {
-      const record = records[cursor];
-      cursor += 1;
-      if (!record) {
-        continue;
+  type Row = (typeof records)[number];
+
+  const processRow = async (record: Row, product: ProductLocationSnapshot): Promise<void> => {
+    // Resolves through the same service the live write paths use: Shopify
+    // metafields first, then a purchase-API lookup keyed on the product's
+    // barcode (skipped when there is no barcode), merged with Shopify winning.
+    const resolved = await itemPropertiesResolver.resolve({
+      metafieldProperties: product.metafieldProperties,
+      articleNumber: product.barcode,
+    });
+
+    // Keys in the result that Shopify did not supply came from the purchase API.
+    const shopifyKeys = new Set(Object.keys(product.metafieldProperties ?? {}));
+    const purchaseKeys = Object.keys(resolved ?? {}).filter(
+      (key) => !shopifyKeys.has(key),
+    );
+    if (purchaseKeys.length > 0) {
+      counters.purchaseAttributesApplied += 1;
+    }
+
+    const storedBarcode = record.itemBarcode?.trim() || null;
+    const shopifyBarcode = product.barcode?.trim() || null;
+    let nextBarcode: string | null = null;
+
+    if (storedBarcode) {
+      counters.barcodeAlreadyPresent += 1;
+      if (shopifyBarcode && shopifyBarcode !== storedBarcode) {
+        nextBarcode = shopifyBarcode;
       }
+    } else if (shopifyBarcode) {
+      counters.barcodeFilled += 1;
+      nextBarcode = shopifyBarcode;
+    } else {
+      // No barcode anywhere: this item can never gain purchase-app attributes
+      // until someone sets an article number in Shopify.
+      counters.barcodeStillMissing += 1;
+      stillMissingBarcode.push(`${record.productId} — ${record.itemTitle}`);
+    }
 
-      counters.checked += 1;
+    if (resolved === null) {
+      counters.propertiesSkippedUnresolved += 1;
+    }
 
-      try {
-        const product = await shopifyAdminApi.getProductWithLocation({
-          shopDomain: shop.shopDomain,
-          accessToken: shop.accessToken as string,
-          productId: record.productId,
-          includeMetafieldProperties: true,
-        });
+    const propertiesChanged =
+      resolved !== null && !sameProperties(resolved, record.properties);
 
-        const resolved = await itemPropertiesResolver.resolve({
-          metafieldProperties: product.metafieldProperties,
-          articleNumber: product.barcode,
-        });
+    if (propertiesChanged) {
+      counters.propertiesUpdated += 1;
+    } else if (resolved !== null) {
+      counters.propertiesUnchanged += 1;
+    }
 
-        const storedBarcode = record.itemBarcode?.trim() || null;
-        const shopifyBarcode = product.barcode?.trim() || null;
-        let nextBarcode: string | null = null;
+    if (!propertiesChanged && nextBarcode === null) {
+      return;
+    }
 
-        if (storedBarcode) {
-          counters.barcodeAlreadyPresent += 1;
-          if (shopifyBarcode && shopifyBarcode !== storedBarcode) {
-            nextBarcode = shopifyBarcode;
-          }
-        } else if (shopifyBarcode) {
-          counters.barcodeFilled += 1;
-          nextBarcode = shopifyBarcode;
-        } else {
-          // No barcode anywhere: this item can never gain purchase-app
-          // attributes until someone sets an article number in Shopify.
-          counters.barcodeStillMissing += 1;
-          stillMissingBarcode.push(`${record.productId} — ${record.itemTitle}`);
-        }
+    if (DRY_RUN) {
+      log("DRY_RUN: would update", {
+        productId: record.productId,
+        title: record.itemTitle,
+        ...(propertiesChanged && resolved
+          ? { propertyKeys: Object.keys(resolved).length }
+          : {}),
+        ...(purchaseKeys.length > 0 ? { fromPurchaseApi: purchaseKeys } : {}),
+        ...(nextBarcode !== null ? { barcode: nextBarcode } : {}),
+      });
+      return;
+    }
 
-        if (resolved === null) {
-          counters.propertiesSkippedUnresolved += 1;
-        }
+    await prisma.scanHistory.update({
+      where: { id: record.id },
+      data: {
+        ...(propertiesChanged && resolved
+          ? {
+              properties:
+                Object.keys(resolved).length > 0 ? resolved : Prisma.JsonNull,
+            }
+          : {}),
+        ...(nextBarcode !== null ? { itemBarcode: nextBarcode } : {}),
+      },
+    });
+  };
 
-        const propertiesChanged =
-          resolved !== null && !sameProperties(resolved, record.properties);
+  for (let start = 0; start < records.length; start += BATCH_SIZE) {
+    const batch = records.slice(start, start + BATCH_SIZE);
 
-        if (!propertiesChanged && nextBarcode === null) {
-          if (resolved !== null) {
-            counters.propertiesUnchanged += 1;
-          }
+    let snapshots: ProductLocationSnapshot[];
+    try {
+      snapshots = await shopifyAdminApi.getProductsWithLocation({
+        shopDomain: shop.shopDomain,
+        accessToken: shop.accessToken,
+        productIds: batch.map((record) => record.productId),
+        includeMetafieldProperties: true,
+      });
+    } catch (error) {
+      counters.failed += batch.length;
+      counters.checked += batch.length;
+      logError("Batch fetch failed", error, {
+        from: start,
+        size: batch.length,
+      });
+      continue;
+    }
+
+    const byProductId = new Map(snapshots.map((snapshot) => [snapshot.id, snapshot]));
+
+    // Rows within a batch are processed with a small amount of parallelism —
+    // the remaining per-row work is a purchase-API lookup, not a Shopify one.
+    let cursor = 0;
+    const worker = async (): Promise<void> => {
+      while (cursor < batch.length) {
+        const record = batch[cursor];
+        cursor += 1;
+        if (!record) {
           continue;
         }
 
-        if (propertiesChanged) {
-          counters.propertiesUpdated += 1;
-        } else if (resolved !== null) {
-          counters.propertiesUnchanged += 1;
-        }
+        counters.checked += 1;
+        const product = byProductId.get(record.productId);
 
-        const data: Prisma.ScanHistoryUpdateInput = {
-          ...(propertiesChanged
-            ? {
-                properties:
-                  Object.keys(resolved).length > 0 ? resolved : Prisma.JsonNull,
-              }
-            : {}),
-          ...(nextBarcode !== null ? { itemBarcode: nextBarcode } : {}),
-        };
-
-        if (DRY_RUN) {
-          log("DRY_RUN: would update", {
+        if (!product) {
+          counters.productMissing += 1;
+          logError("Product not found in Shopify", new Error("missing"), {
             productId: record.productId,
             title: record.itemTitle,
-            ...(propertiesChanged
-              ? { propertyKeys: Object.keys(resolved).length }
-              : {}),
-            ...(nextBarcode !== null ? { barcode: nextBarcode } : {}),
           });
           continue;
         }
 
-        await prisma.scanHistory.update({ where: { id: record.id }, data });
-      } catch (error) {
-        counters.failed += 1;
-        logError("Failed to backfill row", error, {
-          productId: record.productId,
-          title: record.itemTitle,
-        });
+        try {
+          await processRow(record, product);
+        } catch (error) {
+          counters.failed += 1;
+          logError("Failed to backfill row", error, {
+            productId: record.productId,
+            title: record.itemTitle,
+          });
+        }
       }
+    };
 
-      if (counters.checked % 50 === 0) {
-        log("Progress", { checked: counters.checked, total: records.length });
-      }
-    }
-  };
+    await Promise.all(
+      Array.from({ length: Math.min(CONCURRENCY, batch.length) }, () => worker()),
+    );
 
-  await Promise.all(
-    Array.from({ length: Math.min(CONCURRENCY, records.length) }, () => worker()),
-  );
+    log("Batch done", {
+      checked: counters.checked,
+      total: records.length,
+      updated: counters.propertiesUpdated,
+    });
+  }
 
   log("Item properties backfill finished", { dryRun: DRY_RUN, ...counters });
 

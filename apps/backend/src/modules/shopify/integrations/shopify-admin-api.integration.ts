@@ -781,7 +781,12 @@ export const shopifyAdminApi = {
     shopDomain: string;
     accessToken: string;
     productIds: string[];
+    /** Same opt-in as getProductWithLocation. Batching is essentially free —
+     * Shopify bills the same ~27 points for 1 id as for 50 — so this is the
+     * right entry point for any bulk properties work. */
+    includeMetafieldProperties?: boolean;
   }): Promise<ProductLocationSnapshot[]> {
+    const includeMetafieldProperties = input.includeMetafieldProperties === true;
     const normalizedIds = [
       ...new Set(input.productIds.map((id) => id.trim()).filter(Boolean)),
     ];
@@ -823,9 +828,10 @@ export const shopifyAdminApi = {
               }
             }
             productType
-            quantityMeta: metafield(namespace: "custom", key: "quantity") {
+            quantityMeta: metafield(namespace: "${PROMOTED_METAFIELDS.quantity.namespace}", key: "${PROMOTED_METAFIELDS.quantity.key}") {
               value
             }
+            ${includeMetafieldProperties ? ALL_METAFIELDS_SELECTION : ""}
             variants(first: 1) {
               edges {
                 node {
