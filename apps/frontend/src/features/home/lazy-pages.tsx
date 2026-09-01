@@ -180,3 +180,15 @@ export const LazyScannerLogisticPlacementPage = createLazyFeaturePage({
     "The placement scanner did not load. Retry to reopen it.",
   variant: "full-overlay",
 });
+
+export const LazyStockLocationsPage = createLazyFeaturePage({
+  load: () =>
+    import("../stock/ui/StockLocationsPage").then((module) => ({
+      default: module.StockLocationsPage,
+    })),
+  loadingTitle: "Stock locations",
+  loadingDescription: "Loading stock locations...",
+  errorTitle: "Stock locations unavailable",
+  errorDescription: "The stock locations page did not load. Retry to continue.",
+  variant: "inline",
+});

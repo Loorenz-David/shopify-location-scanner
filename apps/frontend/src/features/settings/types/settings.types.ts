@@ -4,7 +4,9 @@ export type SettingsOptionPageId =
   | "settings-shopify"
   | "settings-locations"
   | "settings-users"
-  | "settings-store-map";
+  | "settings-store-map"
+  | "settings-stock-report"
+  | "settings-stock-locations";
 
 export interface SettingsOptionSubscription {
   id: SettingsOptionPageId;

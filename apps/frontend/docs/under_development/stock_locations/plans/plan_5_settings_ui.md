@@ -73,4 +73,32 @@ the **owner's approval pass** on the running app (S5) — criteria above are the
 automated floor, not the whole bar. Thin by design; refine at prompt time.
 
 ## Review log
-(empty)
+
+**2026-09-02 — implement round 1 (Claude, Fable 5).** Built `ui/` (6 parts + page + view, 4 RTL
+files, 7 tests), stock tokens/fonts in `index.css`, 3 icons, shell + settings wiring; fixture
+`stock-lc1-coffee` thresholds varied to 5/12/18 (authorized; quantity 22 stays high). 113/16 green,
+typecheck clean, lint 48/14 = baseline. M1 run unfiltered: reds C4 only. Three absence guards
+(C2(b), C5(b), C5(c)) each proven to redden under a planted defect. Full detail:
+`handoffs/implementer/handoff_plan_5_implement_1.md`.
+
+Judgment calls (owner-authorized in-session where marked ⚑):
+- ⚑ **Out-of-perimeter edit:** `features/settings/types/settings.types.ts` — `SettingsOptionPageId`
+  is a closed union; the two D5 rows do not typecheck without adding their ids. Two lines.
+- ⚑ **DTO→ladder adapter lives in `ui/StockThresholdStrip.tsx`:** no domain function maps
+  `StockThresholdDto[]` to `deriveBands(low, medium, normal)`. State-keyed lookup via
+  `STOCK_STATES[1..3]` (no literals). **Candidate for the domain** (`stock-thresholds.domain.ts`)
+  before P6, which needs the same conversion for the ladder.
+- **`settings-stock-report` is not registered in `HomeFeature`** — its page is P7's. The row is
+  present (D5, C1) but inert until P7 registers the page; `selectNavigationPage` ignores unknown ids.
+- **Wizard placeholder view** inside `StockLocationsPage` for `wizard-step1/2` so the demo does
+  not dead-end when a card/pill/dashed row is tapped; P6 replaces it.
+- Root pill and dashed row both call `startNewWizardFromRoot` (P4 offers only the instance-less set
+  when no location is given) — see finding F2 in the handoff.
+- Row copy `N stock instances configured` instead of the mockup's `N item types configured`
+  (the design rule says the count is instances; several may share a type).
+- Page uses the shell's gradient, not the handoff's near-identical one (repo idiom).
+
+Findings (not changed here): F1 chip display casing on screen 07 depends on GET 4.1 options that
+no settings-side path loads (falls back to wire casing until a wizard/report fetched them);
+F2 root-level "New instance" cannot target a location that already has instances; F3 Settings tab
+is not highlighted on plain stock pages (shell computes active from page id only).

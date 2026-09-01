@@ -13,6 +13,9 @@ import StatsIcon from "./StatsIcon.svg?react";
 import TaskIcon from "./TaskIcon.svg?react";
 import HomeIcon from "./HomeIcon.svg?react";
 import SettingsIcon from "./SettingsIcon.svg?react";
+import ChevronLeftIcon from "./ChevronLeftIcon.svg?react";
+import ChevronRightIcon from "./ChevronRightIcon.svg?react";
+import PlusIcon from "./PlusIcon.svg?react";
 
 export {
   BackArrowIcon,
@@ -30,4 +33,7 @@ export {
   TaskIcon,
   HomeIcon,
   SettingsIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  PlusIcon,
 };

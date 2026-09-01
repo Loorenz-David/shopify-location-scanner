@@ -26,10 +26,12 @@ export const stockLocationDetailFixture: LocationStockDto[] = [
     properties: { shape: ["oval"] },
     quantity: 22,
     stockState: STOCK_STATES[4],
+    // Deliberately differs from its siblings (P5 C4 / S10): identical ladders cannot
+    // tell "this instance's bands" from "the first instance's bands". 22 stays high.
     thresholds: [
-      { state: STOCK_STATES[1], thresholdQuantity: 10 },
-      { state: STOCK_STATES[2], thresholdQuantity: 15 },
-      { state: STOCK_STATES[3], thresholdQuantity: 20 },
+      { state: STOCK_STATES[1], thresholdQuantity: 5 },
+      { state: STOCK_STATES[2], thresholdQuantity: 12 },
+      { state: STOCK_STATES[3], thresholdQuantity: 18 },
     ],
     createdAt: "2026-09-01T00:00:00.000Z",
     createdByUsername: "david",

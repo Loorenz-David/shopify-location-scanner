@@ -17,6 +17,14 @@ export const settingsOptionSubscriptions: SettingsOptionSubscription[] = [
     id: "settings-store-map",
     label: "Store map",
   },
+  {
+    id: "settings-stock-report",
+    label: "Stock report",
+  },
+  {
+    id: "settings-stock-locations",
+    label: "Stock locations",
+  },
 ];
 
 export function getInitialsFromUsername(username: string): string {

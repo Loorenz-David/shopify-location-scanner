@@ -1,4 +1,5 @@
 @import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap");
 @import "tailwindcss";
 
 @keyframes scanner-skeleton-shimmer {
@@ -59,6 +60,39 @@
   .auth-modern-font {
     font-family:
       "Plus Jakarta Sans", "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+  }
+
+  /* Stock areas (design_handoff/00-global): Poppins body, IBM Plex Mono for codes/eyebrows. */
+  .stock-area-font {
+    font-family: "Poppins", "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+    --stock-primary: #0e8a5f;
+    --stock-heading: #33404a;
+    --stock-body: #5c6b72;
+    --stock-muted: #7a8891;
+    --stock-faint: #9aa7a1;
+    --stock-hairline: #e9edeb;
+    --stock-chip-bg: #eef2f1;
+    --stock-track: #f4f7f6;
+    --stock-dashed: #c6d4ce;
+    --stock-surface: #ffffff;
+    --stock-code-badge-bg: #e4f6ec;
+    --stock-card-shadow: 0 10px 24px rgba(31, 60, 52, 0.07);
+    --stock-cta-shadow: 0 12px 26px rgba(14, 138, 95, 0.3);
+    color: var(--stock-body);
+  }
+
+  .stock-mono {
+    font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+
+  /* Fades the list out under a floating action pill so no card is clipped mid-text. */
+  .stock-pill-fade {
+    background: linear-gradient(
+      180deg,
+      rgba(240, 245, 243, 0) 0%,
+      rgba(240, 245, 243, 0.92) 55%,
+      rgba(240, 245, 243, 1) 100%
+    );
   }
 
   .app-searchbar-surface {
