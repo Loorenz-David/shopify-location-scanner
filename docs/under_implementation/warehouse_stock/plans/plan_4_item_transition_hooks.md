@@ -100,3 +100,104 @@ these files have drifted again; the plan now says locate by symbol, always.
 collision between P2's decision to let a malformed-threshold throw propagate and P4's "a stock
 failure never fails the parent" is still unrouted. Recorded as an open item for the P4 implement
 prompt rather than silently dropped.
+
+### 2026-09-01 — implementation round 1 · IMPLEMENTED
+
+Checkpoint: `4da4579` (`CHECKPOINT (not approved): implement item stock transition hooks`).
+
+Implemented `applyItemStockChange` and wired the four ratified post-commit hook sites. The
+primitive resolves only non-null, unsold, located, categorized item snapshots; reuses
+`resolveBestMatch`; applies same-configuration net deltas; uses the source quantity and
+destination quantity independently across configuration changes; preserves destination progress
+after a guarded source refusal; recalculates state through the P2 repository; and catches/logs
+stock failures so the parent operation continues. `toStockItemSnapshot` performs the delegated
+D4 property reduction locally (non-string and blank values dropped; a null source bag remains
+null). The delegated D9 choice was exercised: decrement and increment calls are not wrapped in a
+shared transaction.
+
+The location command now hoists its unconditional `existingHistory` read and invokes the hook
+after `appendLocationEvent`. The products/update job captures `existingHistory` once, reads the
+fresh row after all branches, and invokes the hook exactly once at the end. Both order commands
+read the stored row immediately before the sold write and pass the post-write row, so the
+orders/create → orders/paid cross-topic pair reaches the primitive's sold-to-sold no-op.
+Structured site logs include the operation, item and stock-change result. No scanner repository
+or WebSocket file was changed.
+
+The plan's single named mutation was executed at
+`src/modules/stock/services/apply-item-stock-change.service.ts`, distinct-source/destination
+branch, by temporarily swapping the decrement and increment targets. On the scratch database,
+the exact command was:
+
+```text
+DATABASE_URL=file:/private/tmp/p4-verify.xOUBpU/dev.db SHOP_ID=cmnractlq0000qr53y8so42t3 node --import tsx /private/tmp/p4-verify.xOUBpU/p4-source-destination-probe.mjs
+```
+
+Observed red: exit 1; the probe printed `sourceAfter:2, destinationAfter:0` and failed with
+`Error: P4-M1 observed inverted source/destination counters`. The mutation was reverted. The
+correct production path was also run on the scratch database and printed `changed:true,
+sourceAfter:0, destinationAfter:1`. A separate guard probe observed the repository's exact
+`logger.error` context and `changed:true` with source unchanged at 0 and destination incremented
+to 1. A malformed-threshold probe observed the new service error log naming the group and
+returned safely to its caller; the quantity write had already occurred before P2's state
+calculation threw, which is the unresolved collision noted below.
+
+Closing instruments on the final implementation tree before checkpoint:
+
+- `npm run typecheck` — exit 0.
+- `grep -rn "prisma\\|@prisma" src/modules/stock/domain/ src/shared/item-properties/item-property-options.ts` — empty (exit 1).
+- `DATABASE_URL=file:/private/tmp/p4-verify.xOUBpU/dev.db SHOP_ID=cmnractlq0000qr53y8so42t3 npx tsx scripts/verify-all.ts` — `verify-stock-domain.ts` 58 PASS, `verify-stock-reconciliation.ts` 20 PASS, `SUMMARY PASS 2 script(s)`, exit 0.
+- `git diff --check` — clean. The checkpoint contains exactly the five P4 files.
+
+The required runtime setup was checked: Redis answered `PONG`, the API started on port 4000,
+the webhook worker started with concurrency 1, and `/health` returned HTTP 200. The stock
+endpoint returned HTTP 401 without a bearer token. Manual Scenarios 1–8 were not executed
+through the scanner UI/Shopify admin because this session had no authenticated shop-linked UI
+session or product-operation credentials; no development database data was changed. The
+unrunnable steps and their expected effects are recorded in the implementer handoff. The
+scratch database was created with SQLite `.backup`, and all destructive/probe writes stayed in
+that scratch copy.
+
+Judgment call: stock mutation exceptions are caught per mutation so a malformed source or
+destination configuration cannot prevent another valid side from being attempted; the parent
+operation receives no stock exception. This directly satisfies the parent-failure isolation
+contract, but the P2 `calculateStockState` throw versus P4 swallow decision remains unresolved
+upstream and should not be mistaken for a semantic resolution. No candidate criterion was
+found. The P3 sibling changed P3-owned files during this session; those changes are outside
+this checkpoint and were not edited.
+
+### 2026-09-01 — review round 1 · CHANGES_REQUESTED (no code defect) · Claude Opus
+
+Tree `4da4579`, isolated from P3's concurrent `7b86e53`. Handoff:
+`handoffs/reviewer/handoff_plan4_review_1.md`.
+
+**No defect found in the implementation.** Perimeter exact (5 files); `scan-history.repository.ts`
+and `ws/*` **byte-identical** to pre-phase, so C7(b)/(c) hold at source; typecheck 0; purity grep
+empty; `verify-all.ts` exit 0.
+
+**Verified by execution, not reading** — the reviewer seeded configurations on a scratch copy and
+called the shipped primitive: a replayed sale (`before.isSold && after.isSold`) returns
+`{changed:false}`, closing the defect the owner's card-1 decision existed to prevent; a qty-2 move
+took source 10→8 and destination 0→2; a cross-config change with before=2/after=6 took source 8→6
+and destination 2→8, confirming **two quantities, not one** (C1(i)); `before === null` incremented
+the destination only (C1(j)); a null `itemCategory` resolved nothing (C1(k)). Error isolation
+wraps the whole primitive, and the decrement/increment are independent statements so a source
+refusal still permits the destination increment.
+
+| # | Sev | Finding |
+|---|---|---|
+| B1 | **blocking** | Seven criteria — C2(a), C2(b), C3(a), C3(b), C4(a), C4(b), C5(a) — have **no discharged instrument**. §9.1(c) makes Manual Scenarios their instrument, "executed by implementer and re-executed by reviewer"; neither happened, because they need Redis, the webhook worker and a Shopify admin edit. P4 authors no verify script and `verify-all.ts` covers no P4 row, so nothing executable touches them. **The correction is execution, not a code change** — see owner card 1. Inspection cannot see a hook wired to the wrong branch, which is exactly the failure D8 identified in this phase. |
+| N1 | note | `applyIncrement(id, delta, tx?)` is **not shop-scoped** (`where: { id }`) while `applyGuardedDecrement` is, against context §0.2's "every query". Not exploitable — ids always come from `listByGroup(shopId, …)` — and it is **P2's code, outside this perimeter** (§11.3 non-finding 16). Recorded as a miss in the P2 review, found by a probe that called it with the wrong signature. |
+
+**The unrouted P2/P4 collision was handled safely and reported**, exactly as the prompt required:
+the primitive catches, logs at error, and lets the parent operation succeed. Still unrouted as
+doctrine — carried to P6.
+
+**Reviewer probes:** additive scripts only, run against a scratch `.backup` copy with throwaway
+configurations; **no repository file was mutated** and `prisma/dev.db` was read-only.
+
+**Lessons.** (1) A phase whose only instrument needs infrastructure should have that confirmed
+available *before* the implementer is dispatched — P4's plan named Redis and the worker in its
+scenarios and nothing gated on them. (2) `verify-all.ts` covering no P4 row is structural: the
+seam protects earlier phases from later ones, but P4 contributes nothing to it, so no future
+phase's close re-checks the hooks. Decide at P6 whether the hook matrix deserves a script.
+

@@ -86,3 +86,131 @@ the gate on a phase where §3 makes it *waivable*.
 **Fold-back owed to the frontend:** D4 changes the conflict `details` shape, and
 `contracts/frontend-api-contract.md` §3 and §4.4 currently promise `conflictingId` on **every**
 conflict. That is now wrong for the intra-batch case and the frontend is building against it.
+
+### 2026-09-01 — implementer round 1 · IMPLEMENTED
+
+Handoff: `handoffs/implementer/handoff_plan3_implement_1.md`. Checkpoint: `7b86e53`
+(`CHECKPOINT (not approved): implement warehouse stock configuration API`). The full
+configuration surface is implemented: zod contracts and category-aware criteria
+validation, canonical DTO mapping, group-partitioned all-or-nothing batch create,
+transactional update with full threshold replacement, post-commit reconciliation and
+audit attribution, delete, summary/detail/options queries, authenticated dual-mounted
+routes, and both server registrations. The P2 repository was extended only with the
+transaction callback infrastructure and `replaceThresholds` required by this phase.
+
+The P3 red baseline was not captured: this project has no test runner, P3 authors no
+verification script, and no P3 executable cases existed before implementation. The
+pre-change gates were captured instead: `npm run typecheck` exited 0 and
+`npx tsx scripts/verify-stock-domain.ts` reported 58 PASS / exit 0. No test files were
+added, so there are no orphan tests.
+
+Closing instruments on the final implementation tree:
+
+- `npm run typecheck` — exit 0.
+- Purity grep — `PURITY_GREP=empty`.
+- `npx tsx scripts/verify-all.ts` with `DATABASE_URL=file:/private/tmp/p3-final-close.ESCevr/dev.db`
+  and `SHOP_ID=cmnractlq0000qr53y8so42t3` — exit 0; scratch copy was made with
+  `sqlite3 prisma/dev.db ".backup '/private/tmp/p3-final-close.ESCevr/dev.db'"`.
+- Manual curl checklist — all seven scenarios exercised against disposable
+  `/private/tmp/p3-manual.osnNf9/dev.db`: options returned the complete 28-category and
+  8-option map; LC1 catch-all initialized to the live eligible sum 221 and high state;
+  H1 catch-all 80 plus Teak 34 reallocated to catch-all 46; duplicate scalar/array
+  criteria returned 409 with `conflictingId`; move to H1 restored LC1; delete returned
+  `{ok:true}` and restored allocation; worker-role requests succeeded; invalid criteria,
+  threshold shape/semantics, wildcard, invalid category, PATCH whitelist, both mounts,
+  summary count 3, threshold-only state change, and last-config deletion were also
+  exercised.
+
+Authoritative `verify-all` output from `/private/tmp/p3-final-close.ESCevr/dev.db`:
+
+```text
+--- verify-stock-domain.ts ---
+PASS C2(a)
+PASS C2(b)
+PASS C2(c)
+PASS C2(d)
+PASS C2(e)
+PASS C3(a)
+PASS C3(b)
+PASS C3(c)
+PASS C3(d)
+PASS C3(e)
+PASS C3(f) (empty array)
+PASS C3(f) (blank scalar)
+PASS C4(a)
+PASS C4(b)
+PASS C4(c)
+PASS C4(d)
+PASS C4(e)
+PASS C4(f)
+PASS C5(a)
+PASS C5(b)
+PASS C5(c)
+PASS C5(d)
+PASS C5(e)
+PASS C5(f)
+PASS C6(a)
+PASS C6(b)
+PASS C6(c)
+PASS C6(d)
+PASS C6(e)
+PASS C6(f)
+PASS C6(g)
+PASS C6(h)
+PASS C7(a)
+PASS C7(b)
+PASS C7(c) (zero)
+PASS C7(c) (negative)
+PASS C7(c) (non-integer)
+PASS C7(d)
+PASS C7(e)
+PASS C7(f)
+PASS C7(g)
+PASS C8(a)
+PASS C8(b)
+PASS C8(c)
+PASS C8(d)
+PASS C8(e)
+PASS C8(f)
+PASS C8(g)
+PASS C8(h)
+PASS C9(a)
+PASS C9(b)
+PASS C9(c)
+PASS C9(d)
+PASS C9(e)
+PASS C9(f)
+PASS C9(g)
+PASS C9(h)
+PASS verify-stock-domain.ts
+--- verify-stock-reconciliation.ts ---
+PASS C1(a)
+PASS C1(b)
+PASS C1(c)
+PASS C2(a)
+PASS C2(b)
+PASS C2(c)
+PASS C2(d)
+PASS C3(a)
+PASS C3(b)
+PASS C3(c)
+PASS C3(d)
+PASS C3(e)
+PASS C4(a)
+PASS C4(b)
+PASS C4(c)
+PASS C4(d)
+PASS C5(a)
+PASS C5(b)
+PASS C6(a)
+PASS C6(b)
+PASS verify-stock-reconciliation.ts
+SUMMARY PASS 2 script(s)
+```
+
+Judgment calls and observations are detailed in the handoff. Candidate upstream note:
+the v1.4 frontend contract's §4.4 worked example labels `{}` plus
+`{wood_type:["Teak"]}` as an intra-batch conflict, but the ratified §23.2 rule and
+this plan's manual scenario 3 allow them because their criterion key sets differ. The
+implementation follows §23.2 and the plan; the coordinator should reconcile the example
+before frontend integration.
