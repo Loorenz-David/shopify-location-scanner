@@ -40,12 +40,15 @@ Stop and report if any of these does not hold:
 |---|---|---|
 | G1 | Intention header reads `**Status: RATIFIED**` | `intention/raw_intention.md` line 3 |
 | G2 | Master plan tracker **P1** reads `APPROVED` | `master_plan.md` §4 |
-| G3 | Master plan tracker **P3** reads `NOT_STARTED` | `master_plan.md` §4 |
+| G3 | Master plan tracker **P3** reads `PROMPT_READY` | `master_plan.md` §4 |
+| G3a | Master plan tracker **P3** does **not** read `IMPLEMENTING`, `IMPLEMENTED` or `APPROVED` — that would mean a session already ran | `master_plan.md` §4 |
 | G4 | Master plan §7 sequencing reads `P1 → **P3 → P2**` | `master_plan.md` §7 |
 | G5 | Neither `domain/stock-criteria.domain.ts` nor `domain/stock-thresholds.domain.ts` exists | `ls src/features/stock/domain/` |
 | G6 | `api/mocks/get-stock-options.fixture.ts` exists with 28 `itemCategories` and 8 `propertyOptions` | the file |
 
-All six were true at dispatch. **Do not gate on a clean working tree** — `package.json` and
+All of these were true at dispatch. `PROMPT_READY` is the correct pre-implementation state: the coordinator sets it when queueing this prompt and owns every tracker transition, so **do not edit the tracker yourself** — report your result in the handoff and the coordinator advances it.
+
+*(Round 1 of this prompt was halted by an earlier gate that demanded `NOT_STARTED`. The coordinator self-tested that gate before queueing the prompt and then advanced the tracker in the next commit, invalidating it. The halt was correct behavior and cost nothing; the gate was wrong, not the session.)* **Do not gate on a clean working tree** — `package.json` and
 `package-lock.json` are legitimately dirty in this repo.
 
 ## 3. Read order

@@ -366,6 +366,15 @@ Charter standing rules 1–16 apply. Project-specific additions:
   place it would have made P3's display-casing map read as a correct no-op in every test —
   because the input was already display-cased — and the first live payload would render
   `oval` in the entry detail.
+- **S8 — a prompt gate is tested against the tree the session will meet, not the tree the
+  coordinator is standing in** *(added 2026-09-01, after the P3 round-1 halt)*. The P3 prompt's
+  gate demanded `NOT_STARTED`; it was self-tested and passed, and then the very next commit
+  advanced the tracker to `PROMPT_READY` and invalidated it. The session halted, correctly, and
+  reported. Before queueing any prompt, re-run its gates **after** the last commit that touches
+  the artifacts they read — a gate self-tested mid-amendment proves nothing about dispatch time.
+  Tracker gates in particular should assert the state the coordinator is about to leave the phase
+  in, and should also exclude the already-ran states (`IMPLEMENTING`, `IMPLEMENTED`, `APPROVED`),
+  which is the check that actually protects against a double dispatch.
 - **S7:** A criterion row whose subject is build/test infrastructure rather than product
   behavior (a runner starting, typecheck/lint passing) is an **infra-enabler row**: it
   traces to no measurement-ledger entry because it measures no product outcome. Its trace
