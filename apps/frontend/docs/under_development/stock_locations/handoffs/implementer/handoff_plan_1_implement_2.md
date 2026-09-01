@@ -71,8 +71,11 @@ file was edited.
 - `git diff --check` → passed.
 - Named mutations: declared 0 (C4(b) names none); executed 0. No mutation probe files were
   touched.
-- Closing L4 stamp: pending at handoff authoring; it must be taken on the final checkpoint tree
-  and recorded below before review consumption.
+- Closing L4 stamp (initial, on checkpoint `5ea7e30`): `npm test` → 3 files / 32 tests passed;
+  `npm run typecheck` → passed with no diagnostics; `npm run lint` → 48 errors / 14 warnings
+  (62 problems), unchanged from the documented repository baseline and all outside this round's
+  two-file implementation perimeter. Failure-ID delta against the round-1 32-pass / 0-fail
+  baseline: 0.
 
 ## Judgment calls and observations
 
@@ -105,6 +108,12 @@ included in the checkpoint.
 
 ## Post-checkpoint closing stamp
 
-To be filled with the final tree identity and exactly one closing L4 run (full suite plus
-typecheck and lint), including the recorded lint baseline of 48 errors / 14 warnings and the
-failure-ID delta. The tree must be clean at the cited checkpoint commit.
+The handoff and plan-log evidence were added after the initial stamp, so the charter's
+tree-identity rule requires a closing re-stamp. Final re-stamp: `npm test` → 3 files / 32 tests
+passed; `npm run typecheck` → passed with no diagnostics; `npm run lint` → 48 errors / 14
+warnings (62 problems), unchanged from baseline and all outside this round's implementation
+perimeter. Failure-ID delta: 0 (32 passed / 0 failed before and after).
+
+Final checkpoint identity is recorded after committing this handoff update. The repository
+retains unrelated pre-existing owner changes outside the cycle-scoped perimeter; the scoped
+implementation files and handoff are clean at the cited checkpoint.
