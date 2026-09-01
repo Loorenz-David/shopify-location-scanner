@@ -41,10 +41,17 @@ win over it in every disagreement.
 ## Workspace
 
 ```
-repo root      /Users/davidloorenz/Desktop/Developer/BeyoApps_2025/Item-Scanner-Shopify
+repo root      /Users/davidloorenz/Desktop/Developer/BeyoApps_2025/Item-Scanner-Shopify-warehouse-stock-backend
+branch         warehouse-stock-backend
 backend root   <repo root>/apps/backend          ← every command runs from here
 project docs   <repo root>/docs/under_implementation/warehouse_stock
 ```
+
+**This is a git worktree, and the path matters.** A sibling checkout exists at
+`…/Item-Scanner-Shopify` on `main`, where the frontend for this feature is being built in
+parallel. It holds a *copy* of these planning documents that stopped being live at commit
+`4424a3b`. Read and write only under the worktree path above; if a path you are about to
+open does not contain `-warehouse-stock-backend`, you are in the wrong tree.
 
 ## Gate check — run this before reading anything else
 
@@ -56,13 +63,18 @@ Stop and report if any line fails; do not project past a failed gate.
 2. `docs/under_implementation/warehouse_stock/context/property-options-selection.md`
    contains a heading beginning `## ✅ OWNER SELECTION — FINAL`. That is P1's gate-in
    (master plan §7): the owner's property-key selection is answered.
-3. `apps/backend/src/modules/stock/` does **not** exist, and neither does
+3. You are in the worktree: `git branch --show-current` prints
+   `warehouse-stock-backend`.
+4. `apps/backend/src/modules/stock/` does **not** exist, and neither does
    `apps/backend/src/shared/item-properties/item-property-options.ts`. If either is
    present, P1 has already been implemented and this projection is being run out of
    order — stop and say so.
-4. No file exists in `docs/under_implementation/warehouse_stock/handoffs/` whose
-   frontmatter carries `state: OWNER_DECISIONS_PENDING`. You must never project against
-   an authority that is still moving.
+5. No handoff row is awaiting an owner decision — from the repo root:
+   `grep -rl '^state: OWNER_DECISIONS_PENDING' docs/under_implementation/warehouse_stock/handoffs/`
+   returns nothing. You must never project against an authority that is still moving.
+   (`handoffs/README.md` documents that vocabulary inside a fenced example, so a bare
+   substring search hits it. That hit is **not** a gate failure — the README is the
+   table's schema documentation, not a row. Only a `handoff_*.md` file counts.)
 
 ## Read order
 
@@ -82,6 +94,11 @@ In this order, and **only** these:
 5. `context/property-options-selection.md` — the owner's final selection table.
 6. The actual codebase, as needed: `apps/backend/prisma/schema.prisma`,
    `apps/backend/src/shared/category/item-categories.ts` (the `as const` idiom P1 copies).
+
+The worktree's backend runtime is already provisioned and verified (master plan §10.0):
+dependencies installed, Prisma client generated, `dev.db` present at migration head, and
+`npm run typecheck` exiting 0. You are not expected to run or change any of it — you write
+no code — but if you need to confirm something about the environment, it works.
 
 **Out of read scope:** `prompts/` and `handoffs/` in the project docs folder, and any
 sibling folder under `docs/under_implementation/`. Those carry coordination state, and

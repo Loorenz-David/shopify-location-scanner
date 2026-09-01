@@ -122,3 +122,32 @@ Recorded limit, per the charter: this lint catches omission and arithmetic. It c
 see a criterion row whose assertion is weaker than the row, and it has never caught a
 guard that cannot fail. **What it did not check** is exactly what the projection gate is
 for: whether the plan determines every decision the implementer's first hour requires.
+
+---
+
+## Addendum — independent re-verification, 2026-09-01 (successor coordinator session)
+
+A new coordinator session re-ran this lint's checks from source rather than inheriting
+its verdict. **The arithmetic reconciles exactly**: 8 criteria; summands C1 5 · C2 6 ·
+C3 6 · C4 6 · C5 6 · C6 8 · C7 6 · C8 8 = 51 lettered rows. Gate self-test re-run in the
+worktree: intention header `**Status: RATIFIED**` at `raw_intention.md:3`; one
+`## ✅ OWNER SELECTION — FINAL` heading; `git branch --show-current` =
+`warehouse-stock-backend`; `src/modules/stock/` and
+`src/shared/item-properties/item-property-options.ts` both absent. `npm run typecheck`
+exits 0 — the §10.0 baseline holds. Orphan sweep over `handoffs/*` and `prompts/*`:
+none. The frontend's copy of the contract at
+`apps/frontend/docs/under_development/stock_locations/backend_handoff/` is still
+byte-identical to `contracts/frontend-api-contract.md` — no drift.
+
+**One defect found and fixed in the projection prompt, before dispatch.** Gate check
+line 5 read "no file in `handoffs/` whose frontmatter carries
+`state: OWNER_DECISIONS_PENDING`". `handoffs/README.md` documents that state vocabulary
+inside a fenced YAML example, so the obvious `grep -rl OWNER_DECISIONS_PENDING handoffs/`
+returns a hit and the gate then requires the session to *judge* that the hit is
+documentation rather than a row. A gate that needs judgment to pass is a gate that can
+halt a session that was right to proceed — the failure class the coordinator doctrine
+names as the most expensive kind of prompt defect. Line 5 now anchors the pattern to
+line-start `^state:` and states explicitly that the README hit is not a failure.
+
+This is a precision fix to the gate's wording only. It moves nothing the dispatch itself
+changes, and the gate remains content-only — no SHA, no dirty-tree check, no file count.

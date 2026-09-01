@@ -201,14 +201,47 @@ No archgraph in this repo — skip silently. Sessions verify write perimeters vi
 
 ## 10. Environment topology (verified 2026-09-01; if reality disagrees, update this section)
 
-- Backend root: `apps/backend`. Node ESM, TS, `tsx` dev. **All commands run from `apps/backend`.**
+### 10.0 Working tree — this pipeline runs in a git worktree (owner, 2026-09-01)
+
+The frontend for this feature is built in parallel on `main`, so the backend pipeline was
+moved to its own worktree to keep the two commit streams clean.
+
+| | Path | Branch | Owns |
+|---|---|---|---|
+| **Backend pipeline (this project)** | `/Users/davidloorenz/Desktop/Developer/BeyoApps_2025/Item-Scanner-Shopify-warehouse-stock-backend` | `warehouse-stock-backend` | **every session of this pipeline works here** |
+| Frontend track | `/Users/davidloorenz/Desktop/Developer/BeyoApps_2025/Item-Scanner-Shopify` | `main` | the frontend feature; owner-driven |
+
+Both worktrees were created from `4424a3b`, which already contains the full planning set
+(intention, context, master plan, plans, contracts, prompts, handoffs tables) — so the two
+copies started identical. **After that commit they diverge, and only the worktree copy is
+live.** A session that edits the planning documents in the `main` checkout is editing a
+dead copy; check your path before writing.
+
+Worktrees share one `.git`, so branches and history are common, but **untracked and ignored
+files are not shared**. The worktree's backend runtime was therefore reconstructed by hand
+(2026-09-01) and is now complete: `.env` copied, `prisma/dev.db` restored via
+`sqlite3 … ".backup"`, `npm install` (173 packages), `npm run prisma:generate`. Verified:
+`npx prisma migrate status` → *Database schema is up to date*, 33 migrations, head
+`20260729084212_add_restocked_at_and_returned_to_store_event`; DB parity with `main`'s copy
+at 1107 items / 518 unsold.
+
+**Baseline for the automated gate, taken before P1 touches anything:** `npm run typecheck`
+exits **0** on this worktree. Any typecheck failure a phase reports is that phase's own.
+
+**The two databases are independent copies, not one shared file.** Scans or edits made
+against one do not appear in the other. Run the backend from the worktree during this
+project; the `main` checkout's `dev.db` will go stale and that is expected, not drift.
+
+### 10.1 Commands and runtime
+
+- Backend root: `apps/backend` **inside the worktree**. Node ESM, TS, `tsx` dev. **All commands run from `apps/backend`.**
 - Automated gate: `npm run typecheck` (tsc --noEmit). `npm test` fails by design — never run it as a gate.
 - Migrations: `npm run prisma:migrate:dev -- --name add_location_stock` (local), applies to `prisma/dev.db` (SQLite; 1107 ScanHistory rows, 518 unsold, 1 shop). Deploy uses `prisma:migrate:deploy`. Never rewrite an applied migration.
-- **DB safety:** destructive manual verification runs against a copy: `cp prisma/dev.db /tmp/… ` or a scratch dir; scripts honor `DRY_RUN=1`. The configured dev.db is left at migration head with its data intact.
+- **DB safety:** destructive manual verification runs against a copy in a scratch dir; scripts honor `DRY_RUN=1`. The configured dev.db is left at migration head with its data intact. **Copy with `sqlite3 prisma/dev.db ".backup '<dest>'"`, never a plain `cp`** — the database runs in WAL mode, so `cp` of the `.db` file alone can capture a torn state that omits committed pages still living in `dev.db-wal`. (Learned while provisioning the worktree, 2026-09-01.) The file is ~304 MB; budget the disk.
 - Processes: API `src/server.ts`; webhook worker `src/workers/webhook-worker.ts` (BullMQ, needs Redis). Startup: `docs/guides/BACKEND_WORKERS_GUIDE.md`. Worker-path manual scenarios need Redis + worker running.
 - Routers mount twice in `server.ts` (bare + `/api`) — context §2.
 - SQLite: JSON not queryable via Prisma (§12.1); single-writer, WAL; `SQLITE_BUSY` retry exists only in the worker.
-- No test runner, no archgraph. `git` present; default branch `main`.
+- No test runner, no archgraph. `git` present; default branch `main`; **this pipeline commits on `warehouse-stock-backend`** (§10.0) — checkpoint and approval-gate commits both land there, never on `main`.
 
 ## 11. Review scope contract (binding on every reviewer prompt — authority: intention §25)
 
