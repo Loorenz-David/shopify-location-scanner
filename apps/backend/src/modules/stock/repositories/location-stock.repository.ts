@@ -159,7 +159,45 @@ const updateState = async (
   return toDomain(updated);
 };
 
+const replaceThresholdRows = async (
+  client: DatabaseClient,
+  id: string,
+  shopId: string,
+  thresholds: ReadonlyArray<LocationStockCreateData["thresholds"][number]>,
+  updatedByUsername: string,
+): Promise<void> => {
+  const existing = await client.locationStock.findFirst({
+    where: { id, shopId },
+    select: { id: true },
+  });
+
+  if (!existing) {
+    throw new NotFoundError("Location stock not found");
+  }
+
+  await client.stockThresholdsLocation.deleteMany({
+    where: { locationStockId: existing.id, shopId },
+  });
+
+  await client.stockThresholdsLocation.createMany({
+    data: thresholds.map((threshold) => ({
+      shopId,
+      locationStockId: existing.id,
+      state: threshold.state,
+      thresholdQuantity: threshold.thresholdQuantity,
+      createdByUsername: updatedByUsername,
+      updatedByUsername,
+    })),
+  });
+};
+
 export const locationStockRepository = {
+  async runInTransaction<T>(
+    work: (tx: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return prisma.$transaction(work);
+  },
+
   async createMany(
     shopId: string,
     configurations: readonly LocationStockCreateData[],
@@ -214,6 +252,35 @@ export const locationStockRepository = {
     });
 
     return toDomain(updated);
+  },
+
+  async replaceThresholds(
+    id: string,
+    shopId: string,
+    thresholds: ReadonlyArray<LocationStockCreateData["thresholds"][number]>,
+    updatedByUsername: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<void> {
+    if (tx) {
+      await replaceThresholdRows(
+        tx,
+        id,
+        shopId,
+        thresholds,
+        updatedByUsername,
+      );
+      return;
+    }
+
+    await prisma.$transaction((transaction) =>
+      replaceThresholdRows(
+        transaction,
+        id,
+        shopId,
+        thresholds,
+        updatedByUsername,
+      ),
+    );
   },
 
   async deleteById(
@@ -372,4 +439,3 @@ export const locationStockRepository = {
     return updateState(id, tx ?? prisma);
   },
 };
-
