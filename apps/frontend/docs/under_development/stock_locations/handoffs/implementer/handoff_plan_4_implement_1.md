@@ -90,7 +90,7 @@ Declared summands: C3/M1 = 1. Executed = 1, restored = 1, so `executed == declar
   12 files / 105 tests passing.
 - Scoped lint over `src/features/stock`: 0 errors / 0 warnings. The S2 name/hex scan continues
   to find state literals and hexes only in the existing domain/DTO/fixture allowlist.
-- Closing L4 stamp on final checkpoint `25a484c`: `npm test` 12 files / 105 tests
+- Closing L4 stamp on the clean checkpoint commit containing this handoff: `npm test` 12 files / 105 tests
   passing; `npm run typecheck` passed with no diagnostics; `npm run lint` reported the
   documented repository baseline of 48 errors / 14 warnings, unchanged, with zero problems
   in any P4 file created or touched.
