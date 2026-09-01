@@ -9,7 +9,7 @@ phase the whole feature is exercisable headlessly against mocks. NOT here: any U
 
 ## Read first
 Master plan §6 (Stores/Controllers/Flows, navigation view ids) · intention §3 (W1–W4),
-§4A MC11, MC12 + §6, §8 (M1, M5) · contract v1.2 §4.2–4.6, §5 ·
+§4A MC11, MC12 + §6, §8 (M1, M5) · contract **v1.4** §3 (the two 409 shapes), §4.2–4.6, §5 ·
 `context/frontend-architecture.md` §3, §5, §7 (optimism note: POST response is
 authoritative — pending state, not optimistic quantities).
 
@@ -48,3 +48,20 @@ no duplicated mapping.
 
 ## Review log
 (empty)
+
+
+## Inherited note — contract v1.4 splits the 409, and it changes nothing here
+
+*(Routed by the coordinator 2026-09-01; master plan **S9** carries the full analysis.)*
+
+A 409's `details` now has two shapes. The familiar one carries `conflictingId`. The new one —
+two entries of a single batch clashing with each other — carries `{batchIndex,
+conflictsWithBatchIndex}` and **no `conflictingId`**, because all-or-nothing means nothing was
+written and no id exists.
+
+**It is unreachable for V1**: every create is a single-entry batch, and multi-entry batch is an
+explicit non-goal. **And this phase was already written for it** — MC12b falls back to the
+envelope `message` when the id is absent, and P1 typed `conflictingId?: string` optional, so the
+unguarded read v1.4 warns about does not typecheck. **No criterion changes.** Do not add
+handling for a case this client cannot produce; if multi-entry submit is ever built, S9 records
+what that work owes.

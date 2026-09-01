@@ -66,7 +66,7 @@ coordinator owns every tracker transition; **do not edit the tracker**.
    allowlists and **S4c** casing), §10 (environment and test scopes)
 3. `intention/raw_intention.md` §4A **MC2, MC3, MC4, MC5, MC9**, §4B **MC1b, MC2a, MC3a**,
    §5, §8 (**M2, M2A**), §9A (**D11, D12, D13**)
-4. `backend_handoff/frontend-api-contract.md` **v1.3** §2, §4.1, §4.7 and its compaction warning
+4. `backend_handoff/frontend-api-contract.md` **v1.4** §2, §4.1, §4.7 and its compaction warning
 5. `backend_handoff/handoff_report_contract_v1_2_notice.md` §3
 6. **The shipped P1 and P3 code** — `types/`, `domain/stock-states.domain.ts`,
    `domain/stock-criteria.domain.ts`, `api/mocks/`. Reality outranks every document above;

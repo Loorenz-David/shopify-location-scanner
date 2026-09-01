@@ -10,7 +10,7 @@ end-to-end, report endpoint end-to-end, WS-driven refresh against real events. N
 here: new features, UI changes beyond defect fixes routed by review.
 
 ## Read first
-Master plan §6 (API seam), §10 · intention §4A MC11 + §8 (M1, M4, M5) · contract v1.2
+Master plan §6 (API seam), §10 · intention §4A MC11 + §8 (M1, M4, M5) · contract **v1.4**
 (all) · `vite.config.ts`.
 
 ## Tasks (refined at prompt time)

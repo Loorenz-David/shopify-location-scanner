@@ -13,7 +13,7 @@ them into the rendered view**. NOT in this phase: stores, flows, UI, PDF assembl
 ## Read first
 Master plan §6 (Domain — including the three structural notes on the pipeline owner, the
 `contributions` field, and comparator factories) · intention §4A MC2, MC3, MC4, MC5, MC9 +
-**§4B MC1b, MC2a, MC3a** + §5 + §8 (M2, **M2A**) · contract **v1.3** §2 (value normalization
+**§4B MC1b, MC2a, MC3a** + §5 + §8 (M2, **M2A**) · contract **v1.4** §2 (value normalization
 and casing), §4.1, §4.7 · `backend_handoff/handoff_report_contract_v1_2_notice.md` §3.
 
 ## Files expected to change

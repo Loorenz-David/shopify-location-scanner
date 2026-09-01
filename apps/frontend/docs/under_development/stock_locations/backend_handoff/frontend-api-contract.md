@@ -1,7 +1,7 @@
 # Location Stock System — Frontend API Contract
 
 **Audience:** the frontend planning/implementation agent. This document is self-contained: it carries every endpoint shape, the domain meaning behind it, and the reactivity rules. It is generated from the backend master plan's naming registry (`../master_plan.md` §6) — that registry is authoritative; if the two ever disagree, report it, don't guess.
-**Version:** 1.3 (2026-09-01) — **§4.1 `itemCategories` un-elided.** The list was written `["Dining Chairs", "Easy Chairs", ...]` in v1.1 and v1.2; the `...` was literal and the real vocabulary is **28** values, not the 9 inferable from the property table's `categories` column. Answers `handoffs/frontend/handoff_item_categories_confirmation.md`. No other section changes. Previously — **1.2 (2026-09-01): §4.7 (report) replaced.** Answers `frontend_handoffs/frontend-report-endpoint-request.md` (frontend decision D7), approved by the owner and ratified into the backend intention as §26. The report is now one unparameterized read returning uncompacted entries with a `mergeKey`; compaction, filtering, ordering and ranking move to the client. **§§4.1–4.6, transport, auth, envelopes and reactivity are unchanged from v1.1.** Amendments arrive only as new versions of this file via the backend pipeline's coordinator.
+**Version:** 1.4 (2026-09-01) — **§3 and §4.4: conflict errors have TWO shapes, not one.** v1.1–v1.3 promised `conflictingId` on every 409. That is only true when the submitted entry clashes with something already stored; when two entries *within one batch* clash with each other, nothing is written, so no existing definition and no id exist. Both shapes are now specified, with the message each one makes possible. Everything else is unchanged. Previously — **1.3 (2026-09-01): §4.1 `itemCategories` un-elided.** The list was written `["Dining Chairs", "Easy Chairs", ...]` in v1.1 and v1.2; the `...` was literal and the real vocabulary is **28** values, not the 9 inferable from the property table's `categories` column. Answers `handoffs/frontend/handoff_item_categories_confirmation.md`. No other section changes. Previously — **1.2 (2026-09-01): §4.7 (report) replaced.** Answers `frontend_handoffs/frontend-report-endpoint-request.md` (frontend decision D7), approved by the owner and ratified into the backend intention as §26. The report is now one unparameterized read returning uncompacted entries with a `mergeKey`; compaction, filtering, ordering and ranking move to the client. **§§4.1–4.6, transport, auth, envelopes and reactivity are unchanged from v1.1.** Amendments arrive only as new versions of this file via the backend pipeline's coordinator.
 
 ## 1. What this feature is
 
@@ -38,7 +38,16 @@ Rules the UI should reflect:
 
 - Base path: `/api/stock/...` (same axios client as existing features). Auth: Bearer JWT; user must be shop-linked. Any authenticated role may read AND write (same policy as zones/logistic locations).
 - Success: reads/creates `{ "data": ... }`; deletes `{ "ok": true }`.
-- Errors: `{ "error": { "code", "message", "details"?, "requestId" } }` — 400 `VALIDATION_ERROR`, 401, 404, 409 conflict. Conflict `details` carries `conflictingId` (the existing definition's id) and, on batch create, `batchIndex` (which submitted entry collided).
+- Errors: `{ "error": { "code", "message", "details"?, "requestId" } }` — 400 `VALIDATION_ERROR`, 401, 404, 409 conflict.
+
+**A 409's `details` has two shapes. Handle both — the field that identifies the clash differs, and only one of them can carry an id.**
+
+| Case | `details` | What it means |
+|---|---|---|
+| **Clashes with a stored definition** | `{ "conflictingId": "<id>", "batchIndex": <n> }` | The submitted entry overlaps a definition that already exists. `conflictingId` is that definition's id, so you can fetch or highlight it. `batchIndex` (batch create only) says which submitted entry caused it. |
+| **Two entries in one batch clash with each other** | `{ "batchIndex": <later>, "conflictsWithBatchIndex": <earlier> }` — **no `conflictingId`** | Both entries are in the request you just sent. Batch create is all-or-nothing, so **nothing was written**: there is no existing definition and therefore no id to name. The two indices are the only actionable information, and they are enough — *"row 2 overlaps row 1"*. |
+
+**Do not read `conflictingId` unconditionally.** In the second case it is absent, and code written against v1.3 that dereferences it will show an empty error, or highlight nothing, at exactly the moment the user needs to know which of the rows they just typed is the problem. Branch on its presence.
 
 ## 4. Endpoints
 
@@ -106,7 +115,7 @@ This `LocationStockDto` is the shape everywhere a definition is returned.
       { "state": "normal_in_stock", "thresholdQuantity": 20 } ]
 } ] }
 ```
-→ `201 { "data": [LocationStockDto...] }`. **All-or-nothing:** any invalid/conflicting entry fails the whole batch (nothing created; error names `batchIndex`/`conflictingId`). `properties` optional — omitted or `{}` = catch-all. All three thresholds mandatory, strictly increasing. The response DTOs already carry the **real initial quantity and state**, computed from existing inventory — never 0 by default. Expect this call to be slightly heavier than a plain insert (it recounts the affected group inline); no polling needed, the response is final.
+→ `201 { "data": [LocationStockDto...] }`. **All-or-nothing:** any invalid or conflicting entry fails the whole batch and **nothing is created** — including when the conflict is between two entries of the batch itself. The 409's `details` tells you which case you hit; see the two-shape table in §3. Worked example: submitting `LC1 · Dining Chairs · {wood_type:["Teak"]}` together with `LC1 · Dining Chairs · {}` in one request is an intra-batch conflict — the catch-all already covers the Teak entry at the same level of specificity — and comes back as `{ "batchIndex": 1, "conflictsWithBatchIndex": 0 }` with no `conflictingId`, because neither row was written. `properties` optional — omitted or `{}` = catch-all. All three thresholds mandatory, strictly increasing. The response DTOs already carry the **real initial quantity and state**, computed from existing inventory — never 0 by default. Expect this call to be slightly heavier than a plain insert (it recounts the affected group inline); no polling needed, the response is final.
 
 ### 4.5 `PATCH /api/stock/configurations/:id`
 Body: any subset of `{ location, itemCategory, properties, thresholds }`. `thresholds`, when present, is the **complete replacement list** (all three states), not a patch. Editing location/category/properties can change quantities of *sibling* definitions too (items reallocate) — after an update, refetch the whole location detail (both locations, if the location changed), not just the edited row. → `200 { "data": LocationStockDto }` (post-reallocation values).
@@ -176,4 +185,5 @@ items, so the unparameterized full fetch stays small.
 4. Live quantity movement from scans/sales (worth demoing end-to-end) — after backend phase P4.
 5. ~~Contract v1.1 (final property key/value lists in §4.1)~~ — landed.
 6. ~~Contract v1.2 (report shape per the frontend's request case)~~ — landed.
-7. ~~Contract v1.3 (complete `itemCategories`)~~ — landed; this document is v1.3 and complete. **No vocabulary in it is elided any more** — every closed list is written out in full. The mocks encoding the request case's §3 shape are now authoritative-matching and can be pointed at the real endpoint once P5 is approved.
+7. ~~Contract v1.3 (complete `itemCategories`)~~ — landed.
+8. ~~Contract v1.4 (both conflict-error shapes)~~ — landed; this document is v1.4 and complete. It is **self-contained**: it is the only file you need for this integration, and every amendment is explained where it applies rather than in a companion notice. The mocks encoding the request case's §3 shape are now authoritative-matching and can be pointed at the real endpoint once P5 is approved.

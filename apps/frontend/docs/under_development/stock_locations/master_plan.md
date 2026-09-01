@@ -15,7 +15,7 @@ restates semantics; it fixes the shared skeleton so parallel sessions cannot div
 | content | artifact |
 |---|---|
 | Product semantics, ledger, mechanism contracts | `intention/raw_intention.md` |
-| Wire contract (endpoints, shapes, errors) | `backend_handoff/frontend-api-contract.md` (**v1.3** — §4.1 `itemCategories` un-elided, 2026-09-01; v1.2 replaced §4.7) |
+| Wire contract (endpoints, shapes, errors) | `backend_handoff/frontend-api-contract.md` (**v1.4** — §3/§4.4 the two 409 shapes, 2026-09-01; v1.3 un-elided §4.1 `itemCategories`; v1.2 replaced §4.7) |
 | Visual target | `design_handoff/` (00-global once per session + the phase's screen folders) |
 | Repo grounding (architecture, design language, PDF lib) | `context/*.md` |
 | Shared skeleton, naming registry, environment, tracker | this file |
@@ -195,7 +195,7 @@ observe and which first breaks at P10.
 
 Seam: `api/stock-api-mode.ts` reading `import.meta.env.VITE_STOCK_API_MODE`
 (`"mock" | "live"`, **default `"live"`**, MC11) · mocks in `api/mocks/` (fixtures named
-`<endpoint>.fixture.ts`, encoding contract v1.3 examples + §4.1 vocabulary verbatim).
+`<endpoint>.fixture.ts`, encoding contract v1.4 examples + §4.1 vocabulary verbatim).
 
 **Flag read site** *(projection L10)*: `stock-api-mode.ts` exports a **function**
 (`resolveStockApiMode(): "mock" | "live"`) that reads `import.meta.env` **on each call**,
@@ -317,7 +317,7 @@ Charter standing rules 1–16 apply. Project-specific additions:
   which cannot carry `stockState` values without state name strings; the amended version
   then collided with the phase's own colocated tests. Both were guards no phase could pass.)*
 - **S3:** `VITE_STOCK_API_MODE` is read in exactly one file (`api/stock-api-mode.ts`).
-- **S4:** Mock fixtures copy contract v1.3 examples verbatim — a fixture that "improves"
+- **S4:** Mock fixtures copy contract v1.4 examples verbatim — a fixture that "improves"
   on the contract is a defect. **Scope clause:** S4 governs *shape and vocabulary* — no
   invented field, no value outside the contract's own vocabulary. It does **not** freeze
   the fixture *population*: a fixture may contain additional entries built entirely from
@@ -378,6 +378,25 @@ Charter standing rules 1–16 apply. Project-specific additions:
   reads the state *cell*, not the row** — a note cell legitimately mentions other phases' states,
   and a row-wide match on `APPROVED` will trip on it. That variant was caught in self-test on
   the P2 prompt, one phase after the halt that produced this rule.
+- **S9 — contract v1.4's second 409 shape is unreachable in V1, and our handling was already
+  correct** *(added 2026-09-01 on adopting v1.4)*. v1.4 splits a 409's `details` in two: a clash
+  with a **stored** definition carries `conflictingId`; a clash **between two entries of one
+  batch** carries `{batchIndex, conflictsWithBatchIndex}` and **no `conflictingId`**, because
+  all-or-nothing means nothing was written and no id exists. v1.4 warns against dereferencing
+  `conflictingId` unconditionally.
+  - **Reachability: nil for V1.** Every create is submitted as a **single-entry batch**
+    (intention §6; multi-entry batch is an explicit §7 non-goal). Two entries cannot clash inside
+    a batch of one, so the second shape cannot occur against this client as designed.
+  - **And the handling was already right, by design rather than luck.** MC12b reads
+    `conflictingId` and says "**else show the envelope `message` alone**"; plan 4 C5 already
+    enumerates both branches ("absent id ⇒ message only"); and P1 typed the field
+    `conflictingId?: string` — optional — so TypeScript already forbids the unguarded read v1.4
+    warns about. No plan, criterion, type or line of code changes.
+  - **Forward hazard, owned by whoever un-defers multi-entry batch.** The moment the wizard can
+    submit more than one entry, the second shape becomes reachable and there is no id to name:
+    the message must be built from the two indices ("row 2 overlaps row 1"). MC12b would then
+    need a third branch, and plan 4 C5 a third row. Recorded here so that work is not discovered
+    at integration time.
 - **S7:** A criterion row whose subject is build/test infrastructure rather than product
   behavior (a runner starting, typecheck/lint passing) is an **infra-enabler row**: it
   traces to no measurement-ledger entry because it measures no product outcome. Its trace
@@ -414,7 +433,7 @@ Charter standing rules 1–16 apply. Project-specific additions:
   `npx vitest run src/features/stock` · L4 `npm test` (full suite) + `npm run
   typecheck` + `npm run lint`. Baseline caveat: repo has zero pre-existing tests, so
   the first L4 baseline is P1's own enumeration.
-- Backend endpoints: NOT live (mock-first). Contract **v1.3** is authoritative; the
+- Backend endpoints: NOT live (mock-first). Contract **v1.4** is authoritative; the
   live copy sits on branch `warehouse-stock-backend`
   (`docs/under_implementation/warehouse_stock/contracts/frontend-api-contract.md`);
   our copy in `backend_handoff/` matches it (synced round 6).

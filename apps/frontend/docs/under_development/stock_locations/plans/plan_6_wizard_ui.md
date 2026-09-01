@@ -10,7 +10,7 @@ report screens; any change to P3/P4 logic.
 ## Read first
 Master plan §3, §6 · intention §3 W1, §4A MC6/MC7 (consume only), §9 D9 ·
 design `08-new-instance-step1/` + `09-thresholds/` (md + screenshots) ·
-contract v1.2 §2, §4.4–4.5 (error envelope).
+contract **v1.4** §2, §3 (the two 409 shapes), §4.4–4.5 (error envelope).
 
 ## Files expected to change
 `src/features/stock/ui/`: `StockWizardStep1View.tsx`, `StockWizardStep2View.tsx`,
@@ -67,3 +67,20 @@ universal keys only.
 
 ## Review log
 (empty)
+
+
+## Inherited note — contract v1.4 splits the 409, and it changes nothing here
+
+*(Routed by the coordinator 2026-09-01; master plan **S9** carries the full analysis.)*
+
+A 409's `details` now has two shapes. The familiar one carries `conflictingId`. The new one —
+two entries of a single batch clashing with each other — carries `{batchIndex,
+conflictsWithBatchIndex}` and **no `conflictingId`**, because all-or-nothing means nothing was
+written and no id exists.
+
+**It is unreachable for V1**: every create is a single-entry batch, and multi-entry batch is an
+explicit non-goal. **And this phase was already written for it** — MC12b falls back to the
+envelope `message` when the id is absent, and P1 typed `conflictingId?: string` optional, so the
+unguarded read v1.4 warns about does not typecheck. **No criterion changes.** Do not add
+handling for a case this client cannot produce; if multi-entry submit is ever built, S9 records
+what that work owes.
