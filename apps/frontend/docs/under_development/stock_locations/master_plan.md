@@ -351,6 +351,34 @@ What P10 must check on real data, none of which a green frontend suite can tell 
 P10's original gate (config endpoints after backend P3, report after backend P5 — contract §7)
 is **met**; P10 is now verification-and-repair against live data rather than a wait.
 
+### 7B. The merge is done *(2026-09-02)*
+
+`warehouse-stock-backend` was merged into `main` immediately after P6 was APPROVED, as a
+`--no-ff` merge commit. **It applied with zero conflicts**, exactly as the reconnaissance
+predicted. Pre-merge `main` was `e1073aa`; reverting is `git reset --hard e1073aa` if it is ever
+needed. The backend branch itself was not modified.
+
+Post-merge state, verified:
+
+- **Frontend: 19 files / 124 tests passing, typecheck clean** — unchanged by the merge, as
+  expected from the empty file intersection.
+- **Backend: typecheck clean, but only after `npm run prisma:generate`.** On the merged tree it
+  first failed with 8× `Property 'locationStock' does not exist on type 'TransactionClient'`.
+  That is a stale generated Prisma client, not a merge defect: `model LocationStock` is present
+  in `prisma/schema.prisma` and migration `20260901180407_add_location_stock` exists, but the
+  client in `node_modules` predates them. **Anyone else pulling this merge must run
+  `prisma:generate` too**, and a database that has not seen that migration needs
+  `prisma:migrate:deploy`.
+- `apps/backend` has **no test script** (`npm test` exits 1 by design), so the backend carries no
+  automated suite to run here. Its verification is the runbook below.
+
+**The backend track shipped its own end-to-end runbook** at
+`docs/under_implementation/warehouse_stock/verification/end-to-end-runbook.md` — fixtures, the
+scanner movement path, return-to-store, the Shopify webhook and sales paths (both worker-gated),
+failure isolation, deletion/fallback, and a totals check that names its own trap. It is the right
+companion to §7A's seven checks: §7A is what the *frontend* needs proven about the payloads, the
+runbook is what the *backend* needs proven about the data underneath them.
+
 ## 8. Tool protocols
 
 No archgraph in this repo — skip silently. No other per-session tools. Checkpoint
