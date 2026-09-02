@@ -1,4 +1,4 @@
-import { displayValueFor } from "./stock-criteria.domain";
+import { displayValueFor, propertyKeyLabel } from "./stock-criteria.domain";
 import {
   compareByStateIndex,
   countByStateBucket,
@@ -415,7 +415,7 @@ function configLabel(
   const values = orderPropertyKeys(properties, keyOrder).flatMap((key) => {
     const value = properties[key];
     if (value === null) {
-      return [`${key} any`];
+      return [`${propertyKeyLabel(key)} any`];
     }
 
     const wireValues = Array.isArray(value) ? value : [value];

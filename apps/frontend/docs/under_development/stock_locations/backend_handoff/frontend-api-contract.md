@@ -80,7 +80,8 @@ The sentinel `"unknown"` is deliberately **not** in the list and cannot be confi
 | `shape` | Oval, Rectangular, Round, Square | Dining Tables, Bedside Tables, Coffee Tables, Side Tables, Hall Tables, Nest Of Tables |
 | `extension_type` | Inside Extension, Outside Extension | same six table categories |
 | `extension_quantity` | 1, 2, 3, 4 | same six table categories |
-| `upholstery` | Up, Down | Dining Chairs, Easy Chairs, Armchairs |
+| `upholstery` | Down, Up & Down, None | Dining Chairs, Easy Chairs, Armchairs |
+| `quantity` | 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 12 | Dining Chairs, Easy Chairs, Armchairs |
 
 ### 4.2 `GET /api/stock/locations` — settings landing page
 ```json

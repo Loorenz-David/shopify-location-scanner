@@ -4,6 +4,7 @@ import type { StockPropertiesDto } from "../types/stock.dto";
 import {
   buildCriteria,
   displayValueFor,
+  propertyKeyLabel,
   renderCriteriaChips,
 } from "./stock-criteria.domain";
 
@@ -92,6 +93,40 @@ describe("stock criteria domain", () => {
         stockOptionsFixture,
       ),
     ).toEqual(["mystery"]);
+  });
+
+  it("C3(b): quantity reads as Set Of everywhere a key is shown", () => {
+    expect(propertyKeyLabel("quantity")).toBe("Set Of");
+    expect(renderCriteriaChips({ quantity: null }, stockOptionsFixture)).toEqual([
+      "SET OF · any",
+    ]);
+  });
+
+  it("C3(c): a key with no display name is humanized", () => {
+    expect(propertyKeyLabel("wood_type")).toBe("Wood Type");
+    expect(propertyKeyLabel("upholstery")).toBe("Upholstery");
+    expect(propertyKeyLabel("a_key_the_backend_added")).toBe(
+      "A Key The Backend Added",
+    );
+    expect(propertyKeyLabel("height_2")).toBe("Height 2");
+    expect(renderCriteriaChips({ upholstery: null }, stockOptionsFixture)).toEqual([
+      "UPHOLSTERY · any",
+    ]);
+    expect(renderCriteriaChips({ wood_type: null }, stockOptionsFixture)).toEqual([
+      "WOOD TYPE · any",
+    ]);
+  });
+
+  it("C3(e): humanizing never yields an empty label", () => {
+    expect(propertyKeyLabel("___")).toBe("___");
+    expect(propertyKeyLabel("")).toBe("");
+    expect(propertyKeyLabel("__wood__type__")).toBe("Wood Type");
+  });
+
+  it("C3(d): the label is display only — the wire key is untouched", () => {
+    expect(buildCriteria({
+      properties: [{ key: "quantity", selectedValues: ["6"], anyValue: false }],
+    })).toEqual({ quantity: ["6"] });
   });
 
   it("C4: chips follow vocabulary order and include universal-only keys", () => {

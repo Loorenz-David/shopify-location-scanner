@@ -27,6 +27,52 @@ export function buildCriteria(draft: CriteriaDraft): StockPropertiesDto {
   return properties;
 }
 
+/**
+ * Display names for property keys, applied everywhere a key is shown to a user.
+ *
+ * The wire key is what the API validates and what `StockPropertiesDto` carries;
+ * it must never be what a user reads when it has a name here.
+ *
+ * `quantity` is the size of the set an item is sold in (a set of 6 chairs), not
+ * a stock count — and it is rendered right next to the report's own quantity
+ * numbers, so the raw key would read as a duplicate of them.
+ */
+const PROPERTY_KEY_LABELS: Readonly<Record<string, string>> = {
+  quantity: "Set Of",
+};
+
+/**
+ * The fallback for every key without an entry above: `wood_type` → `Wood Type`.
+ *
+ * Only the first character of each word is touched, so a key that already
+ * carries deliberate casing is not flattened. A key that is nothing but
+ * separators would humanize to an empty string, so the caller keeps the raw key
+ * in that case — a blank label is worse than an ugly one.
+ */
+function humanizePropertyKey(key: string): string {
+  return key
+    .split("_")
+    .filter((word) => word !== "")
+    .map((word) => `${word.charAt(0).toUpperCase()}${word.slice(1)}`)
+    .join(" ");
+}
+
+/**
+ * The one place a property key becomes user-facing text.
+ *
+ * Display only: callers pass the wire key straight through to `buildCriteria`
+ * and the API, and a label is never parsed back into one.
+ */
+export function propertyKeyLabel(key: string): string {
+  const named = PROPERTY_KEY_LABELS[key];
+  if (named !== undefined) {
+    return named;
+  }
+
+  const humanized = humanizePropertyKey(key);
+  return humanized === "" ? key : humanized;
+}
+
 export function displayValueFor(
   key: string,
   wireValue: string,
@@ -70,7 +116,7 @@ export function renderCriteriaChips(
     .sort(([left], [right]) => comparePropertyKeys(left, right, keyOrder))
     .flatMap(([key, value]) => {
       if (value === null) {
-        return [`${key.toUpperCase()} · any`];
+        return [`${propertyKeyLabel(key).toUpperCase()} · any`];
       }
 
       const values = Array.isArray(value) ? value : [value];

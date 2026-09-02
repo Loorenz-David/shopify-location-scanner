@@ -1,29 +1,68 @@
 #!/usr/bin/env bash
+# Release activation script for the EC2 production host.
+#
+# This script performs NO builds. All compilation (npm ci, prisma generate,
+# tsc, vite build) happens on the GitHub Actions runner. The runner uploads
+# prebuilt artifacts into ${REPO_ROOT}/.deploy/incoming and then invokes this
+# script, which only:
+#   - syncs the git worktree to the exact commit the artifacts were built from
+#   - extracts and activates those artifacts with a directory swap
+#   - runs database migrations
+#   - reloads PM2 and verifies health
+#   - rolls back the swap if anything fails
+#
+# The script is executed from the uploaded copy in .deploy/incoming so that the
+# git sync below cannot rewrite the file while bash is still reading it.
 set -Eeuo pipefail
 
 GIT_REMOTE="${GIT_REMOTE:-origin}"
 DEPLOY_BRANCH="${DEPLOY_BRANCH:-main}"
 ENV_FILE="${ENV_FILE:-/etc/item-scanner/backend.env}"
 LOCK_DIR="${LOCK_DIR:-/tmp/item-scanner-ec2-deploy.lock}"
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+
+if [[ -n "${REPO_ROOT:-}" ]]; then
+  REPO_ROOT="$(cd "${REPO_ROOT}" && pwd)"
+else
+  SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  REPO_ROOT="$(cd "${SCRIPT_DIR}/../../.." && pwd)"
+fi
+
 BACKEND_DIR="${REPO_ROOT}/apps/backend"
 FRONTEND_DIR="${REPO_ROOT}/apps/frontend"
 ECOSYSTEM_FILE="${BACKEND_DIR}/ecosystem.config.cjs"
+
+DEPLOY_DIR="${REPO_ROOT}/.deploy"
+INCOMING_DIR="${INCOMING_DIR:-${DEPLOY_DIR}/incoming}"
+EXTRACT_DIR="${DEPLOY_DIR}/extract"
+BACKUP_DIR="${DEPLOY_DIR}/rollback"
+STATE_DIR="${DEPLOY_DIR}/state"
+RELEASE_MARKER="${STATE_DIR}/current-release"
+DEPS_FINGERPRINT_FILE="${STATE_DIR}/backend-deps.fingerprint"
+MANIFEST_FILE="${INCOMING_DIR}/release.json"
+
 BACKEND_APPS=(
   "shopify-backend"
   "shopify-webhook-worker"
   "shopify-notification-worker"
   "shopify-outbound-webhook-worker"
 )
+
+BACKEND_ENTRYPOINTS=(
+  "src/server.js"
+  "src/workers/webhook-worker.js"
+  "src/workers/notification-worker.js"
+  "src/workers/outbound-webhook-worker.js"
+)
+
 FETCH_TIMEOUT_SECONDS="${FETCH_TIMEOUT_SECONDS:-120}"
-NPM_INSTALL_TIMEOUT_SECONDS="${NPM_INSTALL_TIMEOUT_SECONDS:-240}"
-BUILD_TIMEOUT_SECONDS="${BUILD_TIMEOUT_SECONDS:-600}"
-FRONTEND_BUILD_TIMEOUT_SECONDS="${FRONTEND_BUILD_TIMEOUT_SECONDS:-300}"
+EXTRACT_TIMEOUT_SECONDS="${EXTRACT_TIMEOUT_SECONDS:-600}"
 MIGRATE_TIMEOUT_SECONDS="${MIGRATE_TIMEOUT_SECONDS:-120}"
 PM2_TIMEOUT_SECONDS="${PM2_TIMEOUT_SECONDS:-90}"
 HEALTHCHECK_TIMEOUT_SECONDS="${HEALTHCHECK_TIMEOUT_SECONDS:-15}"
-ENABLE_TSC_EXTENDED_DIAGNOSTICS="${ENABLE_TSC_EXTENDED_DIAGNOSTICS:-false}"
+
+# Rollback bookkeeping. Each entry is "<live path>|<backup path>".
+SWAPPED_PATHS=()
+RELEASE_COMMITTED=false
 
 timestamp() {
   date +"%Y-%m-%d %H:%M:%S"
@@ -85,10 +124,56 @@ dump_pm2_diagnostics() {
   pm2 logs --nostream --lines 120 || true
 }
 
+rollback_swaps() {
+  local idx
+  local entry
+  local live
+  local backup
+
+  if ((${#SWAPPED_PATHS[@]} == 0)); then
+    return
+  fi
+
+  warn "Rolling back ${#SWAPPED_PATHS[@]} activated director(y|ies)"
+  for ((idx = ${#SWAPPED_PATHS[@]} - 1; idx >= 0; idx--)); do
+    entry="${SWAPPED_PATHS[idx]}"
+    live="${entry%%|*}"
+    backup="${entry##*|}"
+
+    if [[ -d "${backup}" ]]; then
+      rm -rf "${live}"
+      mv "${backup}" "${live}"
+      warn "Restored ${live}"
+    else
+      warn "No backup available for ${live}; leaving the new content in place"
+    fi
+  done
+  SWAPPED_PATHS=()
+}
+
+restart_after_rollback() {
+  if ! command -v pm2 >/dev/null 2>&1; then
+    return
+  fi
+
+  if [[ ! -f "${ECOSYSTEM_FILE}" ]]; then
+    return
+  fi
+
+  warn "Restarting PM2 apps with the restored release"
+  pm2 startOrReload "${ECOSYSTEM_FILE}" --env production || true
+}
+
 on_error() {
   local exit_code="$1"
   local line_no="$2"
   warn "Deployment failed at line ${line_no} with exit code ${exit_code}"
+
+  if [[ "${RELEASE_COMMITTED}" == false ]]; then
+    rollback_swaps
+    restart_after_rollback
+  fi
+
   dump_pm2_diagnostics
   exit "${exit_code}"
 }
@@ -97,6 +182,12 @@ on_signal() {
   local signal="$1"
   warn "Deployment interrupted by ${signal}; terminating child processes"
   trap - ERR EXIT HUP INT TERM
+
+  if [[ "${RELEASE_COMMITTED}" == false ]]; then
+    rollback_swaps
+    restart_after_rollback
+  fi
+
   cleanup
   kill 0 >/dev/null 2>&1 || true
   exit 130
@@ -113,34 +204,22 @@ require_command() {
   command -v "${cmd}" >/dev/null 2>&1 || fail "Required command not found: ${cmd}"
 }
 
-npm_install_with_dev_dependencies() {
-  local target_dir="$1"
-  env -u NODE_ENV \
-    NPM_CONFIG_PRODUCTION=false \
-    NPM_CONFIG_OMIT= \
-    npm --prefix "${target_dir}" ci --include=dev --no-audit --no-fund --prefer-offline
-}
-export -f npm_install_with_dev_dependencies
-
-git_has_changes_between() {
-  local from_ref="$1"
-  local to_ref="$2"
-  shift 2
-
-  if (($# == 0)); then
-    ! git diff --quiet "${from_ref}" "${to_ref}"
-    return
-  fi
-
-  ! git diff --quiet "${from_ref}" "${to_ref}" -- "$@"
-}
-
 acquire_lock() {
   if mkdir "${LOCK_DIR}" 2>/dev/null; then
     return
   fi
 
   fail "Another deployment appears to be running (${LOCK_DIR})"
+}
+
+manifest_field() {
+  local field="$1"
+  node -e '
+    const fs = require("fs");
+    const manifest = JSON.parse(fs.readFileSync(process.argv[1], "utf8"));
+    const value = manifest[process.argv[2]];
+    process.stdout.write(value === undefined || value === null ? "" : String(value));
+  ' "${MANIFEST_FILE}" "${field}"
 }
 
 load_backend_env() {
@@ -169,7 +248,32 @@ ensure_clean_worktree() {
   fi
 }
 
+commit_exists() {
+  git cat-file -e "${1}^{commit}" 2>/dev/null
+}
+
+git_has_changes_between() {
+  local from_ref="$1"
+  local to_ref="$2"
+  shift 2
+
+  # An unknown baseline (first deploy, force-push, pruned history) must be
+  # treated as "everything changed" so nothing is silently skipped.
+  if ! commit_exists "${from_ref}"; then
+    return 0
+  fi
+
+  if (($# == 0)); then
+    ! git diff --quiet "${from_ref}" "${to_ref}"
+    return
+  fi
+
+  ! git diff --quiet "${from_ref}" "${to_ref}" -- "$@"
+}
+
 sync_repo() {
+  local release_sha="$1"
+
   log "Fetching ${GIT_REMOTE}/${DEPLOY_BRANCH}"
   run_with_timeout "${FETCH_TIMEOUT_SECONDS}" \
     git fetch --prune "${GIT_REMOTE}" "${DEPLOY_BRANCH}"
@@ -180,20 +284,12 @@ sync_repo() {
     git checkout -B "${DEPLOY_BRANCH}" --track "${GIT_REMOTE}/${DEPLOY_BRANCH}"
   fi
 
-  git reset --hard "${GIT_REMOTE}/${DEPLOY_BRANCH}"
-}
+  commit_exists "${release_sha}" \
+    || fail "Release commit ${release_sha} is not present after fetching ${GIT_REMOTE}/${DEPLOY_BRANCH}"
 
-pm2_app_status() {
-  local app="$1"
-  local pm2_json
-  pm2_json="$(pm2 jlist)"
-  PM2_APP_NAME="${app}" node -e '
-    const fs = require("fs");
-    const name = process.env.PM2_APP_NAME;
-    const apps = JSON.parse(fs.readFileSync(0, "utf8"));
-    const app = apps.find((entry) => entry.name === name);
-    process.stdout.write(app?.pm2_env?.status || "missing");
-  ' <<< "${pm2_json}"
+  # Reset to the exact commit the artifacts were built from, not to the branch
+  # tip, so the source tree and the uploaded build can never disagree.
+  git reset --hard "${release_sha}"
 }
 
 wait_for_no_online_backend_apps() {
@@ -268,7 +364,6 @@ stop_backend_apps() {
   wait_for_database_unlock
 }
 
-
 assert_pm2_online() {
   local expected_apps_json
   expected_apps_json="$(printf '%s\n' "${BACKEND_APPS[@]}" | node -e 'const fs = require("fs"); const items = fs.readFileSync(0, "utf8").trim().split(/\n+/).filter(Boolean); process.stdout.write(JSON.stringify(items));')"
@@ -312,32 +407,206 @@ health_check() {
   fail "Health checks did not pass via ${base_url}"
 }
 
+require_free_space() {
+  local needed_kb="$1"
+  local available_kb
+
+  available_kb="$(df -Pk "${REPO_ROOT}" | awk 'NR == 2 { print $4 }')"
+  if [[ -z "${available_kb}" ]]; then
+    warn "Could not determine free disk space for ${REPO_ROOT}; continuing"
+    return
+  fi
+
+  if ((available_kb < needed_kb)); then
+    fail "Insufficient disk space on ${REPO_ROOT}: ${available_kb}KB available, ${needed_kb}KB required"
+  fi
+
+  log "Disk space check passed (${available_kb}KB available, ${needed_kb}KB required)"
+}
+
+archive_size_kb() {
+  local archive="$1"
+  local size_bytes
+
+  if [[ ! -f "${archive}" ]]; then
+    printf '0\n'
+    return
+  fi
+
+  size_bytes="$(wc -c <"${archive}" | tr -d ' ')"
+  printf '%s\n' "$(((size_bytes + 1023) / 1024))"
+}
+
+cleanup_incoming_artifacts() {
+  # Deliberately leaves deploy-ec2.sh in place: this script is executed from
+  # ${INCOMING_DIR}, and the workflow clears the whole directory before each
+  # upload anyway.
+  rm -f "${INCOMING_DIR}/backend-dist.tar.gz" \
+    "${INCOMING_DIR}/frontend-dist.tar.gz" \
+    "${INCOMING_DIR}/backend-node-modules.tar.gz" \
+    "${MANIFEST_FILE}"
+}
+
+extract_archive() {
+  local archive="$1"
+  local destination="$2"
+
+  rm -rf "${destination}"
+  mkdir -p "${destination}"
+  run_with_timeout "${EXTRACT_TIMEOUT_SECONDS}" \
+    tar -xzf "${archive}" -C "${destination}"
+}
+
+swap_directory() {
+  local staged="$1"
+  local live="$2"
+  local backup="$3"
+
+  [[ -d "${staged}" ]] || fail "Staged directory ${staged} is missing"
+
+  rm -rf "${backup}"
+  if [[ -e "${live}" ]]; then
+    mv "${live}" "${backup}"
+  fi
+  mv "${staged}" "${live}"
+  SWAPPED_PATHS+=("${live}|${backup}")
+  log "Activated ${live}"
+}
+
+verify_backend_dist() {
+  local dist_dir="$1"
+  local entrypoint
+
+  for entrypoint in "${BACKEND_ENTRYPOINTS[@]}"; do
+    [[ -f "${dist_dir}/${entrypoint}" ]] \
+      || fail "Backend artifact is incomplete: ${dist_dir}/${entrypoint} is missing"
+  done
+}
+
+verify_frontend_dist() {
+  local dist_dir="$1"
+
+  [[ -f "${dist_dir}/index.html" ]] \
+    || fail "Frontend artifact is incomplete: ${dist_dir}/index.html is missing"
+  [[ -d "${dist_dir}/assets" ]] \
+    || fail "Frontend artifact is incomplete: ${dist_dir}/assets is missing"
+}
+
+detect_prisma_binary_target() {
+  (cd "${BACKEND_DIR}" && node -e '
+    import("@prisma/get-platform")
+      .then(async (mod) => {
+        const helper = mod.default ?? mod;
+        process.stdout.write(await helper.getBinaryTargetForCurrentPlatform());
+      })
+      .catch(() => process.exit(1));
+  ' 2>/dev/null) || true
+}
+
+verify_prisma_engines() {
+  local needs_schema_engine="$1"
+  local target
+  local query_engine
+  local schema_engine
+
+  target="$(detect_prisma_binary_target)"
+  if [[ -z "${target}" ]]; then
+    warn "Could not detect the Prisma binary target on this host; skipping engine verification"
+    return
+  fi
+
+  log "Prisma binary target for this host: ${target}"
+
+  query_engine="$(find "${BACKEND_DIR}/node_modules/.prisma" "${BACKEND_DIR}/node_modules/@prisma" \
+    -maxdepth 3 -name "libquery_engine-${target}.*" -print -quit 2>/dev/null || true)"
+  [[ -n "${query_engine}" ]] \
+    || fail "Prisma query engine for ${target} is missing from node_modules. Rebuild with PRISMA_BINARY_TARGET set to ${target} in the deploy workflow."
+
+  if [[ "${needs_schema_engine}" == true ]]; then
+    schema_engine="$(find "${BACKEND_DIR}/node_modules/@prisma/engines" \
+      -maxdepth 1 -name "schema-engine-${target}*" -print -quit 2>/dev/null || true)"
+    [[ -n "${schema_engine}" ]] \
+      || fail "Prisma schema engine for ${target} is missing from node_modules; migrations cannot run. Rebuild with PRISMA_BINARY_TARGET set to ${target} in the deploy workflow."
+  fi
+}
+
 main() {
   require_command git
   require_command node
   require_command npm
   require_command pm2
   require_command curl
+  require_command tar
 
   acquire_lock
 
   cd "${REPO_ROOT}"
   [[ -d .git ]] || fail "Repository root not found at ${REPO_ROOT}"
 
-  log "Starting EC2 deploy for branch ${DEPLOY_BRANCH}"
+  [[ -f "${MANIFEST_FILE}" ]] \
+    || fail "Release manifest not found at ${MANIFEST_FILE}. Artifacts must be uploaded by the deploy workflow before this script runs."
+
+  local release_sha
+  local release_branch
+  local release_deps_fingerprint
+  release_sha="$(manifest_field sha)"
+  release_branch="$(manifest_field branch)"
+  release_deps_fingerprint="$(manifest_field depsFingerprint)"
+
+  [[ -n "${release_sha}" ]] || fail "Release manifest does not contain a commit sha"
+  [[ -n "${release_deps_fingerprint}" ]] || fail "Release manifest does not contain a dependency fingerprint"
+
+  if [[ -n "${release_branch}" && "${release_branch}" != "${DEPLOY_BRANCH}" ]]; then
+    fail "Release manifest branch ${release_branch} does not match the requested branch ${DEPLOY_BRANCH}"
+  fi
+
+  local backend_dist_archive="${INCOMING_DIR}/backend-dist.tar.gz"
+  local frontend_dist_archive="${INCOMING_DIR}/frontend-dist.tar.gz"
+  local node_modules_archive="${INCOMING_DIR}/backend-node-modules.tar.gz"
+
+  [[ -f "${backend_dist_archive}" ]] || fail "Missing artifact: ${backend_dist_archive}"
+  [[ -f "${frontend_dist_archive}" ]] || fail "Missing artifact: ${frontend_dist_archive}"
+
+  local node_modules_shipped=false
+  if [[ -f "${node_modules_archive}" ]]; then
+    node_modules_shipped=true
+  fi
+
+  log "Starting EC2 release activation for branch ${DEPLOY_BRANCH} at ${release_sha}"
   ensure_clean_worktree
 
-  local previous_sha
-  previous_sha="$(git rev-parse --short HEAD)"
+  local previous_head
+  previous_head="$(git rev-parse HEAD)"
 
-  sync_repo
+  sync_repo "${release_sha}"
 
-  local current_sha
-  current_sha="$(git rev-parse --short HEAD)"
-  log "Repository updated ${previous_sha} -> ${current_sha}"
+  mkdir -p "${STATE_DIR}"
 
-  if [[ "${previous_sha}" == "${current_sha}" ]]; then
-    log "No new commit to deploy"
+  local last_deployed_sha=""
+  if [[ -f "${RELEASE_MARKER}" ]]; then
+    last_deployed_sha="$(tr -d '[:space:]' <"${RELEASE_MARKER}")"
+  fi
+
+  local installed_deps_fingerprint=""
+  if [[ -f "${DEPS_FINGERPRINT_FILE}" ]]; then
+    installed_deps_fingerprint="$(tr -d '[:space:]' <"${DEPS_FINGERPRINT_FILE}")"
+  fi
+
+  # The baseline is the last successfully activated release when we know it,
+  # so a deploy that failed midway is never mistaken for "already deployed".
+  local baseline="${last_deployed_sha}"
+  if [[ -z "${baseline}" ]]; then
+    baseline="${previous_head}"
+  fi
+  log "Comparing against baseline ${baseline}"
+
+  if [[ "${last_deployed_sha}" == "${release_sha}" \
+    && "${installed_deps_fingerprint}" == "${release_deps_fingerprint}" \
+    && "${node_modules_shipped}" == false \
+    && -d "${BACKEND_DIR}/dist" \
+    && -d "${FRONTEND_DIR}/dist" ]]; then
+    log "Release ${release_sha} is already active; nothing to do"
+    cleanup_incoming_artifacts
     return
   fi
 
@@ -347,8 +616,9 @@ main() {
   local deploy_script_changed=false
   local frontend_code_changed=false
   local frontend_manifest_changed=false
+  local migrations_changed=false
 
-  if git_has_changes_between "${previous_sha}" "${current_sha}" \
+  if git_has_changes_between "${baseline}" "${release_sha}" \
     apps/backend/src \
     apps/backend/tsconfig.json \
     apps/backend/tsconfig.build.json \
@@ -356,25 +626,27 @@ main() {
     backend_code_changed=true
   fi
 
-  if git_has_changes_between "${previous_sha}" "${current_sha}" \
+  if git_has_changes_between "${baseline}" "${release_sha}" \
     apps/backend/package.json \
     apps/backend/package-lock.json; then
     backend_manifest_changed=true
   fi
 
-  if git_has_changes_between "${previous_sha}" "${current_sha}" \
-    apps/backend/prisma; then
+  if git_has_changes_between "${baseline}" "${release_sha}" \
+    apps/backend/prisma \
+    apps/backend/prisma.config.ts; then
     prisma_changed=true
   fi
 
-  if git_has_changes_between "${previous_sha}" "${current_sha}" \
+  if git_has_changes_between "${baseline}" "${release_sha}" \
     apps/backend/scripts/deploy-ec2.sh; then
     deploy_script_changed=true
   fi
 
-  if git_has_changes_between "${previous_sha}" "${current_sha}" \
+  if git_has_changes_between "${baseline}" "${release_sha}" \
     apps/frontend/src \
     apps/frontend/index.html \
+    apps/frontend/public \
     apps/frontend/vite.config.ts \
     apps/frontend/tsconfig.json \
     apps/frontend/tsconfig.app.json \
@@ -382,17 +654,23 @@ main() {
     frontend_code_changed=true
   fi
 
-  if git_has_changes_between "${previous_sha}" "${current_sha}" \
+  if git_has_changes_between "${baseline}" "${release_sha}" \
     apps/frontend/package.json \
     apps/frontend/package-lock.json; then
     frontend_manifest_changed=true
+  fi
+
+  if git_has_changes_between "${baseline}" "${release_sha}" \
+    apps/backend/prisma/migrations; then
+    migrations_changed=true
   fi
 
   local backend_changed=false
   if [[ "${backend_code_changed}" == true \
     || "${backend_manifest_changed}" == true \
     || "${prisma_changed}" == true \
-    || "${deploy_script_changed}" == true ]]; then
+    || "${deploy_script_changed}" == true \
+    || "${node_modules_shipped}" == true ]]; then
     backend_changed=true
   fi
 
@@ -401,65 +679,93 @@ main() {
     frontend_changed=true
   fi
 
+  if [[ ! -d "${BACKEND_DIR}/dist" ]]; then
+    log "Backend dist is missing on this host; forcing backend activation"
+    backend_changed=true
+  fi
+
+  if [[ ! -d "${FRONTEND_DIR}/dist" ]]; then
+    log "Frontend dist is missing on this host; forcing frontend activation"
+    frontend_changed=true
+  fi
+
+  if [[ ! -d "${BACKEND_DIR}/node_modules" && "${node_modules_shipped}" == false ]]; then
+    fail "Backend node_modules is missing on this host and the release does not ship one. Re-run the deploy workflow; it uploads dependencies when the host has none."
+  fi
+
   if [[ "${backend_changed}" == false && "${frontend_changed}" == false ]]; then
-    log "No deployable changes detected; skipping install/build/reload"
+    log "No deployable changes detected; skipping activation"
+    printf '%s\n' "${release_sha}" >"${RELEASE_MARKER}"
+    cleanup_incoming_artifacts
     return
   fi
 
   load_backend_env
-  local runtime_node_env="${NODE_ENV:-production}"
 
-  if [[ "${backend_manifest_changed}" == true || ! -d "${BACKEND_DIR}/node_modules" ]]; then
-    run_timed_step "backend dependency install" \
-      run_with_timeout "${NPM_INSTALL_TIMEOUT_SECONDS}" \
-      bash -c 'npm_install_with_dev_dependencies "$1"' -- "${BACKEND_DIR}"
-  else
-    log "Skipping backend dependency install"
+  local needed_kb=0
+  if [[ "${backend_changed}" == true ]]; then
+    needed_kb=$((needed_kb + $(archive_size_kb "${backend_dist_archive}") * 4))
+  fi
+  if [[ "${frontend_changed}" == true ]]; then
+    needed_kb=$((needed_kb + $(archive_size_kb "${frontend_dist_archive}") * 4))
+  fi
+  if [[ "${node_modules_shipped}" == true ]]; then
+    needed_kb=$((needed_kb + $(archive_size_kb "${node_modules_archive}") * 6))
+  fi
+  require_free_space "$((needed_kb + 262144))"
+
+  mkdir -p "${EXTRACT_DIR}" "${BACKUP_DIR}"
+
+  if [[ "${node_modules_shipped}" == true ]]; then
+    run_timed_step "backend dependency extraction" \
+      extract_archive "${node_modules_archive}" "${EXTRACT_DIR}/backend-node-modules"
+    [[ -d "${EXTRACT_DIR}/backend-node-modules/node_modules/.bin" ]] \
+      || fail "Backend dependency artifact is incomplete: node_modules/.bin is missing"
   fi
 
-  if [[ "${backend_manifest_changed}" == true || "${prisma_changed}" == true ]]; then
-    run_timed_step "Prisma client generation" \
-      run_with_timeout "${BUILD_TIMEOUT_SECONDS}" \
-      npm --prefix "${BACKEND_DIR}" run prisma:generate
-  else
-    log "Skipping Prisma client generation"
-  fi
-
-  if [[ "${backend_code_changed}" == true || "${backend_manifest_changed}" == true || "${prisma_changed}" == true ]]; then
-    if [[ "${ENABLE_TSC_EXTENDED_DIAGNOSTICS}" == true ]]; then
-      log "TypeScript extended diagnostics enabled for this deploy"
-      run_timed_step "backend TypeScript build" \
-        run_with_timeout "${BUILD_TIMEOUT_SECONDS}" \
-        npm --prefix "${BACKEND_DIR}" exec tsc -p tsconfig.build.json --incremental --tsBuildInfoFile dist/.tsbuildinfo --extendedDiagnostics
-    else
-      run_timed_step "backend TypeScript build" \
-        run_with_timeout "${BUILD_TIMEOUT_SECONDS}" \
-        npm --prefix "${BACKEND_DIR}" run build:fast
-    fi
-  else
-    log "Skipping backend build"
-  fi
-
-  if [[ "${frontend_manifest_changed}" == true || ! -d "${FRONTEND_DIR}/node_modules" ]]; then
-    run_timed_step "frontend dependency install" \
-      run_with_timeout "${NPM_INSTALL_TIMEOUT_SECONDS}" \
-      bash -c 'npm_install_with_dev_dependencies "$1"' -- "${FRONTEND_DIR}"
-  else
-    log "Skipping frontend dependency install"
+  if [[ "${backend_changed}" == true ]]; then
+    run_timed_step "backend artifact extraction" \
+      extract_archive "${backend_dist_archive}" "${EXTRACT_DIR}/backend-dist"
+    verify_backend_dist "${EXTRACT_DIR}/backend-dist/dist"
   fi
 
   if [[ "${frontend_changed}" == true ]]; then
-    run_timed_step "frontend build" \
-      run_with_timeout "${FRONTEND_BUILD_TIMEOUT_SECONDS}" \
-      npm --prefix "${FRONTEND_DIR}" run build
-  else
-    log "Skipping frontend build"
+    run_timed_step "frontend artifact extraction" \
+      extract_archive "${frontend_dist_archive}" "${EXTRACT_DIR}/frontend-dist"
+    verify_frontend_dist "${EXTRACT_DIR}/frontend-dist/dist"
   fi
 
-  if git_has_changes_between "${previous_sha}" "${current_sha}" apps/backend/prisma/migrations; then
-    log "Stopping backend PM2 apps before migrations"
+  # Take the backend down first when migrations are pending so no old code
+  # runs against a migrated schema and no process holds the SQLite file.
+  if [[ "${migrations_changed}" == true ]]; then
+    log "Migrations are pending; stopping PM2 backend apps before activation"
     stop_backend_apps
+  fi
 
+  if [[ "${node_modules_shipped}" == true ]]; then
+    run_timed_step "backend dependency activation" \
+      swap_directory "${EXTRACT_DIR}/backend-node-modules/node_modules" \
+      "${BACKEND_DIR}/node_modules" \
+      "${BACKUP_DIR}/backend-node-modules"
+  fi
+
+  if [[ "${backend_changed}" == true ]]; then
+    run_timed_step "backend release activation" \
+      swap_directory "${EXTRACT_DIR}/backend-dist/dist" \
+      "${BACKEND_DIR}/dist" \
+      "${BACKUP_DIR}/backend-dist"
+  fi
+
+  if [[ "${frontend_changed}" == true ]]; then
+    run_timed_step "frontend release activation" \
+      swap_directory "${EXTRACT_DIR}/frontend-dist/dist" \
+      "${FRONTEND_DIR}/dist" \
+      "${BACKUP_DIR}/frontend-dist"
+  fi
+
+  verify_prisma_engines "${migrations_changed}"
+
+  if [[ "${migrations_changed}" == true ]]; then
     run_timed_step "Prisma migrations" \
       run_with_timeout "${MIGRATE_TIMEOUT_SECONDS}" \
       npm --prefix "${BACKEND_DIR}" run prisma:migrate:deploy
@@ -468,7 +774,7 @@ main() {
   fi
 
   if [[ "${backend_changed}" == true ]]; then
-    export NODE_ENV="${runtime_node_env}"
+    export NODE_ENV="${NODE_ENV:-production}"
     run_timed_step "PM2 ecosystem reload" \
       run_with_timeout "${PM2_TIMEOUT_SECONDS}" \
       pm2 startOrReload "${ECOSYSTEM_FILE}" --env production
@@ -478,9 +784,27 @@ main() {
     assert_pm2_online
 
     run_timed_step "backend health checks" health_check
+  elif [[ "${migrations_changed}" == true ]]; then
+    # Apps were stopped for the migration but the backend release itself did
+    # not change, so bring them back up on the existing build.
+    run_timed_step "PM2 ecosystem reload" \
+      run_with_timeout "${PM2_TIMEOUT_SECONDS}" \
+      pm2 startOrReload "${ECOSYSTEM_FILE}" --env production
+    pm2 save
+    assert_pm2_online
+    run_timed_step "backend health checks" health_check
   fi
 
-  log "Deployment finished successfully at ${current_sha}"
+  printf '%s\n' "${release_sha}" >"${RELEASE_MARKER}"
+  if [[ "${node_modules_shipped}" == true ]]; then
+    printf '%s\n' "${release_deps_fingerprint}" >"${DEPS_FINGERPRINT_FILE}"
+  fi
+  RELEASE_COMMITTED=true
+
+  rm -rf "${BACKUP_DIR}" "${EXTRACT_DIR}"
+  cleanup_incoming_artifacts
+
+  log "Deployment finished successfully at ${release_sha}"
 }
 
 main "$@"

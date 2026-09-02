@@ -46,7 +46,13 @@ export const PROPERTY_METAFIELD_NAMESPACES: ReadonlySet<string> = new Set([
   "custom",
 ]);
 
-/** Derived from PROMOTED_METAFIELDS — never hand-edited. */
+/**
+ * Derived from PROMOTED_METAFIELDS — never hand-edited. A promoted metafield's
+ * RAW value never lands in the bag; the column owns it.
+ *
+ * `quantity` is the one key that appears in both places, but the bag gets the
+ * RESOLVED number (see `extractMetafieldProperties`), never this metafield.
+ */
 const COLUMN_BACKED_KEYS: ReadonlySet<string> = new Set(
   Object.values(PROMOTED_METAFIELDS).map((metafield) => metafield.key),
 );
@@ -180,11 +186,27 @@ export const buildAllMetafieldsSelection = (): string =>
  * product has no property metafields", which is authoritative and will clear
  * whatever was stored. "Not fetched" is expressed by the caller passing no
  * nodes at all (see `metafieldProperties: null` on the snapshot).
+ *
+ * `resolved.quantity` is the number the caller already computed for the
+ * `quantity` column; it is copied into the bag so an item can be filtered by
+ * its set size without the column and the property ever drifting apart.
  */
 export const extractMetafieldProperties = (
   nodes: readonly ShopifyMetafieldNode[],
+  resolved: { quantity: number },
 ): Record<string, string> => {
-  const properties: Record<string, string> = {};
+  // Seeded before the loop, so the key cap can never drop it, and `quantity`
+  // stays in COLUMN_BACKED_KEYS, so no metafield can overwrite it.
+  //
+  // Deliberately the RESOLVED number, not `custom.quantity`: `resolveQuantity`
+  // falls back to the "set of N" in the title and then to 1, so most items have
+  // a real quantity with no metafield behind it. Storing the raw metafield
+  // would leave those items with no `quantity` key at all — and `matchesCriteria`
+  // requires the key to be present, so they would be invisible to every
+  // quantity criterion while the report still counted their full set.
+  const properties: Record<string, string> = {
+    quantity: String(resolved.quantity),
+  };
 
   // Deterministic order so the key cap, when it bites, always drops the same
   // keys rather than whatever Shopify happened to return last.

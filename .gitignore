@@ -17,6 +17,9 @@ dev.db-shm
 node_modules/
 **/node_modules/
 
+# deploy staging (CI-built artifacts uploaded to the server)
+.deploy/
+
 # build output
 dist/
 **/dist/

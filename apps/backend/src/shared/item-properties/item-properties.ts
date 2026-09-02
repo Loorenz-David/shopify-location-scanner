@@ -22,6 +22,10 @@ export const EXCLUDED_PURCHASE_ATTRIBUTE_KEYS: ReadonlySet<string> = new Set([
   // Shopify's custom.extension_quantity is the value the UI reads; this is the
   // purchase app's near-twin under a different name.
   "qty_extensions",
+  // The Shopify half always supplies `quantity` (the resolved set size that
+  // backs the column), so a purchase-app attribute of the same name would lose
+  // every collision anyway. Dropping it keeps the override log quiet.
+  "quantity",
 ]);
 
 /** Truncates long values and drops anything past the key cap, deterministically

@@ -76,6 +76,33 @@ OUT:            everything else (material_type, door_type, unit_type, magazine_s
 | `shape` | Oval, Rectangular, Round, Square | tables |
 | `extension_type` | Inside Extension, Outside Extension | tables |
 | `extension_quantity` | 1, 2, 3, 4 | tables |
-| `upholstery` | Up, Down | chairs |
+| `upholstery` | Down, Up & Down, None | chairs |
 
 P1's gate is satisfied; the implementer transcribes THIS table into `item-property-options.ts` verbatim.
+
+### Correction (David, 2026-09-02) — `upholstery` values
+
+The atomic-token split (§0.5) was wrong for this key. `upholstery` is stored as one of three
+whole values — `Down` (24 items), `Up & Down` (23), `None` (2) — and `&` is a word in
+`Up & Down`, not a separator: no other mapped key uses `&` anywhere in the data. Splitting it
+into `Up` / `Down` left `Up & Down` and `None` unselectable and silently folded the 23
+`Up & Down` items into a `Down` configuration. The map now carries `Down, Up & Down, None`,
+and `tokenizePropertyValue` splits on `,` and `/` only.
+
+### Addition (David, 2026-09-02) — `quantity`
+
+`quantity` is now a ninth map entry: values `1-10, 12`, categories `chairs`
+(Dining Chairs, Easy Chairs, Armchairs). It did not appear on the sheet because it
+was never in the bag — `custom.quantity` is a promoted metafield that backs the
+`ScanHistory.quantity` column, so `extractMetafieldProperties` skipped it.
+
+For a furniture shop that number is a real item attribute (the size of the set),
+so the bag now carries it too. It carries the **resolved** number the column holds,
+not the raw metafield: `resolveQuantity` falls back to the "set of N" in the title
+for seating and then to `1`, so most items have a genuine quantity with no metafield
+behind them. Storing the raw metafield would have left those items with no `quantity`
+key at all, and `matchesCriteria` requires the key to be present — they would have
+been invisible to every quantity criterion while the report still counted their sets.
+
+Observed today: 1 (938 items), 2 (71), 4 (164), 5 (7), 6 (112), 7 (2), 8 (14), 10 (4).
+The map adds 3, 9 and 12 so a new set size is not unconfigurable on arrival.

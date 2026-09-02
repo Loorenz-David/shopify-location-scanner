@@ -451,13 +451,6 @@ const mapProductNodeToLocationSnapshot = (product: {
       ? product.status
       : "UNKNOWN";
 
-  // `metafields` is only selected by queries that ask for it. Absent means "not
-  // fetched" (null), which write paths must treat as "leave stored properties
-  // alone" — never as "this product has none".
-  const metafieldProperties = product.metafields
-    ? extractMetafieldProperties(product.metafields.nodes)
-    : null;
-
   const dimensions = resolveDimensions({
     height: coalesceMetafieldValue(
       product.itemHeight?.value,
@@ -484,16 +477,27 @@ const mapProductNodeToLocationSnapshot = (product: {
     product.title,
   );
 
+  // Resolved before the bag is built: the bag carries this same number, so the
+  // `quantity` column and `properties.quantity` cannot disagree.
+  const quantity = resolveQuantity(
+    product.quantityMeta?.value,
+    itemCategory,
+    product.title,
+  );
+
+  // `metafields` is only selected by queries that ask for it. Absent means "not
+  // fetched" (null), which write paths must treat as "leave stored properties
+  // alone" — never as "this product has none".
+  const metafieldProperties = product.metafields
+    ? extractMetafieldProperties(product.metafields.nodes, { quantity })
+    : null;
+
   return {
     id: product.id,
     title: product.title,
     status,
     itemCategory,
-    quantity: resolveQuantity(
-      product.quantityMeta?.value,
-      itemCategory,
-      product.title,
-    ),
+    quantity,
     metafieldProperties,
     sku: product.variants.edges[0]?.node.sku ?? null,
     barcode: product.variants.edges[0]?.node.barcode ?? null,

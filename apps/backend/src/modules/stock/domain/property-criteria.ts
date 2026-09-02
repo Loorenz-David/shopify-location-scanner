@@ -3,10 +3,19 @@ import { ValidationError } from "../../../shared/errors/http-errors.js";
 export type StockCriteria = Record<string, string[] | null>;
 export type StockCriteriaInput = Record<string, string | string[] | null>;
 
+/**
+ * Splits a stored property value into the atomic tokens the options map lists.
+ *
+ * `,` and `/` are the real multi-value separators in the data (`"Teak, Beech"`,
+ * `"Oval/Rectangular"`). `&` deliberately is NOT one: the only stored value that
+ * uses it is `upholstery: "Up & Down"`, which the map carries as a single choice
+ * alongside `Down` and `None`. Splitting it would make that choice unselectable
+ * and would silently fold those items into the `Down` configuration.
+ */
 export const tokenizePropertyValue = (stored: string): Set<string> =>
   new Set(
     stored
-      .split(/[,\/&]/)
+      .split(/[,\/]/)
       .map((token) => token.trim())
       .filter(Boolean)
       .map((token) => token.toLowerCase()),

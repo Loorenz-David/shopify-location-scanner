@@ -121,29 +121,31 @@ describe("StockWizardStep1View (screen 08)", () => {
     await openWizardFromRootPill();
     await chooseLocation("L2");
 
-    // Bound category: four universal keys plus the three table-bound keys; upholstery excluded.
+    // Bound category: four universal keys plus the three table-bound keys; the
+    // chair-bound keys (upholstery, quantity) are excluded.
     await chooseItemType("Dining Tables");
     await userEvent.click(screen.getByRole("button", { name: "Add property" }));
     expect(sheetOptions()).toEqual([
-      "wood_type",
-      "years",
-      "weight_definition",
-      "country",
-      "shape",
-      "extension_type",
-      "extension_quantity",
+      "Wood Type",
+      "Years",
+      "Weight Definition",
+      "Country",
+      "Shape",
+      "Extension Type",
+      "Extension Quantity",
     ]);
     await closeSheet("Add property");
 
-    // A different binding: the chair key appears, the table keys do not.
+    // A different binding: the chair keys appear, the table keys do not.
     await chooseItemType("Dining Chairs");
     await userEvent.click(screen.getByRole("button", { name: "Add property" }));
     expect(sheetOptions()).toEqual([
-      "wood_type",
-      "years",
-      "weight_definition",
-      "country",
-      "upholstery",
+      "Wood Type",
+      "Years",
+      "Weight Definition",
+      "Country",
+      "Upholstery",
+      "Set Of",
     ]);
     await closeSheet("Add property");
 
@@ -151,22 +153,22 @@ describe("StockWizardStep1View (screen 08)", () => {
     await chooseItemType("Sofas");
     await userEvent.click(screen.getByRole("button", { name: "Add property" }));
     expect(sheetOptions()).toEqual([
-      "wood_type",
-      "years",
-      "weight_definition",
-      "country",
+      "Wood Type",
+      "Years",
+      "Weight Definition",
+      "Country",
     ]);
 
     // Adding a definition removes it from the picker, and it renders once.
-    await userEvent.click(screen.getByRole("button", { name: "wood_type" }));
+    await userEvent.click(screen.getByRole("button", { name: "Wood Type" }));
     await userEvent.click(screen.getByRole("button", { name: "Teak" }));
     await userEvent.click(screen.getByRole("button", { name: "Done" }));
     const rows = propertyRows();
     expect(rows).toHaveLength(1);
-    expect(rows.filter((row) => within(row).queryByText("wood_type"))).toHaveLength(1);
+    expect(rows.filter((row) => within(row).queryByText("Wood Type"))).toHaveLength(1);
 
     await userEvent.click(screen.getByRole("button", { name: "Add property" }));
-    expect(sheetOptions()).toEqual(["years", "weight_definition", "country"]);
+    expect(sheetOptions()).toEqual(["Years", "Weight Definition", "Country"]);
   });
 
   it("C3: the value picker offers the key's values plus Any value, and the draft maps through buildCriteria", async () => {
@@ -180,7 +182,7 @@ describe("StockWizardStep1View (screen 08)", () => {
 
     // values case
     await userEvent.click(screen.getByRole("button", { name: "Add property" }));
-    await userEvent.click(screen.getByRole("button", { name: "wood_type" }));
+    await userEvent.click(screen.getByRole("button", { name: "Wood Type" }));
     expect(sheetOptions()).toEqual([
       "Any value",
       "Beech",
@@ -198,18 +200,18 @@ describe("StockWizardStep1View (screen 08)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(draftProperties()).toEqual({ wood_type: ["Teak", "Oak"] });
     const woodRow = propertyRows()[0]!;
-    expect(within(woodRow).getByText("wood_type")).toBeInTheDocument();
+    expect(within(woodRow).getByText("Wood Type")).toBeInTheDocument();
     expect(within(woodRow).getByText("Teak, Oak")).toBeInTheDocument();
 
     // any-value case (D9) — a second definition, wildcard
     await userEvent.click(screen.getByRole("button", { name: "Add property" }));
-    await userEvent.click(screen.getByRole("button", { name: "upholstery" }));
+    await userEvent.click(screen.getByRole("button", { name: "Upholstery" }));
     await userEvent.click(screen.getByRole("button", { name: "Any value" }));
     await userEvent.click(screen.getByRole("button", { name: "Done" }));
     expect(draftProperties()).toEqual({ wood_type: ["Teak", "Oak"], upholstery: null });
     const rows = propertyRows();
     expect(rows).toHaveLength(2);
-    expect(within(rows[1]!).getByText("upholstery")).toBeInTheDocument();
+    expect(within(rows[1]!).getByText("Upholstery")).toBeInTheDocument();
     expect(within(rows[1]!).getByText("Any value")).toBeInTheDocument();
 
     // step 2's context line carries the same criteria as chips
@@ -222,8 +224,8 @@ describe("StockWizardStep1View (screen 08)", () => {
     await screen.findByRole("heading", { name: "New stock instance" });
 
     // none case again — removing both rows omits the keys entirely (omission ≠ wildcard)
-    await userEvent.click(screen.getByRole("button", { name: "Remove upholstery" }));
-    await userEvent.click(screen.getByRole("button", { name: "Remove wood_type" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove Upholstery" }));
+    await userEvent.click(screen.getByRole("button", { name: "Remove Wood Type" }));
     expect(propertyRows()).toHaveLength(0);
     expect(draftProperties()).toEqual({});
   });
@@ -290,9 +292,9 @@ describe("StockWizardStep1View (screen 08)", () => {
     await waitFor(() => {
       const propertyRowsRendered = propertyRows();
       expect(propertyRowsRendered).toHaveLength(2);
-      expect(within(propertyRowsRendered[0]!).getByText("shape")).toBeInTheDocument();
+      expect(within(propertyRowsRendered[0]!).getByText("Shape")).toBeInTheDocument();
       expect(within(propertyRowsRendered[0]!).getByText("Oval")).toBeInTheDocument();
-      expect(within(propertyRowsRendered[1]!).getByText("extension_type")).toBeInTheDocument();
+      expect(within(propertyRowsRendered[1]!).getByText("Extension Type")).toBeInTheDocument();
       expect(within(propertyRowsRendered[1]!).getByText("Any value")).toBeInTheDocument();
     });
 
@@ -305,7 +307,7 @@ describe("StockWizardStep1View (screen 08)", () => {
     await userEvent.click(ovalOption);
     expect(ovalOption).toHaveAttribute("aria-pressed", "false");
     expect(screen.getByRole("button", { name: "Done" })).toBeDisabled();
-    await closeSheet("shape");
+    await closeSheet("Shape");
 
     await userEvent.click(screen.getByRole("button", { name: "Next · thresholds" }));
     await screen.findByRole("heading", { name: "Stock thresholds" });

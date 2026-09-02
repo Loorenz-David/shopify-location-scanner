@@ -116,7 +116,12 @@ const expectedOptions = [
   },
   {
     key: "upholstery",
-    values: ["Up", "Down"],
+    values: ["Down", "Up & Down", "None"],
+    categories: ["Dining Chairs", "Easy Chairs", "Armchairs"],
+  },
+  {
+    key: "quantity",
+    values: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "12"],
     categories: ["Dining Chairs", "Easy Chairs", "Armchairs"],
   },
 ] as const;
@@ -136,7 +141,7 @@ const cases: readonly VerificationCase[] = [
   },
   {
     id: "C2(d)",
-    run: (m) => equalJson(setValues(m.tokenizePropertyValue("Up & Down")), ["down", "up"]),
+    run: (m) => equalJson(setValues(m.tokenizePropertyValue("Up & Down")), ["up & down"]),
   },
   {
     id: "C2(e)",
@@ -422,6 +427,10 @@ const cases: readonly VerificationCase[] = [
     run: (m) => equalJson(m.ITEM_PROPERTY_OPTIONS.find((option) => option.key === "upholstery")?.categories, ["Dining Chairs", "Easy Chairs", "Armchairs"]),
   },
   {
+    id: "C9(e2)",
+    run: (m) => equalJson(m.ITEM_PROPERTY_OPTIONS.find((option) => option.key === "quantity")?.categories, ["Dining Chairs", "Easy Chairs", "Armchairs"]),
+  },
+  {
     id: "C9(f)",
     run: (m) => equalJson(m.getPropertyOptionsForCategory("Sofas").map((option) => option.key), ["wood_type", "years", "weight_definition", "country"]),
   },
@@ -431,7 +440,7 @@ const cases: readonly VerificationCase[] = [
   },
   {
     id: "C9(h)",
-    run: (m) => equalJson(m.getPropertyOptionsForCategory("Dining Chairs").map((option) => option.key), ["wood_type", "years", "weight_definition", "country", "upholstery"]),
+    run: (m) => equalJson(m.getPropertyOptionsForCategory("Dining Chairs").map((option) => option.key), ["wood_type", "years", "weight_definition", "country", "upholstery", "quantity"]),
   },
 ];
 

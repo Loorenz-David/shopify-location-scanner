@@ -38,7 +38,12 @@ export const ITEM_PROPERTY_OPTIONS = [
   },
   {
     key: "upholstery",
-    values: ["Up", "Down"],
+    values: ["Down", "Up & Down", "None"],
+    categories: ["Dining Chairs", "Easy Chairs", "Armchairs"],
+  },
+  {
+    key: "quantity",
+    values: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "12"],
     categories: ["Dining Chairs", "Easy Chairs", "Armchairs"],
   },
 ] as const;

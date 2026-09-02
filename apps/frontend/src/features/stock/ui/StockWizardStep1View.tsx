@@ -3,7 +3,7 @@ import { useRef, useState } from "react";
 import { ChevronRightIcon, CloseIcon, PlusIcon } from "../../../assets/icons";
 import { locationBlockOf, splitLocationCode } from "../../../share/location-codes";
 import { stockActions } from "../actions/stock.actions";
-import { buildCriteria, displayValueFor } from "../domain/stock-criteria.domain";
+import { buildCriteria, displayValueFor, propertyKeyLabel } from "../domain/stock-criteria.domain";
 import type { CriteriaDraftProperty } from "../domain/stock-criteria.domain";
 import { groupLocationsByLetter } from "../domain/stock-location-groups.domain";
 import {
@@ -287,8 +287,10 @@ export function StockWizardStep1View() {
         emptyMessage: "Every property for this item type is already in use.",
         monoLabels: true,
         options: unusedDefinitions.map((definition) => ({
+          // `id` stays the wire key — it is what onSelect feeds back into the
+          // draft. Only the label is the user-facing name.
           id: definition.key,
-          label: definition.key,
+          label: propertyKeyLabel(definition.key),
           isSelected: false,
         })),
         onSelect: (key: string) => openValuesFor(key, true),
@@ -297,7 +299,7 @@ export function StockWizardStep1View() {
 
     if (sheetView?.kind === "values") {
       return {
-        title: sheetView.key,
+        title: propertyKeyLabel(sheetView.key),
         eyebrow: sheetView.isExisting ? "change values" : "choose values",
         emptyMessage: "This property has no values in the vocabulary.",
         monoLabels: false,
@@ -581,7 +583,7 @@ export function StockWizardStep1View() {
                   onClick={() => openValuesFor(row.key, false)}
                 >
                   <span className="stock-mono text-[10px] uppercase tracking-[0.14em] text-[var(--stock-muted)]">
-                    {row.key}
+                    {propertyKeyLabel(row.key)}
                   </span>
                   <span
                     className={`mt-1 text-[14px] font-semibold leading-tight text-[var(--stock-heading)] ${
@@ -594,7 +596,7 @@ export function StockWizardStep1View() {
                 <button
                   type="button"
                   className="grid h-[26px] w-[26px] flex-shrink-0 place-items-center rounded-full bg-[var(--stock-track)] text-[var(--stock-body)]"
-                  aria-label={`Remove ${row.key}`}
+                  aria-label={`Remove ${propertyKeyLabel(row.key)}`}
                   onClick={() => commitRows(rows.filter((candidate) => candidate.key !== row.key))}
                 >
                   <CloseIcon className="h-3 w-3" aria-hidden="true" />

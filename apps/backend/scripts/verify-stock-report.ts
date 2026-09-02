@@ -175,7 +175,7 @@ const main = async (): Promise<void> => {
       zeroMatch: {
         location: location("zero-match"),
         itemCategory: "Dining Chairs",
-        properties: { upholstery: "Up" },
+        properties: { upholstery: "Up & Down" },
       },
     };
 

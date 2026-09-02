@@ -439,11 +439,18 @@ describe("stock report domain", () => {
     expect(detail.entries[0].configLabel).toBe("Config: Side Tables");
   });
 
-  it("C8(c): renders wildcard config with the exact option key name", () => {
+  it("C8(c): renders wildcard config with the humanized option key name", () => {
     const source = compactEntries([entry({ properties: { upholstery: null } })])[0];
     const detail = deriveEntryDetail(source, [entry({ properties: { upholstery: null } })], stockOptionsFixture);
 
-    expect(detail.entries[0].configLabel).toBe("Config: Dining Chairs / upholstery any");
+    expect(detail.entries[0].configLabel).toBe("Config: Dining Chairs / Upholstery any");
+  });
+
+  it("C8(c2): a wildcard config on quantity reads as Set Of", () => {
+    const source = compactEntries([entry({ properties: { quantity: null } })])[0];
+    const detail = deriveEntryDetail(source, [entry({ properties: { quantity: null } })], stockOptionsFixture);
+
+    expect(detail.entries[0].configLabel).toBe("Config: Dining Chairs / Set Of any");
   });
 
   it("C8(d): orders two config keys by propertyOptions and joins values", () => {

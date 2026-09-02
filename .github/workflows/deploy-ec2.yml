@@ -15,13 +15,49 @@ concurrency:
   group: deploy-ec2-${{ github.workflow }}-${{ github.event.inputs.branch || github.ref_name }}
   cancel-in-progress: true
 
+env:
+  NODE_VERSION: "22"
+  SSH_OPTS: "-o BatchMode=yes -o ServerAliveInterval=30 -o ServerAliveCountMax=20 -o ConnectTimeout=30"
+
 jobs:
   deploy:
-    name: Deploy application
+    name: Build and deploy application
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: production
     steps:
+      - name: Resolve deployment branch
+        id: target
+        shell: bash
+        env:
+          GITHUB_EVENT_NAME: ${{ github.event_name }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          INPUT_BRANCH: ${{ github.event.inputs.branch }}
+        run: |
+          set -euo pipefail
+
+          deploy_branch="${GITHUB_REF_NAME}"
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ -n "${INPUT_BRANCH}" ]; then
+            deploy_branch="${INPUT_BRANCH}"
+          fi
+
+          echo "Deploying branch ${deploy_branch}"
+          echo "branch=${deploy_branch}" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout deployment branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.target.outputs.branch }}
+
+      - name: Record release commit
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          release_sha="$(git rev-parse HEAD)"
+          echo "Release commit ${release_sha}"
+          echo "sha=${release_sha}" >> "$GITHUB_OUTPUT"
+
       - name: Prepare SSH key
         shell: bash
         env:
@@ -50,7 +86,366 @@ jobs:
             ssh-keyscan -p "${EC2_PORT:-22}" -H "$EC2_HOST" >> "$HOME/.ssh/known_hosts"
           fi
 
-      - name: Deploy over SSH
+      # The build runs on the runner, but two inputs are owned by the server:
+      # the Prisma binary target of its OS, and the VITE_* values that get
+      # compiled into the frontend bundle. Both are read here, never guessed.
+      - name: Probe EC2 deployment state
+        id: probe
+        shell: bash
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_PORT: ${{ secrets.EC2_PORT }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_REPO_PATH: ${{ secrets.EC2_REPO_PATH }}
+          EC2_FRONTEND_ENV_FILE: ${{ secrets.EC2_FRONTEND_ENV_FILE }}
+          PRISMA_BINARY_TARGET_OVERRIDE: ${{ vars.PRISMA_BINARY_TARGET }}
+        run: |
+          set -euo pipefail
+
+          frontend_env_path="${EC2_FRONTEND_ENV_FILE:-${EC2_REPO_PATH}/apps/frontend/.env}"
+
+          probe_output="$(
+            ssh ${SSH_OPTS} -p "${EC2_PORT:-22}" "${EC2_USER}@${EC2_HOST}" \
+              "REPO_PATH='${EC2_REPO_PATH}' FRONTEND_ENV_PATH='${frontend_env_path}' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd "$REPO_PATH"
+
+          target=""
+          if [ -d apps/backend/node_modules/@prisma/get-platform ]; then
+            target="$(cd apps/backend && node -e 'import("@prisma/get-platform").then(async (m) => { const helper = m.default ?? m; process.stdout.write(await helper.getBinaryTargetForCurrentPlatform()); }).catch(() => process.exit(1));' 2>/dev/null || true)"
+          fi
+
+          fingerprint=""
+          if [ -f .deploy/state/backend-deps.fingerprint ] && [ -d apps/backend/node_modules ]; then
+            fingerprint="$(tr -d '[:space:]' < .deploy/state/backend-deps.fingerprint)"
+          fi
+
+          frontend_env_present=false
+          if [ -f "$FRONTEND_ENV_PATH" ]; then
+            frontend_env_present=true
+          fi
+
+          printf 'prisma_target=%s\n' "$target"
+          printf 'deps_fingerprint=%s\n' "$fingerprint"
+          printf 'frontend_env_present=%s\n' "$frontend_env_present"
+          REMOTE
+          )"
+
+          prisma_target="$(printf '%s\n' "$probe_output" | sed -n 's/^prisma_target=//p' | tail -n 1)"
+          deps_fingerprint="$(printf '%s\n' "$probe_output" | sed -n 's/^deps_fingerprint=//p' | tail -n 1)"
+          frontend_env_present="$(printf '%s\n' "$probe_output" | sed -n 's/^frontend_env_present=//p' | tail -n 1)"
+
+          if [ -n "${PRISMA_BINARY_TARGET_OVERRIDE}" ]; then
+            echo "Using PRISMA_BINARY_TARGET repository variable override"
+            prisma_target="${PRISMA_BINARY_TARGET_OVERRIDE}"
+          fi
+
+          if [ -z "${prisma_target}" ]; then
+            echo "::error::Could not determine the Prisma binary target of the EC2 host." \
+              "The host has no installed @prisma/get-platform to ask." \
+              "Set the repository variable PRISMA_BINARY_TARGET (for example debian-openssl-3.0.x or rhel-openssl-3.0.x) and re-run."
+            exit 1
+          fi
+
+          echo "EC2 Prisma binary target: ${prisma_target}"
+          echo "EC2 frontend build env present: ${frontend_env_present}"
+
+          echo "prisma_target=${prisma_target}" >> "$GITHUB_OUTPUT"
+          echo "deps_fingerprint=${deps_fingerprint}" >> "$GITHUB_OUTPUT"
+          echo "frontend_env_present=${frontend_env_present}" >> "$GITHUB_OUTPUT"
+          echo "frontend_env_path=${frontend_env_path}" >> "$GITHUB_OUTPUT"
+
+      # VITE_* values are inlined into the bundle at build time, so the bundle
+      # built here must use the same values the server build used.
+      - name: Fetch frontend build environment from EC2
+        shell: bash
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_PORT: ${{ secrets.EC2_PORT }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          FRONTEND_ENV_PRESENT: ${{ steps.probe.outputs.frontend_env_present }}
+          FRONTEND_ENV_PATH: ${{ steps.probe.outputs.frontend_env_path }}
+        run: |
+          set -euo pipefail
+
+          if [ "${FRONTEND_ENV_PRESENT}" != "true" ]; then
+            echo "::warning::No frontend build environment file at ${FRONTEND_ENV_PATH} on EC2." \
+              "Building the frontend without VITE_* overrides, which matches what the host would have produced."
+            exit 0
+          fi
+
+          ssh ${SSH_OPTS} -p "${EC2_PORT:-22}" "${EC2_USER}@${EC2_HOST}" \
+            "cat '${FRONTEND_ENV_PATH}'" > apps/frontend/.env 2>/dev/null
+
+          if [ ! -s apps/frontend/.env ]; then
+            echo "::error::Frontend build environment file ${FRONTEND_ENV_PATH} on EC2 is empty."
+            exit 1
+          fi
+
+          # Guard against login banners or other noise being captured as env.
+          if grep -qvE '^[[:space:]]*($|#|[A-Za-z_][A-Za-z0-9_]*=)' apps/frontend/.env; then
+            echo "::error::Fetched frontend environment file contains lines that are not KEY=VALUE." \
+              "Refusing to build with it."
+            exit 1
+          fi
+
+          echo "Loaded $(grep -cE '^[A-Za-z_][A-Za-z0-9_]*=' apps/frontend/.env) frontend build variables from EC2"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            apps/backend/package-lock.json
+            apps/frontend/package-lock.json
+
+      # Computed before the Prisma schema is touched below, so it fingerprints
+      # the committed sources rather than the CI-modified copy.
+      - name: Compute backend dependency fingerprint
+        id: fingerprint
+        shell: bash
+        env:
+          PRISMA_TARGET: ${{ steps.probe.outputs.prisma_target }}
+          INSTALLED_FINGERPRINT: ${{ steps.probe.outputs.deps_fingerprint }}
+        run: |
+          set -euo pipefail
+
+          fingerprint="$(
+            {
+              sha256sum \
+                apps/backend/package-lock.json \
+                apps/backend/package.json \
+                apps/backend/prisma/schema.prisma \
+                apps/backend/prisma.config.ts
+              printf 'prisma-target=%s\n' "${PRISMA_TARGET}"
+            } | sha256sum | cut -d' ' -f1
+          )"
+
+          ship_node_modules=true
+          if [ -n "${INSTALLED_FINGERPRINT}" ] && [ "${INSTALLED_FINGERPRINT}" = "${fingerprint}" ]; then
+            ship_node_modules=false
+          fi
+
+          echo "Backend dependency fingerprint: ${fingerprint}"
+          echo "Ship node_modules to EC2: ${ship_node_modules}"
+          echo "value=${fingerprint}" >> "$GITHUB_OUTPUT"
+          echo "ship_node_modules=${ship_node_modules}" >> "$GITHUB_OUTPUT"
+
+      - name: Install backend dependencies
+        working-directory: apps/backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --include=dev --no-audit --no-fund
+
+      # The runner and the server may run different Linux distributions, so the
+      # engines Prisma downloaded for the runner are not necessarily the ones
+      # EC2 needs. Fetch the server's engines explicitly.
+      - name: Fetch Prisma engines for the EC2 platform
+        working-directory: apps/backend
+        shell: bash
+        env:
+          PRISMA_TARGET: ${{ steps.probe.outputs.prisma_target }}
+        run: |
+          set -euo pipefail
+
+          runner_target="$(node -e 'import("@prisma/get-platform").then(async (m) => { const helper = m.default ?? m; process.stdout.write(await helper.getBinaryTargetForCurrentPlatform()); });')"
+          echo "Runner Prisma binary target: ${runner_target}"
+          echo "runner_target=${runner_target}" >> "$GITHUB_ENV"
+
+          if [ "${runner_target}" = "${PRISMA_TARGET}" ]; then
+            echo "Runner and EC2 share the same Prisma binary target; nothing extra to download"
+            exit 0
+          fi
+
+          # The postinstall skips downloading while this lock file is fresh.
+          rm -f node_modules/@prisma/engines/download-lock
+          PRISMA_CLI_BINARY_TARGETS="${runner_target},${PRISMA_TARGET}" \
+            npm rebuild @prisma/engines --foreground-scripts
+
+      - name: Generate Prisma client
+        working-directory: apps/backend
+        shell: bash
+        env:
+          PRISMA_TARGET: ${{ steps.probe.outputs.prisma_target }}
+          # generate never connects to the database; this only satisfies the
+          # datasource url lookup in prisma.config.ts.
+          DATABASE_URL: file:./ci-generate.db
+        run: |
+          set -euo pipefail
+
+          # Inject binaryTargets into the CI copy of the schema only. The
+          # committed schema stays unchanged and is never uploaded to EC2, so
+          # local development and the server keep the default "native" target.
+          node <<'NODE'
+          const fs = require("fs");
+
+          const schemaPath = "prisma/schema.prisma";
+          const original = fs.readFileSync(schemaPath, "utf8");
+          const generatorBlock = /generator\s+client\s*\{/;
+
+          if (!generatorBlock.test(original)) {
+            throw new Error(`Could not find a "generator client" block in ${schemaPath}`);
+          }
+
+          if (/binaryTargets/.test(original)) {
+            throw new Error(
+              `${schemaPath} already declares binaryTargets; the deploy workflow would silently override it`,
+            );
+          }
+
+          const updated = original.replace(
+            generatorBlock,
+            (match) => `${match}\n  binaryTargets = env("PRISMA_BINARY_TARGETS")`,
+          );
+
+          if (updated === original) {
+            throw new Error(`Failed to inject binaryTargets into ${schemaPath}`);
+          }
+
+          fs.writeFileSync(schemaPath, updated);
+          console.log(`Injected binaryTargets into the CI copy of ${schemaPath}`);
+          NODE
+
+          if [ "${runner_target:-}" = "${PRISMA_TARGET}" ]; then
+            targets='["native"]'
+          else
+            targets="[\"native\",\"${PRISMA_TARGET}\"]"
+          fi
+
+          echo "Generating Prisma client for ${targets}"
+          PRISMA_BINARY_TARGETS="${targets}" npm run prisma:generate
+
+      # Prisma's engine download is failSilent, so a missing engine would
+      # otherwise only surface as a broken production process.
+      - name: Verify Prisma engines for the EC2 platform
+        working-directory: apps/backend
+        shell: bash
+        env:
+          PRISMA_TARGET: ${{ steps.probe.outputs.prisma_target }}
+        run: |
+          set -euo pipefail
+
+          query_engine="$(find node_modules/.prisma node_modules/@prisma \
+            -maxdepth 3 -name "libquery_engine-${PRISMA_TARGET}.*" -print -quit 2>/dev/null || true)"
+
+          if [ -z "${query_engine}" ]; then
+            echo "::error::No Prisma query engine was generated for ${PRISMA_TARGET}."
+            exit 1
+          fi
+          echo "Query engine: ${query_engine}"
+
+          schema_engine="$(find node_modules/@prisma/engines \
+            -maxdepth 1 -name "schema-engine-${PRISMA_TARGET}*" -print -quit 2>/dev/null || true)"
+
+          if [ -z "${schema_engine}" ]; then
+            echo "::error::No Prisma schema engine was downloaded for ${PRISMA_TARGET}." \
+              "Migrations would fail on EC2."
+            exit 1
+          fi
+          echo "Schema engine: ${schema_engine}"
+
+      - name: Build backend
+        working-directory: apps/backend
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          npm run build
+
+      - name: Install frontend dependencies
+        working-directory: apps/frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          npm ci --include=dev --no-audit --no-fund
+
+      - name: Build frontend
+        working-directory: apps/frontend
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf dist
+          npm run build
+
+      - name: Package release artifacts
+        id: package
+        shell: bash
+        env:
+          RELEASE_SHA: ${{ steps.release.outputs.sha }}
+          RELEASE_BRANCH: ${{ steps.target.outputs.branch }}
+          DEPS_FINGERPRINT: ${{ steps.fingerprint.outputs.value }}
+          SHIP_NODE_MODULES: ${{ steps.fingerprint.outputs.ship_node_modules }}
+          PRISMA_TARGET: ${{ steps.probe.outputs.prisma_target }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+
+          rm -rf release
+          mkdir -p release
+
+          tar -czf release/backend-dist.tar.gz -C apps/backend dist
+          tar -czf release/frontend-dist.tar.gz -C apps/frontend dist
+
+          if [ "${SHIP_NODE_MODULES}" = "true" ]; then
+            echo "Packaging backend dependencies for upload"
+            tar -czf release/backend-node-modules.tar.gz -C apps/backend node_modules
+          else
+            echo "Backend dependencies are unchanged on EC2; not packaging node_modules"
+          fi
+
+          # The activation script is executed from the uploaded copy so that the
+          # git sync it performs cannot rewrite the file bash is reading.
+          cp apps/backend/scripts/deploy-ec2.sh release/deploy-ec2.sh
+
+          node <<'NODE'
+          const fs = require("fs");
+
+          const manifest = {
+            sha: process.env.RELEASE_SHA,
+            branch: process.env.RELEASE_BRANCH,
+            depsFingerprint: process.env.DEPS_FINGERPRINT,
+            prismaBinaryTarget: process.env.PRISMA_TARGET,
+            shipsNodeModules: process.env.SHIP_NODE_MODULES === "true",
+            builtAt: new Date().toISOString(),
+            runId: process.env.GITHUB_RUN_ID,
+          };
+
+          for (const [key, value] of Object.entries(manifest)) {
+            if (value === undefined || value === null || value === "") {
+              throw new Error(`Release manifest field "${key}" is empty`);
+            }
+          }
+
+          fs.writeFileSync("release/release.json", `${JSON.stringify(manifest, null, 2)}\n`);
+          console.log(JSON.stringify(manifest, null, 2));
+          NODE
+
+          ls -la release
+
+      - name: Upload release artifacts to EC2
+        shell: bash
+        env:
+          EC2_HOST: ${{ secrets.EC2_HOST }}
+          EC2_PORT: ${{ secrets.EC2_PORT }}
+          EC2_USER: ${{ secrets.EC2_USER }}
+          EC2_REPO_PATH: ${{ secrets.EC2_REPO_PATH }}
+        run: |
+          set -euo pipefail
+
+          incoming="${EC2_REPO_PATH}/.deploy/incoming"
+
+          ssh ${SSH_OPTS} -p "${EC2_PORT:-22}" "${EC2_USER}@${EC2_HOST}" \
+            "rm -rf '${incoming}' && mkdir -p '${incoming}'"
+
+          scp ${SSH_OPTS} -P "${EC2_PORT:-22}" \
+            release/* \
+            "${EC2_USER}@${EC2_HOST}:${incoming}/"
+
+          echo "Uploaded release artifacts to ${incoming}"
+
+      - name: Activate release on EC2
         shell: bash
         env:
           EC2_HOST: ${{ secrets.EC2_HOST }}
@@ -58,25 +453,9 @@ jobs:
           EC2_USER: ${{ secrets.EC2_USER }}
           EC2_REPO_PATH: ${{ secrets.EC2_REPO_PATH }}
           EC2_BACKEND_ENV_FILE: ${{ secrets.EC2_BACKEND_ENV_FILE }}
-          GITHUB_EVENT_NAME: ${{ github.event_name }}
-          GITHUB_REF_NAME: ${{ github.ref_name }}
-          INPUT_BRANCH: ${{ github.event.inputs.branch }}
+          DEPLOY_BRANCH: ${{ steps.target.outputs.branch }}
         run: |
           set -euo pipefail
 
-          deploy_branch="${GITHUB_REF_NAME}"
-          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && [ -n "${INPUT_BRANCH}" ]; then
-            deploy_branch="${INPUT_BRANCH}"
-          fi
-
-          ssh \
-            -p "${EC2_PORT:-22}" \
-            -o ServerAliveInterval=30 \
-            -o ServerAliveCountMax=20 \
-            -o ConnectTimeout=30 \
-            "${EC2_USER}@${EC2_HOST}" \
-            "cd '${EC2_REPO_PATH}' && DEPLOY_BRANCH='${deploy_branch}' ENV_FILE='${EC2_BACKEND_ENV_FILE:-/etc/item-scanner/backend.env}' bash ./apps/backend/scripts/deploy-ec2.sh"
-
-
-
-
+          ssh ${SSH_OPTS} -p "${EC2_PORT:-22}" "${EC2_USER}@${EC2_HOST}" \
+            "cd '${EC2_REPO_PATH}' && REPO_ROOT='${EC2_REPO_PATH}' DEPLOY_BRANCH='${DEPLOY_BRANCH}' ENV_FILE='${EC2_BACKEND_ENV_FILE:-/etc/item-scanner/backend.env}' bash '${EC2_REPO_PATH}/.deploy/incoming/deploy-ec2.sh'"
