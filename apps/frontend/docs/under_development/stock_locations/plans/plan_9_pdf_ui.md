@@ -40,8 +40,26 @@ design `05-generate-pdf/` + `10-pdf-a4/` (md + screenshots) · `context/pdf-libr
 | C4 | Sheet chips mirror the active filter's states; excluded states render with the faint style class; toggles call the P8 export-state actions (report query untouched — spy). | MC10, M6 |
 | C5 | `Generate & share` and `Preview` call the respective P8 actions exactly once each. | M6 |
 | C6 | The react-pdf module is absent from the report page's static import graph (assert via dynamic-import boundary: importing `StockReportPage` does not evaluate the pdf module — module-registry spy). | M6 (perf constraint C2 of context/pdf-library.md) |
+| C7 | **The actions are disabled until a blob exists.** `blobFromRenderHandle` **throws while the handle is `loading`** (P8 forward hazard 1), so `Generate & share` and `Preview` must be disabled — not merely no-ops — until the handle has produced a blob, and enabled once it has (assert both states with a mocked handle). **Named mutation M1:** remove the disabled binding so the controls are live while loading → this row reds. Without it, opening the sheet and tapping immediately — the natural thing to do — throws where the user sees, at best, nothing happen. | M6 |
+| C8 | **Share is invoked synchronously inside the tap handler** (P8 forward hazard 2). The handler must call the P8 share action with the **already-rendered** blob, with no `await` between the user's gesture and `navigator.share`. iOS treats a share detached from the gesture as `NotAllowedError`, which P8's C7(c) — correctly, for its own scope — swallows as a cancellation: the user taps Share, nothing happens, and nothing errors. Assert that no promise is awaited before the share action is called (e.g. the action is called in the same tick as the click; a pending render is what C7 disables the button for). | M6, MC10 |
 
 ## Notes
+**Mutation count 1** — C7 (M1, the disabled binding on the sheet's two actions).
+
+**C7 and C8 are P8's forward hazards given rows** *(coordinator lint, 2026-09-02)*. P8's
+consumption recorded three; two of them are this phase's to close and had no criterion until now.
+Both fail **silently at the user's fingertip**: tapping too early throws, and a share detached from
+the gesture is swallowed as a cancellation by the very branch P8 proved. The third — `downloadPdf`
+revokes its object URL synchronously and never attaches the anchor — is a live-browser question and
+is routed to **P10**, not here.
+
+**S10 applies to C2, C3 and C5.** Each compares rendered output against something the test
+computes or a spy it installs. C2's model must contain a section label and a category that do
+**not** appear anywhere else in the document, or "extracted text contains it" proves nothing about
+placement; C3's page count must differ from any default the component could fall back to (a
+hard-coded `1` must not pass); C5 must distinguish the two actions from each other, not merely
+observe that *an* action fired.
+
 Pixel/print fidelity to `pdf_1.png`/`pdf_2.png` and `05.png` is the owner's visual
 pass (S5) — print one real PDF for it. Row-split-avoidance (`wrap={false}`) is
 asserted only via C1/C2 smoke plus owner inspection; a programmatic page-break

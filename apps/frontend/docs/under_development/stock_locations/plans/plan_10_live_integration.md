@@ -41,3 +41,16 @@ contract version question to the backend track.
 
 ## Review log
 (empty)
+## Inherited hazard — the download fallback is unverified in a real browser
+
+*(Routed by the coordinator 2026-09-02 from P8's consumption, forward hazard 3.)*
+
+`downloadPdf` **revokes the object URL synchronously and never attaches the anchor to the
+document**. That pattern works in Chrome and in WebKit-on-iOS, and is exactly the pattern that
+fails in **Firefox and desktop Safari** — the browsers the anchor fallback exists *for*, since they
+are the ones without `navigator.share`. No unit test can settle this: jsdom has no download
+behaviour to observe, and P8's C7(b) asserts only that `createObjectURL` and `click` were called.
+
+**Check on real browsers:** trigger a PDF export in Firefox and in desktop Safari and confirm a
+file actually lands on disk. If it does not, the fix is to append the anchor to `document.body`
+before clicking and revoke the URL on the next tick rather than immediately.
