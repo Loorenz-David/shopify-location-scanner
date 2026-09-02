@@ -6,6 +6,7 @@ import { stockActions } from "../actions/stock.actions";
 import { buildCriteria, displayValueFor, propertyKeyLabel } from "../domain/stock-criteria.domain";
 import type { CriteriaDraftProperty } from "../domain/stock-criteria.domain";
 import { groupLocationsByLetter } from "../domain/stock-location-groups.domain";
+import { restrictLocationsToBlock } from "../domain/stock-location-restriction.domain";
 import {
   selectStockWizardAvailableLocations,
   selectStockWizardDraft,
@@ -116,6 +117,11 @@ export function StockWizardStep1View() {
   if (draft === null) {
     return null;
   }
+
+  // The store keeps every location the entry point allowed; the picker offers the
+  // restricted set (see stock-location-restriction.domain — temporary).
+  const { locations: offeredLocations, directBlock } =
+    restrictLocationsToBlock(availableLocations);
 
   const rows = rowsFrom(draft.properties, options);
   const definitions = draft.itemCategory === "" ? [] : definitionsFor(options, draft.itemCategory);
@@ -335,7 +341,7 @@ export function StockWizardStep1View() {
       setIsSheetOpen(false);
     };
 
-    const { groups, unstructured } = groupLocationsByLetter(availableLocations);
+    const { groups, unstructured } = groupLocationsByLetter(offeredLocations);
 
     if (sheetView?.kind === "location-letter") {
       const group = groups.find((entry) => entry.letter === sheetView.letter);
@@ -357,14 +363,17 @@ export function StockWizardStep1View() {
           isSelected: location === draft.location,
         })),
         onSelect: commitLocation,
-        onBack: () => setSheet({ kind: "location" }),
+        // Entered directly on a block, there is no letter step to go back to, so the
+        // sheet keeps its × dismiss.
+        onBack:
+          directBlock === null ? () => setSheet({ kind: "location" }) : undefined,
         backLabel: "Back to location blocks",
       };
     }
 
     return {
       title: "Location",
-      eyebrow: `${availableLocations.length} available`,
+      eyebrow: `${offeredLocations.length} available`,
       emptyMessage: "Every location already has stock instances.",
       monoLabels: true,
       layout: "grid" as const,
@@ -456,8 +465,16 @@ export function StockWizardStep1View() {
           aria-label="Location"
           data-testid="stock-wizard-location-select"
           className="stock-card-surface flex min-h-[64px] w-full items-center justify-between gap-3 rounded-[24px] px-5 text-left disabled:opacity-60"
-          disabled={availableLocations.length === 0}
-          onClick={() => openSheet({ kind: "location" })}
+          disabled={offeredLocations.length === 0}
+          // Restricted to one block, the letter step holds a single card and would only
+          // stand between the user and the number they came for.
+          onClick={() =>
+            openSheet(
+              directBlock === null
+                ? { kind: "location" }
+                : { kind: "location-letter", letter: directBlock },
+            )
+          }
         >
           <span
             className={
@@ -473,15 +490,15 @@ export function StockWizardStep1View() {
             aria-hidden="true"
           />
         </button>
-        {availableLocations.length === 0 ? (
+        {offeredLocations.length === 0 ? (
           <div className="rounded-[24px] border-2 border-dashed border-[var(--stock-dashed)] px-5 py-6 text-center text-[14px] text-[var(--stock-muted)]">
             Every location already has stock instances. Use the floating button on the
             locations screen to add another one.
           </div>
         ) : (
           <p className="m-0 text-[12px] text-[var(--stock-muted)]">
-            {availableLocations.length}{" "}
-            {availableLocations.length === 1 ? "location" : "locations"} available
+            {offeredLocations.length}{" "}
+            {offeredLocations.length === 1 ? "location" : "locations"} available
           </p>
         )}
       </div>

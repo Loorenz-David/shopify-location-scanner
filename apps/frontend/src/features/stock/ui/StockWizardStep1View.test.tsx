@@ -46,13 +46,15 @@ async function openWizardFromRootPill() {
   await screen.findByRole("heading", { name: "New stock instance" });
 }
 
-// Location is picked in a bottom sheet now: tap the selector, tap the option.
-// The picker is two steps: the letter block, then the number inside it.
+// Location is picked in a bottom sheet now: tap the selector, tap the option. The picker
+// is two steps — the letter block, then the number inside it — except while the temporary
+// LC restriction is in force, where it opens on the LC numbers with no block step.
 async function chooseLocation(location: string) {
   await userEvent.click(screen.getByRole("button", { name: "Location" }));
-  await userEvent.click(
-    await screen.findByRole("button", { name: location.replace(/\d+$/, "") }),
-  );
+  const block = screen.queryByRole("button", { name: location.replace(/\d+$/, "") });
+  if (block !== null) {
+    await userEvent.click(block);
+  }
   await userEvent.click(await screen.findByRole("button", { name: location }));
 }
 
@@ -93,8 +95,8 @@ describe("StockWizardStep1View (screen 08)", () => {
     expect(next()).toBeDisabled();
 
     // (b) location only
-    await chooseLocation("L2");
-    expect(useStockWizardStore.getState().draft?.location).toBe("L2");
+    await chooseLocation("LC1");
+    expect(useStockWizardStore.getState().draft?.location).toBe("LC1");
     expect(next()).toBeDisabled();
 
     // (d) both, with zero properties
@@ -119,7 +121,7 @@ describe("StockWizardStep1View (screen 08)", () => {
 
   it("C2: the definition picker offers universal + bound keys only, each at most once", async () => {
     await openWizardFromRootPill();
-    await chooseLocation("L2");
+    await chooseLocation("LC1");
 
     // Bound category: four universal keys plus the three table-bound keys; the
     // chair-bound keys (upholstery, quantity) are excluded.
@@ -173,7 +175,7 @@ describe("StockWizardStep1View (screen 08)", () => {
 
   it("C3: the value picker offers the key's values plus Any value, and the draft maps through buildCriteria", async () => {
     await openWizardFromRootPill();
-    await chooseLocation("L2");
+    await chooseLocation("LC1");
     await chooseItemType("Dining Chairs");
     const draftProperties = () => useStockWizardStore.getState().draft?.properties;
 
@@ -218,7 +220,7 @@ describe("StockWizardStep1View (screen 08)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Next · thresholds" }));
     await screen.findByRole("heading", { name: "Stock thresholds" });
     expect(screen.getByTestId("stock-wizard-context").textContent).toBe(
-      "L2 · Dining Chairs · Wood Type: Teak, Oak · Upholstery: Any",
+      "LC1 · Dining Chairs · Wood Type: Teak, Oak · Upholstery: Any",
     );
     await userEvent.click(screen.getByRole("button", { name: "Back" }));
     await screen.findByRole("heading", { name: "New stock instance" });
@@ -273,14 +275,14 @@ describe("StockWizardStep1View (screen 08)", () => {
 
     const locationSelect = screen.getByTestId("stock-wizard-location-select");
     expect(locationSelect).toHaveTextContent(second!.location);
-    // The edited instance's location is the only one on offer, and it is checked.
+    // The edited instance's location is the only one on offer, and it is checked. It is an
+    // LC code, so the picker opens straight on that block's numbers — no letter step, and
+    // therefore nothing to go back to.
     await userEvent.click(locationSelect);
-    // The picker opens on the letter blocks; the block holding the selection is marked.
-    const blocks = await screen.findAllByTestId("stock-sheet-option");
-    expect(blocks).toHaveLength(1);
-    expect(blocks[0]).toHaveAttribute("aria-pressed", "true");
-    await userEvent.click(blocks[0]!);
     const locationOptions = await screen.findAllByTestId("stock-sheet-option");
+    expect(
+      screen.queryByRole("button", { name: "Back to location blocks" }),
+    ).toBeNull();
     expect(locationOptions).toHaveLength(1);
     expect(locationOptions[0]).toHaveAttribute("aria-label", second!.location);
     expect(locationOptions[0]).toHaveAttribute("aria-pressed", "true");

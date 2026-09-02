@@ -79,7 +79,9 @@ describe("screen 06 wizard entry points", () => {
     render(<StockLocationsPage />);
     await screen.findAllByTestId("stock-location-row");
 
-    // (a) dashed row — D3: instance-less bootstrap locations only
+    // (a) dashed row — D3: instance-less bootstrap locations only. None of them is an LC
+    // code, so this is also the temporary restriction's fallback: the full list, offered
+    // through the usual letter-block step.
     await userEvent.click(screen.getByRole("button", { name: /new location/i }));
     await screen.findByRole("heading", { name: "New stock instance" });
     expect(useStockWizardStore.getState().availableLocations).toEqual(["L2", "L3"]);
@@ -104,13 +106,13 @@ describe("screen 06 wizard entry points", () => {
         "L3",
       ]),
     );
+    // The store keeps every bootstrap location (asserted above), but the picker is
+    // temporarily restricted to the LC block, so it opens on those numbers directly and
+    // the H and L codes are not on offer.
     const cards = await readLocationSheetOptions();
-    expect(cardLabels(cards)).toEqual(["H", "L", "LC"]);
+    expect(cardLabels(cards)).toEqual(["LC1"]);
     expect(cards.every((card) => card.getAttribute("aria-pressed") === "false")).toBe(true);
-    // Every bootstrap location stays reachable, one block down.
-    expect(await readLocationBlock("H")).toEqual(["H1"]);
-    expect(await readLocationBlock("L")).toEqual(["L2", "L3"]);
-    expect(await readLocationBlock("LC")).toEqual(["LC1"]);
+    expect(screen.queryByRole("button", { name: "Back to location blocks" })).toBeNull();
     await closeLocationSheet();
     expect(useStockWizardStore.getState().draft).toMatchObject({
       location: "",
