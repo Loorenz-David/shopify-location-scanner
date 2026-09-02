@@ -1,6 +1,6 @@
 Intention — Location Stock System
 
-**Status: RATIFIED**
+**Status: READY_FOR_RATIFICATION**
 
 > **Changelog**
 > - 2026-09-01 — System-context review: sections 13 and 22.10 rewritten; both previously required behaviour this codebase cannot provide as written. Twenty-two decisions resolved by the product owner, recorded in `context/context.md` §0 (binding).
@@ -9,6 +9,7 @@ Intention — Location Stock System
 > - 2026-09-01 — §25 (Review Doctrine) ratified by the product owner: single-reviewer flow (orchestrator model doubles as reviewer; a separate implementer model), findings bounded by ratified artifacts, enumerated non-findings maintained in the master plan §11.
 > - 2026-09-01 — **Gate re-opened (round 3).** The frontend track requested a round-trip-free report shape (`frontend_handoffs/frontend-report-endpoint-request.md`, its decision D7); the owner approved the direction in session. Because §19 and §24's M7 specify server-side compaction, filtering, ordering and location ranking, this is a **material semantic change**, so the status header returned to READY_FOR_RATIFICATION per the charter rather than being amended under the standing ratification. The amendment is **§26**, which wins over §19 and context §0.19. **Ratification surface presented:** §26 in full (endpoint shape, `mergeKey` contract, the enumerated list of responsibilities transferred to the client, and the one safety property that moves with them), plus the rewritten M7 — presented to the owner as six plain-language points including the `mergeKey + stockState` compaction obligation.
 > - 2026-09-01 — **Re-stamped RATIFIED by the product owner (David)**, confirming §26 and the amended §24 M7 against the surface above. The gate is closed; prompts may compile again. The owner additionally directed that the frontend track be notified of the change and of the responsibility it now carries — delivered as `handoffs/frontend/handoff_report_contract_v1_2_notice.md`.
+> - 2026-09-02 — **Gate re-opened (round 4).** The product owner asked that the report also carry what a definition considers a full shelf, so the UI can show how many pieces a restock needs. §26.1 enumerates the entry's six fields and was ratified as that exact list, so adding to it is a **material semantic change** and the header returns to READY_FOR_RATIFICATION per the charter rather than being amended under the standing ratification. The amendment is **§27**, which extends §26.1's entry shape and nothing else. **Ratification surface presented:** the two owner decisions taken in session (the restock target is the `normal_in_stock` threshold, not the entry to the normal band; the entry carries both the three thresholds and the derived count), the exact arithmetic including its two boundary cases, the field name, and the statement that `mergeKey`, ordering, parameterlessness and every other §26 rule are untouched.
 >
 > Resolved decisions live in `docs/under_implementation/warehouse_stock/context/context.md` §0 (22 entries) and are **binding**. Where this intention and context §0 disagree, §0 wins. In particular §0 settles: `item_type` means `ScanHistory.itemCategory` (not `ScanHistory.itemType`); the database is SQLite, so "JSONB" means a Prisma `Json?` column that cannot be queried in SQL; property matching semantics; specificity scoring; the non-negative quantity guard; reconciliation scope; and tenancy via `shopId`.
 
@@ -996,3 +997,81 @@ Entries scale with **stock definitions** — tens, plausibly low hundreds — ne
 so an unparameterized full fetch is small. Consistent with context §0.6, whose in-memory
 full-scan justification rests on the same order of magnitude. If definition counts ever
 reach the thousands, this decision is revisited alongside §0.6's own threshold.
+
+27. Report — restock distance (amended 2026-09-02, round 4)
+
+**This section extends §26.1's entry shape. Everything else in §26 is unchanged** — the endpoint
+is still unparameterized, still returns one uncompacted entry per definition, still guarantees no
+ordering, and `mergeKey` keeps exactly the contract §26.2 gives it. Where §27 and §26.1 disagree
+about the entry's field list, §27 wins; §26 continues to win over §19 and context §0.19.
+
+27.1 Why
+
+The report says a definition is `low_in_stock` and holds 7. It does not say what "enough" is, so
+the screen that exists to drive restocking cannot tell anyone how much to bring. The thresholds
+that answer it are already stored per definition and already loaded by the query's own repository
+read; nothing new is computed or persisted.
+
+27.2 The entry shape
+
+```
+{ "location": "LC1",
+  "itemCategory": "Dining Chairs",
+  "properties": { "wood_type": ["walnut"] },   // canonical form, §23.1
+  "mergeKey": "<opaque>",
+  "quantity": 7,
+  "stockState": "low_in_stock",
+  "thresholds": [                              // NEW - the definition's three configured bands
+    { "state": "low_in_stock",    "thresholdQuantity": 10 },
+    { "state": "medium_in_stock", "thresholdQuantity": 15 },
+    { "state": "normal_in_stock", "thresholdQuantity": 20 } ],
+  "unitsToNormalThreshold": 13 }               // NEW - derived, see 27.3
+```
+
+`thresholds` carries the same three rows, in the same shape, that `LocationStockDto` already
+exposes (master plan §6.5). It is not a new vocabulary.
+
+27.3 `unitsToNormalThreshold` — the arithmetic, and the boundary the owner chose
+
+```
+unitsToNormalThreshold = max(0, normal_in_stock threshold - quantity)
+```
+
+**Owner decision, 2026-09-02.** "Reaching normal" has two defensible readings and they produce
+different numbers on screen. The bands are `1..low -> low`, `low+1..medium -> medium`,
+`medium+1..normal -> normal`, `> normal -> high`, so a definition **enters** the normal band at
+`medium + 1` (16 with thresholds 10/15/20) and **fills** it at the `normal_in_stock` threshold
+(20). The owner chose **fill**: the number is a replenishment target, not the count that merely
+clears the warning.
+
+Consequences, both intended and both pinned as criteria:
+
+| quantity | state | value | reading |
+|---|---|---|---|
+| 0 | `out_of_stock` | **20** | bring a full shelf |
+| 7 | `low_in_stock` | **13** | not 9 — 9 would only enter the band |
+| 18 | `normal_in_stock` | **2** | **already normal and still reports a gap** — deliberate, it is not yet full |
+| 25 | `high_in_stock` | **0** | never negative |
+
+The row at quantity 18 is the one a reader is most likely to mistake for a bug. It is not: under
+the fill reading, a definition inside the normal band but below its threshold still has room.
+
+**The name is `unitsToNormalThreshold`, not `unitsToNormal`.** The shorter name reads as "units to
+become normal", which is the `medium + 1` interpretation this section rejects; the longer name
+says which number it is.
+
+27.4 Where the arithmetic lives
+
+On the backend, computed in the report query from the thresholds the repository already returns.
+The client does not re-derive it. This is the same reasoning §26.2 gives for `mergeKey`: the band
+boundaries are domain rules (§0.20, P1's `calculateStockState`), and a client that re-implements
+them will eventually implement them differently. `thresholds` is shipped **as well** so the UI can
+draw bands or offer a different target without another contract round — but the number it shows by
+default is the backend's.
+
+27.5 What this does not change
+
+No new stored column, no migration, no new query, no index. `getStockReportQuery` already loads
+each definition's thresholds through `listByShop`. Compaction, filtering, ordering and ranking
+remain the client's under §26.3, and §26.4's safety property — group on `mergeKey` **+**
+`stockState` — is untouched.
