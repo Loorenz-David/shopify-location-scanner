@@ -30,7 +30,7 @@ Master plan §6 (API seam), §10 · intention §4A MC11 + §8 (M1, M4, M5) · co
 ## Acceptance criteria
 | id | criterion | trace |
 |---|---|---|
-| C1 | Automated: a production-mode build resolves the seam to the live implementation with the flag unset (unit test on `stock-api-mode` resolution under `import.meta.env` variants). | MC11 |
+| C1 | Automated: a production-mode build resolves the seam to the live implementation with the flag unset (unit test on `stock-api-mode` resolution under `import.meta.env` variants). **Named mutation M1:** invert the resolution so an unset flag yields `mock` → this row reds. This is the phase's worst failure and the reason charter rule 10 exists: a production build that silently serves fixtures looks entirely healthy — screens populate, nothing errors — while showing invented stock to real users. | MC11 |
 | C2 | Automated: live api functions hit the exact contract paths/methods/payloads (fetch-spy contract test per endpoint — enumerated, seven endpoints, one row each). | M1, M4, M6 |
 | C3 | Environment-lifecycle (charter rule 1 exemption — manual, recorded in the Review log with date/actor): real create→409→edit→delete round-trip observed against the live backend; report renders real data; a real scan moves a quantity via WS refetch. Automated proxy: C2 + P4's C5/C6 suites. | M1, M2, M5 |
 
@@ -38,6 +38,37 @@ Master plan §6 (API seam), §10 · intention §4A MC11 + §8 (M1, M4, M5) · co
 The mock fixtures remain (dev tooling + tests) — only the default path flips. If the
 backend's §4.1 vocabulary drifted from the fixture, update the fixture and flag the
 contract version question to the backend track.
+
+**Mutation count 1** — C1 (M1, the seam's default resolution).
+
+**Much of task 2 is already discharged — do not re-derive it** *(coordinator lint, 2026-09-02;
+master plan §7C)*. The backend was merged after P6 and the owner has already run real traffic
+through the feature. Verified against live data and the merged backend source:
+- **Casing** is lowercase on the wire, and the vocabulary carries display casing; `displayValueFor`
+  round-trips multi-word values.
+- **`mergeKey`** is `itemCategory` + `|` + `propertiesCanonical` — no location, no state — which is
+  what P2 assumed.
+- **`propertyOptions` key order** is identical to the fixture, key for key. **No fixture drift.**
+- **The 409 envelope** carries `conflictingId` on stored-definition conflicts, and the owner has
+  seen the conflict banner render end to end.
+- **DELETE** returns `{ ok: true }`, which the frontend already types.
+- **Create** works: three definitions exist, made through the wizard against the live backend.
+- The **doubled-prefix** hazard task 1 warns about is already guarded — `api/stock-api.test.ts:268`
+  asserts no URL contains `/api/api/`.
+
+**What is therefore actually left**, and what this phase must not skip:
+1. **C1's production-build resolution** — never yet exercised; the app has only ever run in dev.
+2. **Edit and delete against the live backend.** Create and 409 are done; the other two W1 paths
+   are not.
+3. **The report against real, non-zero data.** Every definition currently sits at `quantity 0` /
+   `out_of_stock`, so ordering, the counter tiles and MC3a's group ranking have **never been seen
+   with real numbers**. Scan stock in first — backend runbook §2 — or this proves nothing.
+4. **A real WS refetch**: a scan moving a quantity and the screen following it (M5).
+5. **The download fallback in Firefox and desktop Safari** — the inherited hazard below.
+
+**S10 applies to C2.** A fetch-spy contract test passes trivially if the spy cannot tell one
+endpoint from another: assert the exact method **and** path **and** payload per row, and make the
+seven rows distinguishable from each other, not merely present.
 
 ## Review log
 (empty)

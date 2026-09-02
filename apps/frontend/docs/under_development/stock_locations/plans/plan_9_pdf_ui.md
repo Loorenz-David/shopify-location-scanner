@@ -83,6 +83,14 @@ Consequences for whoever implements this:
   measure the baseline from the tree you are given, and never repair a red outside your perimeter.
 
 ## Review log
+- **2026-09-02 · owner visual pass · APPROVED.** The owner printed a PDF and confirmed it: *"it
+  works perfectly."* That discharges S5's gate for this phase — the one judgement no test here could
+  make — and with coordinator verification already complete and clean above, **P9 is APPROVED**.
+
+  This closes the last build phase. Everything from the report domain through the printed document
+  now exists, is proven, and has been seen working by the owner. Only P10 (live integration)
+  remains, and it is verification rather than construction.
+
 - **2026-09-02 · round 1 consumption · coordinator · IMPLEMENTED, awaiting the owner's printed PDF.**
   Coordinator verification is complete and clean; **S5's gate for this phase is one printed page**,
   which cannot be judged on screen and has not yet been given. The tracker therefore stays at
