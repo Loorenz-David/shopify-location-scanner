@@ -13,6 +13,10 @@ import { userRepository } from "../../auth/repositories/user.repository.js";
 import type { ScanHistoryRecord } from "../../scanner/domain/scan-history.js";
 import { logger } from "../../../shared/logging/logger.js";
 import { itemPropertiesResolver } from "../../../shared/item-properties/item-properties-resolver.service.js";
+import {
+  applyItemStockChange,
+  toStockItemSnapshot,
+} from "../../stock/services/apply-item-stock-change.service.js";
 
 export const updateItemLocationCommand = async (input: {
   shopId: string;
@@ -46,13 +50,12 @@ export const updateItemLocationCommand = async (input: {
   }
 
   const returnToStore = input.payload.returnToStore === true;
+  const existingHistory = await scanHistoryRepository.findByShopAndProduct({
+    shopId: input.shopId,
+    productId: input.resolvedProductId,
+  });
 
   if (returnToStore) {
-    const existingHistory = await scanHistoryRepository.findByShopAndProduct({
-      shopId: input.shopId,
-      productId: input.resolvedProductId,
-    });
-
     if (!existingHistory?.isSold) {
       logger.warn("Update item location aborted: return-to-store on unsold item", {
         shopId: input.shopId,
@@ -149,6 +152,25 @@ export const updateItemLocationCommand = async (input: {
     itemType: input.idType,
     itemTitle: after.title,
     location: after.location ?? input.payload.location,
+  });
+
+  const stockChange = await applyItemStockChange({
+    shopId: input.shopId,
+    before: toStockItemSnapshot(existingHistory),
+    after: toStockItemSnapshot(historyItem),
+    operation: returnToStore ? "return_to_store" : "location_move",
+    itemIdentifiers: {
+      productId: input.resolvedProductId,
+      scanHistoryId: historyItem.id,
+    },
+  });
+  logger.info("Stock change applied for item location update", {
+    shopId: input.shopId,
+    userId: input.userId,
+    productId: input.resolvedProductId,
+    scanHistoryId: historyItem.id,
+    operation: returnToStore ? "return_to_store" : "location_move",
+    changed: stockChange.changed,
   });
 
   logger.info("Scan history append completed", {

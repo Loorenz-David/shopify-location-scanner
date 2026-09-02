@@ -22,6 +22,41 @@ assigned in conversation, so no compaction can drop it.
 Interop is by **artifact, never conversation** (charter). Codex has filesystem access, so
 its prompts point it at the doctrine files by absolute path rather than inlining them.
 
+## Working tree — check your path before you write (owner, 2026-09-01)
+
+This pipeline runs in a **git worktree**, because the frontend for the same feature is
+being built in parallel on `main` and the owner wants two clean commit streams.
+
+```
+THIS PIPELINE   /Users/davidloorenz/Desktop/Developer/BeyoApps_2025/Item-Scanner-Shopify-warehouse-stock-backend   [warehouse-stock-backend]
+frontend track  /Users/davidloorenz/Desktop/Developer/BeyoApps_2025/Item-Scanner-Shopify                            [main]
+```
+
+Both were created from `4424a3b`, which already contained the whole planning set — so a
+**complete, identical, and now dead copy of every document in this folder also exists in
+the `main` checkout**. That is the live hazard of this arrangement: an edit written to the
+wrong tree is silently lost, and neither `git status` nor a perimeter check will say so,
+because both paths look equally correct. Every prompt this role compiles states the
+worktree path explicitly and gates on `git branch --show-current`.
+
+Full topology, provisioning record and baselines: master plan §10.0.
+
+## Where the coordinator seat sits (2026-09-01)
+
+The coordinator session that planned this pipeline ran with its cwd in a **different
+repo** — `~/Desktop/Developer/BeyoApps_2025/ManagerBeyo-app/backend`, the owner's
+pipeline home, whose `memory/MEMORY.md` indexes every pipeline project. Claude Code
+files transcripts by cwd, so that session is **invisible to `claude --resume` from this
+repo**; it is `f1fe27ca-4614-410e-a75c-b4d254898cd2`, "orchestrator for stock location
+implementation", and it is resumed by `cd`-ing to that directory.
+
+From 2026-09-01 the seat moved to a session rooted **in this worktree**
+(`…-warehouse-stock-backend/apps/backend`). That is the preferred rooting: it removes
+the wrong-tree hazard above, since every relative path a session touches is already
+inside the live copy. The successor re-derived the whole artifact set and re-verified
+P1's gate from source rather than inheriting the predecessor's verdict — which is the
+charter's own interop rule (artifacts, never conversation) working as intended.
+
 ## Doctrine paths (absolute — quote these in every prompt)
 
 ```

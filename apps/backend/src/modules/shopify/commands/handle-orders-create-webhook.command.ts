@@ -11,6 +11,10 @@ import { applyOrderMarkersCommand } from "./apply-order-markers.command.js";
 import { isInternalMarker, parseOrderMarkers } from "../domain/order-marker.js";
 import { buildOrderWebhookLineItemDebugSummary } from "../domain/order-webhook-debug.js";
 import { loadProductSnapshotsForOrderService } from "../services/load-product-snapshots-for-order.service.js";
+import {
+  applyItemStockChange,
+  toStockItemSnapshot,
+} from "../../stock/services/apply-item-stock-change.service.js";
 
 const WEBHOOK_ACTOR = "system:shopify-webhook";
 const UNKNOWN_POSITION_LOCATION = "UNKNOWN_POSITION";
@@ -168,7 +172,11 @@ export const handleOrdersCreateWebhookCommand = async (input: {
 
   for (const [productId, lineItem] of lineItemsByProduct.entries()) {
     const productSnapshot = productSnapshots.get(productId);
-    await scanHistoryRepository.appendSoldTerminalEventWithFallback({
+    const existingHistory = await scanHistoryRepository.findByShopAndProduct({
+      shopId: input.shopId,
+      productId,
+    });
+    const historyItem = await scanHistoryRepository.appendSoldTerminalEventWithFallback({
       shopId: input.shopId,
       userId: null,
       username: WEBHOOK_ACTOR,
@@ -193,6 +201,24 @@ export const handleOrdersCreateWebhookCommand = async (input: {
       soldLocation,
       happenedAt,
       salesChannel,
+    });
+    const stockChange = await applyItemStockChange({
+      shopId: input.shopId,
+      before: toStockItemSnapshot(existingHistory),
+      after: toStockItemSnapshot(historyItem),
+      operation: "sold",
+      itemIdentifiers: {
+        productId,
+        scanHistoryId: historyItem.id,
+      },
+    });
+    logger.info("Stock change applied for Shopify orders/create", {
+      shopId: input.shopId,
+      productId,
+      scanHistoryId: historyItem.id,
+      orderId,
+      operation: "sold",
+      changed: stockChange.changed,
     });
 
     processedProducts += 1;

@@ -4,33 +4,38 @@
 Ship the full configuration HTTP surface: options, summary, detail, batch create, update, delete — validated per the intention, reconciling per §0.17/§23.6, mounted and authenticated per §0.18. **Not in this phase:** the report endpoint (P5), item-flow hooks (P4).
 
 ## Read first
-Master plan §5, §6.3–§6.6, §9, §10 · intention §2, §6, §14–§18, §23.2–§23.5 · context §0.3, §0.4, §0.12, §0.17, §0.18, §3.3–§3.6, §2 (dual mount) · `.github/instructions/backend-contracts.instructions.md` · `src/modules/zones/**` (CRUD template incl. `getRequiredIdParam`) · P1 domain, P2 repository/service.
+Master plan §5, §6.3–§6.6, §9, §10 · intention §2, §6, §14–§18, §23.2–§23.5 · context §0.3, §0.4, §0.12, **§0.16** (the section that actually specifies the `itemCategory` validator — `"unknown"` is deliberately outside `ITEM_CATEGORIES` and rejected by `z.enum(ITEM_CATEGORIES)`; D9), §0.17, §0.18, §3.3–§3.6, §2 (dual mount) · `.github/instructions/backend-contracts.instructions.md` · `src/modules/zones/**` (CRUD template incl. `getRequiredIdParam`) · P1 domain, P2 repository/service.
 
 ## Dependencies (gate)
 P2 APPROVED. (May run in parallel with P4 — disjoint perimeters.)
 
 ## Files expected to change
-New `src/modules/stock/{contracts/stock.contract.ts, commands/create-location-stocks.command.ts, commands/update-location-stock.command.ts, commands/delete-location-stock.command.ts, queries/get-stock-locations-summary.query.ts, queries/get-location-stock-detail.query.ts, queries/get-stock-configuration-options.query.ts, controllers/stock.controller.ts, routes/stock.routes.ts}` · `src/server.ts` (two mount lines).
+**Extend** `src/modules/stock/contracts/stock.contract.ts` (**it already exists** — 79 lines, shipped in P2's `e3eb367`, and both P2 files import from it; P2's plan said "types only in P2 … P3 adds the zod schemas to this same file". Taken as "new" it invites an overwrite that deletes `LocationStock`, `LocationStockCreateData`, `LocationStockUpdateData`, `GuardedDecrementContext`, `ReconciliationValue` and `StockOperation` — D6) · **extend** `src/modules/stock/repositories/location-stock.repository.ts` (**re-opens a P2 file, deliberately** — D1: threshold replacement has no write path anywhere in `src/`, and every architecture-compliant implementation must add one here; P3's close therefore runs `verify-all.ts`, which it already requires) · new `src/modules/stock/{commands/create-location-stocks.command.ts, commands/update-location-stock.command.ts, commands/delete-location-stock.command.ts, queries/get-stock-locations-summary.query.ts, queries/get-location-stock-detail.query.ts, queries/get-stock-configuration-options.query.ts, controllers/stock.controller.ts, routes/stock.routes.ts}` · `src/server.ts` (two mount lines).
 
 ## Tasks (ordered)
-1. `stock.contract.ts` — zod schemas per master plan §6.5 DTOs. Criteria input: `z.record` accepting `string | string[] | null`; category-aware key/value whitelist validation (§23.3) via `getPropertyOptionsForCategory`; thresholds: exactly the three configurable states (§2). Location: trimmed non-empty string, no further validation (§0.12).
-2. Create command: normalize criteria → per-item validation → intra-batch + against-existing conflict checks (§23.2, batch members checked against each other AND existing siblings) → single transaction insert (§23.5) → post-commit `reconcileGroup` once per distinct affected group → return DTOs re-read after reconciliation. `createdByUsername`/`updatedByUsername` from `req.authUser.username`.
-3. Update command: load-or-404 (shop-scoped); apply changes; conflict check excludes self; thresholds replace fully (delete + recreate inside the tx); reconcile per §0.17 trigger-scope table — thresholds-only → recompute state on that row only; criteria change → 1 group; location/category change → old group AND new group.
+1. `stock.contract.ts` — zod schemas per master plan §6.5 DTOs. Criteria input: `z.record` accepting `string | string[] | null`; category-aware key/value whitelist validation (§23.3), exported as a **named function taking `(itemCategory, criteria)`** so both the create schema and the update command can call it — **not** a schema-internal check (D2: on `PATCH` the body carries `itemCategory?` and `properties?` independently, so a schema never sees the pair it must validate, and §23.3 binds validation "at create/update"). The value check **skips wildcard (`null`) entries** — `normalized[key]` is `null` for a wildcard, and a check written without that guard either throws on `null.some(...)` or rejects every wildcard (D8). Built on `getPropertyOptionsForCategory` — **lowercase both sides of the value comparison (context §0.5: "the map holds the canonical casing for display, comparison lowercases both sides"). P1 review N2:** `ITEM_PROPERTY_OPTIONS` stores display casing (`"Teak"`, `"Up"`, `"Inside Extension"`) while `normalizeCriteria` lowercases every criterion value, so `option.values.includes(criterionValue)` against normalized criteria rejects **every legal value**, and against raw input accepts `"TEAK"` and `"teak"` inconsistently; thresholds: exactly the three configurable states (§2). Location: trimmed non-empty string, no further validation (§0.12).
+2. Create command: normalize criteria → per-item validation → intra-batch + against-existing conflict checks (§23.2), **partitioned by group**: members are compared only against other members sharing their own `(location, itemCategory)`, and the existing-sibling read is `listByGroup` for **each member's own group** (D3 — `findConflict` takes criteria only and knows nothing about location or category, so the obvious every-member-against-every-earlier-member loop rejects a batch containing `LC1 + Dining Chairs + {}` and `H1 + Dining Chairs + {}` with a 409: two catch-alls share the empty key set and the per-key check is vacuously true across it. Creating a location-wide catch-all for two locations in one request is among the first things a settings wizard submits) → single transaction insert (§23.5) → post-commit `reconcileGroup` once per distinct affected group → return DTOs re-read after reconciliation. `createdByUsername`/`updatedByUsername` from `req.authUser.username`.
+
+   **Audit attribution after the post-commit recount — owner decision 2026-09-01 (projection card 1), and it does NOT duplicate P2's card 1.** P2 settled *which rows a recount writes*: only those whose `(quantity, stockState)` changed. That rule alone leaves this phase broken, because a **newly created or edited configuration always changes** — its quantity moves from the schema default of 0 to the real count — so it is always rewritten by the recount and always re-stamped `system:stock-reconciliation`, a second after a person saved it. Every configuration holding stock would read as system-edited; only empty ones would carry a name.
+
+   **The rule, combining both answers:** after the create/update command's reconciliation completes, the configuration **the person actually created or edited** is stamped with `req.authUser.username`. **Sibling** configurations in the group whose quantities shifted as a side effect keep `system:stock-reconciliation` — nobody edited them, and the recount is the honest author of that change. So "only those that changed" governs *which rows are written*, and *who* is recorded depends on **who caused that row's change**.
+3. Update command: load-or-404 (shop-scoped); **re-validate the effective pair** — compute `(itemCategory, properties)` as *stored ⊕ patch* and run the D2 whitelist function on **that**, before anything else (without this step the update endpoint ships with no property validation at all: `PATCH {"properties":{"shape":["Round"]}}` onto a Dining Chairs configuration is accepted and the configuration then matches zero items forever — the exact failure §0.4 says the whitelist exists to eliminate; the mirror case is moving a configuration to a category where its stored keys are illegal); apply changes; conflict check excludes self; thresholds replace fully via a **new repository method `replaceThresholds(id, shopId, thresholds, updatedByUsername, tx?)`** — deletes the row's thresholds and creates the submitted three, self-transacting when no `tx` is given, in the manner of `createMany`. Add `thresholds?: readonly StockThreshold[]` to `UpdateLocationStockInput`, which §6.5 and frontend contract §4.5 both declare but the shipped type lacks. **Both writes must share one transaction** — the unique index `[locationStockId, state]` forces delete-before-create, and a half-applied edit is not merely untidy: a configuration left with zero thresholds makes `calculateStockState` throw inside `computeGroup`, which **bricks create, update and delete for every sibling in that location+category from then on**. *The silent shape to avoid (D1): adding `thresholds?` to the input type and passing it to `updateConfig` compiles clean and drops the field on the floor, because that method's spread never reads it — thresholds appear to save and never do.*; reconcile per §0.17 trigger-scope table — thresholds-only → recompute state on that row only; criteria change → 1 group; location/category change → old group AND new group.
 4. Delete command: delete (thresholds cascade) → reconcile the group.
 5. Read queries + controller + routes (`asyncHandler`, envelopes `{ data }` / `{ ok: true }`, `getRequiredIdParam` idiom) + dual mount in `server.ts`.
+   **A named `toLocationStockDto` mapper lives in `stock.contract.ts` and every response goes through it (D7).** `toDomain` returns `shopId` and `propertiesCanonical`; §6.5's `LocationStockDto` and frontend contract §4.3 carry **neither**, so returning the repository object leaks the tenancy id into every stock response, against the architecture contract's "never return ORM entities directly". The DTO field list is exactly: `id, location, itemCategory, properties, quantity, stockState, thresholds[{state, thresholdQuantity}], createdAt, createdByUsername, updatedAt, updatedByUsername`.
 
 ## Acceptance criteria
 | # | Rows | Trace |
 |---|---|---|
-| C1 | Validation rejects with 400: (a) unknown property key for the config's category (e.g. `shape` on Dining Chairs); (b) unknown value for a known key; (c) missing threshold state; (d) duplicate threshold state; (e) non-positive threshold; (f) low ≥ medium; (g) medium ≥ normal; (h) empty-after-normalization value array. Valid scalar AND array criterion shapes are both accepted | M6, §23.1/§23.3/§2 |
-| C2 | Batch create all-or-nothing: (a) two valid configs → both created, 201 `{data}` with canonical properties; (b) second of two conflicts with the first (intra-batch) → 409, NEITHER written, error names `batchIndex`; (c) conflict with an existing sibling → 409 with `conflictingId`, nothing written | M6, §23.5/§23.2 |
-| C3 | Create initializes from inventory: a config matching existing unsold items returns quantity = sum of their item quantities and the correct state — never 0-by-default (seedable against dev data, e.g. `LC1` + `Dining Chairs` + `{}`) | M1/M5, §14/§0.17 |
+| C1 | Validation — rejects with 400 in (a)–(h), **accepts** in (i): (a) unknown property key for the config's category (e.g. `shape` on Dining Chairs); (b) unknown value for a known key; (c) missing threshold state; (d) duplicate threshold state; (e) non-positive threshold; (f) low ≥ medium; (g) medium ≥ normal; (h) empty-after-normalization value array; **(j) **the same rejection applies on `PATCH`** — `shape` patched onto a Dining Chairs configuration → 400, whether or not the patch also changes the category (D2); (k) a wildcard `{"upholstery": null}` on Dining Chairs is **accepted** — the value check skips `null` entries (D8); (l) an `itemCategory` outside `ITEM_CATEGORIES`, including the sentinel `"unknown"`, → 400 (§0.16, D9); (i) a known value in ANY casing is accepted** — `"teak"`, `"Teak"` and `"TEAK"` all pass for `wood_type`, and valid scalar and array criterion shapes are both accepted (§0.5: "the map holds the canonical casing for display, comparison lowercases both sides"; P1 review N2 — written the obvious way this check rejects every legal value) | M6, §23.1/§23.3/§2 |
+| C2 | Batch create all-or-nothing: (a) two valid configs **in DIFFERENT groups** — `LC1 + Dining Chairs + {}` and `H1 + Dining Chairs + {}` — → both created, 201 `{data}` with canonical properties (the fixture is pinned to different groups on purpose: a same-group pair passes this row while the D3 cross-group false-conflict ships); (b) second of two conflicts with the first (intra-batch) → 409, NEITHER written, `details` = `{ batchIndex: 1, conflictsWithBatchIndex: 0 }` and **no `conflictingId`** — there is no existing definition and therefore no id to name (D4; §23.5 writes nothing). The row asserts `batchIndex: 1` exactly, so "names batchIndex" cannot be satisfied by reporting either index; (c) conflict with an existing sibling → 409 with `conflictingId`, nothing written | M6, §23.5/§23.2 |
+| C3 | Create initializes from inventory, never 0-by-default (§14): (a) a config matching existing unsold items returns `quantity` = the **sum of their item quantities**, derived live for the fixture group (`sqlite3 … "SELECT SUM(quantity) FROM ScanHistory WHERE latestLocation=? AND itemCategory=? AND isSold=0"`), not a typed literal; (b) its `stockState` is the value §3's bands give for that quantity against the submitted thresholds | M1/M5, §14/§0.17 |
 | C4 | Update reconciliation scope: (a) thresholds-only edit → same quantity, state recomputed, sibling quantities untouched; (b) criteria edit → its group reconciled (a sibling's quantity changes when items reallocate); (c) location change → BOTH old and new groups reconciled (old sibling regains the items) | M5, §0.17 |
-| C5 | Delete: (a) row + thresholds gone, items untouched; (b) `{ok:true}`; (c) group reconciled — a broader sibling absorbs the deleted config's items | M5, §16/§0.17 |
+| C5 | Delete: (a) row + thresholds gone, items untouched; (b) `{ok:true}`; (c) group reconciled — a broader sibling absorbs the deleted config's items; (d) **deleting the LAST configuration in a group** succeeds, throws nothing, and leaves every other group untouched — §0.17 reconciles the group *after* removal, so this calls `reconcileGroup` on a group with zero configurations, a path P2 implements but no P2 row exercises (P2 review S2, proven unguarded there) | M5, §16/§0.17 |
 | C6 | Reads: (a) summary counts configurations per location (3 configs at one location → `stockCount: 3`); (b) detail returns full DTO incl. thresholds, audit fields, canonical properties; (c) options returns `itemCategories` + the §23.3 map | M7(partial)/M6, §17/§18/§0.4 |
-| C7 | Mounting & auth: (a) reachable at `/api/stock/...` and `/stock/...`; (b) 401 without token; (c) works for a non-admin role (§0.18); (d) audit usernames recorded from the authenticated user | §0.18/§0.3 |
+| C7 | Mounting & auth: (a) reachable at `/api/stock/...` and `/stock/...`; (b) 401 without token; (c) works for a non-admin role (§0.18); (d) audit usernames recorded from the authenticated user — specifically: after a create or update, **the edited configuration reads the acting user's username**, while a sibling reallocated by the same recount reads `system:stock-reconciliation` (owner decision, projection card 1). **Both cases pinned, since the plan's own fixtures produce the sentinel (D5):** creating `LC1 + Dining Chairs + {}` — a group holding inventory, so reconciliation rewrites the row — the response carries `createdByUsername: <user>` **and** `updatedByUsername: <user>`, the re-stamp having run after reconciliation; creating a configuration in an **empty** group, where reconciliation writes nothing, also carries `<user>` in both. A sibling reallocated by the same request reads `system:stock-reconciliation` | §0.18/§0.3 (transport + authorization — **no `M` id by design**, per the P2 C7 precedent: the ledger measures stock correctness, not reachability) |
 
-Phase-close instruments: typecheck green; purity grep empty; perimeter diff matches file list.
+Phase-close instruments: typecheck green; purity grep empty; **`npx tsx scripts/verify-all.ts` all-PASS on a scratch copy** (§9.1d — this phase authors no verify script of its own, but must not regress P1's or P2's); perimeter diff matches file list.
 
 ## Manual scenarios (curl checklist — implementer executes, reviewer re-executes; expected quantity/state stated per step)
 1. `GET /api/stock/options` → categories + map (spot-check one per-category key).
@@ -42,6 +47,8 @@ Phase-close instruments: typecheck green; purity grep empty; perimeter diff matc
 7. Steps 2–6 as a `worker`-role user → all permitted.
 
 ## Notes
+- **The frontend contract already carries the D4 shape (v1.4).** `contracts/frontend-api-contract.md` §3 now specifies both 409 `details` shapes and §4.4 carries the worked example. The implementation must match it exactly: intra-batch → `{ batchIndex, conflictsWithBatchIndex }` with **no** `conflictingId`; existing-sibling → `{ conflictingId, batchIndex }`. The frontend is building error handling against that document.
+- **Granted delegations (P3 projection D10–D12) — the implementer's call, on purpose, not review findings:** (D10) create/update/delete commit and *then* reconcile; if `reconcileGroup` throws, the rows are already written — **let it propagate**, giving the client a 500 over a configuration that exists, because §0.17 makes reconciliation authoritative and any later reconciliation repairs the group, whereas swallowing returns quantity 0 as though it were the count; (D11) zod validates threshold **shape and arity**, the shipped `validateThresholds` validates the **semantics**, called once — a zod-only version checking `length === 3` plus the state enum accepts `[low, low, medium]` and fails C1(d); (D12) response ordering is location ascending for the summary and `createdAt` ascending for the detail, neither being specified by §17, §18 or §6.5.
 - **Reviewer planted-defect probe (master plan §11.1.4):** temporarily skip the intra-batch conflict check (compare only against existing siblings) → manual scenario 4 variant (duplicate submitted twice in ONE batch) must stop failing; revert. Proves the batch conflict instrument can fail.
 - Response DTOs are re-read AFTER reconciliation pass 2 so the user sees pass-2 values (§23.6).
 - Reconciliation runs post-commit of the config transaction (create/update/delete), once per distinct affected group even when a batch touches several.
@@ -49,3 +56,201 @@ Phase-close instruments: typecheck green; purity grep empty; perimeter diff matc
 
 ## Review log
 (append-only)
+
+### 2026-09-01 — projection round 0 · AMENDMENTS_REQUIRED · consumed by coordinator
+
+Handoff: `handoffs/reviewer/handoff_plan3_projection_0.md`. 12 ledger rows, 1 owner card. **All
+folded.** 7 criteria, **31** rows (was 28; C1 gained (j) PATCH re-validation, (k) wildcard
+accepted, (l) invalid `itemCategory`).
+
+**Owner card 1 answered** — the edited row keeps the acting user; siblings reallocated as a side
+effect keep the sentinel. Recorded in task 2 with the reason it does **not** duplicate P2's card 1.
+
+| # | Folded to |
+|---|---|
+| D1 | Perimeter **re-opens P2's repository** for a new `replaceThresholds` method — threshold replacement had no write path anywhere in `src/`, and every architecture-compliant implementation must add one. The silent shape (passing `thresholds` to `updateConfig`, whose spread never reads it) is named in task 3 |
+| D2 | The whitelist becomes a named `(itemCategory, criteria)` function callable from both paths; task 3 gains a re-validation step on the *effective* pair. Without it PATCH ships with no property validation at all |
+| D3 | Batch conflicts are **group-partitioned**; C2(a)'s fixture pinned to two *different* groups, so the row bites on the cross-group false 409 |
+| D4 | 409 `details` pinned per case — intra-batch `{batchIndex, conflictsWithBatchIndex}` and no `conflictingId`; C2(b) asserts `batchIndex: 1` |
+| D5 | C7(d) pinned for both empty and non-empty groups |
+| D6 | `stock.contract.ts` is **extend**, not new — it ships in `e3eb367` and both P2 files import from it |
+| D7 | A named `toLocationStockDto` mapper with the exact field list; `toDomain` leaks `shopId` and `propertiesCanonical` otherwise |
+| D8 | C1(k) — the wildcard `null` shape is accepted and the value check skips it |
+| D9 | Context **§0.16** added to Read-first; C1(l) added |
+| D10–D12 | Granted delegations in Notes (propagate a post-commit reconciliation failure; zod for shape + `validateThresholds` for semantics; location asc / `createdAt` asc) |
+
+**Seal scored, then deleted. Both probes surfaced** — A as D1 (threshold replacement unreachable),
+B as D10 (post-commit reconciliation failure). Per the seal's rule that is evidence for keeping
+the gate on a phase where §3 makes it *waivable*.
+
+**Fold-back owed to the frontend:** D4 changes the conflict `details` shape, and
+`contracts/frontend-api-contract.md` §3 and §4.4 currently promise `conflictingId` on **every**
+conflict. That is now wrong for the intra-batch case and the frontend is building against it.
+
+### 2026-09-01 — implementer round 1 · IMPLEMENTED
+
+Handoff: `handoffs/implementer/handoff_plan3_implement_1.md`. Checkpoint: `7b86e53`
+(`CHECKPOINT (not approved): implement warehouse stock configuration API`). The full
+configuration surface is implemented: zod contracts and category-aware criteria
+validation, canonical DTO mapping, group-partitioned all-or-nothing batch create,
+transactional update with full threshold replacement, post-commit reconciliation and
+audit attribution, delete, summary/detail/options queries, authenticated dual-mounted
+routes, and both server registrations. The P2 repository was extended only with the
+transaction callback infrastructure and `replaceThresholds` required by this phase.
+
+The P3 red baseline was not captured: this project has no test runner, P3 authors no
+verification script, and no P3 executable cases existed before implementation. The
+pre-change gates were captured instead: `npm run typecheck` exited 0 and
+`npx tsx scripts/verify-stock-domain.ts` reported 58 PASS / exit 0. No test files were
+added, so there are no orphan tests.
+
+Closing instruments on the final implementation tree:
+
+- `npm run typecheck` — exit 0.
+- Purity grep — `PURITY_GREP=empty`.
+- `npx tsx scripts/verify-all.ts` with `DATABASE_URL=file:/private/tmp/p3-final-close-r2.8vTj7s/dev.db`
+  and `SHOP_ID=cmnractlq0000qr53y8so42t3` — exit 0; scratch copy was made with
+  `sqlite3 prisma/dev.db ".backup '/private/tmp/p3-final-close-r2.8vTj7s/dev.db'"`.
+- Manual curl checklist — all seven scenarios exercised against disposable
+  `/private/tmp/p3-manual.osnNf9/dev.db`: options returned the complete 28-category and
+  8-option map; LC1 catch-all initialized to the live eligible sum 221 and high state;
+  H1 catch-all 80 plus Teak 34 reallocated to catch-all 46; duplicate scalar/array
+  criteria returned 409 with `conflictingId`; move to H1 restored LC1; delete returned
+  `{ok:true}` and restored allocation; worker-role requests succeeded; invalid criteria,
+  threshold shape/semantics, wildcard, invalid category, PATCH whitelist, both mounts,
+  summary count 3, threshold-only state change, and last-config deletion were also
+  exercised.
+
+Authoritative `verify-all` output from `/private/tmp/p3-final-close-r2.8vTj7s/dev.db`:
+
+```text
+--- verify-stock-domain.ts ---
+PASS C2(a)
+PASS C2(b)
+PASS C2(c)
+PASS C2(d)
+PASS C2(e)
+PASS C3(a)
+PASS C3(b)
+PASS C3(c)
+PASS C3(d)
+PASS C3(e)
+PASS C3(f) (empty array)
+PASS C3(f) (blank scalar)
+PASS C4(a)
+PASS C4(b)
+PASS C4(c)
+PASS C4(d)
+PASS C4(e)
+PASS C4(f)
+PASS C5(a)
+PASS C5(b)
+PASS C5(c)
+PASS C5(d)
+PASS C5(e)
+PASS C5(f)
+PASS C6(a)
+PASS C6(b)
+PASS C6(c)
+PASS C6(d)
+PASS C6(e)
+PASS C6(f)
+PASS C6(g)
+PASS C6(h)
+PASS C7(a)
+PASS C7(b)
+PASS C7(c) (zero)
+PASS C7(c) (negative)
+PASS C7(c) (non-integer)
+PASS C7(d)
+PASS C7(e)
+PASS C7(f)
+PASS C7(g)
+PASS C8(a)
+PASS C8(b)
+PASS C8(c)
+PASS C8(d)
+PASS C8(e)
+PASS C8(f)
+PASS C8(g)
+PASS C8(h)
+PASS C9(a)
+PASS C9(b)
+PASS C9(c)
+PASS C9(d)
+PASS C9(e)
+PASS C9(f)
+PASS C9(g)
+PASS C9(h)
+PASS verify-stock-domain.ts
+--- verify-stock-reconciliation.ts ---
+PASS C1(a)
+PASS C1(b)
+PASS C1(c)
+PASS C2(a)
+PASS C2(b)
+PASS C2(c)
+PASS C2(d)
+PASS C3(a)
+PASS C3(b)
+PASS C3(c)
+PASS C3(d)
+PASS C3(e)
+PASS C4(a)
+PASS C4(b)
+PASS C4(c)
+PASS C4(d)
+PASS C5(a)
+PASS C5(b)
+PASS C6(a)
+PASS C6(b)
+PASS verify-stock-reconciliation.ts
+SUMMARY PASS 2 script(s)
+```
+
+Judgment calls and observations are detailed in the handoff. Candidate upstream note:
+the v1.4 frontend contract's §4.4 worked example labels `{}` plus
+`{wood_type:["Teak"]}` as an intra-batch conflict, but the ratified §23.2 rule and
+this plan's manual scenario 3 allow them because their criterion key sets differ. The
+implementation follows §23.2 and the plan; the coordinator should reconcile the example
+before frontend integration.
+
+### 2026-09-02 — review round 1 · APPROVED · phase closed
+
+Handoff: `handoffs/reviewer/handoff_plan3_review_1.md`. Tree `7b86e53`, isolated from P4's
+`4da4579`; `HEAD` byte-identical to the checkpoint.
+
+**All 31 rows re-executed by the reviewer** against a live server on a scratch copy
+(`sqlite3 … ".backup"`, port 4405, minted admin and worker tokens). `prisma/dev.db` read only —
+still 0 `LocationStock` rows, mtime unchanged. Scratch copy, tokens and probe scripts deleted.
+
+Instruments: typecheck 0 · purity grep empty · `verify-all.ts` exit 0 (58 P1 + 20 P2) · perimeter
+exactly the 11 permitted files · P1/P2/P4 frozen files byte-identical.
+
+Observed, against live inventory: create `LC1·{}` → **221 / high_in_stock / david·david**;
+create `LC1·{wood_type:["Teak"]}` → **teak 107 (david)**, catch-all **221 → 114
+(`system:stock-reconciliation`)** — C7(d)'s owner card 1 on both halves; thresholds-only PATCH →
+**107 unchanged, high → low, sibling untouched** (D1's silent failure disproven live); PATCH to
+`H1` → **LC1 back to 221, H1 teak 34**; worker creates `H1·{}` → **46**; delete teak → `{ok:true}`,
+**3 → 0 threshold rows**, catch-all **80**; delete the last config in the group → **200, no throw,
+LC1 untouched** (C5(d), the path P2's review routed here). `ScanHistory` 1107 → 1107 throughout.
+C2: cross-group catch-alls → **201 both** (D3's trap avoided); intra-batch → **409
+`{batchIndex:1, conflictsWithBatchIndex:0}`, no `conflictingId`, 0 rows written**; existing sibling
+→ **409 `{conflictingId, batchIndex}`**. C1's twelve rows all as specified, including both D2
+PATCH directions. C6: DTO carries exactly the eleven §6.5 fields — no `shopId`, no
+`propertiesCanonical` (D7).
+
+**Reviewer planted-defect probe:** collapsing the create command's group key to a single bucket
+turned C2(a) from "created 2" into the false intra-batch 409 that D3 predicted; reverted, tree
+clean. The row can fail.
+
+**B1 was in the contract, not in this phase.** §4.4's worked example claimed `{}` +
+`{wood_type:["Teak"]}` in one batch is a conflict; the endpoint returns **201**, and that pair is
+the catch-all-plus-carve-out layering the feature is built on. The implementer reported the
+contradiction as a candidate upstream note and followed §23.2 — correctly. Contract reissued
+**v1.5**; master plan §9 gains standing instruction 9.
+
+Notes carried to P6: the `shopId` asymmetry, now with a second instance (`updateState` alongside
+`applyIncrement`), both P2's code, as one item; the command-owned transaction boundary (advisory).
+
+No fix cycle. Phase closed.

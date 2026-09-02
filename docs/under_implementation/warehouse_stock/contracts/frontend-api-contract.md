@@ -1,7 +1,7 @@
 # Location Stock System — Frontend API Contract
 
 **Audience:** the frontend planning/implementation agent. This document is self-contained: it carries every endpoint shape, the domain meaning behind it, and the reactivity rules. It is generated from the backend master plan's naming registry (`../master_plan.md` §6) — that registry is authoritative; if the two ever disagree, report it, don't guess.
-**Version:** 1.1 (2026-09-01) — property vocabulary finalized in §4.1; no shape changes from v1.0. Amendments arrive only as new versions of this file via the backend pipeline's coordinator.
+**Version:** 1.5 (2026-09-02) — **§4.4: the worked example was factually wrong and is replaced.** v1.4 illustrated an intra-batch conflict with `{}` + `{wood_type:["Teak"]}`. That pair is **not** a conflict — different key sets never conflict (§2), and the endpoint returns `201` for it, confirmed by execution against the implemented backend. The example now uses a genuine conflict (same key set, overlapping values) and says plainly what the old one got wrong, because a frontend that pre-validated from it would reject the feature's central catch-all-plus-carve-out pattern. **Nothing else changes: the two `details` shapes in §3 are unaffected and correct.** Previously — **1.4 (2026-09-01): §3 and §4.4: conflict errors have TWO shapes, not one.** v1.1–v1.3 promised `conflictingId` on every 409. That is only true when the submitted entry clashes with something already stored; when two entries *within one batch* clash with each other, nothing is written, so no existing definition and no id exist. Both shapes are now specified, with the message each one makes possible. Everything else is unchanged. Previously — **1.3 (2026-09-01): §4.1 `itemCategories` un-elided.** The list was written `["Dining Chairs", "Easy Chairs", ...]` in v1.1 and v1.2; the `...` was literal and the real vocabulary is **28** values, not the 9 inferable from the property table's `categories` column. Answers `handoffs/frontend/handoff_item_categories_confirmation.md`. No other section changes. Previously — **1.2 (2026-09-01): §4.7 (report) replaced.** Answers `frontend_handoffs/frontend-report-endpoint-request.md` (frontend decision D7), approved by the owner and ratified into the backend intention as §26. The report is now one unparameterized read returning uncompacted entries with a `mergeKey`; compaction, filtering, ordering and ranking move to the client. **§§4.1–4.6, transport, auth, envelopes and reactivity are unchanged from v1.1.** Amendments arrive only as new versions of this file via the backend pipeline's coordinator.
 
 ## 1. What this feature is
 
@@ -38,14 +38,23 @@ Rules the UI should reflect:
 
 - Base path: `/api/stock/...` (same axios client as existing features). Auth: Bearer JWT; user must be shop-linked. Any authenticated role may read AND write (same policy as zones/logistic locations).
 - Success: reads/creates `{ "data": ... }`; deletes `{ "ok": true }`.
-- Errors: `{ "error": { "code", "message", "details"?, "requestId" } }` — 400 `VALIDATION_ERROR`, 401, 404, 409 conflict. Conflict `details` carries `conflictingId` (the existing definition's id) and, on batch create, `batchIndex` (which submitted entry collided).
+- Errors: `{ "error": { "code", "message", "details"?, "requestId" } }` — 400 `VALIDATION_ERROR`, 401, 404, 409 conflict.
+
+**A 409's `details` has two shapes. Handle both — the field that identifies the clash differs, and only one of them can carry an id.**
+
+| Case | `details` | What it means |
+|---|---|---|
+| **Clashes with a stored definition** | `{ "conflictingId": "<id>", "batchIndex": <n> }` | The submitted entry overlaps a definition that already exists. `conflictingId` is that definition's id, so you can fetch or highlight it. `batchIndex` (batch create only) says which submitted entry caused it. |
+| **Two entries in one batch clash with each other** | `{ "batchIndex": <later>, "conflictsWithBatchIndex": <earlier> }` — **no `conflictingId`** | Both entries are in the request you just sent. Batch create is all-or-nothing, so **nothing was written**: there is no existing definition and therefore no id to name. The two indices are the only actionable information, and they are enough — *"row 2 overlaps row 1"*. |
+
+**Do not read `conflictingId` unconditionally.** In the second case it is absent, and code written against v1.3 that dereferences it will show an empty error, or highlight nothing, at exactly the moment the user needs to know which of the rows they just typed is the problem. Branch on its presence.
 
 ## 4. Endpoints
 
 ### 4.1 `GET /api/stock/options` — configuration form vocabulary
 ```json
 { "data": {
-    "itemCategories": ["Dining Chairs", "Easy Chairs", ...],
+    "itemCategories": ["Dining Chairs","Easy Chairs","Armchairs","Sofas","Stools","Seating Benches","Serving Trolleys","Dining Tables","Bedside Tables","Coffee Tables","Side Tables","Hall Tables","Writing Desks","Nest Of Tables","Sideboards","Highboards","Bookshelves","Shelving Units","Chest of Drawers","Secretary Cabinets","Bar Cabinets","Wardrobes","Storage Cabinets","Posters","Mirrors","Porcelain","Carpets","Lamps"],
     "propertyOptions": [
       { "key": "wood_type", "values": ["Beech","Birch","Cherry","Elm","Mahogany","Oak","Santos Rosewood","Teak","Walnut"], "categories": "universal" },
       { "key": "shape", "values": ["Oval","Rectangular","Round","Square"], "categories": ["Dining Tables"] }
@@ -53,6 +62,12 @@ Rules the UI should reflect:
 } }
 ```
 Static vocabulary (no DB behind it). `categories: "universal"` → offer for every item type; otherwise only when the selected item type is listed. **Locations are NOT here** — the valid location list is already in the bootstrap payload (`shopify.metafields.options`, the same source the scanner uses).
+
+**`itemCategories` is exactly the 28 values above, in that order, complete** (v1.3 — it was elided as `...` in v1.1/v1.2, which was a defect in this document). It is a static `as const` array in backend code, returned verbatim with no query; it is **not** derived from Shopify product types at request time, so it does not vary by shop or grow on its own.
+
+**Most categories carry no category-specific property**, and that is normal, not an omission: only the six table types and the three chair types appear in the `categories` column of the table below. A `Sideboard` or a `Sofa` is configured with the four universal keys alone. **Do not infer the category list from that column** — 19 of the 28 never appear in it, including `Sideboards`, `Bookshelves`, `Wardrobes`, `Mirrors` and `Sofas`, which together account for 152 unsold units in the current data. A UI offering only the nine categories named below would leave those unconfigurable, with no error to reveal it.
+
+The sentinel `"unknown"` is deliberately **not** in the list and cannot be configured (backend context §0.16): items resolve to it when their product type matches nothing, and they are counted by no stock definition.
 
 **Final vocabulary (owner-selected, v1.1)** — the exact payload content, safe to hardcode in mocks:
 
@@ -100,7 +115,9 @@ This `LocationStockDto` is the shape everywhere a definition is returned.
       { "state": "normal_in_stock", "thresholdQuantity": 20 } ]
 } ] }
 ```
-→ `201 { "data": [LocationStockDto...] }`. **All-or-nothing:** any invalid/conflicting entry fails the whole batch (nothing created; error names `batchIndex`/`conflictingId`). `properties` optional — omitted or `{}` = catch-all. All three thresholds mandatory, strictly increasing. The response DTOs already carry the **real initial quantity and state**, computed from existing inventory — never 0 by default. Expect this call to be slightly heavier than a plain insert (it recounts the affected group inline); no polling needed, the response is final.
+→ `201 { "data": [LocationStockDto...] }`. **All-or-nothing:** any invalid or conflicting entry fails the whole batch and **nothing is created** — including when the conflict is between two entries of the batch itself. The 409's `details` tells you which case you hit; see the two-shape table in §3. Worked example: submitting `LC1 · Dining Chairs · {wood_type:["Oak","Teak"]}` together with `LC1 · Dining Chairs · {wood_type:["Teak"]}` in one request is an intra-batch conflict — same location, same category, **same key set** (`wood_type`), and their accepted values overlap on Teak — and comes back as `{ "batchIndex": 1, "conflictsWithBatchIndex": 0 }` with no `conflictingId`, because neither row was written.
+
+> **Corrected in v1.5 — the v1.4 example was wrong, and wrong in the direction that matters.** v1.4 used `{}` together with `{wood_type:["Teak"]}` as its intra-batch conflict example. **That pair does not conflict**, and submitting it returns `201` with both rows created — verified against the running endpoint. A catch-all and a narrower carve-out have *different key sets*, and §2's rule is explicit that adding or removing a key dimension always avoids conflict. That pair is not an error case at all; it is the **layering the whole feature exists for** (§1: "users can therefore layer a broad catch-all with narrower carve-outs"). If you built client-side pre-validation from the v1.4 example, it now rejects the single most common thing a user will configure — a location-wide catch-all plus one carve-out — with an error the backend would never have raised. **§2 was always correct; only the §4.4 example contradicted it.** Trust §2. `properties` optional — omitted or `{}` = catch-all. All three thresholds mandatory, strictly increasing. The response DTOs already carry the **real initial quantity and state**, computed from existing inventory — never 0 by default. Expect this call to be slightly heavier than a plain insert (it recounts the affected group inline); no polling needed, the response is final.
 
 ### 4.5 `PATCH /api/stock/configurations/:id`
 Body: any subset of `{ location, itemCategory, properties, thresholds }`. `thresholds`, when present, is the **complete replacement list** (all three states), not a patch. Editing location/category/properties can change quantities of *sibling* definitions too (items reallocate) — after an update, refetch the whole location detail (both locations, if the location changed), not just the edited row. → `200 { "data": LocationStockDto }` (post-reallocation values).
@@ -109,23 +126,47 @@ Body: any subset of `{ location, itemCategory, properties, thresholds }`. `thres
 → `200 { "ok": true }`. Items are untouched; they fall back to a broader matching definition, so siblings' quantities may rise — refetch the location detail.
 
 ### 4.7 `GET /api/stock/report` — restock prioritization (available one phase later than 4.1–4.6)
-Query params: `states` (optional CSV, e.g. `states=out_of_stock,low_in_stock`), `groupByLocation` (optional boolean).
 
-Default (compacted): definitions with identical `itemCategory + properties + stockState` are merged across locations —
-```json
-{ "data": { "rows": [ {
-  "itemCategory": "Dining Chairs", "properties": { "wood_type": ["walnut"] },
-  "quantity": 5, "stockState": "low_in_stock", "locations": ["L1","L2"]
-} ] } }
-```
-`locations` is always an array, even with one entry. Rows ordered worst-state-first (severity order of §1). Same category+properties in a *different* state stays a separate row — low stock in one location is never hidden by healthy stock elsewhere.
+**v1.2 — replaces v1.1's compacted/grouped dual shape.** Backend authority: intention §26.
 
-Grouped (`groupByLocation=true`): no compaction —
+**No query parameters.** Send none; any that arrive are ignored, not rejected. One call returns
+the complete dataset: every stock definition, all locations, all states, **uncompacted** — one
+entry per definition (`location × itemCategory × properties`).
+
 ```json
-{ "data": { "groups": [ { "location": "H1", "entries": [
-  { "itemCategory": "...", "properties": {...}, "quantity": 0, "stockState": "out_of_stock" } ] } ] } }
+{ "data": { "entries": [
+  { "location": "LC1", "itemCategory": "Dining Chairs",
+    "properties": { "wood_type": ["walnut"] },
+    "mergeKey": "<opaque>", "quantity": 2, "stockState": "low_in_stock" },
+  { "location": "H1",  "itemCategory": "Dining Chairs",
+    "properties": { "wood_type": ["walnut"] },
+    "mergeKey": "<same opaque value>", "quantity": 3, "stockState": "low_in_stock" }
+] } }
 ```
-Groups ordered by problem severity: most `out_of_stock` first, then most `low_in_stock`, then most `medium_in_stock`, then location name ascending. Entries within a group are severity-ascending.
+
+**`mergeKey`** is an **opaque string**, equal between two entries **iff** their `itemCategory`
+and canonical `properties` are equal. Group on it to build the compacted view. **Never parse
+it** — its encoding is backend-owned and may change without a contract version. It exists so
+property canonicalization and equality (§4.1's rules — scalar/array unification, ordering,
+case) stay on the backend and are never re-implemented client-side.
+
+**A definition with `quantity: 0` is included**, always. It is the report's most urgent signal.
+
+**Response ordering carries no meaning.** The client sorts.
+
+**The client now owns:** compaction (group on **`mergeKey` + `stockState`**), state filtering,
+location filtering, severity ordering, location ranking by problem counts, unfiltered counter
+tiles, entry-detail breakdown, and PDF assembly.
+
+> ⚠ **Compact on `mergeKey` + `stockState`, never on `mergeKey` alone.** Two definitions with
+> the same category and properties but *different* states must stay separate rows. Merging
+> them hides low stock at one location behind healthy stock at another — the exact signal this
+> report exists to produce. Under v1.1 the backend enforced this by construction; under v1.2 it
+> is the client's obligation, and no backend check can observe a violation. Backend authority:
+> intention §26.4.
+
+**Scale:** entries scale with stock **definitions** (tens, plausibly low hundreds), never with
+items, so the unparameterized full fetch stays small.
 
 ## 5. Reactivity
 
@@ -144,4 +185,8 @@ Groups ordered by problem severity: most `out_of_stock` first, then most `low_in
 2. Endpoints 4.1–4.6 — after backend phase P3 is approved.
 3. Endpoint 4.7 (report) — after backend phase P5.
 4. Live quantity movement from scans/sales (worth demoing end-to-end) — after backend phase P4.
-5. ~~Contract v1.1 (final property key/value lists in §4.1)~~ — landed; this document is v1.1 and complete.
+5. ~~Contract v1.1 (final property key/value lists in §4.1)~~ — landed.
+6. ~~Contract v1.2 (report shape per the frontend's request case)~~ — landed.
+7. ~~Contract v1.3 (complete `itemCategories`)~~ — landed.
+8. ~~Contract v1.4 (both conflict-error shapes)~~ — landed.
+9. ~~Contract v1.5 (§4.4 worked example corrected)~~ — landed; this document is v1.5 and complete. It is **self-contained**: it is the only file you need for this integration, and every amendment is explained where it applies rather than in a companion notice. The mocks encoding the request case's §3 shape are now authoritative-matching and can be pointed at the real endpoint once P5 is approved.

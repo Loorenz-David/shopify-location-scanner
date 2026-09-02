@@ -36,6 +36,7 @@ import {
   externalManagerAppRouter,
 } from "./modules/external-api/routes/external-api.routes.js";
 import { outboundWebhookRouter } from "./modules/outbound-webhook/routes/outbound-webhook.routes.js";
+import { stockRouter } from "./modules/stock/routes/stock.routes.js";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -132,6 +133,7 @@ app.use("/zones", zonesRouter);
 app.use("/floor-plans", floorPlanRouter);
 app.use("/logistic", logisticRouter);
 app.use("/users", usersRouter);
+app.use("/stock", stockRouter);
 app.use("/internal/webhooks", webhookAdminRouter);
 app.use("/api/auth", authRouter);
 app.use("/api/shopify", shopifyRouter);
@@ -142,6 +144,7 @@ app.use("/api/zones", zonesRouter);
 app.use("/api/floor-plans", floorPlanRouter);
 app.use("/api/logistic", logisticRouter);
 app.use("/api/users", usersRouter);
+app.use("/api/stock", stockRouter);
 app.use("/api/external", externalApiRouter);
 app.use("/api/manager-app", externalManagerAppRouter);
 app.use("/api/outbound-webhooks", outboundWebhookRouter);

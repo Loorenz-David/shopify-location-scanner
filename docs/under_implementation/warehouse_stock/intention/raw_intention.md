@@ -7,6 +7,8 @@ Intention — Location Stock System
 > - 2026-09-01 — Mechanism-inventory round: six further decisions ratified by the product owner (David) in session, recorded in §23 below. Ratification surface: six decision cards (canonical criteria form, conflict rule, category-grouped options map, frontend scope, batch atomicity, reconciliation double-pass) plus the measurement ledger in §24. Where §23 disagrees with earlier sections or context §0, **§23 wins**.
 > - 2026-09-01 — Status stamped RATIFIED by the product owner (David), confirming the context §0 decisions of the same date as the ratification act.
 > - 2026-09-01 — §25 (Review Doctrine) ratified by the product owner: single-reviewer flow (orchestrator model doubles as reviewer; a separate implementer model), findings bounded by ratified artifacts, enumerated non-findings maintained in the master plan §11.
+> - 2026-09-01 — **Gate re-opened (round 3).** The frontend track requested a round-trip-free report shape (`frontend_handoffs/frontend-report-endpoint-request.md`, its decision D7); the owner approved the direction in session. Because §19 and §24's M7 specify server-side compaction, filtering, ordering and location ranking, this is a **material semantic change**, so the status header returned to READY_FOR_RATIFICATION per the charter rather than being amended under the standing ratification. The amendment is **§26**, which wins over §19 and context §0.19. **Ratification surface presented:** §26 in full (endpoint shape, `mergeKey` contract, the enumerated list of responsibilities transferred to the client, and the one safety property that moves with them), plus the rewritten M7 — presented to the owner as six plain-language points including the `mergeKey + stockState` compaction obligation.
+> - 2026-09-01 — **Re-stamped RATIFIED by the product owner (David)**, confirming §26 and the amended §24 M7 against the surface above. The gate is closed; prompts may compile again. The owner additionally directed that the frontend track be notified of the change and of the responsibility it now carries — delivered as `handoffs/frontend/handoff_report_contract_v1_2_notice.md`.
 >
 > Resolved decisions live in `docs/under_implementation/warehouse_stock/context/context.md` §0 (22 entries) and are **binding**. Where this intention and context §0 disagree, §0 wins. In particular §0 settles: `item_type` means `ScanHistory.itemCategory` (not `ScanHistory.itemType`); the database is SQLite, so "JSONB" means a Prisma `Json?` column that cannot be queried in SQL; property matching semantics; specificity scoring; the non-negative quantity guard; reconciliation scope; and tenancy via `shopId`.
 
@@ -655,6 +657,13 @@ This endpoint supports the Location Detail settings page.
 
 19. Stock Report Service
 
+**Amended — superseded by §26 for the endpoint's shape and for who performs each operation.**
+§19's *domain* content below still stands and is still the authority for **what the operations
+mean**: what compaction is, why identical category+properties in different states must never
+merge, the severity order, and the location-ranking rule. What §26 changes is **where they
+run** — the backend now returns one uncompacted entry per definition and the client performs
+compaction, filtering, ordering and ranking. Read §19 for the semantics, §26 for the contract.
+
 Build a stock report service for operational decisions such as determining which inventory should be prioritized for restoration or replenishment.
 
 Each underlying stock configuration is defined by:
@@ -897,7 +906,7 @@ The observable outcomes that, verified true, mean this intention shipped. Automa
 - **M4 — Non-negative integrity.** No operation drives a quantity negative; a guard refusal logs the §0.15 context and never fails the parent operation. Guards: corrupted counters, broken business flows.
 - **M5 — Configuration-lifecycle reconciliation.** Create/update/delete leaves every affected group (two groups on a location/type move, §0.17) with quantities equal to a fresh full recount, via the §23.6 double-pass. Guards: stale sibling counters.
 - **M6 — Conflict prevention.** Every §23.2-conflicting submission is rejected with the conflicting id; every non-conflicting one is accepted. Guards: ambiguous allocation.
-- **M7 — Report fidelity.** Compaction, state filtering, ordering, and location ranking exactly per §19/§0.19. Guards: wrong restock priorities.
+- **M7 — Report fidelity.** *(Amended 2026-09-01 by §26; ID preserved because plans 5 and 6 cite it.)* The report endpoint returns **exactly one entry per stock definition** — every definition, all locations, all states, uncompacted — each carrying its `location`, `itemCategory`, canonical `properties`, `quantity`, `stockState`, and a `mergeKey` that is equal between two entries **iff** their `itemCategory` and canonical `properties` are equal. Guards: a missing or duplicated definition; a `mergeKey` that collides across different criteria or differs across identical ones, either of which corrupts every client-side grouping built on it. **Compaction, state filtering, ordering and location ranking are no longer measured on the backend** — they moved to the client with §26, and the frontend's own measurement ledger owns them now.
 - **M8 — Group-total accounting.** A group with a catch-all sums to its true eligible inventory; without one, a shortfall is expected and not diagnosed as drift (§0.21). Guards: false drift alarms, missed real drift.
 
 ⸻
@@ -914,3 +923,76 @@ Four binding principles:
 4. **No invented scope.** The reviewer never requests tests, features, endpoints, fields, refactors, or hardening beyond the phase plan's criteria and file perimeter. Real defects noticed in passing inside the perimeter are reportable (charter rule) but must satisfy principle 1.
 
 The operational review contract — finding format, severity ladder, reviewer obligations, and the full non-findings enumeration — is master plan §11 and binds every reviewer prompt.
+
+⸻
+
+26. Report Contract — amended 2026-09-01 (round 3)
+
+Requested by the frontend track (`frontend_handoffs/frontend-report-endpoint-request.md`,
+its decision D7), approved by the product owner in session. **Where §26 disagrees with §19
+or with context §0.19, §26 wins.** Precedence overall is now: §26 (report only) > §23 >
+context §0 > §1–§22.
+
+26.1 The endpoint
+
+`GET /api/stock/report` takes **no query parameters**. Any that arrive are ignored, not
+rejected. It returns every stock definition belonging to the shop, uncompacted — one entry
+per definition, i.e. per `location × itemCategory × properties`:
+
+```
+{ "data": { "entries": [
+  { "location": "LC1",
+    "itemCategory": "Dining Chairs",
+    "properties": { "wood_type": ["walnut"] },   // canonical form, §23.1
+    "mergeKey": "<opaque>",
+    "quantity": 2,
+    "stockState": "low_in_stock" }
+] } }
+```
+
+`states`, `groupByLocation`, the `rows`/`groups` dual shape, and the `locations[]` array of
+§19 are all removed. **The response's own ordering carries no meaning** — the client sorts.
+
+26.2 The `mergeKey` contract
+
+`mergeKey` is an **opaque string**, equal between two entries **if and only if** their
+`itemCategory` and their canonical `properties` are equal. That is its entire contract; the
+client never parses it, and the backend may change its encoding at any time without a
+contract version.
+
+This is deliberately not new machinery. §23.1 already makes the canonical JSON string of the
+normalized criteria the row's identity, and the master plan's schema already persists it as
+`propertiesCanonical`, kept in sync by the repository on every write. `mergeKey` is that
+stored identity qualified by the category. **Property canonicalization and equality therefore
+stay backend-owned, which is the point of the key** — the client groups without ever
+re-implementing §23.1 or §0.5.
+
+26.3 What moved to the client, enumerated
+
+Compaction on `mergeKey + stockState` (summing quantities, collecting contributing
+locations) · state filtering · location filtering · severity ordering · location ranking by
+problem counts · unfiltered counter tiles · entry-detail breakdown of a compacted row · PDF
+assembly. The backend performs **none** of these and carries no criterion for them.
+
+26.4 The safety property that moved with them — recorded, not buried
+
+§19 states, emphatically, that low stock in one location must never be hidden by healthy
+inventory elsewhere. Under §19 the backend enforced that by construction: identical
+category and properties in **different states** stayed separate rows, and no client could
+merge them wrongly because the merge had already happened.
+
+Under §26 that guarantee crosses the wire. A client that groups on `mergeKey` **without
+also keying on `stockState`** silently merges a low-stock location into a healthy row and
+deletes the restock signal the report exists to produce. The owner accepted this trade
+knowingly, for a filter sheet that responds without a round trip.
+
+Two consequences bind: the compaction key is `mergeKey + stockState` and this is a
+**contract term, not an implementation note**; and the obligation to verify it now belongs
+to the frontend's measurement ledger, since no backend criterion can observe it.
+
+26.5 Scale
+
+Entries scale with **stock definitions** — tens, plausibly low hundreds — never with items,
+so an unparameterized full fetch is small. Consistent with context §0.6, whose in-memory
+full-scan justification rests on the same order of magnitude. If definition counts ever
+reach the thousands, this decision is revisited alongside §0.6's own threshold.

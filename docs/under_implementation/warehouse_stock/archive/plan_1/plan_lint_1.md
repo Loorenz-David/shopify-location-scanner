@@ -122,3 +122,74 @@ Recorded limit, per the charter: this lint catches omission and arithmetic. It c
 see a criterion row whose assertion is weaker than the row, and it has never caught a
 guard that cannot fail. **What it did not check** is exactly what the projection gate is
 for: whether the plan determines every decision the implementer's first hour requires.
+
+---
+
+## Addendum — independent re-verification, 2026-09-01 (successor coordinator session)
+
+A new coordinator session re-ran this lint's checks from source rather than inheriting
+its verdict. **The arithmetic reconciles exactly**: 8 criteria; summands C1 5 · C2 6 ·
+C3 6 · C4 6 · C5 6 · C6 8 · C7 6 · C8 8 = 51 lettered rows. Gate self-test re-run in the
+worktree: intention header `**Status: RATIFIED**` at `raw_intention.md:3`; one
+`## ✅ OWNER SELECTION — FINAL` heading; `git branch --show-current` =
+`warehouse-stock-backend`; `src/modules/stock/` and
+`src/shared/item-properties/item-property-options.ts` both absent. `npm run typecheck`
+exits 0 — the §10.0 baseline holds. Orphan sweep over `handoffs/*` and `prompts/*`:
+none. The frontend's copy of the contract at
+`apps/frontend/docs/under_development/stock_locations/backend_handoff/` is still
+byte-identical to `contracts/frontend-api-contract.md` — no drift.
+
+**One defect found and fixed in the projection prompt, before dispatch.** Gate check
+line 5 read "no file in `handoffs/` whose frontmatter carries
+`state: OWNER_DECISIONS_PENDING`". `handoffs/README.md` documents that state vocabulary
+inside a fenced YAML example, so the obvious `grep -rl OWNER_DECISIONS_PENDING handoffs/`
+returns a hit and the gate then requires the session to *judge* that the hit is
+documentation rather than a row. A gate that needs judgment to pass is a gate that can
+halt a session that was right to proceed — the failure class the coordinator doctrine
+names as the most expensive kind of prompt defect. Line 5 now anchors the pattern to
+line-start `^state:` and states explicitly that the README hit is not a failure.
+
+This is a precision fix to the gate's wording only. It moves nothing the dispatch itself
+changes, and the gate remains content-only — no SHA, no dirty-tree check, no file count.
+
+---
+
+## Re-lint before dispatch — 2026-09-01 (post-projection fold)
+
+The plan changed materially after the first lint (C9 added, C7 gained (g), tasks 2 and 7
+rewritten, Read-first extended, 8 planted-defect probes replacing 1). Doctrine requires the
+five manifest properties be re-verified **at source** before a prompt compiles against it, so
+this is a fresh run, not a re-reading of the verdict above.
+
+| Property | Command | Result |
+|---|---|---|
+| 2 — counts derived | `grep -c '^\| C[0-9]'` · `grep -o '(\([a-h]\))' \| wc -l` | **9** criteria · **60** lettered rows · **55** pure-domain (C2–C9) · **8** probes |
+| 3 — addressable | swept the whole file, not just the table | every row is `C<n>(<letter>)`; no acceptance claim stranded in a task |
+| 4 — one exact outcome | `grep -oE '>=\|≥ 1\|at least\|one of\|may \|might '` over the criteria table | **zero hits** — no disjunctions |
+| 5 — traces resolve | opened each new target | `§12.5 Cascades` present in context · `M1` and `M6` present in intention §24 · the owner-selection heading present |
+| 1 — references | F4's new citation | master plan §6.5 names `ValidationError`; the class exists at `shared/errors/http-errors.ts` and its **only** import is `AppError`, so citing it does not break the §9.2 purity grep |
+
+**The three extra checks.** Perimeter-vs-guard collision: still N/A — no occurrence-count or
+absence assertion exists anywhere in the repository (no test infrastructure). Deletion task:
+none. Standing instructions naming plan 1: master plan §3 (projection mandatory — **done**,
+consumed, folded), §7 (gate-in satisfied), and now §9.1(d) — which correctly does *not* bind
+P1, since `verify-all.ts` is authored in P2 and P1 has no earlier phase to regress.
+
+**Sizing.** 9 criteria, over the charter's ≤8 target, dispatched under the charter's recorded-
+reason clause. The reason is in the plan's Review log: every row is a pure function checked by
+one committed script — no I/O, no manual scenarios, no environment dependency — so the
+criteria-count-to-rounds mechanism the target guards against does not bite the way it does on
+an I/O phase. Splitting the options map into its own phase would also break P3's gate.
+
+**Gate self-test, run against the tree the session will actually open**, from `apps/backend`:
+intention header RATIFIED · branch `warehouse-stock-backend` · `src/modules/stock/` and
+`item-property-options.ts` both absent · owner-selection heading present · `npm run typecheck`
+exits 0. All five pass. The gate remains content-only — no SHA, no clean-tree check, no file
+count — so the act of dispatching cannot invalidate it.
+
+**Anchoring check on the prompt itself.** The compiled prompt names no path under `handoffs/`
+and does not forward the projection's sketch; it carries only the folded amendments (already
+in the artifacts) and the D1–D5 delegation list, which is what the implementer is *meant* to
+receive.
+
+**Verdict: RE-LINT PASS — `prompts/implementer/prompt_plan1_implement_r1.md` may be dispatched.**

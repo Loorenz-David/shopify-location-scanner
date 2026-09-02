@@ -17,8 +17,9 @@ Extend the location domain so users configure per-location stock definitions (`l
 | Property-options map content (owner selection) | `context/property-options-selection.md` |
 | Shared skeleton, naming registry, environment, tracker | this file |
 | Phase goal/tasks/criteria/review log | `plans/plan_<n>_*.md` |
-| Frontend-facing API contract | `contracts/frontend-api-contract.md` — regenerated from this file's registry on any change, never hand-drifted |
+| Frontend-facing API contract | `contracts/frontend-api-contract.md` (**v1.5**) — **the single transportable document for the frontend (owner, 2026-09-01)**: every amendment is explained inside the section it changes, so no companion notice is written and one file is all that crosses — regenerated from this file's registry on any change, never hand-drifted. **Delivery is not automatic:** the frontend track works from a copy under `apps/frontend/` on `main`, the coordinator never writes there, and a version is undelivered until the owner routes the file across branches |
 | Session prompts / handoffs | `prompts/<role>/`, `handoffs/<role>/`, archived per charter — tables created 2026-09-01, semantics in each folder's `README.md` |
+| Cross-track traffic with the frontend (both directions) | `handoffs/frontend/` — **not a charter table**; its README records the deviation and the direction column. Created 2026-09-01 after a frontend request arrived at a non-table path and was found only by a manual sweep |
 | Actor assignment, doctrine paths, coordinator failure modes | `prompts/coordinator/coordinator_role.md` (standing, never archives) |
 
 **Fold-back rule:** semantic changes amend the intention (lettered sections, never renumber); skeleton/naming changes amend this file; phase plans are never patched into divergence. Any registry change that touches an endpoint or DTO **must** regenerate the frontend contract doc in the same session and note it in the tracker row.
@@ -37,11 +38,11 @@ Charter state machine per phase: `NOT_STARTED → (PROJECTED) → PROMPT_READY �
 
 | Phase | State | Date | Actor | Note |
 |---|---|---|---|---|
-| P1 schema + domain | NOT_STARTED | 2026-09-01 | coordinator | gate SATISFIED (owner selection final); pre-dispatch lint **PASS** → `prompts/coordinator/plan_lint_1.md`; projection r0 dispatched → `prompts/reviewer/prompt_plan1_projection_r0.md`. Implementer prompt compiles only after that ledger is routed (§3) |
-| P2 repository + reconciliation | NOT_STARTED | | | |
-| P3 configuration API | NOT_STARTED | | | |
-| P4 item-transition hooks | NOT_STARTED | | | |
-| P5 report | NOT_STARTED | | | after P3 (shares controller/routes files) |
+| P1 schema + domain | **APPROVED** | 2026-09-01 | reviewer | round 1, no blocking findings. Instruments re-run: typecheck 0, purity grep empty, verify 58/58, perimeter exact. 2 should-fix (S1 §23.2 conjunction untested, S2 delegation D4 unguarded — both proven by reviewer mutation), 4 notes incl. 2 forward hazards for P2/P3. Owner **declined** the fix cycle (§9.7): code verified correct, and no later phase's perimeter contains P1's files. S1/S2 closed as notes |
+| P2 repository + reconciliation | **APPROVED** | 2026-09-01 | coordinator | lint PASS after 5 folds (L1 made the phase impossible to close, L4 a criterion impossible to satisfy); projection r0 AMENDMENTS_REQUIRED, all 16 ledger rows + 8 findings folded, owner card 1 answered (recount stamps only changed rows); two findings hit §6.2/§6.4. Re-lint PASS post-fold → `prompts/coordinator/plan_lint_2.md`; prompt compiled → `prompts/implementer/prompt_plan2_implement_r1.md`, gate self-tested 5/5. Review r1 **APPROVED**, no blocking findings; instruments re-run (typecheck 0, purity empty, verify-all 58+20 exit 0, perimeter exact, P1 frozen files identical). 2 should-fix — S1 a coordinator-authored contradiction between C3(d) and card 1 (fixed in text), S2 the empty-group path unexercised (routed to P3 C5(d)) — plus N1 routed to P5. No fix cycle |
+| P3 configuration API | **APPROVED** | 2026-09-02 | reviewer | implemented `7b86e53`; review r1 **APPROVED**, no blocking finding in the code and no fix cycle. **All 31 rows re-executed by the reviewer against a live server** on a scratch copy (`prisma/dev.db` untouched, still 0 rows): C1's 12 validation rows incl. both D2 PATCH directions; C2 all three shapes with 0 rows written after the 409 and D3's cross-group batch creating both; the live reallocation chain LC1 221 → teak 107 + catch-all 114, thresholds-only keeping 107 while state moves high→low, the move to H1 restoring 221, delete cascading thresholds and restoring 80, and the empty-group delete P2 routed here (C5(d)); C7(d)'s owner card 1 confirmed on both halves — edited row keeps the user, reallocated sibling reads the sentinel. Instruments: typecheck 0, purity empty, verify-all 58+20 exit 0, perimeter exactly 11 files, P1/P2/P4 frozen files byte-identical. Reviewer planted-defect probe on D3's group partitioning surfaced and was reverted. **B1 was in the contract, not the code**: §4.4's worked example claimed `{}` + `{wood_type:["Teak"]}` conflicts — it returns 201 — reissued as **v1.5**. N1 the `shopId` asymmetry now has a second instance (`updateState`), both P2's, carried to P6 as one item; N2 advisory |
+| P4 item-transition hooks | **APPROVED** | 2026-09-01 | coordinator | gate SATISFIED (P2 APPROVED); lint **PASS after 2 folds** → `prompts/coordinator/plan_lint_4.md` (**six of seven criteria had no addressable rows**; C7 untraced; a drifted line citation de-drifted); 7 criteria / 25 rows. Projection r0 dispatched (**mandatory**, §3) → `prompts/reviewer/prompt_plan4_projection_r0.md`. May run parallel to P3. Projection returned AMENDMENTS_REQUIRED: 11 ledger rows + 9 findings, owner card 1 answered (**read the stored row on the sale path** — amends §0.10 for those two call sites). Its F6 caught a coordinator row-count error in both plans. **All 11 rows + 9 findings folded**; 7 criteria / 28 rows; context §0.10 amended (D1) and §6.4 gained `itemIdentifiers` (D11). Seal: probe A surfaced, **probe B did not** — the P2-propagates / P4-swallows collision is still unrouted and carries into the implement prompt. Implemented `4da4579`; review r1 **CHANGES_REQUESTED — no code defect**. Perimeter exact, frozen files byte-identical, matrix verified by reviewer execution incl. the replay no-op. **B1: seven criteria have no discharged instrument** (Manual Scenarios need Redis + worker + Shopify admin; neither actor ran them). **Owner re-routed B1 to P6** — the seven scenarios are end-to-end and belong to the final sweep; their instrument now exists as the committed `verification/end-to-end-runbook.md`, wired into P6 C3. APPROVED on code review plus reviewer-executed matrix verification; the hooks' runtime behaviour is knowingly unverified until that sweep. N1 advisory on P2's unscoped `applyIncrement` |
+| P5 report | **APPROVED** | 2026-09-02 | coordinator | gate **SATISFIED**: P3 APPROVED 2026-09-02 (shares `stock.contract.ts`/`stock.controller.ts`/`stock.routes.ts`) and the intention header reads RATIFIED. **Plan rewritten** earlier under intention §26 (owner-approved report amendment): 6 criteria → 3, contract §4.7 at v1.2. Lint **PASS after 4 folds** → `prompts/coordinator/plan_lint_5.md`: L1 §6.4's instrument row still described the pre-§26 phase ("C1–C6 aggregation rows") and pointed the implementer at work the plan forbids; L2 the perimeter omitted `scripts/verify-all.ts` while §6.4 obliges the authoring phase to extend `EXPECTED_SCRIPTS` in the same commit; L3 no derived row count (**14** — C1 4, C2 6, C3 4); L4 **C1(d) was vacuous** — one `Shop` in the database means a fixture seeding only it asserts nothing, so the row now requires a second shop. **Projection round 0 WAIVED by the owner (David), 2026-09-02** — the recorded line §3 requires. Grounds: a pure read with no mutation path, 3 criteria / 14 rows, and its one silent-failure mode (a `mergeKey` that quietly splits or merges the client's groups) already carries six criterion rows and a named planted-defect probe aimed at it; the lint had just cleared the plan's actual defects. **Accepted cost:** projection has surfaced something real in all three phases that ran it — P3's found threshold replacement had no write path anywhere in `src/`, P4's caught a coordinator row-count error — so anything a skeleton would have discovered here must now be caught at review instead. Prompt compiled → `prompts/implementer/prompt_plan5_implement_r1.md`, **gate self-test 5/5** (RATIFIED · branch · P3 present with `toLocationStockDto` exported · own files absent · typecheck 0 + `SUMMARY PASS 2 script(s)`). Implemented `dedf415`; review r1 **APPROVED**, no blocking finding and no fix cycle. Perimeter exact (additive only in the three files shared with P3; `verify-all.ts` limited to the `EXPECTED_SCRIPTS` line); plan file append-only. Instruments: typecheck 0, purity empty, **`SUMMARY PASS 3 script(s)`** — 58 P1 + 20 P2 + **14 P5** — refusal guard exit 3 in all three forms, `prisma/dev.db` untouched. **All 14 rows and all three manual scenarios re-executed by the reviewer** on a live server: a **scalar**-created and an **array**-created teak definition returned the same `mergeKey` on real inventory, a zero-match definition appeared at `0`/`out_of_stock`, a parameterized call was byte-identical to the bare one, both mounts 200, no token 401. **Four reviewer mutations**: key omits `itemCategory` → C2(d) red; key includes `location` → C2(a)(b)(e)(f) red; zero-quantity rows dropped → 8 rows red. **N1: the plan's own named probe reddened nothing** — `propertiesCanonical` and `JSON.stringify(properties)` are provably identical for all reachable data, so the probe was mis-aimed; the failure mode it targeted is covered by C2(d) and C2(a)/(e)/(f). A **plan defect the implementer caught and reported** rather than working around, as P3's did. N2 advisory (C3(d) partly a source-text match) |
 | P6 maintenance + verification sweep | NOT_STARTED | | | closeout |
 
 ## 5. Contract resolution
@@ -108,11 +109,51 @@ model StockThresholdsLocation {
 | File | Exports |
 |---|---|
 | `stock-state.ts` | `STOCK_STATES` (`as const`, severity-ascending, single source for sorting §0.20), `StockState`, `CONFIGURABLE_THRESHOLD_STATES` (`["low_in_stock","medium_in_stock","normal_in_stock"] as const`), `calculateStockState(quantity, thresholds)`, `validateThresholds(thresholds)` |
-| `property-criteria.ts` | `StockCriteria` (`Record<string, string[] \| null>` — canonical), `StockCriteriaInput` (`Record<string, string \| string[] \| null>`), `tokenizePropertyValue(stored): Set<string>` (§0.5), `normalizeCriteria(input): StockCriteria` (§23.1; throws on empty-array-after-normalization), `canonicalCriteriaString(criteria): string` (key-sorted JSON), `matchesCriteria(itemProperties, criteria): boolean` (§0.5/§0.8/§0.21) |
+| `property-criteria.ts` | `StockCriteria` (`Record<string, string[] \| null>` — canonical), `StockCriteriaInput` (`Record<string, string \| string[] \| null>`), `tokenizePropertyValue(stored): Set<string>` (§0.5), `normalizeCriteria(input): StockCriteria` (§23.1; throws on empty-array-after-normalization), `canonicalCriteriaString(criteria): string` (key-sorted JSON), `matchesCriteria(itemProperties: Record<string, string> \| null, criteria: StockCriteria): boolean` (§0.5/§0.8/§0.21) |
 | `best-match.ts` | `specificityScore(criteria)` (§0.13 components), `resolveBestMatch(candidates, itemProperties)` — candidates carry `{ id, createdAt, criteria }`; returns winner or null |
 | `conflict.ts` | `findConflict(candidate: StockCriteria, siblings: Array<{id, criteria}>): { conflictingId } \| null` (§23.2; caller excludes self on update) |
 
 Threshold shape everywhere in domain/service code: `{ state: StockState; thresholdQuantity: number }`.
+
+**Reconciliation hooks — fixed 2026-09-01 (P2 projection D3/F6).** `reconcileGroup` and
+`reconcileAllGroups` take a final **optional** `hooks` argument, defaulting to no-op:
+`hooks?: { betweenPasses?: () => Promise<void>; onGroupReconciled?: (group) => void }`.
+`betweenPasses` is **awaited** between pass 1's commit and pass 2's read — without that it
+cannot write to the database, and P2's C4(b) (the interleaved-write probe that is §23.6's only
+instrument) is unbuildable. `onGroupReconciled` makes `reconcileAllGroups`' per-group work
+observable, which C6(b) requires and idempotence otherwise hides.
+This is registered here rather than left in a plan note because §6 is declared fixed and §9.3
+makes any deviation a stop-and-fold-back: a plan requiring a parameter the registry forbids
+tells the implementer two incompatible things. **These hooks are instruments with required
+callers (the verify script), not scaffolding** — charter rule 4 is satisfied.
+
+**Guarded-decrement log context — fixed 2026-09-01 (P2 lint L4).** `applyGuardedDecrement` takes a fourth argument carrying the §0.15 diagnostic fields the *caller* knows:
+`applyGuardedDecrement(id, shopId, delta, context: { productId?, scanHistoryId?, itemCategory?, locationFrom?, locationTo?, operation })`.
+The repository supplies the fields it owns (`locationStockId`, `location`, `requestedDecrement`, `currentQuantity` read back after refusal); everything identifying the *item* and the *triggering operation* is only knowable by the caller, which is why P4's `applyItemStockChange` already carries `operation` and `itemIdentifiers` "solely for §0.15 log context". Without this parameter the §0.15 field list is unreachable from a three-argument signature, and a criterion demanding it cannot be satisfied.
+
+**Item-properties input type — fixed 2026-09-01 (P1 projection F1), corrected 2026-09-01 (P2 projection D9/F7).** Everywhere the domain
+or a service receives an *item's* property bag it is typed `Record<string, string> | null`,
+never `Json`, never `Record<string, unknown>`. **Reducing the Prisma `Json` value to that
+type is the caller's job**, and the caller is **`listEligibleItems`** (P2 task 2), which is
+where an *item's* `ScanHistory.properties` enters the stock module: drop non-string values,
+drop empty-after-trim values, and pass `null` for an absent bag — the same reduction
+`normalizeStoredProperties` performs inside `scan-history.repository.ts`, which is **not
+exported and out of perimeter (§9.6)**, so the stock module re-implements it rather than
+importing it. This keeps `domain/` pure and makes the "property present but tokenizes to
+nothing" case identical to key-absent (P1 projection D4).
+
+> **Correction, and why it mattered.** This note first said the reduction belonged "on the way
+> out of `toDomain`". That was wrong and actively dangerous: `toDomain` maps
+> `LocationStock.properties` — *criteria*, whose values are string **arrays** or `null` — so
+> "drop non-string values" applied there deletes every criterion, while the item path it was
+> meant to describe stays unreduced. An implementer following the old wording literally would
+> have corrupted the allocator's input, caught only by `npm run typecheck` failing on
+> `resolveBestMatch`'s parameter type. Two different property shapes share the word
+> "properties"; the registry now names the function for each.
+> *Secondary wording fix:* `normalizeStoredProperties` returns `{}` for an absent bag, never
+> `null`. Against `matchesCriteria` the two are equivalent (`property-criteria.ts:59-64` returns
+> `true` for empty criteria before consulting the bag), so `null` remains the specified value
+> here — but the "same reduction" phrasing overstated the correspondence.
 
 ### 6.3 Options map (`src/shared/item-properties/item-property-options.ts`)
 
@@ -124,8 +165,8 @@ Threshold shape everywhere in domain/service code: `{ state: StockState; thresho
 |---|---|
 | `contracts/stock.contract.ts` | zod schemas + DTO types (below) |
 | `repositories/location-stock.repository.ts` | `locationStockRepository` object literal; ALL Prisma access; guarded decrement (§0.15); `{}` round-trips as `{}` (§0.21); accepts optional `tx` |
-| `services/stock-reconciliation.service.ts` | `reconcileGroup(shopId, location, itemCategory)` double-pass (§0.17 + §23.6), `reconcileAllGroups(shopId)` |
-| `services/apply-item-stock-change.service.ts` | `applyItemStockChange({ shopId, before, after, operation })` (§0.7/§0.10/§0.15); `before/after: { location, itemCategory, properties, quantity, isSold } | null` |
+| `services/stock-reconciliation.service.ts` | `reconcileGroup(shopId, location, itemCategory, hooks?)` double-pass (§0.17 + §23.6), `reconcileAllGroups(shopId, hooks?)` |
+| `services/apply-item-stock-change.service.ts` | `applyItemStockChange({ shopId, before, after, operation, itemIdentifiers })` (§0.7/§0.10/§0.15) — **`itemIdentifiers` (`{ productId?, scanHistoryId? }`) added to the registry 2026-09-01 (P4 projection D11)**: the plan already required it, `GuardedDecrementContext` carries those fields and §0.15 requires them in the refusal log, so the registry and the plan disagreed while §6 declares itself fixed; `before/after: { location: string \| null, itemCategory: string \| null, properties: Record<string, string> \| null, quantity: number, isSold: boolean } | null` — `properties` typed per §6.2's fixed input type |
 | `commands/create-location-stocks.command.ts` | batch create, all-or-nothing (§23.5) |
 | `commands/update-location-stock.command.ts` | update incl. full threshold replacement, 1–2 group reconciliation |
 | `commands/delete-location-stock.command.ts` | delete + group reconciliation |
@@ -136,7 +177,19 @@ Threshold shape everywhere in domain/service code: `{ state: StockState; thresho
 | `controllers/stock.controller.ts` | zod parse, envelopes |
 | `routes/stock.routes.ts` | `authenticateUserMiddleware` + `requireShopLinkMiddleware` (§0.18); no admin gate |
 
-Maintenance scripts (P6): `scripts/report-stock-property-drift.ts`, `scripts/rebuild-location-stock.ts` (env `DRY_RUN`, `SHOP_ID` per `scripts/reconcile-active-sold-items.ts` convention). Domain verification script (P1, committed): `scripts/verify-stock-domain.ts`.
+Maintenance scripts (P6): `scripts/report-stock-property-drift.ts`, `scripts/rebuild-location-stock.ts` (env `DRY_RUN`, `SHOP_ID` per `scripts/reconcile-active-sold-items.ts` convention).
+
+**Committed criterion instruments** (the §9.1b scripts — all committed, all re-runnable):
+
+| Script | Authored by | Covers |
+|---|---|---|
+| `scripts/verify-stock-domain.ts` | P1 | P1 C2–C8 (pure domain; no DB) |
+| `scripts/verify-stock-reconciliation.ts` | P2 | P2 C1–C6 (scratch DB copy) |
+| `scripts/verify-stock-report.ts` | P5 | P5 **C1–C3** — completeness, `mergeKey` identity, entry shape (scratch DB copy). *Corrected 2026-09-02 (plan 5 lint L1): this row read "C1–C6 aggregation rows", which is the phase as it stood **before** intention §26 — aggregation is precisely what moved to the client, and plan 5 now calls implementing it "a defect, not a bonus". Plan 5's Read-first list mandates this section, so the stale row pointed the implementer at forbidden work while §6 declared itself authoritative.* |
+| `scripts/verify-all.ts` | P2 | runs every `verify-*.ts` above in sequence — the regression seam (§9.1d) |
+
+**This table is the *eventual* set, not the set expected at any given moment.** `verify-stock-report.ts` does not exist until P5. `verify-all.ts` therefore carries its **own** `EXPECTED_SCRIPTS` constant, which lists only the scripts that exist as of the phase that last edited it; the phase authoring a new `verify-*.ts` adds it to that constant **in the same commit**. `MISSING` is judged against `EXPECTED_SCRIPTS`, never against this table.
+*Earned at P2's pre-dispatch lint: keying `MISSING` to this table would have made `verify-all` exit non-zero at every close before P5 — because a P5 script is listed here — so P2's own phase-close instrument ("verify-all all-PASS") was unsatisfiable by construction. The guard would have turned the phase red in a file the plan does not permit anyone to touch.*
 
 ### 6.5 HTTP surface (mounted in `server.ts` at BOTH `/stock` and `/api/stock`)
 
@@ -148,7 +201,7 @@ Maintenance scripts (P6): `scripts/report-stock-property-drift.ts`, `scripts/reb
 | `POST /stock/configurations` | batch create `{ configurations: CreateLocationStockInput[] }` | `201 { data: LocationStockDto[] }` |
 | `PATCH /stock/configurations/:id` | update | `200 { data: LocationStockDto }` |
 | `DELETE /stock/configurations/:id` | delete | `200 { ok: true }` |
-| `GET /stock/report` | report query (`states?` CSV of StockState, `groupByLocation?` boolean) | `200 { data: StockReportDto }` (P5) |
+| `GET /stock/report` | report query — **no query parameters** (intention §26.1) | `200 { data: StockReportDto }` (P5) |
 
 **DTOs** (`stock.contract.ts`):
 
@@ -162,8 +215,12 @@ CreateLocationStockInput = { location, itemCategory, properties?: StockCriteriaI
 
 UpdateLocationStockInput = { location?, itemCategory?, properties?, thresholds? }  // thresholds = full replacement
 
-StockReportDto = { rows: [{ itemCategory, properties, quantity, stockState, locations: string[] }] }
-  | { groups: [{ location, entries: [{ itemCategory, properties, quantity, stockState }] }] }
+StockReportDto = { entries: [{ location, itemCategory, properties, mergeKey, quantity, stockState }] }
+  // intention §26. One entry per definition — uncompacted, unfiltered, unordered.
+  // mergeKey: opaque string, equal iff itemCategory + canonical properties are equal.
+  //   Derived as `${itemCategory}|${propertiesCanonical}` from the stored §6.1 column;
+  //   the client groups on mergeKey + stockState and never parses the key (§26.2, §26.4).
+  // The v1.1 `rows`/`groups` dual shape and `locations[]` are removed.
 ```
 
 Errors: existing `ValidationError`/`NotFoundError`/`ConflictError`; conflict details carry `{ conflictingId, batchIndex? }`. Envelope + error shape per context §3.4.
@@ -192,23 +249,71 @@ No archgraph in this repo — skip silently. Sessions verify write perimeters vi
 
 ## 9. Standing rules — project deviations from charter (each owner-ratified)
 
-1. **No automated tests (§0.11 / intention §22.10).** Charter rule 1 is exempted project-wide. Replacements, binding: (a) `npm run typecheck` green is the automated gate for every phase; (b) enumerated pure-domain criteria are checked by the **committed** `scripts/verify-stock-domain.ts` (prints one PASS/FAIL line per criterion row, exits non-zero on failure) run manually with output pasted into the Review log; (c) API/integration criteria are checked by the phase's Manual Scenarios section (curl/UI steps with expected quantity + state after each), executed by implementer and re-executed by reviewer.
+1. **No automated tests (§0.11 / intention §22.10).** Charter rule 1 is exempted project-wide. Replacements, binding: (a) `npm run typecheck` green is the automated gate for every phase; (b) enumerated criteria decidable without a live HTTP surface are checked by a **committed** `scripts/verify-*.ts` (one PASS/FAIL line per criterion row, exits non-zero on failure), run with output pasted into the Review log — the §6.4 instrument table names which script covers which phase; (c) criteria needing the running app, the worker, or Shopify are checked by the phase's Manual Scenarios section (curl/UI steps with expected quantity + state after each), executed by implementer and re-executed by reviewer.
+
+   **(d) The regression seam — owner decision, 2026-09-01.** `scripts/verify-all.ts` runs every committed `verify-*.ts` in sequence and is a **phase-close instrument for P2 and every phase after it**, so a later phase cannot silently break an earlier phase's rules. Without it, the next full re-check of P1's domain rules is P6 — five phases of latency on exactly the defect class phase gating exists to contain.
+
+   Binding on its construction: **a script that did not run must never read as green.** A child script that refuses (P2's and P5's refuse when `DATABASE_URL` points at the configured dev.db) reports `REFUSED`, and `verify-all.ts` exits non-zero. A missing script file is `MISSING`, also non-zero. The only zero exit is every script present, run, and all-PASS.
+
+   Rationale recorded so a later session does not re-open it: this project already pays the expensive half of a test suite — the assertions and the scratch-DB fixtures live inside these scripts. What §0.11 descoped is a *runner*, not the checks. Chaining scripts that already exist is therefore near-zero cost and buys the one property the manual scheme structurally lacks. **This is not a reversal of §0.11:** no runner, no test framework, no CI, no new dependency, and §11.3 non-finding 1 stands unchanged — the absence of test infrastructure remains a non-finding, and no reviewer may request one.
 2. **Domain purity (intention §22.10b):** `src/modules/stock/domain/` and `item-property-options.ts` import no Prisma and no I/O. Instrument: `grep -rn "prisma\|@prisma" src/modules/stock/domain/ src/shared/item-properties/item-property-options.ts` → empty; run at every phase close.
 3. **One review round** per phase is the target; sizing and full-checklist first reviews serve it.
 4. **`{}` is never collapsed to `null`** on `LocationStock.properties` (§0.21) — the repository must not reuse `toPropertiesUpdateValue`.
 5. **Group totals:** a short group total without a catch-all is expected, not drift (§0.21/M8) — every Manual Scenarios section states this.
 6. **`scan-history.repository.ts` is out of perimeter for every phase** (§0.10). Any need to touch it is a fold-back, not an edit.
+7. **Working beats lasting — owner decision, 2026-09-01.** This backend is an acknowledged interim system pending a rebuild (context §0.11). The bar for this project is **correct now**, not **durable later**. Concretely, and binding on every reviewer:
+   - A finding must show the code is **wrong**, or that a *ratified* contract is violated. "This would break if someone later changed X" is **not** a finding when nothing in the plan set changes X.
+   - **Perimeters already carry the regression argument.** No phase after P1 has P1's domain files, the options map, or `verify-stock-domain.ts` in its "Files expected to change" list — verified 2026-09-01, zero occurrences across P2–P6 — and every phase close diffs `git diff --name-only` against that list with anything outside an automatic finding. A regression in an earlier phase's code therefore requires an edit the process forbids and would catch first, by a mechanism that does not depend on test coverage.
+   - So **instrument-coverage gaps on frozen code are notes, never fix cycles.** Coverage earns a round only where the code is *live* — the phase being built, or a phase a fix cycle reopens.
+   - This does **not** relax correctness. A forward hazard in work **not yet written** (P1 review N2 and N3 are the worked examples) is folded into the target plan immediately and costs nothing, because the plan is still being edited. That is the distinction: cheap where the work is ahead of you, expensive where it is behind you.
+
+   *Earned: P1 review round 1 recommended a fix cycle for two proven-unguarded behaviours whose code was verified correct. The owner declined, correctly — the guarded regression could only arrive through a perimeter violation that a different, stronger mechanism already blocks. The recommendation cost a round of the owner's attention that the project's own framing had already answered.*
+8. **No closed vocabulary is ever elided in the frontend contract (earned 2026-09-01).** Every enumerable list in `contracts/frontend-api-contract.md` is written out in full; `...` never appears in an example payload that any section describes as exact. *Earned: §4.1 wrote `itemCategories` as `["Dining Chairs", "Easy Chairs", ...]` directly above a table advertising itself as "the exact payload content, safe to hardcode in mocks". The frontend reasonably inferred the vocabulary from the only complete list nearby — the property table's `categories` column — and got **9** of **28**. The 19 missing categories hold 152 unsold units (Sideboards 41, Mirrors 19, Chest of Drawers 17); a wizard built on that list would have made them permanently unconfigurable with no error anywhere. Caught by the frontend asking, not by any check on our side.* Regenerating the contract from §6's registry (§2's fold-back rule) means regenerating **content**, not shape: a registry list becomes a written-out list.
+9. **A worked example in the frontend contract is a specification, and must be checked against the rule it illustrates (earned 2026-09-02).** Every illustrative example in `contracts/frontend-api-contract.md` is verified against the ratified rule in the same document — and, once the endpoint exists, against the endpoint. *Earned: v1.4 §4.4 taught that a catch-all `{}` and a narrower `{wood_type:["Teak"]}` submitted together are an intra-batch 409. They are not: different key sets never conflict (§23.2), the endpoint returns 201, and that pair is the catch-all-plus-carve-out layering the whole feature exists for. §2 of the same document stated the rule correctly for a full version cycle while §4.4 contradicted it. A frontend pre-validating from the example would reject the first thing any settings wizard submits, with an error the backend never raises. Caught by the implementer's candidate-upstream note, not by any check of ours — the second contract defect (after §4.1's elision) to live in prose that no plan-lint property covers.*
 
 ## 10. Environment topology (verified 2026-09-01; if reality disagrees, update this section)
 
-- Backend root: `apps/backend`. Node ESM, TS, `tsx` dev. **All commands run from `apps/backend`.**
+### 10.0 Working tree — this pipeline runs in a git worktree (owner, 2026-09-01)
+
+The frontend for this feature is built in parallel on `main`, so the backend pipeline was
+moved to its own worktree to keep the two commit streams clean.
+
+| | Path | Branch | Owns |
+|---|---|---|---|
+| **Backend pipeline (this project)** | `/Users/davidloorenz/Desktop/Developer/BeyoApps_2025/Item-Scanner-Shopify-warehouse-stock-backend` | `warehouse-stock-backend` | **every session of this pipeline works here** |
+| Frontend track | `/Users/davidloorenz/Desktop/Developer/BeyoApps_2025/Item-Scanner-Shopify` | `main` | the frontend feature; owner-driven |
+
+Both worktrees were created from `4424a3b`, which already contains the full planning set
+(intention, context, master plan, plans, contracts, prompts, handoffs tables) — so the two
+copies started identical. **After that commit they diverge, and only the worktree copy is
+live.** A session that edits the planning documents in the `main` checkout is editing a
+dead copy; check your path before writing.
+
+Worktrees share one `.git`, so branches and history are common, but **untracked and ignored
+files are not shared**. The worktree's backend runtime was therefore reconstructed by hand
+(2026-09-01) and is now complete: `.env` copied, `prisma/dev.db` restored via
+`sqlite3 … ".backup"`, `npm install` (173 packages), `npm run prisma:generate`. Verified:
+`npx prisma migrate status` → *Database schema is up to date*, 33 migrations, head
+`20260729084212_add_restocked_at_and_returned_to_store_event`; DB parity with `main`'s copy
+at 1107 items / 518 unsold.
+
+**Baseline for the automated gate, taken before P1 touches anything:** `npm run typecheck`
+exits **0** on this worktree. Any typecheck failure a phase reports is that phase's own.
+
+**The two databases are independent copies, not one shared file.** Scans or edits made
+against one do not appear in the other. Run the backend from the worktree during this
+project; the `main` checkout's `dev.db` will go stale and that is expected, not drift.
+
+### 10.1 Commands and runtime
+
+- Backend root: `apps/backend` **inside the worktree**. Node ESM, TS, `tsx` dev. **All commands run from `apps/backend`.**
 - Automated gate: `npm run typecheck` (tsc --noEmit). `npm test` fails by design — never run it as a gate.
 - Migrations: `npm run prisma:migrate:dev -- --name add_location_stock` (local), applies to `prisma/dev.db` (SQLite; 1107 ScanHistory rows, 518 unsold, 1 shop). Deploy uses `prisma:migrate:deploy`. Never rewrite an applied migration.
-- **DB safety:** destructive manual verification runs against a copy: `cp prisma/dev.db /tmp/… ` or a scratch dir; scripts honor `DRY_RUN=1`. The configured dev.db is left at migration head with its data intact.
+- **DB safety:** destructive manual verification runs against a copy in a scratch dir; scripts honor `DRY_RUN=1`. The configured dev.db is left at migration head with its data intact. **Copy with `sqlite3 prisma/dev.db ".backup '<dest>'"`, never a plain `cp`** — the database runs in WAL mode, so `cp` of the `.db` file alone can capture a torn state that omits committed pages still living in `dev.db-wal`. (Learned while provisioning the worktree, 2026-09-01.) The file is ~304 MB; budget the disk.
 - Processes: API `src/server.ts`; webhook worker `src/workers/webhook-worker.ts` (BullMQ, needs Redis). Startup: `docs/guides/BACKEND_WORKERS_GUIDE.md`. Worker-path manual scenarios need Redis + worker running.
 - Routers mount twice in `server.ts` (bare + `/api`) — context §2.
 - SQLite: JSON not queryable via Prisma (§12.1); single-writer, WAL; `SQLITE_BUSY` retry exists only in the worker.
-- No test runner, no archgraph. `git` present; default branch `main`.
+- No test runner, no archgraph. `git` present; default branch `main`; **this pipeline commits on `warehouse-stock-backend`** (§10.0) — checkpoint and approval-gate commits both land there, never on `main`.
 
 ## 11. Review scope contract (binding on every reviewer prompt — authority: intention §25)
 
@@ -254,6 +359,9 @@ Each is ratified; raising it as a defect, risk, or hardening request is itself a
 14. Style preferences beyond the repo's own conventions and the architecture contract: envelope shapes other modules use, naming tastes, file-splitting opinions where the registry (§6) already fixed names.
 15. Speculative future-proofing: Postgres readiness, event-system extensibility, test-runner scaffolding, config knobs, abstraction layers "for later" — and generally any code, endpoint, or field beyond the naming registry and the phase's criteria.
 16. Pre-existing defects or contract departures in files outside the phase perimeter (context §3.8 catalogues them) — advisory at most, and only when actually encountered.
+17. **The report endpoint performing no compaction, no state filtering, no ordering and no location ranking** — intention **§26** (owner-approved 2026-09-01) moved all four to the client and §26 wins over §19 and context §0.19. Reading §19's prose as still binding on the endpoint, or reporting P5 as incomplete against it, is a review error. The inverse *is* blocking: a P5 implementation that adds any of them back has built scope the contract does not have. Equally settled — the report takes **no query parameters** and ignores rather than rejects any that arrive (§26.1), and `mergeKey`'s encoding is opaque and unversioned (§26.2).
+19. **Durability-only findings on code outside the phase's perimeter** — §9.7. Missing coverage, hardening, or "this would break if someone later changed X" against frozen earlier-phase code is a note at most, never blocking and never a fix cycle. The regression it imagines requires a perimeter violation the phase-close diff already catches.
+18. **The client-side compaction key (`mergeKey` + `stockState`) not being enforceable by the backend** — §26.4. The safety property crossed the wire by owner decision; no backend criterion can observe a violation, and asking P5 for one is asking for something the architecture cannot provide.
 
 ### 11.4 One-round discipline
 
