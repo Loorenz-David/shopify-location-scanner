@@ -235,6 +235,71 @@ async function extractPdfLines(bytes: Uint8Array): Promise<string[][]> {
   return pages;
 }
 
+// A text run with the position react-pdf placed it at. `extractPdfLines` reads the
+// character stream, which is enough for "does this text appear"; a wrap question needs
+// coordinates. react-pdf positions every run by nesting `q / 1 0 0 1 x y cm / Q`
+// translations around it rather than by moving the text cursor (every `BT` block carries
+// the same identity matrix), so placing one means walking the graphics stack.
+interface PlacedRun {
+  x: number;
+  y: number;
+  text: string;
+}
+
+async function extractPlacedRuns(bytes: Uint8Array): Promise<PlacedRun[]> {
+  const objects = parseObjects(bytes);
+  const pageTree = [...objects.values()].find((object) =>
+    /\/Type\s*\/Pages\b/.test(object.dictionary),
+  )!;
+  const kids = /\/Kids\s*\[([^\]]*)\]/.exec(pageTree.dictionary)![1]!;
+  const page = objects.get(Number(/(\d+) 0 R/.exec(kids)![1]))!;
+  const resources = objects.get(reference(page.dictionary, "Resources")!)!;
+  const fontsByName = new Map<string, Map<number, string>>();
+  const fontBlock = /\/Font\s*<<([\s\S]*?)>>/.exec(resources.dictionary)?.[1] ?? "";
+  for (const font of fontBlock.matchAll(/\/(F\d+)\s+(\d+) 0 R/g)) {
+    const toUnicode = reference(objects.get(Number(font[2]))!.dictionary, "ToUnicode")!;
+    fontsByName.set(font[1]!, parseToUnicode(await streamText(objects.get(toUnicode)!)));
+  }
+
+  const content = await streamText(objects.get(reference(page.dictionary, "Contents")!)!);
+  const token =
+    /\bq\b|\bQ\b|([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) cm|\/(F\d+)\s+[\d.]+\s+Tf|<([0-9a-fA-F]+)>|\bBT\b|\bET\b/g;
+  const stack: { x: number; y: number }[] = [{ x: 0, y: 0 }];
+  const runs: PlacedRun[] = [];
+  let glyphs: Map<number, string> | null = null;
+  let current: PlacedRun | null = null;
+
+  for (const operator of content.matchAll(token)) {
+    const top = stack[stack.length - 1]!;
+    if (operator[0] === "q") {
+      stack.push({ ...top });
+    } else if (operator[0] === "Q") {
+      stack.pop();
+    } else if (operator[1] !== undefined) {
+      // The page is drawn under a `1 0 0 -1 0 height cm` flip, so a negative y scale
+      // mirrors what has been accumulated so far.
+      top.x += Number(operator[5]);
+      top.y = Number(operator[4]) < 0 ? Number(operator[6]) - top.y : top.y + Number(operator[6]);
+    } else if (operator[7] !== undefined) {
+      glyphs = fontsByName.get(operator[7]) ?? null;
+    } else if (operator[0] === "BT") {
+      current = { x: top.x, y: top.y, text: "" };
+    } else if (operator[0] === "ET") {
+      if (current !== null && current.text !== "") {
+        runs.push(current);
+      }
+      current = null;
+    } else if (operator[8] !== undefined && current !== null && glyphs !== null) {
+      const hex = operator[8];
+      for (let offset = 0; offset < hex.length; offset += 4) {
+        current.text += glyphs.get(Number.parseInt(hex.slice(offset, offset + 4), 16)) ?? "�";
+      }
+    }
+  }
+
+  return runs;
+}
+
 function countWordBounded(haystack: string, needle: string): number {
   const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   return [...haystack.matchAll(new RegExp(`(?<![A-Za-z])${escaped}(?![A-Za-z])`, "g"))].length;
@@ -386,6 +451,46 @@ describe("stock report PDF document", () => {
     expect(text).toMatch(/missing/i);
     expect(lines).toContain("83");
     expect(lines).toContain("97");
+  });
+
+  it("C3(properties): a criteria pair too long for the column moves whole to the next line", async () => {
+    // The reported layout: in the narrow (with-locations) properties column, the inline
+    // run broke at the space after "Extension Type:", leaving the key at the end of one
+    // line and "Outside Extension" alone on the next.
+    const model = buildPdfModel([
+      {
+        location: "O2",
+        itemCategory: "Dining Tables",
+        properties: { shape: ["oval"], extension_type: ["Outside Extension"] },
+        mergeKey: "wrapping-pair",
+        quantity: 2, instanceCount: 2,
+        stockState: STOCK_STATES[1],
+        thresholds: [{ state: STOCK_STATES[3], thresholdQuantity: 20 }],
+        unitsToRestockTarget: 18,
+      },
+    ], {
+      ...createDefaultStockFilter(),
+      includeSummaryCounts: false,
+      // The narrow column is the one that wraps; the wide one fits the pairs on one line.
+      showContributingLocations: true,
+      countMode: "instances",
+      propertyKeyOrder: keyOrder,
+    });
+    const runs = await extractPlacedRuns(await renderFixture(model));
+    const lineOf = (text: string): number => {
+      const matches = runs.filter((run) => run.text.startsWith(text));
+      expect(matches).toHaveLength(1);
+      return matches[0]!.y;
+    };
+
+    // S10: the fixture must actually wrap — the pairs do not fit on one line, which is
+    // where a key could be left behind by its value.
+    expect(lineOf("Extension Type")).not.toBe(lineOf("Shape"));
+    // Each key shares its line with the start of its own value.
+    expect(lineOf("Oval")).toBe(lineOf("Shape"));
+    expect(lineOf("Outside")).toBe(lineOf("Extension Type"));
+    // The pair that did not fit moved down, rather than the value alone.
+    expect(lineOf("Extension Type")).toBeLessThan(lineOf("Shape"));
   });
 
   it("C4: renders missing-unit totals in the state summary tiles", async () => {

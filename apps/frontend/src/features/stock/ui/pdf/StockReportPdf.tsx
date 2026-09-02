@@ -125,7 +125,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
   },
   cellType: { fontWeight: 600, color: HEADING },
-  cellProperties: { color: BODY },
+  cellProperties: { color: BODY, flexDirection: "row", flexWrap: "wrap" },
   propertyKey: { color: MUTED },
   propertyValue: { color: HEADING, fontWeight: 600 },
   // No italic face is registered (stock-pdf-fonts), so a wildcard is set apart by
@@ -221,24 +221,32 @@ interface PropertiesCellProps {
   width: string;
 }
 
-// Key then value, muted then dark, the same pairing the settings box uses: the column
-// is narrow, so the criteria read as one wrapped line rather than a stack, and a bare
-// `4` never sits under `Properties` next to the `Current` and `Missing` numbers.
+// Key then value, muted then dark, the same pairing the settings box uses: the column is
+// narrow, so the criteria read as a wrapped line rather than a stack, and a bare `4` never
+// sits under `Properties` next to the `Current` and `Missing` numbers.
+//
+// Each pair is its own item in a wrapping row rather than one inline run, because inline
+// text breaks at whatever space falls on the column edge: a key ended one line and its
+// value opened the next ("Extension Type:" / "Outside Extension"). A pair that does not
+// fit now moves whole to the next line. The separator trails the pair it follows so it
+// travels with it; only a pair wider than the column itself still breaks internally.
 function PropertiesCell({ row, options, width }: PropertiesCellProps) {
-  const lines = criteriaChips(row.properties, options);
+  const pairs = criteriaChips(row.properties, options);
 
   return (
-    <Text style={[styles.cellProperties, { width }]}>
-      {lines.map((line, index) => (
-        <Text key={line.key}>
-          {index > 0 ? <Text style={styles.propertySeparator}>{"  ·  "}</Text> : null}
-          <Text style={styles.propertyKey}>{line.label}: </Text>
-          <Text style={line.isWildcard ? styles.propertyWildcard : styles.propertyValue}>
-            {line.values.join(", ")}
+    <View style={[styles.cellProperties, { width }]}>
+      {pairs.map((pair, index) => (
+        <Text key={pair.key}>
+          <Text style={styles.propertyKey}>{pair.label}: </Text>
+          <Text style={pair.isWildcard ? styles.propertyWildcard : styles.propertyValue}>
+            {pair.values.join(", ")}
           </Text>
+          {index < pairs.length - 1 ? (
+            <Text style={styles.propertySeparator}>{"  ·  "}</Text>
+          ) : null}
         </Text>
       ))}
-    </Text>
+    </View>
   );
 }
 
