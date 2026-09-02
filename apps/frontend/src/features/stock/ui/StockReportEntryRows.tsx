@@ -105,7 +105,7 @@ export function StockCompactEntryRow({
       </span>
       <StockQuantityBar
         current={row.quantity}
-        missing={row.unitsToNormalThreshold}
+        missing={row.unitsToRestockTarget}
       />
     </button>
   );

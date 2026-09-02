@@ -265,7 +265,7 @@ function Section({ section, options, showContributingLocations }: SectionProps) 
               {row.quantity}
             </Text>
             <Text style={[styles.cellQuantity, { width: widths.missing, color: MISSING }]}>
-              {row.unitsToNormalThreshold}
+              {row.unitsToRestockTarget}
             </Text>
           </View>
         ))}

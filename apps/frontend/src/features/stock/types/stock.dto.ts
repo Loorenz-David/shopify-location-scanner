@@ -2,8 +2,8 @@ export type StockStateDto =
   | "out_of_stock"
   | "low_in_stock"
   | "medium_in_stock"
-  | "normal_in_stock"
-  | "high_in_stock";
+  | "high_in_stock"
+  | "extra_in_stock";
 
 export type StockPropertyValueDto = string | string[] | null;
 export type StockPropertiesDto = Record<string, StockPropertyValueDto>;
@@ -63,7 +63,7 @@ export interface StockReportEntryDto {
   quantity: number;
   stockState: StockStateDto;
   thresholds: StockThresholdDto[];
-  unitsToNormalThreshold?: number;
+  unitsToRestockTarget?: number;
 }
 
 export interface StockReportResponseDto {

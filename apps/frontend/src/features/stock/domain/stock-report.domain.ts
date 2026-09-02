@@ -47,21 +47,21 @@ function compareNumbers(left: number, right: number): number {
 export function missingQuantityForEntry(
   entry: Pick<
     StockReportEntryDto,
-    "quantity" | "thresholds" | "unitsToNormalThreshold"
+    "quantity" | "thresholds" | "unitsToRestockTarget"
   >,
 ): number {
-  if (entry.unitsToNormalThreshold !== undefined) {
-    return entry.unitsToNormalThreshold;
+  if (entry.unitsToRestockTarget !== undefined) {
+    return entry.unitsToRestockTarget;
   }
 
-  const normalThreshold = entry.thresholds.find(
-    (threshold) => threshold.state === STOCK_STATES[3],
+  // Fallback mirrors the backend: the restock target is the highest
+  // configured threshold.
+  const restockTarget = entry.thresholds.reduce(
+    (highest, { thresholdQuantity }) => Math.max(highest, thresholdQuantity),
+    0,
   );
-  if (normalThreshold === undefined) {
-    throw new Error("Stock report entry is missing its normal threshold");
-  }
 
-  return Math.max(0, normalThreshold.thresholdQuantity - entry.quantity);
+  return Math.max(0, restockTarget - entry.quantity);
 }
 
 function orderPropertyKeys(
@@ -106,8 +106,8 @@ function contributionComparisonString(
   contributions: readonly ReportContribution[],
 ): string {
   return contributions
-    .map(({ location, quantity, unitsToNormalThreshold }) =>
-      [location, quantity, unitsToNormalThreshold].join(KEY_VALUE_SEPARATOR),
+    .map(({ location, quantity, unitsToRestockTarget }) =>
+      [location, quantity, unitsToRestockTarget].join(KEY_VALUE_SEPARATOR),
     )
     .join(GROUP_SEPARATOR);
 }
@@ -120,7 +120,7 @@ function compareCompactRows(
   const comparisons = [
     compareByStateIndex(left.stockState, right.stockState),
     compareNumbers(left.quantity, right.quantity),
-    compareNumbers(left.unitsToNormalThreshold, right.unitsToNormalThreshold),
+    compareNumbers(left.unitsToRestockTarget, right.unitsToRestockTarget),
     compareCaseInsensitive(left.itemCategory, right.itemCategory),
     compareCodePoints(
       propertiesComparisonString(left.properties, keyOrder),
@@ -195,7 +195,7 @@ export function compactEntries(
       .map((member) => ({
         location: member.location,
         quantity: member.quantity,
-        unitsToNormalThreshold: missingQuantityForEntry(member),
+        unitsToRestockTarget: missingQuantityForEntry(member),
       }))
       .toSorted((left, right) => compareCodePoints(left.location, right.location));
     const locations = [...new Set(contributions.map(({ location }) => location))]
@@ -207,9 +207,9 @@ export function compactEntries(
       itemCategory: first.itemCategory,
       properties: first.properties,
       quantity: members.reduce((total, member) => total + member.quantity, 0),
-      unitsToNormalThreshold: contributions.reduce(
+      unitsToRestockTarget: contributions.reduce(
         (total, contribution) =>
-          total + contribution.unitsToNormalThreshold,
+          total + contribution.unitsToRestockTarget,
         0,
       ),
       stockState: first.stockState,
@@ -266,8 +266,8 @@ export function applyStockFilters(
           (total, contribution) => total + contribution.quantity,
           0,
         ),
-        unitsToNormalThreshold: selectedContributions.reduce(
-          (total, contribution) => total + contribution.unitsToNormalThreshold,
+        unitsToRestockTarget: selectedContributions.reduce(
+          (total, contribution) => total + contribution.unitsToRestockTarget,
           0,
         ),
         locations,
@@ -361,7 +361,7 @@ function sumCounterTiles(
 
   for (const item of items) {
     const missingQuantity = isCompactedRow(item)
-      ? item.unitsToNormalThreshold
+      ? item.unitsToRestockTarget
       : missingQuantityForEntry(item);
 
     switch (STOCK_STATES.indexOf(item.stockState)) {

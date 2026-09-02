@@ -1,7 +1,10 @@
 import { ConflictError, NotFoundError } from "../../../shared/errors/http-errors.js";
 import { canonicalCriteriaString } from "../domain/property-criteria.js";
 import { findConflict } from "../domain/conflict.js";
-import { validateThresholds } from "../domain/stock-state.js";
+import {
+  normalizeThresholdInputs,
+  validateThresholds,
+} from "../domain/stock-state.js";
 import {
   validateStockCriteria,
   type LocationStock,
@@ -42,8 +45,14 @@ export const updateLocationStockCommand = async (input: {
     input.payload.properties ?? existing.properties,
   );
 
-  if (input.payload.thresholds !== undefined) {
-    validateThresholds(input.payload.thresholds);
+  // Entries carrying a 0 or null quantity mean "delete this threshold"; the
+  // remaining set must still be valid (and non-empty) on its own.
+  const normalizedThresholds =
+    input.payload.thresholds === undefined
+      ? undefined
+      : normalizeThresholdInputs(input.payload.thresholds);
+  if (normalizedThresholds !== undefined) {
+    validateThresholds(normalizedThresholds);
   }
 
   const nextGroup = {
@@ -79,7 +88,7 @@ export const updateLocationStockCommand = async (input: {
     }
   }
 
-  const { thresholds, ...patch } = input.payload;
+  const { thresholds: _rawThresholds, ...patch } = input.payload;
   try {
     await locationStockRepository.runInTransaction(async (tx) => {
       await locationStockRepository.updateConfig(
@@ -92,11 +101,11 @@ export const updateLocationStockCommand = async (input: {
         tx,
       );
 
-      if (thresholds !== undefined) {
+      if (normalizedThresholds !== undefined) {
         await locationStockRepository.replaceThresholds(
           input.id,
           input.shopId,
-          thresholds,
+          normalizedThresholds,
           input.username,
           tx,
         );

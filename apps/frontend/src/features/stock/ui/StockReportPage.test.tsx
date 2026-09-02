@@ -88,7 +88,7 @@ const groupedPayload: StockReportEntryDto[] = [
     quantity: 4,
     stockState: STOCK_STATES[1],
     thresholds: groupedThresholds,
-    unitsToNormalThreshold: 16,
+    unitsToRestockTarget: 16,
   },
   {
     location: "L2",
@@ -98,7 +98,7 @@ const groupedPayload: StockReportEntryDto[] = [
     quantity: 8,
     stockState: STOCK_STATES[2],
     thresholds: groupedThresholds,
-    unitsToNormalThreshold: 12,
+    unitsToRestockTarget: 12,
   },
   {
     location: "L2",
@@ -108,7 +108,7 @@ const groupedPayload: StockReportEntryDto[] = [
     quantity: 9,
     stockState: STOCK_STATES[2],
     thresholds: groupedThresholds,
-    unitsToNormalThreshold: 11,
+    unitsToRestockTarget: 11,
   },
   {
     location: "L3",
@@ -118,7 +118,7 @@ const groupedPayload: StockReportEntryDto[] = [
     quantity: 20,
     stockState: STOCK_STATES[3],
     thresholds: groupedThresholds,
-    unitsToNormalThreshold: 0,
+    unitsToRestockTarget: 0,
   },
   {
     location: "L1",
@@ -128,7 +128,7 @@ const groupedPayload: StockReportEntryDto[] = [
     quantity: 0,
     stockState: STOCK_STATES[0],
     thresholds: groupedThresholds,
-    unitsToNormalThreshold: 20,
+    unitsToRestockTarget: 20,
   },
   {
     location: "L1",
@@ -138,7 +138,7 @@ const groupedPayload: StockReportEntryDto[] = [
     quantity: 3,
     stockState: STOCK_STATES[1],
     thresholds: groupedThresholds,
-    unitsToNormalThreshold: 17,
+    unitsToRestockTarget: 17,
   },
 ];
 
@@ -229,7 +229,7 @@ describe("StockReportPage (screens 01–04)", () => {
           ? "Out"
           : getStockStateMeta(expectedEntry.stockState).label;
         expect(within(entry).getByTestId("stock-row-missing")).toHaveTextContent(
-          `+${expectedEntry.unitsToNormalThreshold}`,
+          `+${expectedEntry.unitsToRestockTarget}`,
         );
         expect(within(entry).getByTestId("stock-row-state")).toHaveTextContent(
           expectedStateLabel,
@@ -314,7 +314,7 @@ describe("StockReportPage (screens 01–04)", () => {
     const before = screen.getAllByTestId("stock-report-row").find((row) => row.getAttribute("data-row-key") === rowKey(multi))!;
     expect(within(before).getByTestId("stock-row-quantity")).toHaveTextContent(String(multi.quantity));
     expect(within(before).getByTestId("stock-row-missing")).toHaveTextContent(
-      String(multi.unitsToNormalThreshold),
+      String(multi.unitsToRestockTarget),
     );
 
     await userEvent.click(screen.getByRole("button", { name: "Filters" }));
@@ -326,7 +326,7 @@ describe("StockReportPage (screens 01–04)", () => {
     const after = screen.getAllByTestId("stock-report-row").find((row) => row.getAttribute("data-row-key") === rowKey(multi))!;
     expect(within(after).getByTestId("stock-row-quantity")).toHaveTextContent(String(expectedRow.quantity));
     expect(within(after).getByTestId("stock-row-missing")).toHaveTextContent(
-      String(expectedRow.unitsToNormalThreshold),
+      String(expectedRow.unitsToRestockTarget),
     );
     expect(within(after).getByTestId("stock-row-locations")).toHaveTextContent(expectedRow.locations);
     expect(screen.getByTestId("stock-report-scope")).toHaveTextContent(location);
@@ -434,7 +434,7 @@ describe("StockReportPage (screens 01–04)", () => {
     const rendered = screen.getAllByTestId("stock-report-row").find((row) => row.getAttribute("data-row-key") === rowKey(zero))!;
     expect(within(rendered).getByTestId("stock-row-quantity")).toHaveTextContent("0");
     expect(within(rendered).getByTestId("stock-row-missing")).toHaveTextContent(
-      `+${zero.unitsToNormalThreshold}`,
+      `+${zero.unitsToRestockTarget}`,
     );
     expect(within(rendered).getByText("In stock")).toBeInTheDocument();
     expect(within(rendered).getByText("To normal")).toBeInTheDocument();

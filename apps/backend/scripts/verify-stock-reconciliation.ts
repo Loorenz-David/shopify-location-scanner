@@ -87,7 +87,7 @@ const parseJsonLines = (output: CapturedOutput): Array<Record<string, unknown>> 
 const thresholds = [
   { state: "low_in_stock" as const, thresholdQuantity: 1 },
   { state: "medium_in_stock" as const, thresholdQuantity: 3 },
-  { state: "normal_in_stock" as const, thresholdQuantity: 5 },
+  { state: "high_in_stock" as const, thresholdQuantity: 5 },
 ];
 
 const main = async (): Promise<void> => {
@@ -321,7 +321,7 @@ const main = async (): Promise<void> => {
     await locationStockRepository.applyIncrement(created.id, 4);
     const incremented = await findConfig(created.id);
     assert(incremented.quantity === 6, `expected quantity 6, got ${incremented.quantity}`);
-    assert(incremented.stockState === "high_in_stock", `expected high state, got ${incremented.stockState}`);
+    assert(incremented.stockState === "extra_in_stock", `expected high state, got ${incremented.stockState}`);
   };
 
   const verifyC3 = async (): Promise<void> => {
@@ -344,7 +344,7 @@ const main = async (): Promise<void> => {
     assert(result.get(specific.id)?.quantity === 4, "specific winner did not receive item quantity 4");
     assert(result.get(wildcard.id)?.quantity === 3, "wildcard winner did not receive item quantity 3");
     assert(result.get(zeroMatch.id)?.quantity === 0, "zero-match configuration was not reset to zero");
-    assert((await findConfig(specific.id)).stockState === "normal_in_stock", "specific state was not recalculated");
+    assert((await findConfig(specific.id)).stockState === "high_in_stock", "specific state was not recalculated");
     assert((await findConfig(wildcard.id)).stockState === "medium_in_stock", "wildcard state was not recalculated");
     assert((await findConfig(zeroMatch.id)).stockState === "out_of_stock", "zero-match state was not recalculated");
   };
@@ -436,7 +436,7 @@ const main = async (): Promise<void> => {
   const verifyC4d = async (): Promise<void> => {
     const scenario = await runC4Scenario();
     assert(scenario.returnedQuantity === 4, `expected pass-2 return quantity 4, got ${scenario.returnedQuantity}`);
-    assert(scenario.returnedState === "normal_in_stock", `expected pass-2 normal state, got ${scenario.returnedState}`);
+    assert(scenario.returnedState === "high_in_stock", `expected pass-2 normal state, got ${scenario.returnedState}`);
   };
 
   const verifyC5 = async (): Promise<void> => {
@@ -446,7 +446,7 @@ const main = async (): Promise<void> => {
     ]);
     assert(created !== undefined, "C5 config was not created");
     await createItem({ shopId, productId: `${groupLocation}-item`, location: groupLocation, itemCategory, quantity: 3, properties: {} });
-    await prisma.locationStock.update({ where: { id: created.id }, data: { quantity: 99, stockState: "high_in_stock", updatedByUsername: "manual-drift" } });
+    await prisma.locationStock.update({ where: { id: created.id }, data: { quantity: 99, stockState: "extra_in_stock", updatedByUsername: "manual-drift" } });
 
     const { value: result, output } = await captureOutput(() =>
       reconcileGroup(shopId, groupLocation, itemCategory),

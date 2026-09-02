@@ -15,7 +15,7 @@ import type { CreateStockConfigurationsRequestDto } from "../types/stock.dto";
 const thresholds = [
   { state: "low_in_stock", thresholdQuantity: 10 },
   { state: "medium_in_stock", thresholdQuantity: 15 },
-  { state: "normal_in_stock", thresholdQuantity: 20 },
+  { state: "high_in_stock", thresholdQuantity: 20 },
 ] as const;
 
 const createBody: CreateStockConfigurationsRequestDto = {
@@ -53,7 +53,7 @@ describe("stock API seam", () => {
       "quantity",
       "stockState",
       "thresholds",
-      "unitsToNormalThreshold",
+      "unitsToRestockTarget",
     ];
 
     for (const entry of entries) {
@@ -106,16 +106,16 @@ describe("stock API seam", () => {
     vi.stubEnv("VITE_STOCK_API_MODE", "mock");
     const entries = await getStockReport();
     const normal = entries.find((entry) =>
-      entry.stockState === "normal_in_stock" && entry.quantity === 18
+      entry.stockState === "high_in_stock" && entry.quantity === 18
     );
 
     expect(normal).toBeDefined();
     expect(
       normal!.thresholds.find((threshold) =>
-        threshold.state === "normal_in_stock"
+        threshold.state === "high_in_stock"
       )?.thresholdQuantity,
     ).toBe(20);
-    expect(normal!.unitsToNormalThreshold).toBe(2);
+    expect(normal!.unitsToRestockTarget).toBe(2);
   });
 
   it("C4(a): options expose the exact eight-key final vocabulary", async () => {

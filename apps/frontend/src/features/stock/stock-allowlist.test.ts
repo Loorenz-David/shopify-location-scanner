@@ -56,8 +56,8 @@ const stateNames = [
   "out_of_stock",
   "low_in_stock",
   "medium_in_stock",
-  "normal_in_stock",
   "high_in_stock",
+  "extra_in_stock",
 ] as const;
 
 describe("stock source allowlists", () => {

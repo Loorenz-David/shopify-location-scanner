@@ -11,9 +11,9 @@ export const stockReportFixture: StockReportEntryDto[] = [
     thresholds: [
       { state: "low_in_stock", thresholdQuantity: 10 },
       { state: "medium_in_stock", thresholdQuantity: 15 },
-      { state: "normal_in_stock", thresholdQuantity: 20 },
+      { state: "high_in_stock", thresholdQuantity: 20 },
     ],
-    unitsToNormalThreshold: 18,
+    unitsToRestockTarget: 18,
   },
   {
     location: "H1",
@@ -25,9 +25,9 @@ export const stockReportFixture: StockReportEntryDto[] = [
     thresholds: [
       { state: "low_in_stock", thresholdQuantity: 10 },
       { state: "medium_in_stock", thresholdQuantity: 15 },
-      { state: "normal_in_stock", thresholdQuantity: 20 },
+      { state: "high_in_stock", thresholdQuantity: 20 },
     ],
-    unitsToNormalThreshold: 17,
+    unitsToRestockTarget: 17,
   },
   {
     location: "LC1",
@@ -35,13 +35,13 @@ export const stockReportFixture: StockReportEntryDto[] = [
     properties: { shape: ["oval"] },
     mergeKey: "report-state-split",
     quantity: 18,
-    stockState: "normal_in_stock",
+    stockState: "high_in_stock",
     thresholds: [
       { state: "low_in_stock", thresholdQuantity: 10 },
       { state: "medium_in_stock", thresholdQuantity: 15 },
-      { state: "normal_in_stock", thresholdQuantity: 20 },
+      { state: "high_in_stock", thresholdQuantity: 20 },
     ],
-    unitsToNormalThreshold: 2,
+    unitsToRestockTarget: 2,
   },
   {
     location: "H1",
@@ -53,9 +53,9 @@ export const stockReportFixture: StockReportEntryDto[] = [
     thresholds: [
       { state: "low_in_stock", thresholdQuantity: 10 },
       { state: "medium_in_stock", thresholdQuantity: 15 },
-      { state: "normal_in_stock", thresholdQuantity: 20 },
+      { state: "high_in_stock", thresholdQuantity: 20 },
     ],
-    unitsToNormalThreshold: 16,
+    unitsToRestockTarget: 16,
   },
   {
     location: "LC1",
@@ -67,8 +67,8 @@ export const stockReportFixture: StockReportEntryDto[] = [
     thresholds: [
       { state: "low_in_stock", thresholdQuantity: 10 },
       { state: "medium_in_stock", thresholdQuantity: 15 },
-      { state: "normal_in_stock", thresholdQuantity: 20 },
+      { state: "high_in_stock", thresholdQuantity: 20 },
     ],
-    unitsToNormalThreshold: 20,
+    unitsToRestockTarget: 20,
   },
 ];

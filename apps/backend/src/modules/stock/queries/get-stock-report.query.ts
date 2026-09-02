@@ -8,14 +8,12 @@ export const getStockReportQuery = async (
 
   return {
     entries: configurations.map((configuration) => {
-      const normalThreshold = configuration.thresholds.find(
-        ({ state }) => state === "normal_in_stock",
+      // Restock target is the highest configured threshold; thresholds are
+      // validated non-empty on write, so 0 only appears for corrupt rows.
+      const restockTarget = configuration.thresholds.reduce(
+        (highest, { thresholdQuantity }) => Math.max(highest, thresholdQuantity),
+        0,
       );
-      if (normalThreshold === undefined) {
-        throw new Error(
-          `Stock definition ${configuration.id} has no normal_in_stock threshold`,
-        );
-      }
 
       return {
         thresholds: configuration.thresholds.map(({ state, thresholdQuantity }) => ({
@@ -28,9 +26,9 @@ export const getStockReportQuery = async (
         mergeKey: `${configuration.itemCategory}|${configuration.propertiesCanonical}`,
         quantity: configuration.quantity,
         stockState: configuration.stockState,
-        unitsToNormalThreshold: Math.max(
+        unitsToRestockTarget: Math.max(
           0,
-          normalThreshold.thresholdQuantity - configuration.quantity,
+          restockTarget - configuration.quantity,
         ),
       };
     }),

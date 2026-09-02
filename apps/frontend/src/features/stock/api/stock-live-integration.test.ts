@@ -23,7 +23,7 @@ const createPayload: CreateStockConfigurationsRequestDto = {
       thresholds: [
         { state: "low_in_stock", thresholdQuantity: 10 },
         { state: "medium_in_stock", thresholdQuantity: 15 },
-        { state: "normal_in_stock", thresholdQuantity: 20 },
+        { state: "high_in_stock", thresholdQuantity: 20 },
       ],
     },
   ],
@@ -37,7 +37,7 @@ const updatePayload: {
   thresholds: [
     { state: "low_in_stock", thresholdQuantity: 11 },
     { state: "medium_in_stock", thresholdQuantity: 16 },
-    { state: "normal_in_stock", thresholdQuantity: 21 },
+    { state: "high_in_stock", thresholdQuantity: 21 },
   ],
 };
 

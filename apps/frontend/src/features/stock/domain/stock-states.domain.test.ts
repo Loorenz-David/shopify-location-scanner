@@ -12,16 +12,16 @@ const expectedStates: StockState[] = [
   "out_of_stock",
   "low_in_stock",
   "medium_in_stock",
-  "normal_in_stock",
   "high_in_stock",
+  "extra_in_stock",
 ];
 
 const expectedMeta = [
   ["out_of_stock", "Out of stock", "#C0392B", "#FCEAE7", "#D9453D"],
   ["low_in_stock", "Low", "#C4661C", "#FDF0E4", "#E8843C"],
   ["medium_in_stock", "Medium", "#93750F", "#FBF4DC", "#E0B93A"],
-  ["normal_in_stock", "Normal", "#157F58", "#E4F6EC", "#0E8A5F"],
-  ["high_in_stock", "High", "#2D7FC4", "#E6F1FB", "#3B9BF0"],
+  ["high_in_stock", "High", "#157F58", "#E4F6EC", "#0E8A5F"],
+  ["extra_in_stock", "Extra", "#2D7FC4", "#E6F1FB", "#3B9BF0"],
 ] as const;
 
 describe("stock state domain", () => {
@@ -51,9 +51,9 @@ describe("stock state domain", () => {
 
   it("C2(e): sorting distinct states reproduces canonical order", () => {
     const shuffled = [
-      "normal_in_stock",
-      "out_of_stock",
       "high_in_stock",
+      "out_of_stock",
+      "extra_in_stock",
       "medium_in_stock",
       "low_in_stock",
     ] as StockState[];
@@ -73,9 +73,9 @@ describe("stock state domain", () => {
       "out_of_stock",
       "low_in_stock",
       "medium_in_stock",
-      "normal_in_stock",
       "high_in_stock",
-      "high_in_stock",
+      "extra_in_stock",
+      "extra_in_stock",
     ])).toEqual({ out: 1, low: 1, medium: 1, rest: 3 });
   });
 });

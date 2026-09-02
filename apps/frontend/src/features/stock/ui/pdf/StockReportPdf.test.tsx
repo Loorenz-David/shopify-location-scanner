@@ -269,7 +269,7 @@ function twoPageEntries(): StockReportEntryDto[] {
           { state: STOCK_STATES[2], thresholdQuantity: 15 },
           { state: STOCK_STATES[3], thresholdQuantity: 20 },
         ],
-        unitsToNormalThreshold: 20 - (ordinal % 7),
+        unitsToRestockTarget: 20 - (ordinal % 7),
       });
     }
   });
@@ -368,7 +368,7 @@ describe("stock report PDF document", () => {
           { state: STOCK_STATES[2], thresholdQuantity: 95 },
           { state: STOCK_STATES[3], thresholdQuantity: 180 },
         ],
-        unitsToNormalThreshold: 97,
+        unitsToRestockTarget: 97,
       },
     ], {
       ...createDefaultStockFilter(),
@@ -399,7 +399,7 @@ describe("stock report PDF document", () => {
           { state: STOCK_STATES[2], thresholdQuantity: 4 },
           { state: STOCK_STATES[3], thresholdQuantity: 6 },
         ],
-        unitsToNormalThreshold: 6,
+        unitsToRestockTarget: 6,
       },
       {
         location: "H1",
@@ -413,7 +413,7 @@ describe("stock report PDF document", () => {
           { state: STOCK_STATES[2], thresholdQuantity: 6 },
           { state: STOCK_STATES[3], thresholdQuantity: 8 },
         ],
-        unitsToNormalThreshold: 8,
+        unitsToRestockTarget: 8,
       },
       {
         location: "H1",
@@ -427,7 +427,7 @@ describe("stock report PDF document", () => {
           { state: STOCK_STATES[2], thresholdQuantity: 15 },
           { state: STOCK_STATES[3], thresholdQuantity: 20 },
         ],
-        unitsToNormalThreshold: 20,
+        unitsToRestockTarget: 20,
       },
       {
         location: "O2",
@@ -441,7 +441,7 @@ describe("stock report PDF document", () => {
           { state: STOCK_STATES[2], thresholdQuantity: 15 },
           { state: STOCK_STATES[3], thresholdQuantity: 20 },
         ],
-        unitsToNormalThreshold: 20,
+        unitsToRestockTarget: 20,
       },
       {
         location: "H1",
@@ -455,7 +455,7 @@ describe("stock report PDF document", () => {
           { state: STOCK_STATES[2], thresholdQuantity: 15 },
           { state: STOCK_STATES[3], thresholdQuantity: 20 },
         ],
-        unitsToNormalThreshold: 8,
+        unitsToRestockTarget: 8,
       },
     ];
     const model = buildPdfModel(entries, {
@@ -470,6 +470,6 @@ describe("stock report PDF document", () => {
 
     expect(lines).toContain("54");
     expect(lines.filter((line) => line === "8")).toHaveLength(3);
-    expect(text).not.toMatch(/high/i);
+    expect(text).not.toMatch(/extra/i);
   });
 });

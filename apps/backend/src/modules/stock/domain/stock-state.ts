@@ -4,8 +4,8 @@ export const STOCK_STATES = [
   "out_of_stock",
   "low_in_stock",
   "medium_in_stock",
-  "normal_in_stock",
   "high_in_stock",
+  "extra_in_stock",
 ] as const;
 
 export type StockState = (typeof STOCK_STATES)[number];
@@ -13,7 +13,7 @@ export type StockState = (typeof STOCK_STATES)[number];
 export const CONFIGURABLE_THRESHOLD_STATES = [
   "low_in_stock",
   "medium_in_stock",
-  "normal_in_stock",
+  "high_in_stock",
 ] as const;
 
 export type StockThreshold = {
@@ -21,17 +21,39 @@ export type StockThreshold = {
   thresholdQuantity: number;
 };
 
+// Wire shape for threshold input: 0 or null quantity means "this state is not
+// configured" and the entry is dropped before validation.
+export type StockThresholdInput = {
+  state: StockState;
+  thresholdQuantity: number | null;
+};
+
 const configurableStates = new Set<string>(CONFIGURABLE_THRESHOLD_STATES);
 
+const stateIndex = (state: StockState): number => STOCK_STATES.indexOf(state);
+
+const sortByStateIndex = (
+  thresholds: readonly StockThreshold[],
+): StockThreshold[] =>
+  [...thresholds].sort((a, b) => stateIndex(a.state) - stateIndex(b.state));
+
+export const normalizeThresholdInputs = (
+  thresholds: readonly StockThresholdInput[],
+): StockThreshold[] =>
+  thresholds.filter(
+    (threshold): threshold is StockThreshold =>
+      threshold.thresholdQuantity !== null && threshold.thresholdQuantity !== 0,
+  );
+
 export const validateThresholds = (thresholds: readonly StockThreshold[]): void => {
-  if (thresholds.length !== CONFIGURABLE_THRESHOLD_STATES.length) {
-    throw new ValidationError("Exactly one threshold is required for each configurable stock state");
+  if (thresholds.length === 0) {
+    throw new ValidationError("At least one threshold is required");
   }
 
   const seenStates = new Set<string>();
   for (const threshold of thresholds) {
     if (!configurableStates.has(threshold.state)) {
-      throw new ValidationError("Only low, medium, and normal stock states can be configured");
+      throw new ValidationError("Only low, medium, and high stock states can be configured");
     }
     if (seenStates.has(threshold.state)) {
       throw new ValidationError("Each configurable stock state may appear only once");
@@ -42,19 +64,13 @@ export const validateThresholds = (thresholds: readonly StockThreshold[]): void 
     seenStates.add(threshold.state);
   }
 
-  const thresholdByState = new Map(thresholds.map((threshold) => [threshold.state, threshold.thresholdQuantity]));
-  const low = thresholdByState.get("low_in_stock");
-  const medium = thresholdByState.get("medium_in_stock");
-  const normal = thresholdByState.get("normal_in_stock");
-
-  if (low === undefined || medium === undefined || normal === undefined) {
-    throw new ValidationError("All configurable stock states are required");
-  }
-  if (low >= medium) {
-    throw new ValidationError("The low threshold must be lower than the medium threshold");
-  }
-  if (medium >= normal) {
-    throw new ValidationError("The medium threshold must be lower than the normal threshold");
+  const ordered = sortByStateIndex(thresholds);
+  for (let index = 1; index < ordered.length; index += 1) {
+    if (ordered[index - 1]!.thresholdQuantity >= ordered[index]!.thresholdQuantity) {
+      throw new ValidationError(
+        "Threshold quantities must increase from lower to higher stock states",
+      );
+    }
   }
 };
 
@@ -68,19 +84,10 @@ export const calculateStockState = (
     return "out_of_stock";
   }
 
-  const thresholdByState = new Map(thresholds.map((threshold) => [threshold.state, threshold.thresholdQuantity]));
-  const low = thresholdByState.get("low_in_stock") as number;
-  const medium = thresholdByState.get("medium_in_stock") as number;
-  const normal = thresholdByState.get("normal_in_stock") as number;
-
-  if (quantity <= low) {
-    return "low_in_stock";
+  for (const threshold of sortByStateIndex(thresholds)) {
+    if (quantity <= threshold.thresholdQuantity) {
+      return threshold.state;
+    }
   }
-  if (quantity <= medium) {
-    return "medium_in_stock";
-  }
-  if (quantity <= normal) {
-    return "normal_in_stock";
-  }
-  return "high_in_stock";
+  return "extra_in_stock";
 };

@@ -30,7 +30,7 @@ const keyOrder = stockOptionsFixture.propertyOptions.map((option) => option.key)
 const thresholds = [
   { state: "low_in_stock", thresholdQuantity: 10 },
   { state: "medium_in_stock", thresholdQuantity: 15 },
-  { state: "normal_in_stock", thresholdQuantity: 20 },
+  { state: "high_in_stock", thresholdQuantity: 20 },
 ] satisfies StockReportEntryDto["thresholds"];
 
 function entry(
@@ -42,9 +42,9 @@ function entry(
     properties: { wood_type: ["walnut"] },
     mergeKey: "k1",
     quantity: 1,
-    stockState: "normal_in_stock",
+    stockState: "high_in_stock",
     thresholds,
-    unitsToNormalThreshold: 19,
+    unitsToRestockTarget: 19,
     ...overrides,
   };
 }
@@ -63,16 +63,16 @@ function filter(
 function row(overrides: Partial<CompactedReportRow> = {}): CompactedReportRow {
   const location = overrides.locations ?? "H1";
   const quantity = overrides.quantity ?? 1;
-  const unitsToNormalThreshold = overrides.unitsToNormalThreshold ?? 19;
+  const unitsToRestockTarget = overrides.unitsToRestockTarget ?? 19;
   return {
     mergeKey: "k1",
     itemCategory: "Dining Chairs",
     properties: { wood_type: ["walnut"] },
     quantity,
-    unitsToNormalThreshold,
-    stockState: "normal_in_stock",
+    unitsToRestockTarget,
+    stockState: "high_in_stock",
     locations: location,
-    contributions: [{ location, quantity, unitsToNormalThreshold }],
+    contributions: [{ location, quantity, unitsToRestockTarget }],
     ...overrides,
   };
 }
@@ -103,32 +103,32 @@ function groupedView(view: ReportView): ReportLocationGroup[] {
 describe("stock report domain", () => {
   it("C1(a): compacts current and missing quantities and retains sorted contributions", () => {
     const result = compactEntries([
-      entry({ location: "LC1", quantity: 2, unitsToNormalThreshold: 18 }),
-      entry({ location: "H1", quantity: 3, unitsToNormalThreshold: 17 }),
+      entry({ location: "LC1", quantity: 2, unitsToRestockTarget: 18 }),
+      entry({ location: "H1", quantity: 3, unitsToRestockTarget: 17 }),
     ]);
 
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
       mergeKey: "k1",
       quantity: 5,
-      unitsToNormalThreshold: 35,
+      unitsToRestockTarget: 35,
       locations: "H1 · LC1",
       contributions: [
-        { location: "H1", quantity: 3, unitsToNormalThreshold: 17 },
-        { location: "LC1", quantity: 2, unitsToNormalThreshold: 18 },
+        { location: "H1", quantity: 3, unitsToRestockTarget: 17 },
+        { location: "LC1", quantity: 2, unitsToRestockTarget: 18 },
       ],
     });
 
     expect(compactEntries([
-      entry({ location: "LC1", quantity: 2, unitsToNormalThreshold: 18 }),
-      entry({ location: "LC1", quantity: 3, unitsToNormalThreshold: 17 }),
+      entry({ location: "LC1", quantity: 2, unitsToRestockTarget: 18 }),
+      entry({ location: "LC1", quantity: 3, unitsToRestockTarget: 17 }),
     ])[0]).toMatchObject({
       quantity: 5,
-      unitsToNormalThreshold: 35,
+      unitsToRestockTarget: 35,
       locations: "LC1",
       contributions: [
-        { location: "LC1", quantity: 2, unitsToNormalThreshold: 18 },
-        { location: "LC1", quantity: 3, unitsToNormalThreshold: 17 },
+        { location: "LC1", quantity: 2, unitsToRestockTarget: 18 },
+        { location: "LC1", quantity: 3, unitsToRestockTarget: 17 },
       ],
     });
   });
@@ -139,7 +139,7 @@ describe("stock report domain", () => {
       entry({ mergeKey: "a", stockState: "out_of_stock", quantity: 2 }),
       entry({ mergeKey: "b", stockState: "low_in_stock", quantity: 3 }),
       entry({ mergeKey: "b", stockState: "low_in_stock", quantity: 4 }),
-      entry({ mergeKey: "c", stockState: "normal_in_stock", quantity: 8 }),
+      entry({ mergeKey: "c", stockState: "high_in_stock", quantity: 8 }),
     ];
     const before = new Map<StockState, number>();
     const after = new Map<StockState, number>();
@@ -158,7 +158,7 @@ describe("stock report domain", () => {
     const result = compactEntries([
       entry({ location: "LC1", mergeKey: "a", stockState: "low_in_stock" }),
       entry({ location: "H1", mergeKey: "a", stockState: "low_in_stock" }),
-      entry({ location: "H1", mergeKey: "a", stockState: "normal_in_stock" }),
+      entry({ location: "H1", mergeKey: "a", stockState: "high_in_stock" }),
     ]);
     const pairs = result.map((item) => `${item.mergeKey}\u001f${item.stockState}`);
 
@@ -183,25 +183,25 @@ describe("stock report domain", () => {
   it("C1(e): derives missing units from the state-keyed normal threshold during rollout", () => {
     expect(missingQuantityForEntry(entry({
       quantity: 18,
-      unitsToNormalThreshold: undefined,
+      unitsToRestockTarget: undefined,
     }))).toBe(2);
     expect(missingQuantityForEntry(entry({
       quantity: 25,
-      unitsToNormalThreshold: undefined,
+      unitsToRestockTarget: undefined,
     }))).toBe(0);
   });
 
   it("C2: keeps same-key entries in different states as separate rows", () => {
     const result = compactEntries([
       entry({ location: "LC1", mergeKey: "same", quantity: 2, stockState: "low_in_stock" }),
-      entry({ location: "H1", mergeKey: "same", quantity: 18, stockState: "normal_in_stock" }),
+      entry({ location: "H1", mergeKey: "same", quantity: 18, stockState: "high_in_stock" }),
     ]);
 
     expect(result).toHaveLength(2);
     expect(result.map(({ quantity, stockState }) => ({ quantity, stockState }))).toEqual(
       expect.arrayContaining([
         { quantity: 2, stockState: "low_in_stock" },
-        { quantity: 18, stockState: "normal_in_stock" },
+        { quantity: 18, stockState: "high_in_stock" },
       ]),
     );
   });
@@ -240,11 +240,11 @@ describe("stock report domain", () => {
     const compare = makeCompactRowComparator(keyOrder);
     const left = row({
       locations: "H1",
-      contributions: [{ location: "H1", quantity: 1, unitsToNormalThreshold: 19 }],
+      contributions: [{ location: "H1", quantity: 1, unitsToRestockTarget: 19 }],
     });
     const right = row({
       locations: "LC1",
-      contributions: [{ location: "LC1", quantity: 1, unitsToNormalThreshold: 19 }],
+      contributions: [{ location: "LC1", quantity: 1, unitsToRestockTarget: 19 }],
     });
 
     expect(compare(left, right)).toBeLessThan(0);
@@ -275,8 +275,8 @@ describe("stock report domain", () => {
 
   it("C4(d): uses location code points as the final group tiebreak", () => {
     expect(compareGroups(
-      group("H1", [entry({ stockState: "normal_in_stock" })]),
-      group("LC1", [entry({ stockState: "normal_in_stock" })]),
+      group("H1", [entry({ stockState: "high_in_stock" })]),
+      group("LC1", [entry({ stockState: "high_in_stock" })]),
     )).toBeLessThan(0);
   });
 
@@ -323,7 +323,7 @@ describe("stock report domain", () => {
 
   it("C5(a): state filtering excludes non-selected states", () => {
     expect(applyStockFilters(
-      [entry({ stockState: "low_in_stock" }), entry({ stockState: "normal_in_stock" })],
+      [entry({ stockState: "low_in_stock" }), entry({ stockState: "high_in_stock" })],
       filter({ states: new Set(["low_in_stock"]) }),
     ).map(({ stockState }) => stockState)).toEqual(["low_in_stock"]);
   });
@@ -337,19 +337,19 @@ describe("stock report domain", () => {
 
   it("C5(c): compact location filtering re-quantifies current and missing contributions", () => {
     const [source] = compactEntries([
-      entry({ location: "LC1", quantity: 2, unitsToNormalThreshold: 18 }),
-      entry({ location: "H1", quantity: 18, unitsToNormalThreshold: 2 }),
+      entry({ location: "LC1", quantity: 2, unitsToRestockTarget: 18 }),
+      entry({ location: "H1", quantity: 18, unitsToRestockTarget: 2 }),
     ]);
     const [result] = applyStockFilters(source ? [source] : [], filter({ locations: new Set(["LC1"]) }));
 
     expect(result).toMatchObject({
       quantity: 2,
-      unitsToNormalThreshold: 18,
+      unitsToRestockTarget: 18,
       locations: "LC1",
       contributions: [{
         location: "LC1",
         quantity: 2,
-        unitsToNormalThreshold: 18,
+        unitsToRestockTarget: 18,
       }],
     });
   });

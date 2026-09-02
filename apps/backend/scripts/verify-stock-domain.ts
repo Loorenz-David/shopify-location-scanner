@@ -12,6 +12,7 @@ type DomainModules = {
   CONFIGURABLE_THRESHOLD_STATES: readonly string[];
   calculateStockState: (quantity: number, thresholds: readonly { state: string; thresholdQuantity: number }[]) => string;
   validateThresholds: (thresholds: readonly { state: string; thresholdQuantity: number }[]) => void;
+  normalizeThresholdInputs: (thresholds: readonly { state: string; thresholdQuantity: number | null }[]) => { state: string; thresholdQuantity: number }[];
   tokenizePropertyValue: (stored: string) => Set<string>;
   normalizeCriteria: (input: CriteriaInput) => Criteria;
   canonicalCriteriaString: (criteria: Criteria) => string;
@@ -267,16 +268,16 @@ const cases: readonly VerificationCase[] = [
     [10, "low_in_stock"],
     [11, "medium_in_stock"],
     [15, "medium_in_stock"],
-    [16, "normal_in_stock"],
-    [20, "normal_in_stock"],
-    [21, "high_in_stock"],
+    [16, "high_in_stock"],
+    [20, "high_in_stock"],
+    [21, "extra_in_stock"],
   ].map(([quantity, expected], index) => ({
     id: `C6(${String.fromCharCode(97 + index)})`,
     run: (m: DomainModules) => assert(
       m.calculateStockState(quantity as number, [
         { state: "low_in_stock", thresholdQuantity: 10 },
         { state: "medium_in_stock", thresholdQuantity: 15 },
-        { state: "normal_in_stock", thresholdQuantity: 20 },
+        { state: "high_in_stock", thresholdQuantity: 20 },
       ]) === expected,
       `quantity ${quantity} produced the wrong state`,
     ),
@@ -284,10 +285,37 @@ const cases: readonly VerificationCase[] = [
   {
     id: "C7(a)",
     run: (m) => {
+      // Any non-empty subset of configurable states is valid; empty is not.
       for (const missing of m.CONFIGURABLE_THRESHOLD_STATES) {
         const thresholds = m.CONFIGURABLE_THRESHOLD_STATES.filter((state) => state !== missing).map((state, index) => ({ state, thresholdQuantity: index + 1 }));
-        expectValidationError(() => m.validateThresholds(thresholds));
+        m.validateThresholds(thresholds);
       }
+      for (const only of m.CONFIGURABLE_THRESHOLD_STATES) {
+        m.validateThresholds([{ state: only, thresholdQuantity: 1 }]);
+      }
+      expectValidationError(() => m.validateThresholds([]));
+    },
+  },
+  {
+    id: "C7(a2)",
+    run: (m) => {
+      // A single high threshold of 1 splits the range into out / high / extra.
+      const thresholds = [{ state: "high_in_stock", thresholdQuantity: 1 }];
+      assert(m.calculateStockState(0, thresholds) === "out_of_stock", "quantity 0 with a single threshold was not out_of_stock");
+      assert(m.calculateStockState(1, thresholds) === "high_in_stock", "quantity 1 with high threshold 1 was not high_in_stock");
+      assert(m.calculateStockState(2, thresholds) === "extra_in_stock", "quantity 2 with high threshold 1 was not extra_in_stock");
+    },
+  },
+  {
+    id: "C7(a3)",
+    run: (m) => {
+      // 0 and null quantities mean "not configured" and are dropped.
+      const normalized = m.normalizeThresholdInputs([
+        { state: "low_in_stock", thresholdQuantity: 0 },
+        { state: "medium_in_stock", thresholdQuantity: null },
+        { state: "high_in_stock", thresholdQuantity: 4 },
+      ]);
+      equalJson(normalized, [{ state: "high_in_stock", thresholdQuantity: 4 }]);
     },
   },
   {
@@ -295,7 +323,7 @@ const cases: readonly VerificationCase[] = [
     run: (m) => expectValidationError(() => m.validateThresholds([
       { state: "low_in_stock", thresholdQuantity: 10 },
       { state: "low_in_stock", thresholdQuantity: 15 },
-      { state: "normal_in_stock", thresholdQuantity: 20 },
+      { state: "high_in_stock", thresholdQuantity: 20 },
     ])),
   },
   {
@@ -304,7 +332,7 @@ const cases: readonly VerificationCase[] = [
     run: (m) => expectValidationError(() => m.validateThresholds([
       { state: "low_in_stock", thresholdQuantity: 0 },
       { state: "medium_in_stock", thresholdQuantity: 15 },
-      { state: "normal_in_stock", thresholdQuantity: 20 },
+      { state: "high_in_stock", thresholdQuantity: 20 },
     ])),
   },
   {
@@ -313,7 +341,7 @@ const cases: readonly VerificationCase[] = [
     run: (m) => expectValidationError(() => m.validateThresholds([
       { state: "low_in_stock", thresholdQuantity: -1 },
       { state: "medium_in_stock", thresholdQuantity: 15 },
-      { state: "normal_in_stock", thresholdQuantity: 20 },
+      { state: "high_in_stock", thresholdQuantity: 20 },
     ])),
   },
   {
@@ -322,7 +350,7 @@ const cases: readonly VerificationCase[] = [
     run: (m) => expectValidationError(() => m.validateThresholds([
       { state: "low_in_stock", thresholdQuantity: 10.5 },
       { state: "medium_in_stock", thresholdQuantity: 15 },
-      { state: "normal_in_stock", thresholdQuantity: 20 },
+      { state: "high_in_stock", thresholdQuantity: 20 },
     ])),
   },
   {
@@ -330,7 +358,7 @@ const cases: readonly VerificationCase[] = [
     run: (m) => expectValidationError(() => m.validateThresholds([
       { state: "low_in_stock", thresholdQuantity: 10 },
       { state: "medium_in_stock", thresholdQuantity: 10 },
-      { state: "normal_in_stock", thresholdQuantity: 20 },
+      { state: "high_in_stock", thresholdQuantity: 20 },
     ])),
   },
   {
@@ -338,7 +366,7 @@ const cases: readonly VerificationCase[] = [
     run: (m) => expectValidationError(() => m.validateThresholds([
       { state: "low_in_stock", thresholdQuantity: 10 },
       { state: "medium_in_stock", thresholdQuantity: 20 },
-      { state: "normal_in_stock", thresholdQuantity: 20 },
+      { state: "high_in_stock", thresholdQuantity: 20 },
     ])),
   },
   {
@@ -346,17 +374,17 @@ const cases: readonly VerificationCase[] = [
     run: (m) => m.validateThresholds([
       { state: "low_in_stock", thresholdQuantity: 10 },
       { state: "medium_in_stock", thresholdQuantity: 15 },
-      { state: "normal_in_stock", thresholdQuantity: 20 },
+      { state: "high_in_stock", thresholdQuantity: 20 },
     ]),
   },
   {
     id: "C7(g)",
     run: (m) => {
-      for (const invalidState of ["out_of_stock", "high_in_stock"]) {
+      for (const invalidState of ["out_of_stock", "extra_in_stock"]) {
         expectValidationError(() => m.validateThresholds([
           { state: invalidState, thresholdQuantity: 5 },
           { state: "medium_in_stock", thresholdQuantity: 15 },
-          { state: "normal_in_stock", thresholdQuantity: 20 },
+          { state: "high_in_stock", thresholdQuantity: 20 },
         ]));
       }
     },
@@ -457,6 +485,7 @@ const loadModules = async (): Promise<DomainModules> => {
     CONFIGURABLE_THRESHOLD_STATES: stockState.CONFIGURABLE_THRESHOLD_STATES,
     calculateStockState: (quantity, thresholds) => stockState.calculateStockState(quantity, thresholds as Parameters<typeof stockState.calculateStockState>[1]),
     validateThresholds: (thresholds) => stockState.validateThresholds(thresholds as Parameters<typeof stockState.validateThresholds>[0]),
+    normalizeThresholdInputs: (thresholds) => stockState.normalizeThresholdInputs(thresholds as Parameters<typeof stockState.normalizeThresholdInputs>[0]),
     tokenizePropertyValue: propertyCriteria.tokenizePropertyValue,
     normalizeCriteria: propertyCriteria.normalizeCriteria,
     canonicalCriteriaString: propertyCriteria.canonicalCriteriaString,

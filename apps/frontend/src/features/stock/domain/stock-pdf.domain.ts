@@ -70,7 +70,7 @@ function contributionForEntry(entry: StockReportEntryDto): ReportContribution[] 
   return [{
     location: entry.location,
     quantity: entry.quantity,
-    unitsToNormalThreshold: missingQuantityForEntry(entry),
+    unitsToRestockTarget: missingQuantityForEntry(entry),
   }];
 }
 
@@ -80,7 +80,7 @@ function toPdfRow(entry: StockReportEntryDto): StockPdfRow {
     itemCategory: entry.itemCategory,
     properties: entry.properties,
     quantity: entry.quantity,
-    unitsToNormalThreshold: missingQuantityForEntry(entry),
+    unitsToRestockTarget: missingQuantityForEntry(entry),
     stockState: entry.stockState,
     locations: entry.location,
     contributions: contributionForEntry(entry),
@@ -128,7 +128,7 @@ function summaryCounts(
     sections.map((section) => [
       section.state,
       section.rows.reduce(
-        (total, row) => total + row.unitsToNormalThreshold,
+        (total, row) => total + row.unitsToRestockTarget,
         0,
       ),
     ]),

@@ -20,7 +20,7 @@ export interface CompactedReportRow {
   itemCategory: string;
   properties: StockPropertiesDto;
   quantity: number;
-  unitsToNormalThreshold: number;
+  unitsToRestockTarget: number;
   stockState: StockState;
   locations: string;
   contributions: ReportContribution[];
@@ -29,7 +29,7 @@ export interface CompactedReportRow {
 export interface ReportContribution {
   location: string;
   quantity: number;
-  unitsToNormalThreshold: number;
+  unitsToRestockTarget: number;
 }
 
 export interface ReportLocationGroup {
@@ -82,9 +82,9 @@ export interface WizardDraft {
 }
 
 export interface ThresholdDraft {
-  low: number;
-  medium: number;
-  normal: number;
+  low: number | null;
+  medium: number | null;
+  high: number | null;
 }
 
 export type StockInternalView =

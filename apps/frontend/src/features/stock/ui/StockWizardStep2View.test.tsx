@@ -63,7 +63,7 @@ async function openCreateFromLocation(category: string) {
   await screen.findByRole("heading", { name: "Stock thresholds" });
 }
 
-function limitInput(row: "Low" | "Medium" | "Normal") {
+function limitInput(row: "Low" | "Medium" | "High") {
   return screen.getByRole("textbox", { name: `${row} limit` });
 }
 
@@ -71,14 +71,14 @@ function displayedTriple(): [number, number, number] {
   return [
     Number((limitInput("Low") as HTMLInputElement).value),
     Number((limitInput("Medium") as HTMLInputElement).value),
-    Number((limitInput("Normal") as HTMLInputElement).value),
+    Number((limitInput("High") as HTMLInputElement).value),
   ];
 }
 
-function expectStrictLadder([low, medium, normal]: [number, number, number]) {
+function expectStrictLadder([low, medium, high]: [number, number, number]) {
   expect(low).toBeGreaterThanOrEqual(1);
   expect(low).toBeLessThan(medium);
-  expect(medium).toBeLessThan(normal);
+  expect(medium).toBeLessThan(high);
 }
 
 function ladderRow(row: string): HTMLElement {
@@ -109,15 +109,15 @@ describe("StockWizardStep2View (screen 09)", () => {
     expect(screen.getAllByRole("button", { name: /^Decrease / })).toHaveLength(3);
     expect(screen.getAllByRole("button", { name: /^Increase / })).toHaveLength(3);
     expect(screen.getAllByTestId("stock-ladder-row").map((row) => row.dataset.row)).toEqual([
+      "extra",
       "high",
-      "normal",
       "medium",
       "low",
       "out",
     ]);
 
     // (b) the derived rows have no input of any kind
-    for (const derived of ["high", "out"]) {
+    for (const derived of ["extra", "out"]) {
       const row = ladderRow(derived);
       expect(within(row).queryAllByRole("textbox")).toHaveLength(0);
       expect(within(row).queryAllByRole("spinbutton")).toHaveLength(0);
@@ -128,7 +128,7 @@ describe("StockWizardStep2View (screen 09)", () => {
 
     // defaults from the controller
     expect(displayedTriple()).toEqual([10, 15, 20]);
-    expect(ladderRow("high")).toHaveTextContent("21 and above");
+    expect(ladderRow("extra")).toHaveTextContent("21 and above");
     expect(ladderRow("out")).toHaveTextContent("nothing on the shelf");
 
     // (c) a stepper tap moves one row by one and leaves the others alone
@@ -149,10 +149,10 @@ describe("StockWizardStep2View (screen 09)", () => {
     expectStrictLadder(displayedTriple());
 
     // derived rows follow the three values
-    expect(ladderRow("high")).toHaveTextContent("21 and above");
-    await userEvent.click(screen.getByRole("button", { name: "Increase normal" }));
+    expect(ladderRow("extra")).toHaveTextContent("21 and above");
+    await userEvent.click(screen.getByRole("button", { name: "Increase high" }));
     expect(displayedTriple()).toEqual([15, 16, 21]);
-    expect(ladderRow("high")).toHaveTextContent("22 and above");
+    expect(ladderRow("extra")).toHaveTextContent("22 and above");
 
     // non-numeric typed input reverts, the ladder is untouched
     await userEvent.clear(limitInput("Medium"));
@@ -171,7 +171,7 @@ describe("StockWizardStep2View (screen 09)", () => {
   it("C5(create): Save instance posts the draft as a single-entry batch and pops to the location detail", async () => {
     const createSpy = vi.spyOn(stockApi, "createStockConfigurations");
     await openCreateFromLocation("Sofas");
-    await userEvent.click(screen.getByRole("button", { name: "Increase normal" }));
+    await userEvent.click(screen.getByRole("button", { name: "Increase high" }));
     const draft = structuredClone(useStockWizardStore.getState().draft!);
     expect(draft).toMatchObject({ location: LOCATION, itemCategory: "Sofas", properties: {} });
 
@@ -248,7 +248,7 @@ describe("StockWizardStep2View (screen 09)", () => {
         }),
       );
     await openCreateFromLocation("Sofas");
-    await userEvent.click(screen.getByRole("button", { name: "Increase normal" }));
+    await userEvent.click(screen.getByRole("button", { name: "Increase high" }));
     const tripleBefore = displayedTriple();
     const draftBefore = structuredClone(useStockWizardStore.getState().draft);
 

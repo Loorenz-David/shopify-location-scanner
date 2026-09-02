@@ -46,13 +46,13 @@ const equalJson = (actual: unknown, expected: unknown): void => {
 const thresholds = [
   { state: "low_in_stock" as const, thresholdQuantity: 1 },
   { state: "medium_in_stock" as const, thresholdQuantity: 3 },
-  { state: "normal_in_stock" as const, thresholdQuantity: 5 },
+  { state: "high_in_stock" as const, thresholdQuantity: 5 },
 ];
 
 const restockThresholds = [
   { state: "low_in_stock" as const, thresholdQuantity: 10 },
   { state: "medium_in_stock" as const, thresholdQuantity: 15 },
-  { state: "normal_in_stock" as const, thresholdQuantity: 20 },
+  { state: "high_in_stock" as const, thresholdQuantity: 20 },
 ];
 
 type VerificationCreateInput = Omit<
@@ -72,7 +72,7 @@ type Fixture = {
 
 type RoundTwoReportEntry = StockReportEntry & {
   thresholds: Array<{ state: string; thresholdQuantity: number }>;
-  unitsToNormalThreshold: number;
+  unitsToRestockTarget: number;
 };
 
 const main = async (): Promise<void> => {
@@ -401,7 +401,7 @@ const main = async (): Promise<void> => {
       "quantity",
       "stockState",
       "thresholds",
-      "unitsToNormalThreshold",
+      "unitsToRestockTarget",
     ];
     for (const entry of report.entries) {
       equalJson(Object.keys(entry).sort(), expectedKeys.sort());
@@ -457,25 +457,25 @@ const main = async (): Promise<void> => {
   const verifyC4a = (report: StockReportDto, fixture: Fixture): void => {
     const entry = restockEntryFor(report, fixture, "lowQuantity");
     assert(entry.stockState === "low_in_stock", `C4(a): expected low_in_stock, got ${entry.stockState}`);
-    assert(entry.unitsToNormalThreshold === 13, `C4(a): expected 13 units, got ${entry.unitsToNormalThreshold}`);
+    assert(entry.unitsToRestockTarget === 13, `C4(a): expected 13 units, got ${entry.unitsToRestockTarget}`);
   };
 
   const verifyC4b = (report: StockReportDto, fixture: Fixture): void => {
     const entry = restockEntryFor(report, fixture, "zeroQuantity");
     assert(entry.stockState === "out_of_stock", `C4(b): expected out_of_stock, got ${entry.stockState}`);
-    assert(entry.unitsToNormalThreshold === 20, `C4(b): expected 20 units, got ${entry.unitsToNormalThreshold}`);
+    assert(entry.unitsToRestockTarget === 20, `C4(b): expected 20 units, got ${entry.unitsToRestockTarget}`);
   };
 
   const verifyC4c = (report: StockReportDto, fixture: Fixture): void => {
     const entry = restockEntryFor(report, fixture, "normalQuantity");
-    assert(entry.stockState === "normal_in_stock", `C4(c): expected normal_in_stock, got ${entry.stockState}`);
-    assert(entry.unitsToNormalThreshold === 2, `C4(c): expected 2 units, got ${entry.unitsToNormalThreshold}`);
+    assert(entry.stockState === "high_in_stock", `C4(c): expected high_in_stock, got ${entry.stockState}`);
+    assert(entry.unitsToRestockTarget === 2, `C4(c): expected 2 units, got ${entry.unitsToRestockTarget}`);
   };
 
   const verifyC4d = (report: StockReportDto, fixture: Fixture): void => {
     const entry = restockEntryFor(report, fixture, "highQuantity");
-    assert(entry.stockState === "high_in_stock", `C4(d): expected high_in_stock, got ${entry.stockState}`);
-    assert(entry.unitsToNormalThreshold === 0, `C4(d): expected 0 units, got ${entry.unitsToNormalThreshold}`);
+    assert(entry.stockState === "extra_in_stock", `C4(d): expected extra_in_stock, got ${entry.stockState}`);
+    assert(entry.unitsToRestockTarget === 0, `C4(d): expected 0 units, got ${entry.unitsToRestockTarget}`);
   };
 
   const verifyC4e = (report: StockReportDto, fixture: Fixture): void => {
@@ -485,7 +485,7 @@ const main = async (): Promise<void> => {
     );
     assert(thresholdsByState.get("low_in_stock") === 10, "C4(e): low threshold was not 10");
     assert(thresholdsByState.get("medium_in_stock") === 15, "C4(e): medium threshold was not 15");
-    assert(thresholdsByState.get("normal_in_stock") === 20, "C4(e): normal threshold was not 20");
+    assert(thresholdsByState.get("high_in_stock") === 20, "C4(e): normal threshold was not 20");
   };
 
   let fixture: Fixture | undefined;

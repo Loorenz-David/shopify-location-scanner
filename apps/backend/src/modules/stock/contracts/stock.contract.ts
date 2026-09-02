@@ -9,6 +9,7 @@ import type {
 import type {
   StockState,
   StockThreshold,
+  StockThresholdInput,
 } from "../domain/stock-state.js";
 import { CONFIGURABLE_THRESHOLD_STATES } from "../domain/stock-state.js";
 import { normalizeCriteria } from "../domain/property-criteria.js";
@@ -18,6 +19,7 @@ export type {
   StockCriteriaInput,
   StockState,
   StockThreshold,
+  StockThresholdInput,
 };
 
 const stockCriteriaInputSchema = z.record(
@@ -25,9 +27,11 @@ const stockCriteriaInputSchema = z.record(
   z.union([z.string(), z.array(z.string()), z.null()]),
 );
 
+// A 0 or null quantity means "delete / do not configure this state"; commands
+// drop those entries (normalizeThresholdInputs) before domain validation.
 const stockThresholdSchema = z.object({
   state: z.enum(CONFIGURABLE_THRESHOLD_STATES),
-  thresholdQuantity: z.number().int(),
+  thresholdQuantity: z.number().int().nullable(),
 });
 
 const isItemCategory = (value: string): value is ItemCategory =>
@@ -94,31 +98,15 @@ const addCriteriaValidationIssue = (
   }
 };
 
-const addThresholdValidationIssue = (
-  thresholds: readonly StockThreshold[],
-  ctx: z.RefinementCtx,
-): void => {
-  // Zod owns the threshold shape and arity. Domain validation is deliberately
-  // called by commands so duplicate and ordering semantics are checked once.
-  if (thresholds.length !== 3) {
-    ctx.addIssue({
-      code: "custom",
-      path: ["thresholds"],
-      message: "Exactly three thresholds are required",
-    });
-  }
-};
-
 export const CreateLocationStockSchema = z
   .object({
     location: z.string().trim().min(1),
     itemCategory: z.enum(ITEM_CATEGORIES),
     properties: stockCriteriaInputSchema.optional(),
-    thresholds: z.array(stockThresholdSchema),
+    thresholds: z.array(stockThresholdSchema).min(1),
   })
   .superRefine((value, ctx) => {
     addCriteriaValidationIssue(value.itemCategory, value.properties, ctx);
-    addThresholdValidationIssue(value.thresholds, ctx);
   });
 
 export const CreateLocationStocksSchema = z.object({
@@ -130,12 +118,7 @@ export const UpdateLocationStockSchema = z
     location: z.string().trim().min(1).optional(),
     itemCategory: z.enum(ITEM_CATEGORIES).optional(),
     properties: stockCriteriaInputSchema.optional(),
-    thresholds: z.array(stockThresholdSchema).optional(),
-  })
-  .superRefine((value, ctx) => {
-    if (value.thresholds !== undefined) {
-      addThresholdValidationIssue(value.thresholds, ctx);
-    }
+    thresholds: z.array(stockThresholdSchema).min(1).optional(),
   });
 
 export type CreateLocationStockInput = z.infer<typeof CreateLocationStockSchema>;
@@ -167,7 +150,8 @@ export type LocationStock = {
   thresholds: StockThreshold[];
 };
 
-export type LocationStockCreateData = CreateLocationStockInput & {
+export type LocationStockCreateData = Omit<CreateLocationStockInput, "thresholds"> & {
+  thresholds: StockThreshold[];
   createdByUsername: string;
   updatedByUsername: string;
 };
@@ -198,7 +182,7 @@ export type StockReportEntry = {
   quantity: number;
   stockState: StockState;
   thresholds: Array<{ state: StockState; thresholdQuantity: number }>;
-  unitsToNormalThreshold: number;
+  unitsToRestockTarget: number;
 };
 
 export type StockReportDto = {

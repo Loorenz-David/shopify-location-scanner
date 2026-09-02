@@ -5,6 +5,10 @@ import { getStockStateMeta, STOCK_STATES } from "../domain/stock-states.domain";
 import {
   commitThreshold,
   deriveBands,
+  stateForRow,
+  THRESHOLD_ROWS,
+  thresholdDraftFrom,
+  thresholdDtosFrom,
 } from "../domain/stock-thresholds.domain";
 import type { ThresholdRow } from "../domain/stock-thresholds.domain";
 import type { StockThresholdDto } from "../types/stock.dto";
@@ -13,40 +17,6 @@ import type { StockState, ThresholdDraft } from "../types/stock.types";
 interface StockThresholdLadderProps {
   thresholds: readonly StockThresholdDto[];
   onChange: (thresholds: StockThresholdDto[]) => void;
-}
-
-// The wire carries thresholds keyed by state; commitThreshold works on the three limits
-// in ladder order. Lookup by MC1 position (1 = low, 2 = medium, 3 = normal), never by
-// array position — the contract fixes the set, not the order. Same adapter shape as
-// ui/StockThresholdStrip.tsx, here in both directions (plan 6 Notes).
-function limitFor(
-  thresholds: readonly StockThresholdDto[],
-  state: StockState,
-): number {
-  const match = thresholds.find((threshold) => threshold.state === state);
-  if (!match) {
-    throw new Error(`Stock configuration is missing a threshold for ${state}`);
-  }
-
-  return match.thresholdQuantity;
-}
-
-function thresholdDraftFrom(
-  thresholds: readonly StockThresholdDto[],
-): ThresholdDraft {
-  return {
-    low: limitFor(thresholds, STOCK_STATES[1]),
-    medium: limitFor(thresholds, STOCK_STATES[2]),
-    normal: limitFor(thresholds, STOCK_STATES[3]),
-  };
-}
-
-function thresholdDtosFrom(draft: ThresholdDraft): StockThresholdDto[] {
-  return [
-    { state: STOCK_STATES[1], thresholdQuantity: draft.low },
-    { state: STOCK_STATES[2], thresholdQuantity: draft.medium },
-    { state: STOCK_STATES[3], thresholdQuantity: draft.normal },
-  ];
 }
 
 interface DerivedRowProps {
@@ -92,10 +62,14 @@ function EditableRow({ state, row, draft, onCommit }: EditableRowProps) {
   const meta = getStockStateMeta(state);
   const value = draft[row];
   // While the field is focused the user's text is shown as typed; it is committed on
-  // blur / Enter through commitThreshold, which clamps to the floor or reverts junk.
+  // blur / Enter through commitThreshold, which clamps, turns the row off on 0 or an
+  // empty field, or reverts junk.
   const [typed, setTyped] = useState<string | null>(null);
-  // "−" is disabled at the row's absolute floor: when stepping down changes nothing.
-  const isAtFloor = commitThreshold(draft, row, value - 1)[row] === value;
+  // "−" is disabled when stepping down changes nothing: the row is already off, or it
+  // holds the only remaining threshold at its floor.
+  const isStepDownInert =
+    value === null ||
+    commitThreshold(draft, row, value - 1)[row] === value;
   const rowName = row.charAt(0).toUpperCase() + row.slice(1);
 
   const commitTyped = () => {
@@ -115,7 +89,7 @@ function EditableRow({ state, row, draft, onCommit }: EditableRowProps) {
           {meta.label}
         </span>
         <span className="text-[12px] text-[var(--stock-body)]">
-          up to {value}
+          {value === null ? "off" : `up to ${value}`}
         </span>
       </div>
       <div className="flex flex-shrink-0 items-center gap-1 rounded-[18px] bg-[var(--stock-track)] p-1">
@@ -123,8 +97,12 @@ function EditableRow({ state, row, draft, onCommit }: EditableRowProps) {
           type="button"
           className="grid h-11 w-11 place-items-center rounded-[15px] bg-[var(--stock-surface)] text-[18px] font-medium leading-none text-[var(--stock-heading)] shadow-[0_4px_10px_rgba(31,60,52,0.08)] disabled:opacity-40 disabled:shadow-none"
           aria-label={`Decrease ${row}`}
-          disabled={isAtFloor}
-          onClick={() => onCommit(row, value - 1)}
+          disabled={isStepDownInert}
+          onClick={() => {
+            if (value !== null) {
+              onCommit(row, value - 1);
+            }
+          }}
         >
           −
         </button>
@@ -133,8 +111,9 @@ function EditableRow({ state, row, draft, onCommit }: EditableRowProps) {
           inputMode="numeric"
           className="stock-mono w-[52px] bg-transparent text-center text-[15px] font-medium text-[var(--stock-heading)] outline-none"
           aria-label={`${rowName} limit`}
-          value={typed ?? String(value)}
-          onFocus={() => setTyped(String(value))}
+          placeholder="off"
+          value={typed ?? (value === null ? "" : String(value))}
+          onFocus={() => setTyped(value === null ? "" : String(value))}
           onChange={(event) => setTyped(event.target.value)}
           onBlur={commitTyped}
           onKeyDown={(event) => {
@@ -147,7 +126,7 @@ function EditableRow({ state, row, draft, onCommit }: EditableRowProps) {
           type="button"
           className="grid h-11 w-11 place-items-center rounded-[15px] bg-[var(--stock-surface)] text-[18px] font-medium leading-none text-[var(--stock-heading)] shadow-[0_4px_10px_rgba(31,60,52,0.08)]"
           aria-label={`Increase ${row}`}
-          onClick={() => onCommit(row, value + 1)}
+          onClick={() => onCommit(row, value === null ? 1 : value + 1)}
         >
           +
         </button>
@@ -157,70 +136,51 @@ function EditableRow({ state, row, draft, onCommit }: EditableRowProps) {
 }
 
 // Screen 09's ladder card: highest state on top, an 8px colour rail down the left,
-// derived High / Out of stock rows with no input, three editable rows bound to
-// commitThreshold (MC7 / D14). The rail cells share the grid rows, so each colour
-// block is exactly as tall as its row.
+// derived Extra / Out of stock rows with no input, three editable rows bound to
+// commitThreshold. A row showing "off" has no threshold; 0 or a cleared field turns a
+// row off (the last configured row stays). The rail cells share the grid rows, so
+// each colour block is exactly as tall as its row.
 export function StockThresholdLadder({
   thresholds,
   onChange,
 }: StockThresholdLadderProps) {
   const draft = thresholdDraftFrom(thresholds);
-  const bands = deriveBands(draft.low, draft.medium, draft.normal);
-  const highBand = bands[4]!;
+  const bands = deriveBands(draft);
+  const extraBand = bands.at(-1)!;
   const outBand = bands[0]!;
 
   const commit = (row: ThresholdRow, value: number | string) => {
     onChange(thresholdDtosFrom(commitThreshold(draft, row, value)));
   };
 
+  const editableRows = [...THRESHOLD_ROWS]
+    .reverse()
+    .map((row) => ({
+      key: row,
+      state: stateForRow(row),
+      content: (
+        <EditableRow
+          state={stateForRow(row)}
+          row={row}
+          draft={draft}
+          onCommit={commit}
+        />
+      ),
+    }));
+
   const rows: { key: string; state: StockState; content: ReactNode }[] = [
     {
-      key: "high",
+      key: "extra",
       state: STOCK_STATES[4],
       content: (
         <DerivedRow
           state={STOCK_STATES[4]}
-          subtitle={`${highBand.minQuantity} and above`}
-          value={highBand.label}
+          subtitle={`${extraBand.minQuantity} and above`}
+          value={extraBand.label}
         />
       ),
     },
-    {
-      key: "normal",
-      state: STOCK_STATES[3],
-      content: (
-        <EditableRow
-          state={STOCK_STATES[3]}
-          row="normal"
-          draft={draft}
-          onCommit={commit}
-        />
-      ),
-    },
-    {
-      key: "medium",
-      state: STOCK_STATES[2],
-      content: (
-        <EditableRow
-          state={STOCK_STATES[2]}
-          row="medium"
-          draft={draft}
-          onCommit={commit}
-        />
-      ),
-    },
-    {
-      key: "low",
-      state: STOCK_STATES[1],
-      content: (
-        <EditableRow
-          state={STOCK_STATES[1]}
-          row="low"
-          draft={draft}
-          onCommit={commit}
-        />
-      ),
-    },
+    ...editableRows,
     {
       key: "out",
       state: STOCK_STATES[0],

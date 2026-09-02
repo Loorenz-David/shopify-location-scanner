@@ -4,8 +4,8 @@ export const STOCK_STATES = [
   "out_of_stock",
   "low_in_stock",
   "medium_in_stock",
-  "normal_in_stock",
   "high_in_stock",
+  "extra_in_stock",
 ] as const;
 
 export const STOCK_STATE_META: Record<StockState, StockStateMeta> = {
@@ -27,14 +27,14 @@ export const STOCK_STATE_META: Record<StockState, StockStateMeta> = {
     tint: "#FBF4DC",
     solid: "#E0B93A",
   },
-  normal_in_stock: {
-    label: "Normal",
+  high_in_stock: {
+    label: "High",
     text: "#157F58",
     tint: "#E4F6EC",
     solid: "#0E8A5F",
   },
-  high_in_stock: {
-    label: "High",
+  extra_in_stock: {
+    label: "Extra",
     text: "#2D7FC4",
     tint: "#E6F1FB",
     solid: "#3B9BF0",

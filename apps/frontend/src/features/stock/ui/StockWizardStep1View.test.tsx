@@ -318,7 +318,7 @@ describe("StockWizardStep1View (screen 08)", () => {
     expect(screen.getByRole("textbox", { name: "Medium limit" })).toHaveValue(
       String(limitFor(2)),
     );
-    expect(screen.getByRole("textbox", { name: "Normal limit" })).toHaveValue(
+    expect(screen.getByRole("textbox", { name: "High limit" })).toHaveValue(
       String(limitFor(3)),
     );
     expect(screen.getByRole("button", { name: "Save changes" })).toBeInTheDocument();

@@ -96,7 +96,7 @@ describe("stock wizard controller", () => {
         thresholds: [
           { state: "low_in_stock", thresholdQuantity: 10 },
           { state: "medium_in_stock", thresholdQuantity: 15 },
-          { state: "normal_in_stock", thresholdQuantity: 20 },
+          { state: "high_in_stock", thresholdQuantity: 20 },
         ],
       }],
     });

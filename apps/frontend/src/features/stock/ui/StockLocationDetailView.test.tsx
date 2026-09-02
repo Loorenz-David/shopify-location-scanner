@@ -6,12 +6,14 @@ import { stockActions } from "../actions/stock.actions";
 import { stockLocationDetailFixture } from "../api/mocks/get-stock-location-detail.fixture";
 import { stockOptionsFixture } from "../api/mocks/get-stock-options.fixture";
 import { renderCriteriaChips } from "../domain/stock-criteria.domain";
-import { STOCK_STATES } from "../domain/stock-states.domain";
-import { deriveBands } from "../domain/stock-thresholds.domain";
+import {
+  deriveBands,
+  thresholdDraftFrom,
+} from "../domain/stock-thresholds.domain";
 import { useStockNavigationStore } from "../stores/stock-navigation.store";
 import { useStockSettingsStore } from "../stores/stock-settings.store";
 import { useStockWizardStore } from "../stores/stock-wizard.store";
-import type { LocationStockDto, StockThresholdDto } from "../types/stock.dto";
+import type { LocationStockDto } from "../types/stock.dto";
 
 vi.mock("../../../core/ws-client/use-ws-event", () => ({
   useWsEvent: vi.fn(),
@@ -24,23 +26,10 @@ const locationInstances = stockLocationDetailFixture.filter(
   (instance) => instance.location === LOCATION,
 );
 
-function thresholdFor(
-  thresholds: StockThresholdDto[],
-  state: (typeof STOCK_STATES)[number],
-): number {
-  const match = thresholds.find((threshold) => threshold.state === state);
-  if (!match) {
-    throw new Error(`fixture lacks a threshold for ${state}`);
-  }
-  return match.thresholdQuantity;
-}
-
 function expectedBandLabels(instance: LocationStockDto): string[] {
-  return deriveBands(
-    thresholdFor(instance.thresholds, STOCK_STATES[1]),
-    thresholdFor(instance.thresholds, STOCK_STATES[2]),
-    thresholdFor(instance.thresholds, STOCK_STATES[3]),
-  ).map((band) => band.label);
+  return deriveBands(thresholdDraftFrom(instance.thresholds)).map(
+    (band) => band.label,
+  );
 }
 
 async function renderDetail() {
@@ -90,10 +79,7 @@ describe("StockLocationDetailView (screen 07)", () => {
       const bands = within(card).getAllByTestId("stock-threshold-band");
       expect(bands.map((band) => band.textContent)).toEqual(expectedBandLabels(instance));
 
-      const low = thresholdFor(instance.thresholds, STOCK_STATES[1]);
-      const medium = thresholdFor(instance.thresholds, STOCK_STATES[2]);
-      const normal = thresholdFor(instance.thresholds, STOCK_STATES[3]);
-      deriveBands(low, medium, normal).forEach((band, bandIndex) => {
+      deriveBands(thresholdDraftFrom(instance.thresholds)).forEach((band, bandIndex) => {
         expect(bands[bandIndex]).toHaveStyle({
           backgroundColor: band.tint,
           color: band.text,

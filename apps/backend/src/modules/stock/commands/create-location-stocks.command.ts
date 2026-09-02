@@ -1,6 +1,10 @@
 import { ConflictError } from "../../../shared/errors/http-errors.js";
 import { findConflict } from "../domain/conflict.js";
-import { validateThresholds } from "../domain/stock-state.js";
+import {
+  normalizeThresholdInputs,
+  validateThresholds,
+  type StockThreshold,
+} from "../domain/stock-state.js";
 import {
   validateStockCriteria,
   type CreateLocationStockInput,
@@ -15,8 +19,9 @@ type Group = {
   itemCategory: string;
 };
 
-type NormalizedConfiguration = CreateLocationStockInput & {
+type NormalizedConfiguration = Omit<CreateLocationStockInput, "thresholds"> & {
   properties: StockCriteria;
+  thresholds: StockThreshold[];
 };
 
 const groupKey = (group: Group): string =>
@@ -53,11 +58,13 @@ export const createLocationStocksCommand = async (input: {
         configuration.itemCategory,
         configuration.properties ?? {},
       );
-      validateThresholds(configuration.thresholds);
+      const thresholds = normalizeThresholdInputs(configuration.thresholds);
+      validateThresholds(thresholds);
 
       return {
         ...configuration,
         properties,
+        thresholds,
       };
     },
   );

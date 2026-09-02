@@ -36,13 +36,13 @@ function entry(
     properties: { wood_type: ["walnut"] },
     mergeKey: "chairs-walnut",
     quantity: 1,
-    stockState: "normal_in_stock",
+    stockState: "high_in_stock",
     thresholds: [
       { state: "low_in_stock", thresholdQuantity: 10 },
       { state: "medium_in_stock", thresholdQuantity: 15 },
-      { state: "normal_in_stock", thresholdQuantity: 20 },
+      { state: "high_in_stock", thresholdQuantity: 20 },
     ],
-    unitsToNormalThreshold: 19,
+    unitsToRestockTarget: 19,
     ...overrides,
   };
 }
@@ -111,7 +111,7 @@ function viewMissingByState(
     for (const row of view.rows) {
       totals.set(
         row.stockState,
-        (totals.get(row.stockState) ?? 0) + row.unitsToNormalThreshold,
+        (totals.get(row.stockState) ?? 0) + row.unitsToRestockTarget,
       );
     }
   } else {
@@ -185,8 +185,8 @@ describe("stock PDF domain", () => {
   it("C1(a): sections skip empty medium and mark produce first only on Out", async () => {
     const { buildPdfModel } = await loadPdfDomain();
     const model = buildPdfModel([
-      entry({ mergeKey: "high", stockState: "high_in_stock", quantity: 9 }),
-      entry({ mergeKey: "normal", stockState: "normal_in_stock", quantity: 4 }),
+      entry({ mergeKey: "high", stockState: "extra_in_stock", quantity: 9 }),
+      entry({ mergeKey: "normal", stockState: "high_in_stock", quantity: 4 }),
       entry({ mergeKey: "low", stockState: "low_in_stock", quantity: 2 }),
       entry({ mergeKey: "out", stockState: "out_of_stock", quantity: 0 }),
     ], exportQuery());
@@ -208,7 +208,7 @@ describe("stock PDF domain", () => {
   it("C1(b): produce first moves to Low when Out has no rows", async () => {
     const { buildPdfModel } = await loadPdfDomain();
     const model = buildPdfModel([
-      entry({ mergeKey: "normal", stockState: "normal_in_stock", quantity: 4 }),
+      entry({ mergeKey: "normal", stockState: "high_in_stock", quantity: 4 }),
       entry({ mergeKey: "low", stockState: "low_in_stock", quantity: 2 }),
     ], exportQuery());
 
@@ -256,9 +256,9 @@ describe("stock PDF domain", () => {
       entry({ mergeKey: "out", stockState: "out_of_stock", quantity: 0 }),
       entry({ mergeKey: "low-one", stockState: "low_in_stock", quantity: 2 }),
       entry({ mergeKey: "low-two", location: "LC1", stockState: "low_in_stock", quantity: 3 }),
-      entry({ mergeKey: "normal", stockState: "normal_in_stock", quantity: 4 }),
-      entry({ mergeKey: "shared", location: "LC1", stockState: "high_in_stock", quantity: 5 }),
-      entry({ mergeKey: "shared", location: "H1", stockState: "high_in_stock", quantity: 6 }),
+      entry({ mergeKey: "normal", stockState: "high_in_stock", quantity: 4 }),
+      entry({ mergeKey: "shared", location: "LC1", stockState: "extra_in_stock", quantity: 5 }),
+      entry({ mergeKey: "shared", location: "H1", stockState: "extra_in_stock", quantity: 6 }),
     ];
     const query = exportQuery({
       states: new Set([STOCK_STATES[1], STOCK_STATES[4]]),
@@ -292,7 +292,7 @@ describe("stock PDF domain", () => {
       entry({ mergeKey: "shared", location: "LC1", stockState: "low_in_stock", quantity: 2 }),
       entry({ mergeKey: "shared", location: "H1", stockState: "low_in_stock", quantity: 3 }),
       entry({ mergeKey: "out", stockState: "out_of_stock", quantity: 0 }),
-      entry({ mergeKey: "normal", stockState: "normal_in_stock", quantity: 4 }),
+      entry({ mergeKey: "normal", stockState: "high_in_stock", quantity: 4 }),
     ];
     const query = exportQuery({ groupByLocation: true });
     const model = buildPdfModel(entries, query);
@@ -316,11 +316,11 @@ describe("stock PDF domain", () => {
   it("C3(c): summary tiles total missing units per state rather than stock instances", async () => {
     const { buildPdfModel } = await loadPdfDomain();
     const model = buildPdfModel([
-      entry({ mergeKey: "out-1", stockState: STOCK_STATES[0], unitsToNormalThreshold: 6 }),
-      entry({ mergeKey: "out-2", stockState: STOCK_STATES[0], unitsToNormalThreshold: 8 }),
-      entry({ mergeKey: "out-3", stockState: STOCK_STATES[0], unitsToNormalThreshold: 20 }),
-      entry({ mergeKey: "out-4", stockState: STOCK_STATES[0], unitsToNormalThreshold: 20 }),
-      entry({ mergeKey: "medium", stockState: STOCK_STATES[2], unitsToNormalThreshold: 8 }),
+      entry({ mergeKey: "out-1", stockState: STOCK_STATES[0], unitsToRestockTarget: 6 }),
+      entry({ mergeKey: "out-2", stockState: STOCK_STATES[0], unitsToRestockTarget: 8 }),
+      entry({ mergeKey: "out-3", stockState: STOCK_STATES[0], unitsToRestockTarget: 20 }),
+      entry({ mergeKey: "out-4", stockState: STOCK_STATES[0], unitsToRestockTarget: 20 }),
+      entry({ mergeKey: "medium", stockState: STOCK_STATES[2], unitsToRestockTarget: 8 }),
     ], exportQuery());
 
     expect(model.entryCount).toBe(5);
@@ -345,7 +345,7 @@ describe("stock PDF domain", () => {
     const entries = [
       entry({ mergeKey: "shared", location: "LC1", stockState: "low_in_stock", quantity: 2 }),
       entry({ mergeKey: "shared", location: "H1", stockState: "low_in_stock", quantity: 3 }),
-      entry({ mergeKey: "normal", stockState: "normal_in_stock", quantity: 4 }),
+      entry({ mergeKey: "normal", stockState: "high_in_stock", quantity: 4 }),
     ];
     const compactModel = buildPdfModel(entries, exportQuery({
       states: new Set([STOCK_STATES[1], STOCK_STATES[3]]),
@@ -358,7 +358,7 @@ describe("stock PDF domain", () => {
       includeSummaryCounts: false,
     }));
 
-    expect(compactModel.settings.states).toEqual(["Low", "Normal"]);
+    expect(compactModel.settings.states).toEqual(["Low", "High"]);
     expect(compactModel.settings.grouping).toBe("Compacted across locations");
     expect(compactModel.settings.locations).toEqual(["H1", "LC1"]);
     expect(compactModel.settings.source).toContain(String(compactModel.entryCount));
