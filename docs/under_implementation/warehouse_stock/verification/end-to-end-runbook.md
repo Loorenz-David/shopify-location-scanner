@@ -14,6 +14,19 @@ it fires inside real flows, and that is what this runbook watches.
 
 ---
 
+> ## Status — owner attestation, 2026-09-02
+>
+> **Plan 6's C3 was discharged by the product owner's own testing of the endpoints and the live
+> functionality, not by a step-by-step run of this document.** The owner exercised the running
+> system and approved the row on that basis.
+>
+> This runbook is therefore **not** a completed record. It stays committed and re-runnable, and it
+> remains the right instrument whenever the behaviour needs demonstrating rather than attesting —
+> a regression hunt, a handover, or the rebuild this backend is interim to. The three steps it
+> covers that ordinary use is least likely to reach are §5.2 (an `orders/create` + `orders/paid`
+> pair must subtract **once**), §6.1 (a refused source decrement must still let the destination
+> increment), and §8's trap (a group with no catch-all legitimately sums **short**).
+
 ## 0. Before you start
 
 ### Processes
