@@ -327,6 +327,34 @@ describe("stock PDF domain", () => {
     ]);
   });
 
+  it("C5(keyOrder): the initializer copies the report's vocabulary key order into the export query", async () => {
+    // Coordinator row (S10, plan-8 consumption). buildPdfModel defaults a missing
+    // propertyKeyOrder to [] and every other row supplies the order itself, so deleting
+    // the initializer's `propertyKeyOrder: currentKeyOrder()` left 12/12 green while the
+    // PDF would sort MC2 key 4 without the vocabulary — the P4 C9 shape.
+    const { buildPdfModel } = await loadPdfDomain();
+    const { initializeStockPdfExportController } = await import(
+      "../controllers/stock-report.controller"
+    );
+    useStockReportStore.getState().setOptions(stockOptionsFixture);
+    useStockReportStore.getState().setAppliedFilter(createDefaultStockFilter());
+    const expectedKeyOrder = stockOptionsFixture.propertyOptions.map((option) => option.key);
+
+    initializeStockPdfExportController();
+    const query = useStockReportStore.getState().exportState.query!;
+    expect(query.propertyKeyOrder).toEqual(expectedKeyOrder);
+    expect(expectedKeyOrder.length).toBeGreaterThan(0);
+
+    // and the input still discriminates: without the vocabulary the C2 pair sorts the other way
+    const entries = [
+      entry({ mergeKey: "pine", properties: { wood_type: ["pine"], country: ["aaa"] }, quantity: 5, stockState: "low_in_stock" }),
+      entry({ mergeKey: "oak", properties: { wood_type: ["oak"], country: ["zzz"] }, quantity: 5, stockState: "low_in_stock" }),
+    ];
+    const withVocabulary = buildPdfModel(entries, query).sections[0]!.rows.map((row) => row.mergeKey);
+    const withoutVocabulary = buildPdfModel(entries, { ...query, propertyKeyOrder: [] }).sections[0]!.rows.map((row) => row.mergeKey);
+    expect(withVocabulary).not.toEqual(withoutVocabulary);
+  });
+
   it("C6: filename uses local calendar parts and zero-pads month and day", async () => {
     const { pdfFilename } = await loadPdfDomain();
 

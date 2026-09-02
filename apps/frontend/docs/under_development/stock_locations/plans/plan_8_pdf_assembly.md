@@ -38,9 +38,10 @@ state copy, generate/preview/share orchestration), `stores/stock-report.store.ts
 | C2 | Rows within each section equal `compareCompactRows` order (computed both sides). | MC10, MC2, M6 |
 | C3 | Model row count per section + summary counts equal the app's counts for the same query (one filtered case, one grouped case). | MC10, M6 |
 | C4 | Settings box: states labels via MC1, grouping wording exact (`Compacted across locations` / `Grouped by location`), locations list, source line contains the model's entry count (derived, not typed). | MC10, M6 |
-| C5 | Sheet-state isolation: toggling export `groupByLocation` leaves the report store's query unchanged (assert both states). **Assert the report query's `states`/`locations` Sets too, not just the boolean** — a shallow copy aliases them, so a location toggle in the sheet would still reach through. **Named mutation M1:** at the export-state initializer, hand out the report query itself instead of a copy → this row reds. Without it, opening the export sheet and toggling anything silently rewrites the report the user is looking at, and nothing errors. | MC10, M6 |
+| C5 | Sheet-state isolation: toggling export `groupByLocation` leaves the report store's query unchanged (assert both states). **Assert the report query's `states`/`locations` Sets too, not just the boolean** — a shallow copy aliases them, so a location toggle in the sheet would still reach through. **Named mutation M1:** at the export-state initializer, hand out the report query itself instead of a copy → this row reds. Without it, opening the export sheet and toggling anything silently rewrites the report the user is looking at, and nothing errors. **C5(keyOrder)** *(coordinator, 2026-09-02)*: the initialized query's `propertyKeyOrder` equals the options-derived key order and is non-empty, on an input where an empty order sorts the C2 pair the other way — deleting `propertyKeyOrder: currentKeyOrder()` at the initializer must red this clause (S10; it left 12/12 green before the clause existed). | MC10, M6 |
 | C6 | Filename for a fixed Date is exact; single-digit month/day zero-padded. | MC10, M6 |
-| C7 | Delivery, three cases (charter rule 2 — this is a branch, enumerate it): **(a)** with a mocked `navigator.share`, generate calls it with a File of type `application/pdf` and the C6 name; **(b)** with share absent, the anchor-download path runs (spy on createObjectURL + click); **(c)** with share present but **rejecting** — which is what a user cancelling the share sheet produces — no error surfaces to the user and no download is silently substituted. A cancelled share is not a failure, and an unhandled rejection here shows an error banner for something the user chose to do. | M6 |
+| C7 | Delivery, three cases (charter rule 2 — this is a branch, enumerate it): **(a)** with a mocked `navigator.share`, generate calls it with a File of type `application/pdf` and the C6 name; **(b)** with share absent, the anchor-download path runs (spy on createObjectURL + click); **(c)** with share present but **rejecting** — which is what a user cancelling the share sheet produces — no error surfaces to the user and no download is silently substituted. A cancelled share is not a failure, and an unhandled rejection here shows an error banner for something the user chose to do. **(d)** *(coordinator, 2026-09-02 — Task 4's preview clause given a row)*: preview creates an object URL for the blob and opens it in a new tab with `noopener,noreferrer`. | M6 |
+| C8 | **React-pdf stays out of this phase's production files** except the `import type { UsePDFInstance }` line in the report controller — scan of every non-test file under `src/features/stock` (the Notes' "no react-pdf import" obligation given a row; the implementer's `H1` test). | infra-enabler row (S7) — bundle perimeter, plan 8 Notes |
 
 ## Notes
 No react-pdf import in this phase's production files except the type of the render
@@ -117,3 +118,36 @@ Observations:
   second first-section case; C2 starts in the wrong order and ties through the comparator's
   earlier keys; C3 filtered and grouped counts differ; C4's derived model count differs from
   raw fixture length.
+
+### Coordinator consumption — 2026-09-02 (Claude, Fable 5)
+
+**Perimeter:** `git show --stat a7d90b1` = the seven declared paths exactly; the six foreign UI files
+(owner visual stream on P7's components) carry digest `a6e1af32…` — identical to the handoff's, so
+the closing stamp's tree is the tree consumed. L4 count: one stamp, as budgeted. Test arithmetic:
+133 → 145 = +12, matching the twelve mapped tests; reverse map complete.
+
+**Probes (L1, phase file, each applied → run → byte-restored):**
+
+| # | mutation | site | result |
+|---|---|---|---|
+| PA | delete `propertyKeyOrder: currentKeyOrder()` | initializer, controller | **12/12 green — finding** (S10 second sub-shape: every row's `exportQuery()` helper supplied the order). Repaired: `C5(keyOrder)` added; PA re-planted reds **that row alone** (13 → 1 failed). |
+| PB | M1 variant — alias `locations` only | initializer | C5 reds (the Sets clause bites on its own) |
+| PC | location toggle also writes `appliedFilter` | `toggleStockPdfLocationController` | C5 reds |
+| PD | view built without the export's `locations` (no re-quantification) | `rowsByState` | C3(a) reds. *(A first siting on `states` stayed green — not a defect: the section loop enforces the state filter a second time.)* |
+| PE | rejected share falls through to download | share catch | C7(c) reds |
+
+**Folds:** C5(keyOrder) clause; C7(d) preview (an acceptance claim living in Task 4); C8 = the
+implementer's `H1` guard, which traced to no row (S7 enabler). No orphan remains.
+
+**Semantic question for the owner (card relayed to the owner at consumption; the branches are recorded here):** `summaryCounts` reports `0`
+for a state the export excludes. MC10 says "five tiles, full counts per state in the export's
+grouping mode"; the app's tiles ignore the state filter (D13). A "Low only" export whose header
+tile reads `Out of stock 0` tells a manager nothing is out — silent, on paper. P8 stays
+IMPLEMENTED (coordinator-verified) until answered; answer A changes ~6 lines of `summaryCounts`.
+
+**Forward hazards → P9/P10 prompt:** (1) `blobFromRenderHandle` throws while `loading` — the sheet
+must disable *Generate & share* / *Preview* until the handle has a blob. (2) Every share rejection
+is "cancelled" — P9 must call the controller synchronously inside the tap handler with the
+pre-rendered blob (no `await` before `share`, or iOS throws `NotAllowedError` and it is swallowed
+as a cancel). (3) `downloadPdf` revokes the object URL synchronously and never attaches the anchor;
+a P10 live check on Firefox/desktop Safari — the fallback browsers — should confirm the file lands.
