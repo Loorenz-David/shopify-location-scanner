@@ -1,5 +1,6 @@
 import * as stockApi from "../api";
 import { pdfFilename } from "../domain/stock-pdf.domain";
+import { saveStockCountMode } from "../domain/stock-report-settings.domain";
 import {
   buildReportView,
   computeCounterTiles,
@@ -8,7 +9,11 @@ import {
   createDefaultStockFilter,
   useStockReportStore,
 } from "../stores/stock-report.store";
-import type { StockFilterState, StockState } from "../types/stock.types";
+import type {
+  StockCountMode,
+  StockFilterState,
+  StockState,
+} from "../types/stock.types";
 import type { StockPdfExportQuery } from "../domain/stock-pdf.domain";
 import type { UsePDFInstance } from "@react-pdf/renderer";
 
@@ -35,7 +40,9 @@ function currentKeyOrder(): string[] {
 function rebuildReportView(): void {
   const store = useStockReportStore.getState();
   const keyOrder = currentKeyOrder();
-  store.setView(buildReportView(store.entries, store.appliedFilter, keyOrder));
+  store.setView(
+    buildReportView(store.entries, store.appliedFilter, keyOrder, store.countMode),
+  );
   store.setCounterTiles(computeCounterTiles(store.entries, store.appliedFilter));
 }
 
@@ -70,6 +77,13 @@ export function resetStockReportFilterController(): void {
   setStockReportFilterController(createDefaultStockFilter());
 }
 
+// Persist first, then apply: a reload after the tap must land on the same mode.
+export function setStockReportCountModeController(countMode: StockCountMode): void {
+  saveStockCountMode(countMode);
+  useStockReportStore.getState().setCountMode(countMode);
+  rebuildReportView();
+}
+
 export function initializeStockPdfExportController(): StockPdfExportQuery {
   const store = useStockReportStore.getState();
   const activeFilter = store.appliedFilter;
@@ -79,6 +93,7 @@ export function initializeStockPdfExportController(): StockPdfExportQuery {
     groupByLocation: activeFilter.groupByLocation,
     includeSummaryCounts: true,
     showContributingLocations: true,
+    countMode: store.countMode,
     propertyKeyOrder: currentKeyOrder(),
   };
 

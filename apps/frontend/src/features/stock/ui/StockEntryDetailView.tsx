@@ -1,9 +1,10 @@
 import { ChevronLeftIcon } from "../../../assets/icons";
 import { criteriaChips } from "../domain/stock-criteria.domain";
-import { deriveEntryDetail } from "../domain/stock-report.domain";
+import { countNoun } from "../domain/stock-count-mode.domain";
+import { deriveEntryDetail, displayedCount } from "../domain/stock-report.domain";
 import { getStockStateMeta } from "../domain/stock-states.domain";
 import type { StockOptionsDto, StockReportEntryDto } from "../types/stock.dto";
-import type { CompactedReportRow } from "../types/stock.types";
+import type { CompactedReportRow, StockCountMode } from "../types/stock.types";
 import { StockPropertyChips } from "./StockPropertyChips";
 import { StockCategoryThumbnail } from "./StockCategoryThumbnail";
 
@@ -11,11 +12,8 @@ interface StockEntryDetailViewProps {
   row: CompactedReportRow;
   entries: readonly StockReportEntryDto[];
   options: StockOptionsDto;
+  countMode: StockCountMode;
   onBack: () => void;
-}
-
-function unitLabel(quantity: number): string {
-  return quantity === 1 ? "unit" : "units";
 }
 
 function InfoIcon() {
@@ -33,8 +31,9 @@ function InfoIcon() {
 // per-location rows from deriveEntryDetail (MC9), and the merge-explainer note only when
 // more than one location contributes. No action buttons — `Scanned items` and `Add task`
 // were a mockup error (intention D4) and are removed, not deferred.
-export function StockEntryDetailView({ row, entries, options, onBack }: StockEntryDetailViewProps) {
+export function StockEntryDetailView({ row, entries, options, countMode, onBack }: StockEntryDetailViewProps) {
   const meta = getStockStateMeta(row.stockState);
+  const total = displayedCount(row, countMode);
   const chips = criteriaChips(row.properties, options);
   const detail = deriveEntryDetail(row, entries, options);
   const locationCount = detail.entries.length;
@@ -83,7 +82,7 @@ export function StockEntryDetailView({ row, entries, options, onBack }: StockEnt
               Total
             </span>
             <span className="text-[16px] font-bold leading-tight text-[var(--stock-heading)]">
-              {row.quantity} {unitLabel(row.quantity)}
+              {total} {countNoun(total, countMode)}
             </span>
           </div>
         </div>
@@ -126,7 +125,7 @@ export function StockEntryDetailView({ row, entries, options, onBack }: StockEnt
                   data-testid="stock-row-quantity"
                   className="text-[17px] font-bold leading-none text-[var(--stock-heading)]"
                 >
-                  {item.quantity}
+                  {displayedCount(item, countMode)}
                 </span>
                 <span
                   className="mt-1 text-[10px] font-bold uppercase tracking-[0.1em]"

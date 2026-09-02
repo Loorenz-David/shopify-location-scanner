@@ -1,5 +1,6 @@
 import { create } from "zustand";
 
+import { readStockReportSettings } from "../domain/stock-report-settings.domain";
 import { STOCK_STATES } from "../domain/stock-states.domain";
 import type {
   StockOptionsDto,
@@ -8,6 +9,7 @@ import type {
 import type {
   CounterTiles,
   ReportView,
+  StockCountMode,
   StockFilterState,
 } from "../types/stock.types";
 import type { StockPdfExportQuery } from "../domain/stock-pdf.domain";
@@ -40,6 +42,7 @@ export interface StockReportStoreState {
   entries: StockReportEntryDto[];
   options: StockOptionsDto | null;
   appliedFilter: StockFilterState;
+  countMode: StockCountMode;
   view: ReportView;
   counterTiles: CounterTiles;
   exportState: StockReportExportState;
@@ -48,6 +51,7 @@ export interface StockReportStoreState {
   setEntries: (entries: StockReportEntryDto[]) => void;
   setOptions: (options: StockOptionsDto | null) => void;
   setAppliedFilter: (filter: StockFilterState) => void;
+  setCountMode: (countMode: StockCountMode) => void;
   setView: (view: ReportView) => void;
   setCounterTiles: (counterTiles: CounterTiles) => void;
   setExportQuery: (query: StockPdfExportQuery | null) => void;
@@ -63,6 +67,7 @@ export const useStockReportStore = create<StockReportStoreState>((set) => ({
   entries: [],
   options: null,
   appliedFilter: createDefaultStockFilter(),
+  countMode: readStockReportSettings().countMode,
   view: { rows: [] },
   counterTiles: { out: 0, low: 0, medium: 0, rest: 0 },
   exportState: createDefaultStockReportExportState(),
@@ -78,6 +83,7 @@ export const useStockReportStore = create<StockReportStoreState>((set) => ({
         groupByLocation: filter.groupByLocation,
       },
     }),
+  setCountMode: (countMode) => set({ countMode }),
   setView: (view) => set({ view }),
   setCounterTiles: (counterTiles) => set({ counterTiles }),
   setExportQuery: (query) =>
@@ -103,6 +109,8 @@ export const useStockReportStore = create<StockReportStoreState>((set) => ({
       entries: [],
       options: null,
       appliedFilter: createDefaultStockFilter(),
+      // The mode is a device preference, not report state: a reset re-reads it.
+      countMode: readStockReportSettings().countMode,
       view: { rows: [] },
       counterTiles: { out: 0, low: 0, medium: 0, rest: 0 },
       exportState: createDefaultStockReportExportState(),
@@ -119,6 +127,9 @@ export const selectStockReportOptions = (state: StockReportStoreState) =>
 
 export const selectStockReportFilter = (state: StockReportStoreState) =>
   state.appliedFilter;
+
+export const selectStockReportCountMode = (state: StockReportStoreState) =>
+  state.countMode;
 
 export const selectStockReportView = (state: StockReportStoreState) =>
   state.view;

@@ -1,6 +1,6 @@
 import { prisma } from "../../../shared/database/prisma-client.js";
 import { logger } from "../../../shared/logging/logger.js";
-import { resolveBestMatch } from "../domain/best-match.js";
+import { allocateGroup } from "../domain/allocation.js";
 import {
   calculateStockState,
   type StockState,
@@ -51,34 +51,26 @@ const computeGroup = async (
     location,
     itemCategory,
   );
-  const quantities = new Map<string, number>(
-    configurations.map((configuration) => [configuration.id, 0]),
+  const totals = allocateGroup(
+    configurations.map((configuration) => ({
+      id: configuration.id,
+      createdAt: configuration.createdAt,
+      criteria: configuration.properties,
+    })),
+    eligibleItems,
   );
-  const candidates = configurations.map((configuration) => ({
-    id: configuration.id,
-    createdAt: configuration.createdAt,
-    criteria: configuration.properties,
-  }));
-
-  for (const item of eligibleItems) {
-    const winner = resolveBestMatch(candidates, item.properties);
-    if (!winner) {
-      continue;
-    }
-
-    quantities.set(
-      winner.id,
-      (quantities.get(winner.id) ?? 0) + item.quantity,
-    );
-  }
 
   const values = new Map<string, ReconciliationValue>();
   for (const configuration of configurations) {
-    const quantity = quantities.get(configuration.id) ?? 0;
-    const stockState = calculateStockState(quantity, configuration.thresholds);
+    const { quantity, instanceCount } = totals.get(configuration.id) ?? {
+      quantity: 0,
+      instanceCount: 0,
+    };
+    const stockState = calculateStockState(instanceCount, configuration.thresholds);
     values.set(configuration.id, {
       id: configuration.id,
       quantity,
+      instanceCount,
       stockState,
     });
   }
@@ -99,6 +91,7 @@ const writeChangedValues = async (
 
       if (
         configuration.quantity === value.quantity &&
+        configuration.instanceCount === value.instanceCount &&
         configuration.stockState === value.stockState
       ) {
         continue;
@@ -106,7 +99,7 @@ const writeChangedValues = async (
 
       await locationStockRepository.writeAbsolute(
         configuration.id,
-        value.quantity,
+        { quantity: value.quantity, instanceCount: value.instanceCount },
         value.stockState,
         "system:stock-reconciliation",
         tx,
@@ -124,8 +117,8 @@ const writePassTwoDifferences = async (
 ): Promise<void> => {
   const deltas: Array<{
     locationStockId: string;
-    from: { quantity: number; stockState: StockState } | null;
-    to: { quantity: number; stockState: StockState };
+    from: { quantity: number; instanceCount: number; stockState: StockState } | null;
+    to: { quantity: number; instanceCount: number; stockState: StockState };
   }> = [];
 
   for (const configuration of passTwo.configurations) {
@@ -138,6 +131,7 @@ const writePassTwoDifferences = async (
     if (
       previous &&
       previous.quantity === next.quantity &&
+      previous.instanceCount === next.instanceCount &&
       previous.stockState === next.stockState
     ) {
       continue;
@@ -148,11 +142,13 @@ const writePassTwoDifferences = async (
       from: previous
         ? {
             quantity: previous.quantity,
+            instanceCount: previous.instanceCount,
             stockState: previous.stockState,
           }
         : null,
       to: {
         quantity: next.quantity,
+        instanceCount: next.instanceCount,
         stockState: next.stockState,
       },
     });
@@ -171,7 +167,7 @@ const writePassTwoDifferences = async (
 
       await locationStockRepository.writeAbsolute(
         delta.locationStockId,
-        value.quantity,
+        { quantity: value.quantity, instanceCount: value.instanceCount },
         value.stockState,
         "system:stock-reconciliation",
         tx,

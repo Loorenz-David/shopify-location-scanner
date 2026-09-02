@@ -12,6 +12,7 @@ import type {
   StockPropertiesDto,
   StockReportEntryDto,
 } from "../types/stock.dto";
+import { countNoun, stockCountLabels } from "./stock-count-mode.domain";
 import {
   applyStockFilters,
   buildReportView,
@@ -20,6 +21,7 @@ import {
   computeCounterTiles,
   countPendingRows,
   deriveEntryDetail,
+  displayedCount,
   makeCompactRowComparator,
   makeGroupEntryComparator,
   missingQuantityForEntry,
@@ -42,6 +44,8 @@ function entry(
     properties: { wood_type: ["walnut"] },
     mergeKey: "k1",
     quantity: 1,
+    // Defaults to the quantity so pre-P7 rows keep their numbers; P7 rows set it apart.
+    instanceCount: overrides.instanceCount ?? overrides.quantity ?? 1,
     stockState: "high_in_stock",
     thresholds,
     unitsToRestockTarget: 19,
@@ -63,16 +67,18 @@ function filter(
 function row(overrides: Partial<CompactedReportRow> = {}): CompactedReportRow {
   const location = overrides.locations ?? "H1";
   const quantity = overrides.quantity ?? 1;
+  const instanceCount = overrides.instanceCount ?? quantity;
   const unitsToRestockTarget = overrides.unitsToRestockTarget ?? 19;
   return {
     mergeKey: "k1",
     itemCategory: "Dining Chairs",
     properties: { wood_type: ["walnut"] },
     quantity,
+    instanceCount,
     unitsToRestockTarget,
     stockState: "high_in_stock",
     locations: location,
-    contributions: [{ location, quantity, unitsToRestockTarget }],
+    contributions: [{ location, quantity, instanceCount, unitsToRestockTarget }],
     ...overrides,
   };
 }
@@ -103,43 +109,43 @@ function groupedView(view: ReportView): ReportLocationGroup[] {
 describe("stock report domain", () => {
   it("C1(a): compacts current and missing quantities and retains sorted contributions", () => {
     const result = compactEntries([
-      entry({ location: "LC1", quantity: 2, unitsToRestockTarget: 18 }),
-      entry({ location: "H1", quantity: 3, unitsToRestockTarget: 17 }),
+      entry({ location: "LC1", quantity: 2, instanceCount: 2, unitsToRestockTarget: 18 }),
+      entry({ location: "H1", quantity: 3, instanceCount: 3, unitsToRestockTarget: 17 }),
     ]);
 
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
       mergeKey: "k1",
-      quantity: 5,
+      quantity: 5, instanceCount: 5,
       unitsToRestockTarget: 35,
       locations: "H1 · LC1",
       contributions: [
-        { location: "H1", quantity: 3, unitsToRestockTarget: 17 },
-        { location: "LC1", quantity: 2, unitsToRestockTarget: 18 },
+        { location: "H1", quantity: 3, instanceCount: 3, unitsToRestockTarget: 17 },
+        { location: "LC1", quantity: 2, instanceCount: 2, unitsToRestockTarget: 18 },
       ],
     });
 
     expect(compactEntries([
-      entry({ location: "LC1", quantity: 2, unitsToRestockTarget: 18 }),
-      entry({ location: "LC1", quantity: 3, unitsToRestockTarget: 17 }),
+      entry({ location: "LC1", quantity: 2, instanceCount: 2, unitsToRestockTarget: 18 }),
+      entry({ location: "LC1", quantity: 3, instanceCount: 3, unitsToRestockTarget: 17 }),
     ])[0]).toMatchObject({
-      quantity: 5,
+      quantity: 5, instanceCount: 5,
       unitsToRestockTarget: 35,
       locations: "LC1",
       contributions: [
-        { location: "LC1", quantity: 2, unitsToRestockTarget: 18 },
-        { location: "LC1", quantity: 3, unitsToRestockTarget: 17 },
+        { location: "LC1", quantity: 2, instanceCount: 2, unitsToRestockTarget: 18 },
+        { location: "LC1", quantity: 3, instanceCount: 3, unitsToRestockTarget: 17 },
       ],
     });
   });
 
   it("C1(b): preserves quantity totals independently for every state", () => {
     const entries = [
-      entry({ mergeKey: "a", stockState: "out_of_stock", quantity: 0 }),
-      entry({ mergeKey: "a", stockState: "out_of_stock", quantity: 2 }),
-      entry({ mergeKey: "b", stockState: "low_in_stock", quantity: 3 }),
-      entry({ mergeKey: "b", stockState: "low_in_stock", quantity: 4 }),
-      entry({ mergeKey: "c", stockState: "high_in_stock", quantity: 8 }),
+      entry({ mergeKey: "a", stockState: "out_of_stock", quantity: 0, instanceCount: 0 }),
+      entry({ mergeKey: "a", stockState: "out_of_stock", quantity: 2, instanceCount: 2 }),
+      entry({ mergeKey: "b", stockState: "low_in_stock", quantity: 3, instanceCount: 3 }),
+      entry({ mergeKey: "b", stockState: "low_in_stock", quantity: 4, instanceCount: 4 }),
+      entry({ mergeKey: "c", stockState: "high_in_stock", quantity: 8, instanceCount: 8 }),
     ];
     const before = new Map<StockState, number>();
     const after = new Map<StockState, number>();
@@ -166,7 +172,7 @@ describe("stock report domain", () => {
   });
 
   it("C1(d): leaves a single-entry group unchanged apart from wrappers", () => {
-    const source = entry({ location: "LC1", quantity: 7 });
+    const source = entry({ location: "LC1", quantity: 7, instanceCount: 7 });
     const [result] = compactEntries([source]);
 
     expect(result).toMatchObject({
@@ -176,25 +182,25 @@ describe("stock report domain", () => {
       quantity: source.quantity,
       stockState: source.stockState,
       locations: "LC1",
-      contributions: [{ location: "LC1", quantity: 7 }],
+      contributions: [{ location: "LC1", quantity: 7, instanceCount: 7 }],
     });
   });
 
   it("C1(e): derives missing units from the state-keyed normal threshold during rollout", () => {
     expect(missingQuantityForEntry(entry({
-      quantity: 18,
+      quantity: 18, instanceCount: 18,
       unitsToRestockTarget: undefined,
     }))).toBe(2);
     expect(missingQuantityForEntry(entry({
-      quantity: 25,
+      quantity: 25, instanceCount: 25,
       unitsToRestockTarget: undefined,
     }))).toBe(0);
   });
 
   it("C2: keeps same-key entries in different states as separate rows", () => {
     const result = compactEntries([
-      entry({ location: "LC1", mergeKey: "same", quantity: 2, stockState: "low_in_stock" }),
-      entry({ location: "H1", mergeKey: "same", quantity: 18, stockState: "high_in_stock" }),
+      entry({ location: "LC1", mergeKey: "same", quantity: 2, instanceCount: 2, stockState: "low_in_stock" }),
+      entry({ location: "H1", mergeKey: "same", quantity: 18, instanceCount: 18, stockState: "high_in_stock" }),
     ]);
 
     expect(result).toHaveLength(2);
@@ -208,12 +214,12 @@ describe("stock report domain", () => {
 
   it("C3(a): orders state before quantity", () => {
     const compare = makeCompactRowComparator(keyOrder);
-    expect(compare(row({ stockState: "out_of_stock", quantity: 9 }), row({ stockState: "low_in_stock", quantity: 1 }))).toBeLessThan(0);
+    expect(compare(row({ stockState: "out_of_stock", quantity: 9, instanceCount: 9 }), row({ stockState: "low_in_stock", quantity: 1, instanceCount: 1 }))).toBeLessThan(0);
   });
 
   it("C3(b): orders quantity ascending after equal state", () => {
     const compare = makeCompactRowComparator(keyOrder);
-    expect(compare(row({ stockState: "low_in_stock", quantity: 1 }), row({ stockState: "low_in_stock", quantity: 2 }))).toBeLessThan(0);
+    expect(compare(row({ stockState: "low_in_stock", quantity: 1, instanceCount: 1 }), row({ stockState: "low_in_stock", quantity: 2, instanceCount: 2 }))).toBeLessThan(0);
   });
 
   it("C3(c): orders category case-insensitively by code point", () => {
@@ -240,11 +246,11 @@ describe("stock report domain", () => {
     const compare = makeCompactRowComparator(keyOrder);
     const left = row({
       locations: "H1",
-      contributions: [{ location: "H1", quantity: 1, unitsToRestockTarget: 19 }],
+      contributions: [{ location: "H1", quantity: 1, instanceCount: 1, unitsToRestockTarget: 19 }],
     });
     const right = row({
       locations: "LC1",
-      contributions: [{ location: "LC1", quantity: 1, unitsToRestockTarget: 19 }],
+      contributions: [{ location: "LC1", quantity: 1, instanceCount: 1, unitsToRestockTarget: 19 }],
     });
 
     expect(compare(left, right)).toBeLessThan(0);
@@ -282,10 +288,10 @@ describe("stock report domain", () => {
 
   it("C4(e1): omits groups with no surviving entries after a state filter", () => {
     const view = buildReportView([
-      entry({ location: "H1", stockState: "out_of_stock", quantity: 0 }),
-      entry({ location: "H1", stockState: "out_of_stock", quantity: 0, mergeKey: "h2" }),
-      entry({ location: "H1", stockState: "out_of_stock", quantity: 0, mergeKey: "h3" }),
-      entry({ location: "LC1", stockState: "low_in_stock", quantity: 12 }),
+      entry({ location: "H1", stockState: "out_of_stock", quantity: 0, instanceCount: 0 }),
+      entry({ location: "H1", stockState: "out_of_stock", quantity: 0, instanceCount: 0, mergeKey: "h2" }),
+      entry({ location: "H1", stockState: "out_of_stock", quantity: 0, instanceCount: 0, mergeKey: "h3" }),
+      entry({ location: "LC1", stockState: "low_in_stock", quantity: 12, instanceCount: 12 }),
     ], filter({ groupByLocation: true, states: new Set(["low_in_stock"]) }), keyOrder);
 
     expect(groupedView(view).map(({ location }) => location)).toEqual(["LC1"]);
@@ -293,8 +299,8 @@ describe("stock report domain", () => {
 
   it("C4(e2): ranks on surviving counts and flips when the state filter changes", () => {
     const entries = [
-      entry({ location: "H1", stockState: "out_of_stock", mergeKey: "h-out", quantity: 0 }),
-      entry({ location: "LC1", stockState: "out_of_stock", mergeKey: "l-out", quantity: 0 }),
+      entry({ location: "H1", stockState: "out_of_stock", mergeKey: "h-out", quantity: 0, instanceCount: 0 }),
+      entry({ location: "LC1", stockState: "out_of_stock", mergeKey: "l-out", quantity: 0, instanceCount: 0 }),
       entry({ location: "LC1", stockState: "low_in_stock", mergeKey: "l-low-1" }),
       entry({ location: "LC1", stockState: "low_in_stock", mergeKey: "l-low-2" }),
       entry({ location: "LC1", stockState: "low_in_stock", mergeKey: "l-low-3" }),
@@ -311,7 +317,7 @@ describe("stock report domain", () => {
     const compare = makeGroupEntryComparator(keyOrder);
     const pairs: [StockReportEntryDto, StockReportEntryDto][] = [
       [entry({ stockState: "out_of_stock" }), entry({ stockState: "low_in_stock" })],
-      [entry({ stockState: "low_in_stock", quantity: 1 }), entry({ stockState: "low_in_stock", quantity: 2 })],
+      [entry({ stockState: "low_in_stock", quantity: 1, instanceCount: 1 }), entry({ stockState: "low_in_stock", quantity: 2, instanceCount: 2 })],
       [entry({ itemCategory: "armchairs" }), entry({ itemCategory: "Dining Tables" })],
       [entry({ properties: { wood_type: ["oak"] } }), entry({ properties: { wood_type: ["teak"] } })],
     ];
@@ -337,18 +343,18 @@ describe("stock report domain", () => {
 
   it("C5(c): compact location filtering re-quantifies current and missing contributions", () => {
     const [source] = compactEntries([
-      entry({ location: "LC1", quantity: 2, unitsToRestockTarget: 18 }),
-      entry({ location: "H1", quantity: 18, unitsToRestockTarget: 2 }),
+      entry({ location: "LC1", quantity: 2, instanceCount: 2, unitsToRestockTarget: 18 }),
+      entry({ location: "H1", quantity: 18, instanceCount: 18, unitsToRestockTarget: 2 }),
     ]);
     const [result] = applyStockFilters(source ? [source] : [], filter({ locations: new Set(["LC1"]) }));
 
     expect(result).toMatchObject({
-      quantity: 2,
+      quantity: 2, instanceCount: 2,
       unitsToRestockTarget: 18,
       locations: "LC1",
       contributions: [{
         location: "LC1",
-        quantity: 2,
+        quantity: 2, instanceCount: 2,
         unitsToRestockTarget: 18,
       }],
     });
@@ -361,17 +367,17 @@ describe("stock report domain", () => {
 
   it("C5(e): an empty location selection means all locations", () => {
     const [source] = compactEntries([
-      entry({ location: "LC1", quantity: 2 }),
-      entry({ location: "H1", quantity: 18 }),
+      entry({ location: "LC1", quantity: 2, instanceCount: 2 }),
+      entry({ location: "H1", quantity: 18, instanceCount: 18 }),
     ]);
     expect(applyStockFilters([source], filter())).toEqual([source]);
   });
 
   it("C5(f): buildReportView composes compact, filter-and-requantify, then sort", () => {
     const entries = [
-      entry({ location: "LC1", quantity: 2, stockState: "low_in_stock" }),
-      entry({ location: "H1", quantity: 18, stockState: "low_in_stock" }),
-      entry({ location: "H1", mergeKey: "other", quantity: 0, stockState: "out_of_stock" }),
+      entry({ location: "LC1", quantity: 2, instanceCount: 2, stockState: "low_in_stock" }),
+      entry({ location: "H1", quantity: 18, instanceCount: 18, stockState: "low_in_stock" }),
+      entry({ location: "H1", mergeKey: "other", quantity: 0, instanceCount: 0, stockState: "out_of_stock" }),
     ];
     const pipelineFilter = filter({
       states: new Set(["low_in_stock"]),
@@ -387,9 +393,9 @@ describe("stock report domain", () => {
 
   it("C6: countPendingRows equals the rendered length in all four grouping and filter cases", () => {
     const entries = [
-      entry({ location: "LC1", quantity: 2, stockState: "low_in_stock" }),
-      entry({ location: "H1", quantity: 18, stockState: "low_in_stock" }),
-      entry({ location: "H1", mergeKey: "other", quantity: 0, stockState: "out_of_stock" }),
+      entry({ location: "LC1", quantity: 2, instanceCount: 2, stockState: "low_in_stock" }),
+      entry({ location: "H1", quantity: 18, instanceCount: 18, stockState: "low_in_stock" }),
+      entry({ location: "H1", mergeKey: "other", quantity: 0, instanceCount: 0, stockState: "out_of_stock" }),
     ];
     const cases = [
       filter(),
@@ -410,7 +416,7 @@ describe("stock report domain", () => {
   it("C7: counter tiles sum missing units, ignore state selection, and respect location selection in compact mode", () => {
     const tiles = computeCounterTiles([
       entry({ location: "LC1", stockState: "low_in_stock" }),
-      entry({ location: "H1", stockState: "out_of_stock", quantity: 0 }),
+      entry({ location: "H1", stockState: "out_of_stock", quantity: 0, instanceCount: 0 }),
     ], filter({ states: new Set(["out_of_stock"]), locations: new Set(["LC1"]) }));
 
     expect(tiles).toEqual({ out: 0, low: 19, medium: 0, rest: 0 });
@@ -419,7 +425,7 @@ describe("stock report domain", () => {
   it("C7 grouped mode: counter tiles use per-location entries with the same filter rule", () => {
     const tiles = computeCounterTiles([
       entry({ location: "LC1", stockState: "low_in_stock" }),
-      entry({ location: "H1", stockState: "out_of_stock", quantity: 0 }),
+      entry({ location: "H1", stockState: "out_of_stock", quantity: 0, instanceCount: 0 }),
     ], filter({ groupByLocation: true, states: new Set(["out_of_stock"]), locations: new Set(["LC1"]) }));
 
     expect(tiles).toEqual({ out: 0, low: 19, medium: 0, rest: 0 });
@@ -468,8 +474,8 @@ describe("stock report domain", () => {
 
   it("C8 detail: orders members by location and marks only multi-location groups", () => {
     const members = [
-      entry({ location: "LC1", quantity: 2 }),
-      entry({ location: "H1", quantity: 3 }),
+      entry({ location: "LC1", quantity: 2, instanceCount: 2 }),
+      entry({ location: "H1", quantity: 3, instanceCount: 3 }),
     ];
     const source = compactEntries(members)[0];
     const detail = deriveEntryDetail(source, members, stockOptionsFixture);
@@ -482,4 +488,96 @@ describe("stock report domain", () => {
     expect(deriveEntryDetail(compactEntries([members[0]])[0], [members[0]], stockOptionsFixture).isMultiLocation).toBe(false);
   });
 
+});
+
+describe("stock report domain — P7 count mode", () => {
+  // Every row here sets instanceCount apart from quantity, so a function that
+  // silently reads the wrong one cannot pass.
+  const lc1 = entry({ location: "LC1", mergeKey: "pair", quantity: 10, instanceCount: 2, unitsToRestockTarget: 18 });
+  const h1 = entry({ location: "H1", mergeKey: "pair", quantity: 30, instanceCount: 3, unitsToRestockTarget: 17 });
+
+  it("C6(a): compaction sums instanceCount and quantity independently across locations", () => {
+    const [result] = compactEntries([lc1, h1]);
+
+    expect(result).toMatchObject({ quantity: 40, instanceCount: 5, unitsToRestockTarget: 35 });
+    expect(result.contributions).toEqual([
+      { location: "H1", quantity: 30, instanceCount: 3, unitsToRestockTarget: 17 },
+      { location: "LC1", quantity: 10, instanceCount: 2, unitsToRestockTarget: 18 },
+    ]);
+  });
+
+  it("C6(a) location filter: re-summing a compact row keeps the two numbers apart", () => {
+    const [filtered] = applyStockFilters(compactEntries([lc1, h1]), filter({ locations: new Set(["H1"]) }));
+
+    expect(filtered).toMatchObject({ quantity: 30, instanceCount: 3, locations: "H1" });
+  });
+
+  it("C6(b): displayedCount reads instanceCount in instances mode and quantity in units mode", () => {
+    const item = { quantity: 10, instanceCount: 2 };
+
+    expect(displayedCount(item, "instances")).toBe(2);
+    expect(displayedCount(item, "units")).toBe(10);
+  });
+
+  it("C6(c): compact and group comparators order by the displayed number and flip with the mode", () => {
+    // Same state; a has fewer items but more units than b.
+    const a = row({ mergeKey: "a", stockState: "low_in_stock", quantity: 50, instanceCount: 1, locations: "H1" });
+    const b = row({ mergeKey: "b", stockState: "low_in_stock", quantity: 5, instanceCount: 4, locations: "H1" });
+    const byItems = makeCompactRowComparator(keyOrder, "instances");
+    const byUnits = makeCompactRowComparator(keyOrder, "units");
+
+    expect(byItems(a, b)).toBeLessThan(0);
+    expect(byUnits(a, b)).toBeGreaterThan(0);
+    expect(makeCompactRowComparator(keyOrder)(a, b)).toBeLessThan(0);
+
+    const ea = entry({ mergeKey: "a", stockState: "low_in_stock", quantity: 50, instanceCount: 1 });
+    const eb = entry({ mergeKey: "b", stockState: "low_in_stock", quantity: 5, instanceCount: 4 });
+    expect(makeGroupEntryComparator(keyOrder, "instances")(ea, eb)).toBeLessThan(0);
+    expect(makeGroupEntryComparator(keyOrder, "units")(ea, eb)).toBeGreaterThan(0);
+
+    const itemsView = compactView(buildReportView([ea, eb], filter(), keyOrder, "instances"));
+    const unitsView = compactView(buildReportView([ea, eb], filter(), keyOrder, "units"));
+    expect(itemsView.map(({ mergeKey }) => mergeKey)).toEqual(["a", "b"]);
+    expect(unitsView.map(({ mergeKey }) => mergeKey)).toEqual(["b", "a"]);
+  });
+
+  it("C6(d): the missing figure is mode-independent, and its fallback subtracts items, not units", () => {
+    const wire = entry({ quantity: 40, instanceCount: 4, unitsToRestockTarget: 16 });
+    expect(missingQuantityForEntry(wire)).toBe(16);
+
+    const fallback = entry({ quantity: 40, instanceCount: 4, unitsToRestockTarget: undefined });
+    // target 20 − 4 items = 16; a unit-based fallback would clamp to 0.
+    expect(missingQuantityForEntry(fallback)).toBe(16);
+
+    const [compacted] = compactEntries([fallback]);
+    expect(compacted.unitsToRestockTarget).toBe(16);
+  });
+
+  it("C6(e): counter tiles do not depend on the count mode", () => {
+    const entries = [lc1, h1, entry({ location: "LC1", mergeKey: "zero", stockState: "out_of_stock", quantity: 0, instanceCount: 0, unitsToRestockTarget: 20 })];
+    const tiles = computeCounterTiles(entries, filter());
+
+    expect(tiles).toEqual({ out: 20, low: 0, medium: 0, rest: 35 });
+    // computeCounterTiles takes no mode; the rows it sums carry the item gap only.
+    expect(computeCounterTiles(entries, filter({ locations: new Set(["H1"]) }))).toEqual({ out: 0, low: 0, medium: 0, rest: 17 });
+  });
+
+  it("C6(b) detail: deriveEntryDetail carries both numbers per contributing location", () => {
+    const [source] = compactEntries([lc1, h1]);
+    const detail = deriveEntryDetail(source, [lc1, h1], stockOptionsFixture);
+
+    expect(detail.entries.map(({ location, quantity, instanceCount }) => ({ location, quantity, instanceCount }))).toEqual([
+      { location: "H1", quantity: 30, instanceCount: 3 },
+      { location: "LC1", quantity: 10, instanceCount: 2 },
+    ]);
+  });
+
+  it("C7 labels: the current label follows the mode and the missing label names items in units mode", () => {
+    expect(stockCountLabels("instances")).toEqual({ current: "Items", missing: "To normal" });
+    expect(stockCountLabels("units")).toEqual({ current: "Units", missing: "Missing items" });
+    expect(countNoun(1, "instances")).toBe("item");
+    expect(countNoun(2, "instances")).toBe("items");
+    expect(countNoun(1, "units")).toBe("unit");
+    expect(countNoun(5, "units")).toBe("units");
+  });
 });

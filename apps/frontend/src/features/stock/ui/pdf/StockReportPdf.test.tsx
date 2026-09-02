@@ -263,6 +263,7 @@ function twoPageEntries(): StockReportEntryDto[] {
         properties: { wood_type: [woods[(categoryIndex + variant) % woods.length]!] },
         mergeKey: `p9-${categoryIndex}-${variant}`,
         quantity: ordinal % 7,
+        instanceCount: ordinal % 7,
         stockState: STOCK_STATES[ordinal % STOCK_STATES.length]!,
         thresholds: [
           { state: STOCK_STATES[1], thresholdQuantity: 10 },
@@ -281,6 +282,7 @@ function twoPageModel(): StockPdfModel {
     ...createDefaultStockFilter(),
     includeSummaryCounts: true,
     showContributingLocations: true,
+    countMode: "instances",
     propertyKeyOrder: keyOrder,
   });
 }
@@ -354,14 +356,14 @@ describe("stock report PDF document", () => {
     expect(categoryCounts).toEqual(Object.fromEntries(expectedCategories));
   });
 
-  it("C3: renders separate Current and Missing columns with their supplied values", async () => {
+  it("C3: renders separate Items and Missing columns with their supplied values", async () => {
     const model = buildPdfModel([
       {
         location: "LC1",
         itemCategory: "Dining Chairs",
         properties: {},
         mergeKey: "current-missing-proof",
-        quantity: 83,
+        quantity: 83, instanceCount: 83,
         stockState: STOCK_STATES[1],
         thresholds: [
           { state: STOCK_STATES[1], thresholdQuantity: 90 },
@@ -374,12 +376,13 @@ describe("stock report PDF document", () => {
       ...createDefaultStockFilter(),
       includeSummaryCounts: false,
       showContributingLocations: true,
+      countMode: "instances",
       propertyKeyOrder: keyOrder,
     });
     const lines = (await extractPdfLines(await renderFixture(model))).flat();
     const text = lines.join("\n");
 
-    expect(text).toMatch(/current/i);
+    expect(text).toMatch(/items/i);
     expect(text).toMatch(/missing/i);
     expect(lines).toContain("83");
     expect(lines).toContain("97");
@@ -392,7 +395,7 @@ describe("stock report PDF document", () => {
         itemCategory: "Armchairs",
         properties: {},
         mergeKey: "out-1",
-        quantity: 0,
+        quantity: 0, instanceCount: 0,
         stockState: STOCK_STATES[0],
         thresholds: [
           { state: STOCK_STATES[1], thresholdQuantity: 2 },
@@ -406,7 +409,7 @@ describe("stock report PDF document", () => {
         itemCategory: "Sofas",
         properties: {},
         mergeKey: "out-2",
-        quantity: 0,
+        quantity: 0, instanceCount: 0,
         stockState: STOCK_STATES[0],
         thresholds: [
           { state: STOCK_STATES[1], thresholdQuantity: 3 },
@@ -420,7 +423,7 @@ describe("stock report PDF document", () => {
         itemCategory: "Dining Chairs",
         properties: {},
         mergeKey: "out-3",
-        quantity: 0,
+        quantity: 0, instanceCount: 0,
         stockState: STOCK_STATES[0],
         thresholds: [
           { state: STOCK_STATES[1], thresholdQuantity: 10 },
@@ -434,7 +437,7 @@ describe("stock report PDF document", () => {
         itemCategory: "Dining Tables",
         properties: {},
         mergeKey: "out-4",
-        quantity: 0,
+        quantity: 0, instanceCount: 0,
         stockState: STOCK_STATES[0],
         thresholds: [
           { state: STOCK_STATES[1], thresholdQuantity: 10 },
@@ -448,7 +451,7 @@ describe("stock report PDF document", () => {
         itemCategory: "Dining Chairs",
         properties: {},
         mergeKey: "medium",
-        quantity: 12,
+        quantity: 12, instanceCount: 12,
         stockState: STOCK_STATES[2],
         thresholds: [
           { state: STOCK_STATES[1], thresholdQuantity: 10 },
@@ -463,6 +466,7 @@ describe("stock report PDF document", () => {
       states: new Set(STOCK_STATES.slice(0, 4)),
       includeSummaryCounts: true,
       showContributingLocations: true,
+      countMode: "instances",
       propertyKeyOrder: keyOrder,
     });
     const lines = (await extractPdfLines(await renderFixture(model))).flat();
@@ -471,5 +475,67 @@ describe("stock report PDF document", () => {
     expect(lines).toContain("54");
     expect(lines.filter((line) => line === "8")).toHaveLength(3);
     expect(text).not.toMatch(/extra/i);
+  });
+});
+
+describe("stock report PDF document — P7 count mode (C7(d))", () => {
+  const discriminatingEntry: StockReportEntryDto = {
+    location: "LC1",
+    itemCategory: "Dining Chairs",
+    properties: {},
+    mergeKey: "count-mode-proof",
+    quantity: 83,
+    instanceCount: 41,
+    stockState: STOCK_STATES[1],
+    thresholds: [
+      { state: STOCK_STATES[1], thresholdQuantity: 90 },
+      { state: STOCK_STATES[2], thresholdQuantity: 95 },
+      { state: STOCK_STATES[3], thresholdQuantity: 180 },
+    ],
+    unitsToRestockTarget: 139,
+  };
+
+  async function renderedLines(countMode: "instances" | "units"): Promise<string[]> {
+    const model = buildPdfModel([discriminatingEntry], {
+      ...createDefaultStockFilter(),
+      includeSummaryCounts: false,
+      showContributingLocations: true,
+      countMode,
+      propertyKeyOrder: keyOrder,
+    });
+    return (await extractPdfLines(await renderFixture(model))).flat();
+  }
+
+  // Column headers render upper-cased and the extractor splits nested Text runs, so
+  // the header reads "ITEMS"/"UNITS", a wrapped "Missing items" reads "MISSING " then
+  // "ITEMS", and the settings line reads "Count · " followed by its value.
+  function settingsValue(lines: readonly string[], key: string): string | undefined {
+    const index = lines.indexOf(key);
+    return index === -1 ? undefined : lines[index + 1];
+  }
+
+  it("C7(d) items: the current column is headed Items, shows instanceCount, and the settings box says Items", async () => {
+    const lines = await renderedLines("instances");
+    const text = lines.join("\n");
+
+    expect(lines).toContain("ITEMS");
+    expect(lines).not.toContain("UNITS");
+    expect(lines).toContain("41");
+    expect(lines).not.toContain("83");
+    expect(lines).toContain("139");
+    expect(settingsValue(lines, "Count · ")).toBe("Items");
+    expect(text).not.toMatch(/MISSING \nITEMS/);
+  });
+
+  it("C7(d) units: the current column is headed Units, shows quantity, the gap is labelled Missing items, and the settings box says Units", async () => {
+    const lines = await renderedLines("units");
+    const text = lines.join("\n");
+
+    expect(lines).toContain("UNITS");
+    expect(lines).toContain("83");
+    expect(lines).not.toContain("41");
+    expect(lines).toContain("139");
+    expect(text).toMatch(/MISSING \nITEMS/);
+    expect(settingsValue(lines, "Count · ")).toBe("Units");
   });
 });

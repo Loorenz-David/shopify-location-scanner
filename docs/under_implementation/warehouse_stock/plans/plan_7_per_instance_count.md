@@ -1,7 +1,9 @@
 # P7 — Per-instance count on `LocationStock`
 
 > **DRAFT 2026-09-02** — authored from the owner's request in session; not yet linted, not yet
-> projected. Header state: **OWNER_DECISIONS_PENDING** (6 cards, §"Owner decisions"). The
+> projected. Header state: **IMPLEMENTED 2026-09-02 — awaiting review** (all 6 cards answered by
+> the owner 2026-09-02; lint and projection were skipped on the owner's instruction to implement
+> directly — recorded in the Review log). Handoff: `handoffs/implementer/handoff_7_implement_1.md`. The
 > project was closed on 2026-09-02 with P1–P6 APPROVED; this phase re-opens it as an additive
 > change to an approved system. Every P1–P6 file it touches is a *frozen* file being thawed on
 > purpose — the perimeter below is therefore explicit and closed.
@@ -11,7 +13,7 @@
 > medium_in_stock, high_in_stock, extra_in_stock` on both sides; a definition configures **one to
 > three** thresholds (low/medium/high; a `0`/`null` quantity means "not configured"); the report's
 > gap field is **`unitsToRestockTarget`** = `max(0, highest configured threshold − count)`. That
-> refactor must be committed before P7 starts (gate below).
+> refactor is committed as `4fcbc17` (with `f103dc0` on top); the gate below is satisfied.
 
 ## Goal
 
@@ -33,10 +35,10 @@ switch the report to show `quantity` (units) instead, and the PDF sheet carries 
 best-match, conflict rules, canonical criteria, the HTTP surface beyond additive fields, or the
 threshold validation rules. A behaviour change in any of those is a finding.
 
-## ⚠ OWNER DECISIONS REQUIRED (6)
+## Owner decisions (6 — all ANSWERED 2026-09-02)
 
-Each card states the assumption the plan is written under. A card left unanswered means the
-assumption stands.
+The owner confirmed every assumption below as the decision. The cards stay for the record and for
+the lint's traceability; none is open.
 
 | # | Question | Plan assumes | Why it matters |
 |---|---|---|---|
@@ -65,10 +67,10 @@ change" — this phase is that change**) · frontend `stock/domain/stock-report.
 
 ## Dependencies (gate)
 
-P1–P6 APPROVED (true, 2026-09-02). **The stock-state refactor is committed** and its own
-instruments are green (`verify-all.ts` all-PASS, frontend typecheck/lint/test) — P7 thaws the same
-files and must not start on top of an uncommitted diff. Owner cards D1–D6 answered or left to
-their defaults. Contract reissued **v1.7** before frontend work starts
+P1–P6 APPROVED (true, 2026-09-02). **The stock-state refactor is committed** (`4fcbc17`) — the
+implementer's gate self-test still re-runs its instruments (`verify-all.ts` all-PASS, frontend
+typecheck/lint/test) before the first P7 edit, since no review record exists for that commit.
+Owner cards D1–D6 **answered 2026-09-02** (defaults confirmed). **SATISFIED.** Contract reissued **v1.7** before frontend work starts
 (P7.4 gate).
 
 ## Semantics (the contract for the implementer)
@@ -265,3 +267,130 @@ state refactor (backend renamed, frontend rename partly applied) and was read as
 sides. The owner confirmed the refactor is theirs and finished. P7.0 and card D7 removed; the
 gap field is `unitsToRestockTarget`, thresholds are one to three, the top band is
 `extra_in_stock`. Six owner cards remain. Gate now requires that refactor committed and green.
+
+### 2026-09-02 — owner answered all six cards; gate satisfied
+Owner confirmed D1–D6 as written (defaults are the decisions) and reported the state refactor
+committed: `4fcbc17` "stock: rename states (normal->high, high->extra) and make thresholds
+optional", then `f103dc0` (property rendering on report rows and PDF). Working tree clean. Plan
+header moved to READY_FOR_LINT. Next: coordinator lint, then implementer prompt for P7.1–P7.3
+(backend) and P7.4 (frontend).
+
+### 2026-09-02 — IMPLEMENTED (Claude Fable 5.1, implementer; owner instruction "you will be implementing this fully")
+
+**Process deviation, stated up front.** No coordinator lint, no projection round, no compiled
+prompt: the owner asked for direct implementation from this plan. The row count was re-derived
+at implementation (42 as written); nothing in the criteria turned out undecidable, but two rows
+were re-sited (below) and the lint would have caught both.
+
+**What was built.** Exactly the perimeter in "Files expected to change", plus three items not
+listed there and declared here: (1) `apps/frontend/src/features/stock/domain/stock-count-mode.domain.ts`
+— the label helpers (`stockCountLabels`, `countNoun`) moved out of the two component files
+because the repo's `react-refresh/only-export-components` lint forbids non-component exports there;
+(2) `apps/frontend/src/features/stock/api/mocks/get-stock-location-detail.fixture.ts` and
+`mock-state.ts` — the definition DTO gained a required field, so its fixtures had to carry it;
+(3) `plans/plan_6_maintenance_verification.md` — one appended Review-log note discharging P6 N1.
+`ui/StockLocationDetailView.tsx` was listed and **not changed**: it renders no count (thresholds
+strip only), so there was nothing to switch. The four `modules/shopify/` call sites are byte-identical.
+
+**Judgment calls.**
+- **Migration shape.** Prisma emitted a SQLite table-rebuild migration for the added column
+  (`20260902170346_add_location_stock_instance_count`) rather than an `ALTER TABLE ADD COLUMN`. It
+  copies every existing row and leaves `instanceCount` at 0. Applied to `prisma/dev.db` (that is
+  what `prisma migrate dev` does); the data was verified intact (3 rows, values unchanged).
+- **Legacy fixture expectations changed under the new basis, and the change is recorded row by row:**
+  P2 C3 expected `high_in_stock`/`medium_in_stock` for one-item definitions holding 4 and 3 units
+  (now both `low_in_stock`: one item under 1/3/5); P2 C4(d) `high_in_stock` → `low_in_stock`
+  (quantity 1→4 is still one item); P2 C5 `medium_in_stock` → `low_in_stock`. These rows lost
+  their band discrimination; P7 C2(d) carries it now with a fixture where the two bases land in
+  different bands. P2 C2 rows keep their numbers by seeding `instanceCount` equal to `quantity`.
+- **P5 C1(a) was a pre-existing failure on the baseline run** (`expected 15 report entries, got 18`):
+  the script counted every definition in the shop, and `dev.db` now holds three real ones. Fixed in
+  passing to count only this run's prefixed fixture rows — inside a file the phase owns, so no
+  scope excursion; recorded because the baseline stamp is otherwise unexplainable.
+- **The guard-refusal log gained two keys** (`requestedInstanceDecrement`, `currentInstanceCount`);
+  P2 C2(c) asserts the exact key set and was updated. Nothing else reads that log.
+- **Fixture discrimination on the frontend.** The mock report fixture doubles `quantity` and keeps
+  the old numbers as `instanceCount`, so every gap and state stays consistent and any UI cell that
+  silently reads `quantity` renders a visibly different number. Six existing page-test assertions
+  moved from `.quantity` to `.instanceCount` accordingly; the domain-test builders default
+  `instanceCount` to `quantity` so pre-P7 rows keep their arithmetic.
+- **Reset in the filter sheet keeps the count mode** (D5: it is a preference, not a filter);
+  asserted in C7(b).
+- **Store initialisation reads localStorage at module load** (`countMode: readStockReportSettings()`),
+  guarded for missing/blocked storage. A `reset()` re-reads it — that is what "survives a reload"
+  tests.
+
+**Two re-sitings, reported rather than smoothed.**
+- **C3(h)** as written ("after each of (a)–(e) the state equals `calculateStockState(instanceCount,
+  thresholds)`") is checked inside the shared hook scenario, so when it fails **every** C3 row
+  reports its message (probe ii showed this). One function per row would have cost a second
+  scenario run per row; left as is and flagged for the reviewer.
+- **Probe (ii)** as named in the plan ("in `updateState`, derive the state from `row.quantity`")
+  reddens C3(h) and C4(b) but **not C2(d)**: reconciliation derives the state in the service
+  (`computeGroup`), not in the repository, so the basis lives in two places. A second mutation at
+  the service site (ii-b) was run and reddens C2(b), C2(d), C2(e) and eight P2 rows. Both are in
+  the ledger. The rebuild script is a third site for the same call; no script row observes it
+  (C5's preview is checksum- and eyeball-verified, not asserted) — carried as a note.
+
+**Instruments (the L4 stamp).** Tree: HEAD `f103dc0` + this working tree (uncommitted; 37 files
+changed, 5 added). Backend: `npm run typecheck` exit 0; purity grep over `src/modules/stock/domain/`
+empty; `npx tsx scripts/verify-all.ts` on a fresh `.backup` copy → `SUMMARY PASS 3 script(s)`,
+**domain 66 · reconciliation 33 · report 25 = 124 rows**, none REFUSED/MISSING; `prisma/dev.db`
+SHA-256 identical before and after. Frontend: `tsc -b` 0 errors; `eslint` 62 problems repo-wide =
+**62 at HEAD** (stock feature: 0); `vitest run` **209/209** (baseline 189/189; +20).
+Baselines were captured before the first production edit: backend `SUMMARY FAIL` (the P5 C1(a)
+fixture defect above; 99 PASS rows), frontend 189/189.
+
+**Rebuild script (C5), on the scratch copy of the real shop:** dry run previewed
+`instanceCount 0 → 1 / 7 / 3` for the three real definitions with `writes: 0` and an identical
+checksum; the live run wrote exactly those numbers and re-derived the states (`H1 Dining Chairs`
+34 units → 7 items → `high_in_stock`, was `extra_in_stock`). **`prisma/dev.db` was not rebuilt**
+(the script refuses that path by P6 design) — owner card below.
+
+**Mutation ledger** (executed = declared: 4 backend named + 1 frontend named + 1 extra = 6 run).
+
+| # | Site | Scope | Observed red |
+|---|---|---|---|
+| i | `apply-item-stock-change.service.ts`, both same-definition call sites: `instances: 0` → `1` | `verify-stock-reconciliation.ts` | `P7.C3(c)` "expected 4/1, got 4/2". C3(d) stayed green: (c)'s surplus instance and (d)'s surplus decrement cancel — the probe discriminates on (c) alone |
+| ii | `location-stock.repository.ts` `updateState`: `row.instanceCount` → `row.quantity` | reconciliation + report scripts | `P7.C3(a)–(h)` (all via C3(h)'s message, see re-siting), `C4(a)`, `C4(c)`, `P7.C4(b)` |
+| ii-b | `stock-reconciliation.service.ts` `computeGroup`: `calculateStockState(instanceCount` → `quantity` | reconciliation script | `C3(a)–(e)`, `C4(d)`, `C5(a)(b)`, `P7.C2(b)`, `P7.C2(d)`, `P7.C2(e)` |
+| iii | `location-stock.repository.ts` `applyGuardedDecrement`: drop `instanceCount: { gte }` from the where-clause | reconciliation script | `P7.C3(g)` "instance-half refusal did not fire" |
+| iv | `stock-report.domain.ts` `compactEntries`: sum `quantity` into `instanceCount` | domain + page vitest files | `C6(a)`, page `C4`, `C6`, `C7(a)`, `C7(b)`, `C7(c)` |
+
+A first run of probe i was **reverted too broadly** (a global replace also flipped the leave/enter
+branches to `instances: 0`), which contaminated the first runs of ii and iii; the file was restored
+exactly, the suite re-run green, and ii/iii re-run with copy-based reverts. The table above is
+from the clean runs. Working tree confirmed restored after each probe (`git diff` unchanged).
+
+**Every guard shipped with its red:** the two-column guard (iii), the item basis in both places
+(ii, ii-b), the same-definition instance rule (i), compaction (iv). The settings reader's
+corrupt-storage guard is exercised by C6(f) with three malformed values.
+
+**Coverage map (row → instrument → assertion shape).** C1(a)–(e) → `P7.C1(*)` in
+`verify-stock-domain.ts`, exact `equalJson` on both numbers. C2(a)–(e) → `P7.C2(*)` in
+`verify-stock-reconciliation.ts`; (b) asserts the row was *written* (`updatedByUsername` sentinel),
+(c) asserts both numbers in `from`/`to`, (d) asserts the discriminating band. C3(a)–(h) →
+`P7.C3(*)`; (f) asserts both current and both requested values in the log; (h) counts six state
+checks. C4(a)–(f) → `P7.C4(*)` in `verify-stock-report.ts` (plus C3(a) now asserting nine keys).
+C5(a)–(c) → executed by hand on the scratch copy (above), not scripted — same as P6 C2. C6(a)–(f)
+→ `stock-report.domain.test.ts` "P7 count mode" block and `stock-report-settings.domain.test.ts`.
+C7(a)–(c) → `StockReportPage.test.tsx` "P7 count mode"; C7(d) → `GeneratePdfSheet.test.tsx`,
+`stock-pdf.domain.test.ts` and `StockReportPdf.test.tsx` (node-env render, both modes); C7(e) →
+`stock-api.test.ts`. No orphan tests: every added `it` names its row.
+
+**⚠ OWNER DECISIONS REQUIRED (1)**
+- **Backfill the local development database.** `prisma/dev.db` is migrated (column present, every
+  row at `instanceCount 0`, so the three live definitions read `out_of_stock` until recounted).
+  `scripts/rebuild-location-stock.ts` refuses to run against the configured dev.db by P6 design.
+  Options: (a) run the rebuild against a copy and swap; (b) a one-off `npx tsx -e` calling
+  `reconcileAllGroups(shopId)`; (c) create/edit any definition in the app — each command
+  reconciles its group. Not done unasked: it writes the owner's live data. **Production follows
+  runbook R1–R5 in this plan; R1→R3 is one window.**
+
+### 2026-09-02 — owner card closed: local dev.db backfilled
+Owner asked for a straightforward local run. `scripts/rebuild-location-stock.ts` gained an explicit
+opt-in, `ALLOW_CONFIGURED_DATABASE=1`, which lifts P6's refusal of the configured `prisma/dev.db`
+and logs `location-stock-rebuild-configured-database-override` when used; without the flag the
+refusal (exit 3) is unchanged and was re-checked. Ran dry then live on `prisma/dev.db`: H1 Dining
+Chairs 34 units → 7 items (`extra_in_stock` → `high_in_stock`); O2 Dining Tables 3 → 3 items
+(`low_in_stock`); H1 Dining Chairs 2 → 1 item (`low_in_stock`). No open owner cards remain.

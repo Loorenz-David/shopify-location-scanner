@@ -142,6 +142,7 @@ export type LocationStock = {
   properties: StockCriteria;
   propertiesCanonical: string;
   quantity: number;
+  instanceCount: number;
   stockState: StockState;
   createdAt: Date;
   createdByUsername: string;
@@ -166,6 +167,7 @@ export type LocationStockDto = {
   itemCategory: string;
   properties: StockCriteria;
   quantity: number;
+  instanceCount: number;
   stockState: StockState;
   thresholds: Array<{ state: StockState; thresholdQuantity: number }>;
   createdAt: Date;
@@ -180,6 +182,7 @@ export type StockReportEntry = {
   properties: StockCriteria;
   mergeKey: string;
   quantity: number;
+  instanceCount: number;
   stockState: StockState;
   thresholds: Array<{ state: StockState; thresholdQuantity: number }>;
   unitsToRestockTarget: number;
@@ -195,6 +198,7 @@ export const toLocationStockDto = (locationStock: LocationStock): LocationStockD
   itemCategory: locationStock.itemCategory,
   properties: locationStock.properties,
   quantity: locationStock.quantity,
+  instanceCount: locationStock.instanceCount,
   stockState: locationStock.stockState,
   thresholds: locationStock.thresholds.map((threshold) => ({
     state: threshold.state,
@@ -211,6 +215,14 @@ export const getStockConfigurationOptions = () => ({
   propertyOptions: ITEM_PROPERTY_OPTIONS,
 });
 
+// One movement of stock into or out of a definition: `quantity` in units,
+// `instances` in ScanHistory rows. Same-definition quantity edits carry
+// `instances: 0`; an item leaving or entering carries `instances: 1`.
+export type StockDelta = {
+  quantity: number;
+  instances: number;
+};
+
 export type GuardedDecrementContext = {
   productId?: string;
   scanHistoryId?: string;
@@ -223,5 +235,6 @@ export type GuardedDecrementContext = {
 export type ReconciliationValue = {
   id: string;
   quantity: number;
+  instanceCount: number;
   stockState: StockState;
 };

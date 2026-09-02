@@ -425,6 +425,7 @@ model LocationStock {
   properties          Json
   propertiesCanonical String
   quantity            Int      @default(0)
+  instanceCount       Int      @default(0)
   stockState          StockState @default(out_of_stock)
   createdAt           DateTime @default(now())
   createdByUsername   String

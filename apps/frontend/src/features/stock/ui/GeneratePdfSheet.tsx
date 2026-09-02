@@ -14,6 +14,7 @@ import {
 import type { StockPdfRenderHandle } from "../controllers/stock-report.controller";
 import type { StockPdfExportQuery, StockPdfModel } from "../domain/stock-pdf.domain";
 import type { StockOptionsDto } from "../types/stock.dto";
+import type { StockCountMode } from "../types/stock.types";
 import { readStockPdfPageCount } from "./pdf/stock-pdf-page-count";
 import { useStockPdfRenderHandle } from "./pdf/use-stock-pdf-render";
 
@@ -25,6 +26,11 @@ const EMPTY_OPTIONS: StockOptionsDto = { itemCategories: [], propertyOptions: []
 
 const eyebrowClassName =
   "stock-mono m-0 text-[10px] uppercase tracking-[0.14em] text-[var(--stock-muted)]";
+
+const COUNT_MODE_OPTIONS: ReadonlyArray<{ mode: StockCountMode; label: string }> = [
+  { mode: "instances", label: "Items" },
+  { mode: "units", label: "Units" },
+];
 
 interface ToggleRowProps {
   label: string;
@@ -222,6 +228,36 @@ function GeneratePdfSheetBody({
               checked={query.groupByLocation}
               onChange={(checked) => stockActions.setPdfExportGroupByLocation(checked)}
             />
+          </div>
+
+          <div className="flex flex-col gap-2.5">
+            <p className={eyebrowClassName}>Count</p>
+            <div
+              role="group"
+              aria-label="Count"
+              className="flex gap-1 rounded-[20px] bg-[var(--stock-track)] p-1"
+            >
+              {COUNT_MODE_OPTIONS.map(({ mode, label }) => {
+                const isActive = query.countMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    data-testid="stock-pdf-count-mode"
+                    data-count-mode={mode}
+                    aria-pressed={isActive}
+                    className={`h-11 flex-1 rounded-[16px] text-[12px] font-semibold transition ${
+                      isActive
+                        ? "bg-[var(--stock-primary)] text-white"
+                        : "text-[var(--stock-muted)]"
+                    }`}
+                    onClick={() => stockActions.setPdfExportQuery({ countMode: mode })}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="flex flex-col gap-2.5">

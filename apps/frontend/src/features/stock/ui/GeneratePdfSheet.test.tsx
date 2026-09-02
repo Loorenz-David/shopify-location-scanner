@@ -221,3 +221,34 @@ describe("GeneratePdfSheet (screen 05)", () => {
     expect(share.mock.calls[0]![0].blob).toBe(handle.blob);
   });
 });
+
+describe("GeneratePdfSheet — P7 count mode (C7(d))", () => {
+  beforeEach(() => {
+    useStockReportStore.getState().reset();
+    vi.clearAllMocks();
+  });
+
+  function modeButton(mode: "instances" | "units"): HTMLElement {
+    return screen
+      .getAllByTestId("stock-pdf-count-mode")
+      .find((button) => button.getAttribute("data-count-mode") === mode)!;
+  }
+
+  it("C7(d): opens seeded with the report's mode and flips its own query without touching the report", async () => {
+    useStockReportStore.getState().setCountMode("units");
+    openSheet(readyHandle());
+
+    expect(modeButton("units")).toHaveAttribute("aria-pressed", "true");
+    expect(modeButton("instances")).toHaveAttribute("aria-pressed", "false");
+    expect(useStockReportStore.getState().exportState.query?.countMode).toBe("units");
+
+    await userEvent.click(modeButton("instances"));
+
+    await waitFor(() =>
+      expect(useStockReportStore.getState().exportState.query?.countMode).toBe("instances"),
+    );
+    expect(modeButton("instances")).toHaveAttribute("aria-pressed", "true");
+    expect(useStockReportStore.getState().countMode).toBe("units");
+    expect(useStockReportStore.getState().appliedFilter).toEqual(seededFilter(STOCK_STATES));
+  });
+});

@@ -5,16 +5,22 @@ import { countPendingRows } from "../domain/stock-report.domain";
 import { getStockStateMeta, STOCK_STATES } from "../domain/stock-states.domain";
 import { createDefaultStockFilter } from "../stores/stock-report.store";
 import type { StockReportEntryDto } from "../types/stock.dto";
-import type { StockFilterState, StockState } from "../types/stock.types";
+import type { StockCountMode, StockFilterState, StockState } from "../types/stock.types";
 
 interface StockFilterSheetProps {
   entries: readonly StockReportEntryDto[];
   keyOrder: readonly string[];
   locations: readonly string[];
   appliedFilter: StockFilterState;
-  onApply: (filter: StockFilterState) => void;
+  countMode: StockCountMode;
+  onApply: (filter: StockFilterState, countMode: StockCountMode) => void;
   onClose: () => void;
 }
+
+const COUNT_MODE_OPTIONS: ReadonlyArray<{ mode: StockCountMode; label: string }> = [
+  { mode: "instances", label: "Items" },
+  { mode: "units", label: "Units" },
+];
 
 function cloneFilter(filter: StockFilterState): StockFilterState {
   return {
@@ -49,10 +55,13 @@ export function StockFilterSheet({
   keyOrder,
   locations,
   appliedFilter,
+  countMode,
   onApply,
   onClose,
 }: StockFilterSheetProps) {
   const [pending, setPending] = useState<StockFilterState>(() => cloneFilter(appliedFilter));
+  // A display preference, not a filter: Reset leaves it alone (P7 D5).
+  const [pendingCountMode, setPendingCountMode] = useState<StockCountMode>(countMode);
 
   const pendingCount = countPendingRows(entries, pending, keyOrder);
   const countForState = (state: StockState): number =>
@@ -208,6 +217,39 @@ export function StockFilterSheet({
             </div>
           </div>
 
+          <div className="flex flex-col gap-2.5">
+            <p className={eyebrowClassName}>Count</p>
+            <div
+              role="group"
+              aria-label="Count"
+              className="flex gap-1 rounded-[20px] bg-[var(--stock-track)] p-1"
+            >
+              {COUNT_MODE_OPTIONS.map(({ mode, label }) => {
+                const isActive = pendingCountMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    type="button"
+                    data-testid="stock-filter-count-mode"
+                    data-count-mode={mode}
+                    aria-pressed={isActive}
+                    className={`h-11 flex-1 rounded-[16px] text-[12px] font-semibold transition ${
+                      isActive
+                        ? "bg-[var(--stock-primary)] text-white"
+                        : "text-[var(--stock-muted)]"
+                    }`}
+                    onClick={() => setPendingCountMode(mode)}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="m-0 text-[12px] text-[var(--stock-muted)]">
+              Thresholds always count items; Units shows the unit sum instead.
+            </p>
+          </div>
+
           <div className="flex items-center justify-between gap-3 rounded-[20px] bg-[var(--stock-track)] px-4 py-3.5">
             <div>
               <p className="m-0 text-[14px] font-semibold text-[var(--stock-heading)]">
@@ -245,7 +287,7 @@ export function StockFilterSheet({
           <button
             type="button"
             className="inline-flex h-14 w-full items-center justify-center rounded-[28px] bg-[var(--stock-primary)] text-[14px] font-semibold text-white shadow-[var(--stock-cta-shadow)] transition active:scale-[0.98]"
-            onClick={() => onApply(pending)}
+            onClick={() => onApply(pending, pendingCountMode)}
           >
             Show {pendingCount} {pendingCount === 1 ? "entry" : "entries"}
           </button>

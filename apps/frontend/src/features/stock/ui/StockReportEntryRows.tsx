@@ -1,8 +1,9 @@
 import { getStockStateMeta, STOCK_STATES } from "../domain/stock-states.domain";
-import { missingQuantityForEntry } from "../domain/stock-report.domain";
+import { stockCountLabels } from "../domain/stock-count-mode.domain";
+import { displayedCount, missingQuantityForEntry } from "../domain/stock-report.domain";
 import type { CriteriaChip } from "../domain/stock-criteria.domain";
 import type { StockReportEntryDto, StockStateDto } from "../types/stock.dto";
-import type { CompactedReportRow } from "../types/stock.types";
+import type { CompactedReportRow, StockCountMode } from "../types/stock.types";
 import { StockCategoryThumbnail } from "./StockCategoryThumbnail";
 import { StockPropertyChips } from "./StockPropertyChips";
 
@@ -11,14 +12,21 @@ const missingMeta = getStockStateMeta(STOCK_STATES[0]);
 interface StockQuantityBarProps {
   current: number;
   missing: number;
+  countMode: StockCountMode;
 }
 
-function StockQuantityBar({ current, missing }: StockQuantityBarProps) {
+// The current cell follows the count mode; the missing cell is always items,
+// because thresholds are item-based (P7 D3) — its label says so in units mode.
+function StockQuantityBar({ current, missing, countMode }: StockQuantityBarProps) {
+  const labels = stockCountLabels(countMode);
   return (
     <span className="grid w-full grid-cols-2 overflow-hidden rounded-[18px] bg-[var(--stock-track)]">
       <span className="flex min-w-0 flex-col gap-1 px-5 py-3">
-        <span className="stock-mono text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--stock-muted)]">
-          In stock
+        <span
+          data-testid="stock-row-quantity-label"
+          className="stock-mono text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--stock-muted)]"
+        >
+          {labels.current}
         </span>
         <span
           data-testid="stock-row-quantity"
@@ -31,8 +39,11 @@ function StockQuantityBar({ current, missing }: StockQuantityBarProps) {
         className="flex min-w-0 flex-col gap-1 border-l border-white/80 px-5 py-3"
         style={{ backgroundColor: missingMeta.tint, color: missingMeta.text }}
       >
-        <span className="stock-mono text-[10px] font-medium uppercase tracking-[0.14em]">
-          To normal
+        <span
+          data-testid="stock-row-missing-label"
+          className="stock-mono text-[10px] font-medium uppercase tracking-[0.14em]"
+        >
+          {labels.missing}
         </span>
         <span
           data-testid="stock-row-missing"
@@ -76,6 +87,7 @@ function StockEntryStatus({ state, location }: StockEntryStatusProps) {
 interface StockCompactEntryRowProps {
   row: CompactedReportRow;
   chips: readonly CriteriaChip[];
+  countMode: StockCountMode;
   onPress: () => void;
 }
 
@@ -84,6 +96,7 @@ interface StockCompactEntryRowProps {
 export function StockCompactEntryRow({
   row,
   chips,
+  countMode,
   onPress,
 }: StockCompactEntryRowProps) {
   return (
@@ -105,8 +118,9 @@ export function StockCompactEntryRow({
         <StockEntryStatus state={row.stockState} location={row.locations} />
       </span>
       <StockQuantityBar
-        current={row.quantity}
+        current={displayedCount(row, countMode)}
         missing={row.unitsToRestockTarget}
+        countMode={countMode}
       />
     </button>
   );
@@ -115,6 +129,7 @@ export function StockCompactEntryRow({
 interface StockGroupedEntryRowProps {
   entry: StockReportEntryDto;
   chips: readonly CriteriaChip[];
+  countMode: StockCountMode;
   onPress: () => void;
 }
 
@@ -123,6 +138,7 @@ interface StockGroupedEntryRowProps {
 export function StockGroupedEntryRow({
   entry,
   chips,
+  countMode,
   onPress,
 }: StockGroupedEntryRowProps) {
   const meta = getStockStateMeta(entry.stockState);
@@ -150,8 +166,9 @@ export function StockGroupedEntryRow({
         <StockEntryStatus state={entry.stockState} location={entry.location} />
       </span>
       <StockQuantityBar
-        current={entry.quantity}
+        current={displayedCount(entry, countMode)}
         missing={missingQuantityForEntry(entry)}
+        countMode={countMode}
       />
     </button>
   );

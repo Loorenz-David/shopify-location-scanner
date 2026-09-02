@@ -1,6 +1,8 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
 import { criteriaChips } from "../../domain/stock-criteria.domain";
+import { STOCK_PDF_COUNT_LABELS } from "../../domain/stock-pdf.domain";
+import { displayedCount } from "../../domain/stock-report.domain";
 import {
   getStockStateMeta,
   STOCK_STATES,
@@ -12,6 +14,7 @@ import type {
   StockPdfSummaryCount,
 } from "../../domain/stock-pdf.domain";
 import type { StockOptionsDto } from "../../types/stock.dto";
+import type { StockCountMode } from "../../types/stock.types";
 import { STOCK_PDF_MONO, STOCK_PDF_SANS } from "./stock-pdf-fonts";
 
 export interface StockReportPdfDocumentProps {
@@ -209,6 +212,7 @@ interface SectionProps {
   section: StockPdfSection;
   options: StockOptionsDto;
   showContributingLocations: boolean;
+  countMode: StockCountMode;
 }
 
 interface PropertiesCellProps {
@@ -246,7 +250,7 @@ function locationsLine(row: StockPdfRow): string {
 // breaks an element that has non-fixed siblings before it on the page, and a table's
 // column header is `fixed` so react-pdf repeats it on every page the table spans
 // (layout: fixed children survive a split into both halves). Rows are `wrap={false}`.
-function Section({ section, options, showContributingLocations }: SectionProps) {
+function Section({ section, options, showContributingLocations, countMode }: SectionProps) {
   const meta = getStockStateMeta(section.state);
   const widths = showContributingLocations
     ? COLUMN_WIDTHS.withLocations
@@ -273,10 +277,10 @@ function Section({ section, options, showContributingLocations }: SectionProps) 
             </Text>
           ) : null}
           <Text style={[styles.columnLabel, { width: widths.current, textAlign: "right" }]}>
-            Current
+            {STOCK_PDF_COUNT_LABELS[countMode]}
           </Text>
           <Text style={[styles.columnLabel, { width: widths.missing, textAlign: "right" }]}>
-            Missing
+            {countMode === "units" ? "Missing items" : "Missing"}
           </Text>
         </View>
         {section.rows.map((row) => (
@@ -289,7 +293,7 @@ function Section({ section, options, showContributingLocations }: SectionProps) 
               </Text>
             ) : null}
             <Text style={[styles.cellQuantity, { width: widths.current, color: HEADING }]}>
-              {row.quantity}
+              {displayedCount(row, countMode)}
             </Text>
             <Text style={[styles.cellQuantity, { width: widths.missing, color: MISSING }]}>
               {row.unitsToRestockTarget}
@@ -318,6 +322,10 @@ function SettingsBox({ model }: { model: StockPdfModel }) {
         <Text>
           <Text style={styles.settingsKey}>Locations · </Text>
           <Text style={styles.settingsValue}>{settings.locations.join(", ")}</Text>
+        </Text>
+        <Text>
+          <Text style={styles.settingsKey}>Count · </Text>
+          <Text style={styles.settingsValue}>{settings.count}</Text>
         </Text>
       </View>
       <Text style={styles.settingsValue}>{settings.source}</Text>
@@ -364,6 +372,7 @@ export function StockReportPdfDocument({
             section={section}
             options={options}
             showContributingLocations={model.showContributingLocations}
+            countMode={model.countMode}
           />
         ))}
 

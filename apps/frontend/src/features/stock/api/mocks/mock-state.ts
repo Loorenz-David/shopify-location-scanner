@@ -23,6 +23,7 @@ export function createMockConfigurations(
       itemCategory: configuration.itemCategory,
       properties: configuration.properties ?? {},
       quantity: 12,
+      instanceCount: 6,
       stockState: STOCK_STATES[2],
       thresholds: structuredClone(configuration.thresholds),
       createdAt: now,

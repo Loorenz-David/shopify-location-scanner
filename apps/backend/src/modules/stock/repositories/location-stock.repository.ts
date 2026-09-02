@@ -16,6 +16,7 @@ import type {
   LocationStock,
   LocationStockCreateData,
   LocationStockUpdateData,
+  StockDelta,
 } from "../contracts/stock.contract.js";
 
 type DatabaseClient = typeof prisma | Prisma.TransactionClient;
@@ -77,6 +78,7 @@ const toDomain = (record: LocationStockWithThresholds): LocationStock => {
     properties,
     propertiesCanonical: record.propertiesCanonical,
     quantity: record.quantity,
+    instanceCount: record.instanceCount,
     stockState: record.stockState as StockState,
     createdAt: record.createdAt,
     createdByUsername: record.createdByUsername,
@@ -138,8 +140,10 @@ const updateState = async (
     throw new NotFoundError("Location stock not found");
   }
 
+  // Thresholds are item-based (P7): the state follows how many ScanHistory
+  // rows sit in the definition, never the unit sum.
   const stockState = calculateStockState(
-    row.quantity,
+    row.instanceCount,
     row.thresholds.map((threshold) => ({
       state: threshold.state as StockState,
       thresholdQuantity: threshold.thresholdQuantity,
@@ -371,31 +375,43 @@ export const locationStockRepository = {
     }));
   },
 
+  // One guarded statement covers both columns: a refusal writes neither, so
+  // `instanceCount` can never drift negative while `quantity` is applied.
   async applyGuardedDecrement(
     id: string,
     shopId: string,
-    delta: number,
+    delta: StockDelta,
     context: GuardedDecrementContext,
     tx?: Prisma.TransactionClient,
   ): Promise<boolean> {
     const client = tx ?? prisma;
     const result = await client.locationStock.updateMany({
-      where: { id, shopId, quantity: { gte: delta } },
-      data: { quantity: { decrement: delta } },
+      where: {
+        id,
+        shopId,
+        quantity: { gte: delta.quantity },
+        instanceCount: { gte: delta.instances },
+      },
+      data: {
+        quantity: { decrement: delta.quantity },
+        instanceCount: { decrement: delta.instances },
+      },
     });
 
     if (result.count === 0) {
       const current = await client.locationStock.findFirst({
         where: { id, shopId },
-        select: { location: true, quantity: true },
+        select: { location: true, quantity: true, instanceCount: true },
       });
 
       logger.error("Location stock decrement refused by non-negative guard", {
         locationStockId: id,
         location: current?.location ?? null,
         shopId,
-        requestedDecrement: delta,
+        requestedDecrement: delta.quantity,
+        requestedInstanceDecrement: delta.instances,
         currentQuantity: current?.quantity ?? null,
+        currentInstanceCount: current?.instanceCount ?? null,
         ...context,
       });
       return false;
@@ -407,20 +423,23 @@ export const locationStockRepository = {
 
   async applyIncrement(
     id: string,
-    delta: number,
+    delta: StockDelta,
     tx?: Prisma.TransactionClient,
   ): Promise<void> {
     const client = tx ?? prisma;
     await client.locationStock.update({
       where: { id },
-      data: { quantity: { increment: delta } },
+      data: {
+        quantity: { increment: delta.quantity },
+        instanceCount: { increment: delta.instances },
+      },
     });
     await updateState(id, client);
   },
 
   async writeAbsolute(
     id: string,
-    quantity: number,
+    values: { quantity: number; instanceCount: number },
     stockState: StockState,
     updatedByUsername: string,
     tx?: Prisma.TransactionClient,
@@ -428,7 +447,12 @@ export const locationStockRepository = {
     const client = tx ?? prisma;
     await client.locationStock.update({
       where: { id },
-      data: { quantity, stockState, updatedByUsername },
+      data: {
+        quantity: values.quantity,
+        instanceCount: values.instanceCount,
+        stockState,
+        updatedByUsername,
+      },
     });
   },
 

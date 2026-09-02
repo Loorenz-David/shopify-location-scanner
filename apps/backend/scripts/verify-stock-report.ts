@@ -99,6 +99,12 @@ const main = async (): Promise<void> => {
   const { getStockReportQuery } = await import(
     "../src/modules/stock/queries/get-stock-report.query.js"
   );
+  const { getLocationStockDetailQuery } = await import(
+    "../src/modules/stock/queries/get-location-stock-detail.query.js"
+  );
+  const { toLocationStockDto } = await import(
+    "../src/modules/stock/contracts/stock.contract.js"
+  );
 
   const createdStockIds: string[] = [];
   const createdShopIds: string[] = [];
@@ -246,6 +252,8 @@ const main = async (): Promise<void> => {
         thresholds: restockThresholds,
       })),
     );
+    // P7: the state and the gap follow instanceCount; quantity is doubled so a
+    // quantity-based reading gives a different state and gap on every row.
     const restockQuantities = [7, 0, 18, 25];
     const restockDefinitionRows = Object.fromEntries(
       Object.keys(restockDefinitions).map((name, index) => {
@@ -261,15 +269,37 @@ const main = async (): Promise<void> => {
       assert(definition !== undefined && quantity !== undefined, `restock fixture ${name} is missing`);
       await prisma.locationStock.update({
         where: { id: definition.row.id },
-        data: { quantity },
+        data: { quantity: quantity * 2, instanceCount: quantity },
       });
       await locationStockRepository.recalculateState(definition.row.id);
     }
+
+    // P7.C4(e): the one-threshold shape the state refactor allows.
+    const [singleThresholdRow] = await createConfigurations(shopId, [
+      {
+        location: location("restock-single-threshold"),
+        itemCategory: "Dining Chairs",
+        properties: { wood_type: "Pine" },
+        thresholds: [{ state: "low_in_stock" as const, thresholdQuantity: 10 }],
+      },
+    ]);
+    assert(singleThresholdRow !== undefined, "single-threshold fixture row was not created");
+    await prisma.locationStock.update({
+      where: { id: singleThresholdRow.id },
+      data: { quantity: 9, instanceCount: 4 },
+    });
+    await locationStockRepository.recalculateState(singleThresholdRow.id);
+    restockDefinitionRows.singleThreshold = {
+      location: location("restock-single-threshold"),
+      itemCategory: "Dining Chairs",
+      properties: { wood_type: "Pine" },
+      row: singleThresholdRow,
+    };
     const allDefinitions = { ...definitionRows, ...restockDefinitionRows };
 
     return {
       definitions: allDefinitions,
-      primaryDefinitionNames: [...names, ...Object.keys(restockDefinitions)],
+      primaryDefinitionNames: [...names, ...Object.keys(restockDefinitions), "singleThreshold"],
       otherShopDefinition: {
         location: location("other-shop"),
         itemCategory: "Dining Chairs",
@@ -295,9 +325,12 @@ const main = async (): Promise<void> => {
     report.entries.find((entry) => matchesDefinition(entry, definition));
 
   const verifyC1a = (report: StockReportDto, fixture: Fixture): void => {
+    // Only this run's rows are counted: the shop may legitimately hold other
+    // definitions (P7 fix — the original count assumed an empty shop).
+    const fixtureEntries = report.entries.filter((entry) => entry.location.startsWith(fixturePrefix));
     assert(
-      report.entries.length === fixture.primaryDefinitionNames.length,
-      `C1(a): expected ${fixture.primaryDefinitionNames.length} report entries, got ${report.entries.length}`,
+      fixtureEntries.length === fixture.primaryDefinitionNames.length,
+      `C1(a): expected ${fixture.primaryDefinitionNames.length} fixture report entries, got ${fixtureEntries.length}`,
     );
     for (const name of fixture.primaryDefinitionNames) {
       const definition = fixture.definitions[name];
@@ -396,6 +429,7 @@ const main = async (): Promise<void> => {
     const expectedKeys = [
       "itemCategory",
       "location",
+      "instanceCount",
       "mergeKey",
       "properties",
       "quantity",
@@ -488,6 +522,63 @@ const main = async (): Promise<void> => {
     assert(thresholdsByState.get("high_in_stock") === 20, "C4(e): normal threshold was not 20");
   };
 
+  // ---------------------------------------------------------------------------
+  // P7 — per-instance count on the report.
+  // ---------------------------------------------------------------------------
+  const verifyP7C4a = (report: StockReportDto, fixture: Fixture): void => {
+    for (const name of fixture.primaryDefinitionNames) {
+      const definition = fixture.definitions[name];
+      assert(definition !== undefined, `P7.C4(a): fixture ${name} is missing`);
+      const entry = entryFor(report, definition);
+      assert(entry !== undefined, `P7.C4(a): definition ${name} was omitted`);
+      assert(Object.keys(entry).length === 9, `P7.C4(a): expected nine fields, got ${Object.keys(entry).length}`);
+      assert(typeof entry.instanceCount === "number", `P7.C4(a): ${name} carries no numeric instanceCount`);
+    }
+  };
+
+  const verifyP7C4b = (report: StockReportDto, fixture: Fixture): void => {
+    const entry = restockEntryFor(report, fixture, "lowQuantity");
+    assert(entry.instanceCount === 7, `P7.C4(b): expected instanceCount 7, got ${entry.instanceCount}`);
+    assert(entry.quantity === 14, `P7.C4(b): expected quantity 14, got ${entry.quantity}`);
+    // Discriminating: 14 units under 10/15/20 would read medium_in_stock with a gap of 6.
+    assert(entry.stockState === "low_in_stock", `P7.C4(b): expected low_in_stock, got ${entry.stockState}`);
+    assert(entry.unitsToRestockTarget === 13, `P7.C4(b): expected item gap 13, got ${entry.unitsToRestockTarget}`);
+  };
+
+  const verifyP7C4c = (report: StockReportDto, fixture: Fixture): void => {
+    const entry = restockEntryFor(report, fixture, "zeroQuantity");
+    assert(entry.instanceCount === 0 && entry.quantity === 0, "P7.C4(c): zero definition is not 0/0");
+    assert(entry.stockState === "out_of_stock" && entry.unitsToRestockTarget === 20, "P7.C4(c): zero definition is not out_of_stock with gap 20");
+  };
+
+  const verifyP7C4d = (report: StockReportDto, fixture: Fixture): void => {
+    const entry = restockEntryFor(report, fixture, "highQuantity");
+    assert(entry.instanceCount === 25, `P7.C4(d): expected instanceCount 25, got ${entry.instanceCount}`);
+    assert(entry.stockState === "extra_in_stock", `P7.C4(d): expected extra_in_stock, got ${entry.stockState}`);
+    assert(entry.unitsToRestockTarget === 0, `P7.C4(d): expected clamped gap 0, got ${entry.unitsToRestockTarget}`);
+  };
+
+  const verifyP7C4e = (report: StockReportDto, fixture: Fixture): void => {
+    const entry = restockEntryFor(report, fixture, "singleThreshold");
+    assert(entry.thresholds.length === 1, `P7.C4(e): expected one threshold, got ${entry.thresholds.length}`);
+    assert(entry.instanceCount === 4 && entry.quantity === 9, `P7.C4(e): expected 4 items / 9 units, got ${entry.instanceCount}/${entry.quantity}`);
+    assert(entry.stockState === "low_in_stock", `P7.C4(e): expected low_in_stock, got ${entry.stockState}`);
+    // Target is the single configured threshold (10); a unit-based gap would be 1.
+    assert(entry.unitsToRestockTarget === 6, `P7.C4(e): expected item gap 6, got ${entry.unitsToRestockTarget}`);
+  };
+
+  const verifyP7C4f = async (report: StockReportDto, fixture: Fixture): Promise<void> => {
+    const definition = fixture.restockDefinitions.lowQuantity;
+    assert(definition !== undefined, "P7.C4(f): lowQuantity fixture is missing");
+    const entry = restockEntryFor(report, fixture, "lowQuantity");
+    const detail = await getLocationStockDetailQuery(shopId, definition.location);
+    const row = detail.find((candidate) => candidate.id === definition.row.id);
+    assert(row !== undefined, "P7.C4(f): location detail omitted the definition");
+    assert(row.instanceCount === entry.instanceCount, `P7.C4(f): detail instanceCount ${row.instanceCount} != report ${entry.instanceCount}`);
+    const dto = toLocationStockDto(row);
+    assert(dto.instanceCount === entry.instanceCount, "P7.C4(f): the DTO does not carry instanceCount");
+  };
+
   let fixture: Fixture | undefined;
   let report: StockReportDto | undefined;
   const getFixture = async (): Promise<Fixture> => (fixture ??= await buildFixture());
@@ -517,6 +608,12 @@ const main = async (): Promise<void> => {
     { id: "C4(c)", run: async () => verifyC4c(await getReport(), await getFixture()) },
     { id: "C4(d)", run: async () => verifyC4d(await getReport(), await getFixture()) },
     { id: "C4(e)", run: async () => verifyC4e(await getReport(), await getFixture()) },
+    { id: "P7.C4(a)", run: async () => verifyP7C4a(await getReport(), await getFixture()) },
+    { id: "P7.C4(b)", run: async () => verifyP7C4b(await getReport(), await getFixture()) },
+    { id: "P7.C4(c)", run: async () => verifyP7C4c(await getReport(), await getFixture()) },
+    { id: "P7.C4(d)", run: async () => verifyP7C4d(await getReport(), await getFixture()) },
+    { id: "P7.C4(e)", run: async () => verifyP7C4e(await getReport(), await getFixture()) },
+    { id: "P7.C4(f)", run: async () => verifyP7C4f(await getReport(), await getFixture()) },
   ];
 
   let failures = 0;

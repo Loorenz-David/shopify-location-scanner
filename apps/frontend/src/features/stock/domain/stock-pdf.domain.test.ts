@@ -36,6 +36,7 @@ function entry(
     properties: { wood_type: ["walnut"] },
     mergeKey: "chairs-walnut",
     quantity: 1,
+    instanceCount: overrides.instanceCount ?? overrides.quantity ?? 1,
     stockState: "high_in_stock",
     thresholds: [
       { state: "low_in_stock", thresholdQuantity: 10 },
@@ -54,6 +55,7 @@ function exportQuery(
     ...createDefaultStockFilter(),
     includeSummaryCounts: true,
     showContributingLocations: true,
+    countMode: "instances",
     propertyKeyOrder: stockOptionsFixture.propertyOptions.map((option) => option.key),
     ...overrides,
   };
@@ -185,10 +187,10 @@ describe("stock PDF domain", () => {
   it("C1(a): sections skip empty medium and mark produce first only on Out", async () => {
     const { buildPdfModel } = await loadPdfDomain();
     const model = buildPdfModel([
-      entry({ mergeKey: "high", stockState: "extra_in_stock", quantity: 9 }),
-      entry({ mergeKey: "normal", stockState: "high_in_stock", quantity: 4 }),
-      entry({ mergeKey: "low", stockState: "low_in_stock", quantity: 2 }),
-      entry({ mergeKey: "out", stockState: "out_of_stock", quantity: 0 }),
+      entry({ mergeKey: "high", stockState: "extra_in_stock", quantity: 9, instanceCount: 9 }),
+      entry({ mergeKey: "normal", stockState: "high_in_stock", quantity: 4, instanceCount: 4 }),
+      entry({ mergeKey: "low", stockState: "low_in_stock", quantity: 2, instanceCount: 2 }),
+      entry({ mergeKey: "out", stockState: "out_of_stock", quantity: 0, instanceCount: 0 }),
     ], exportQuery());
 
     expect(sectionStates(model)).toEqual([
@@ -208,8 +210,8 @@ describe("stock PDF domain", () => {
   it("C1(b): produce first moves to Low when Out has no rows", async () => {
     const { buildPdfModel } = await loadPdfDomain();
     const model = buildPdfModel([
-      entry({ mergeKey: "normal", stockState: "high_in_stock", quantity: 4 }),
-      entry({ mergeKey: "low", stockState: "low_in_stock", quantity: 2 }),
+      entry({ mergeKey: "normal", stockState: "high_in_stock", quantity: 4, instanceCount: 4 }),
+      entry({ mergeKey: "low", stockState: "low_in_stock", quantity: 2, instanceCount: 2 }),
     ], exportQuery());
 
     expect(sectionStates(model)).toEqual([STOCK_STATES[1], STOCK_STATES[3]]);
@@ -225,13 +227,13 @@ describe("stock PDF domain", () => {
       entry({
         mergeKey: "pine",
         properties: { wood_type: ["pine"], country: ["aaa"] },
-        quantity: 5,
+        quantity: 5, instanceCount: 5,
         stockState: "low_in_stock",
       }),
       entry({
         mergeKey: "oak",
         properties: { wood_type: ["oak"], country: ["zzz"] },
-        quantity: 5,
+        quantity: 5, instanceCount: 5,
         stockState: "low_in_stock",
       }),
     ];
@@ -253,12 +255,12 @@ describe("stock PDF domain", () => {
   it("C3(a): filtered model counts equal the compact app view counts", async () => {
     const { buildPdfModel } = await loadPdfDomain();
     const entries = [
-      entry({ mergeKey: "out", stockState: "out_of_stock", quantity: 0 }),
-      entry({ mergeKey: "low-one", stockState: "low_in_stock", quantity: 2 }),
-      entry({ mergeKey: "low-two", location: "LC1", stockState: "low_in_stock", quantity: 3 }),
-      entry({ mergeKey: "normal", stockState: "high_in_stock", quantity: 4 }),
-      entry({ mergeKey: "shared", location: "LC1", stockState: "extra_in_stock", quantity: 5 }),
-      entry({ mergeKey: "shared", location: "H1", stockState: "extra_in_stock", quantity: 6 }),
+      entry({ mergeKey: "out", stockState: "out_of_stock", quantity: 0, instanceCount: 0 }),
+      entry({ mergeKey: "low-one", stockState: "low_in_stock", quantity: 2, instanceCount: 2 }),
+      entry({ mergeKey: "low-two", location: "LC1", stockState: "low_in_stock", quantity: 3, instanceCount: 3 }),
+      entry({ mergeKey: "normal", stockState: "high_in_stock", quantity: 4, instanceCount: 4 }),
+      entry({ mergeKey: "shared", location: "LC1", stockState: "extra_in_stock", quantity: 5, instanceCount: 5 }),
+      entry({ mergeKey: "shared", location: "H1", stockState: "extra_in_stock", quantity: 6, instanceCount: 6 }),
     ];
     const query = exportQuery({
       states: new Set([STOCK_STATES[1], STOCK_STATES[4]]),
@@ -289,10 +291,10 @@ describe("stock PDF domain", () => {
   it("C3(b): grouped model counts equal the grouped app view counts", async () => {
     const { buildPdfModel } = await loadPdfDomain();
     const entries = [
-      entry({ mergeKey: "shared", location: "LC1", stockState: "low_in_stock", quantity: 2 }),
-      entry({ mergeKey: "shared", location: "H1", stockState: "low_in_stock", quantity: 3 }),
-      entry({ mergeKey: "out", stockState: "out_of_stock", quantity: 0 }),
-      entry({ mergeKey: "normal", stockState: "high_in_stock", quantity: 4 }),
+      entry({ mergeKey: "shared", location: "LC1", stockState: "low_in_stock", quantity: 2, instanceCount: 2 }),
+      entry({ mergeKey: "shared", location: "H1", stockState: "low_in_stock", quantity: 3, instanceCount: 3 }),
+      entry({ mergeKey: "out", stockState: "out_of_stock", quantity: 0, instanceCount: 0 }),
+      entry({ mergeKey: "normal", stockState: "high_in_stock", quantity: 4, instanceCount: 4 }),
     ];
     const query = exportQuery({ groupByLocation: true });
     const model = buildPdfModel(entries, query);
@@ -343,9 +345,9 @@ describe("stock PDF domain", () => {
   it("C4: settings use state labels, exact grouping wording, locations, and derived source count", async () => {
     const { buildPdfModel } = await loadPdfDomain();
     const entries = [
-      entry({ mergeKey: "shared", location: "LC1", stockState: "low_in_stock", quantity: 2 }),
-      entry({ mergeKey: "shared", location: "H1", stockState: "low_in_stock", quantity: 3 }),
-      entry({ mergeKey: "normal", stockState: "high_in_stock", quantity: 4 }),
+      entry({ mergeKey: "shared", location: "LC1", stockState: "low_in_stock", quantity: 2, instanceCount: 2 }),
+      entry({ mergeKey: "shared", location: "H1", stockState: "low_in_stock", quantity: 3, instanceCount: 3 }),
+      entry({ mergeKey: "normal", stockState: "high_in_stock", quantity: 4, instanceCount: 4 }),
     ];
     const compactModel = buildPdfModel(entries, exportQuery({
       states: new Set([STOCK_STATES[1], STOCK_STATES[3]]),
@@ -427,8 +429,8 @@ describe("stock PDF domain", () => {
 
     // and the input still discriminates: without the vocabulary the C2 pair sorts the other way
     const entries = [
-      entry({ mergeKey: "pine", properties: { wood_type: ["pine"], country: ["aaa"] }, quantity: 5, stockState: "low_in_stock" }),
-      entry({ mergeKey: "oak", properties: { wood_type: ["oak"], country: ["zzz"] }, quantity: 5, stockState: "low_in_stock" }),
+      entry({ mergeKey: "pine", properties: { wood_type: ["pine"], country: ["aaa"] }, quantity: 5, instanceCount: 5, stockState: "low_in_stock" }),
+      entry({ mergeKey: "oak", properties: { wood_type: ["oak"], country: ["zzz"] }, quantity: 5, instanceCount: 5, stockState: "low_in_stock" }),
     ];
     const withVocabulary = buildPdfModel(entries, query).sections[0]!.rows.map((row) => row.mergeKey);
     const withoutVocabulary = buildPdfModel(entries, { ...query, propertyKeyOrder: [] }).sections[0]!.rows.map((row) => row.mergeKey);
@@ -516,5 +518,41 @@ describe("stock PDF domain", () => {
     expect(createObjectUrl).not.toHaveBeenCalled();
     expect(click).not.toHaveBeenCalled();
     expect(useStockReportStore.getState().exportState.errorMessage).toBeNull();
+  });
+});
+
+describe("stock PDF domain — P7 count mode", () => {
+  it("C7(d) model: the export query's mode reaches the model, its settings line and its row order", async () => {
+    const { buildPdfModel } = await loadPdfDomain();
+    const a = entry({ mergeKey: "a", stockState: "low_in_stock", quantity: 50, instanceCount: 1 });
+    const b = entry({ mergeKey: "b", stockState: "low_in_stock", quantity: 5, instanceCount: 4 });
+
+    const items = buildPdfModel([a, b], exportQuery({ countMode: "instances" }));
+    const units = buildPdfModel([a, b], exportQuery({ countMode: "units" }));
+
+    expect(items.countMode).toBe("instances");
+    expect(items.settings.count).toBe("Items");
+    expect(items.sections[0]!.rows.map(({ mergeKey }) => mergeKey)).toEqual(["a", "b"]);
+    expect(units.countMode).toBe("units");
+    expect(units.settings.count).toBe("Units");
+    expect(units.sections[0]!.rows.map(({ mergeKey }) => mergeKey)).toEqual(["b", "a"]);
+    // Rows carry both numbers whatever the mode: the document picks at render time.
+    expect(units.sections[0]!.rows.map(({ quantity, instanceCount }) => [quantity, instanceCount])).toEqual([[5, 4], [50, 1]]);
+  });
+
+  it("C7(d) initializer: the export query is seeded from the report's mode and edited apart from it", async () => {
+    const { initializeStockPdfExportController, setStockPdfExportQueryController } = await import(
+      "../controllers/stock-report.controller"
+    );
+    const store = useStockReportStore.getState();
+    store.reset();
+    store.setCountMode("units");
+
+    const query = initializeStockPdfExportController();
+    expect(query.countMode).toBe("units");
+
+    setStockPdfExportQueryController({ countMode: "instances" });
+    expect(useStockReportStore.getState().exportState.query?.countMode).toBe("instances");
+    expect(useStockReportStore.getState().countMode).toBe("units");
   });
 });

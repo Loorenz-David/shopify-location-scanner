@@ -4,13 +4,17 @@
  * Usage:
  *   SHOP_ID=<shop_id> npx tsx scripts/rebuild-location-stock.ts
  *   DRY_RUN=1 SHOP_ID=<shop_id> npx tsx scripts/rebuild-location-stock.ts
+ *
+ * The script refuses the configured development database (prisma/dev.db) unless
+ * ALLOW_CONFIGURED_DATABASE=1 is set explicitly — the local-only backfill path:
+ *   ALLOW_CONFIGURED_DATABASE=1 SHOP_ID=<shop_id> npx tsx scripts/rebuild-location-stock.ts
  */
 
 import { isAbsolute, resolve } from "node:path";
 
 import "../src/config/load-env.js";
 import { prisma } from "../src/shared/database/prisma-client.js";
-import { resolveBestMatch } from "../src/modules/stock/domain/best-match.js";
+import { allocateGroup } from "../src/modules/stock/domain/allocation.js";
 import { calculateStockState } from "../src/modules/stock/domain/stock-state.js";
 import {
   locationStockRepository,
@@ -20,6 +24,7 @@ import type { LocationStock } from "../src/modules/stock/contracts/stock.contrac
 import { reconcileAllGroups } from "../src/modules/stock/services/stock-reconciliation.service.js";
 
 const DRY_RUN = process.env.DRY_RUN === "1" || process.env.DRY_RUN === "true";
+const ALLOW_CONFIGURED_DATABASE = process.env.ALLOW_CONFIGURED_DATABASE === "1";
 const SHOP_ID = process.env.SHOP_ID?.trim() || null;
 const configuredDevelopmentDatabasePath = resolve(process.cwd(), "prisma/dev.db");
 
@@ -51,6 +56,7 @@ type Group = {
 
 type ComputedValue = {
   quantity: number;
+  instanceCount: number;
   stockState: LocationStock["stockState"];
 };
 
@@ -79,34 +85,29 @@ const computeGroup = async (
     group.location,
     group.itemCategory,
   );
-  const quantities = new Map(
-    configurations.map((configuration) => [configuration.id, 0]),
+  // Same allocation loop the reconciliation service runs (domain/allocation.ts),
+  // so the dry-run preview can never disagree with what the live run writes.
+  const totals = allocateGroup(
+    configurations.map((configuration) => ({
+      id: configuration.id,
+      createdAt: configuration.createdAt,
+      criteria: configuration.properties,
+    })),
+    eligibleItems,
   );
-  const candidates = configurations.map((configuration) => ({
-    id: configuration.id,
-    createdAt: configuration.createdAt,
-    criteria: configuration.properties,
-  }));
-
-  for (const item of eligibleItems) {
-    const winner = resolveBestMatch(candidates, item.properties);
-    if (!winner) {
-      continue;
-    }
-    quantities.set(
-      winner.id,
-      (quantities.get(winner.id) ?? 0) + item.quantity,
-    );
-  }
 
   return new Map(
     configurations.map((configuration) => {
-      const quantity = quantities.get(configuration.id) ?? 0;
+      const { quantity, instanceCount } = totals.get(configuration.id) ?? {
+        quantity: 0,
+        instanceCount: 0,
+      };
       return [
         configuration.id,
         {
           quantity,
-          stockState: calculateStockState(quantity, configuration.thresholds),
+          instanceCount,
+          stockState: calculateStockState(instanceCount, configuration.thresholds),
         },
       ];
     }),
@@ -121,7 +122,12 @@ const main = async (): Promise<void> => {
   }
 
   if (databasePathFromUrl(databaseUrl) === configuredDevelopmentDatabasePath) {
-    refuseDatabase("DATABASE_URL resolves to the configured development database");
+    if (!ALLOW_CONFIGURED_DATABASE) {
+      refuseDatabase("DATABASE_URL resolves to the configured development database");
+    }
+    log("location-stock-rebuild-configured-database-override", {
+      databasePath: configuredDevelopmentDatabasePath,
+    });
   }
 
   if (!SHOP_ID) {
@@ -162,6 +168,7 @@ const main = async (): Promise<void> => {
           id: configuration.id,
           current: {
             quantity: configuration.quantity,
+            instanceCount: configuration.instanceCount,
             stockState: configuration.stockState,
           },
           computed: next,

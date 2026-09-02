@@ -42,7 +42,7 @@ describe("stock API seam", () => {
     localStorage.setItem("accessToken", "a.eyJ1c2VySWQiOiIxIn0.c");
   });
 
-  it("C3(a): every report entry has exactly the eight contract fields", async () => {
+  it("C3(a): every report entry has exactly the nine contract fields (v1.7)", async () => {
     vi.stubEnv("VITE_STOCK_API_MODE", "mock");
     const entries = await getStockReport();
     const keys = [
@@ -51,6 +51,7 @@ describe("stock API seam", () => {
       "properties",
       "mergeKey",
       "quantity",
+      "instanceCount",
       "stockState",
       "thresholds",
       "unitsToRestockTarget",
@@ -106,7 +107,7 @@ describe("stock API seam", () => {
     vi.stubEnv("VITE_STOCK_API_MODE", "mock");
     const entries = await getStockReport();
     const normal = entries.find((entry) =>
-      entry.stockState === "high_in_stock" && entry.quantity === 18
+      entry.stockState === "high_in_stock" && entry.instanceCount === 18
     );
 
     expect(normal).toBeDefined();
@@ -338,5 +339,27 @@ describe("stock API seam", () => {
     await deleteStockConfiguration(created!.id);
     const afterDelete = await getStockLocationDetail("L 1");
     expect(afterDelete).not.toContainEqual(created);
+  });
+});
+
+describe("stock API seam — P7 fixture shape", () => {
+  it("C7(e): every fixture entry carries a numeric instanceCount that differs from its unit sum when stocked", async () => {
+    vi.stubEnv("VITE_STOCK_API_MODE", "mock");
+    const entries = await getStockReport();
+
+    expect(entries.length).toBeGreaterThan(0);
+    for (const entry of entries) {
+      expect(typeof entry.instanceCount).toBe("number");
+      if (entry.instanceCount > 0) {
+        // The fixture is deliberately discriminating: a UI reading quantity by
+        // mistake shows a different number in the default (items) mode.
+        expect(entry.quantity).not.toBe(entry.instanceCount);
+      } else {
+        expect(entry.quantity).toBe(0);
+      }
+      // The wire gap is item-based: highest threshold − instanceCount.
+      const target = Math.max(...entry.thresholds.map(({ thresholdQuantity }) => thresholdQuantity));
+      expect(entry.unitsToRestockTarget).toBe(Math.max(0, target - entry.instanceCount));
+    }
   });
 });

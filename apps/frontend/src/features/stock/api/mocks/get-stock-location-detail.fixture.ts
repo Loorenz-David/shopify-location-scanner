@@ -8,6 +8,7 @@ export const stockLocationDetailFixture: LocationStockDto[] = [
     itemCategory: "Dining Chairs",
     properties: { wood_type: ["teak"] },
     quantity: 12,
+    instanceCount: 6,
     stockState: STOCK_STATES[2],
     thresholds: [
       { state: STOCK_STATES[1], thresholdQuantity: 10 },
@@ -25,6 +26,7 @@ export const stockLocationDetailFixture: LocationStockDto[] = [
     itemCategory: "Coffee Tables",
     properties: { shape: ["oval"] },
     quantity: 22,
+    instanceCount: 11,
     stockState: STOCK_STATES[4],
     // Deliberately differs from its siblings (P5 C4 / S10): identical ladders cannot
     // tell "this instance's bands" from "the first instance's bands". 22 stays high.
@@ -44,6 +46,7 @@ export const stockLocationDetailFixture: LocationStockDto[] = [
     itemCategory: "Dining Tables",
     properties: {},
     quantity: 18,
+    instanceCount: 9,
     stockState: STOCK_STATES[3],
     thresholds: [
       { state: STOCK_STATES[1], thresholdQuantity: 10 },
@@ -61,6 +64,7 @@ export const stockLocationDetailFixture: LocationStockDto[] = [
     itemCategory: "Dining Chairs",
     properties: { wood_type: ["walnut"] },
     quantity: 3,
+    instanceCount: 1,
     stockState: STOCK_STATES[1],
     thresholds: [
       { state: STOCK_STATES[1], thresholdQuantity: 10 },

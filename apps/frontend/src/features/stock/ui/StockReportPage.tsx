@@ -16,6 +16,7 @@ import {
   useStockNavigationStore,
 } from "../stores/stock-navigation.store";
 import {
+  selectStockReportCountMode,
   selectStockReportCounterTiles,
   selectStockReportEntries,
   selectStockReportErrorMessage,
@@ -29,6 +30,7 @@ import type { StockOptionsDto, StockReportEntryDto } from "../types/stock.dto";
 import type {
   CompactedReportRow,
   ReportLocationGroup,
+  StockCountMode,
 } from "../types/stock.types";
 import { StockCounterTiles } from "./StockCounterTiles";
 import { StockEntryDetailView } from "./StockEntryDetailView";
@@ -61,6 +63,7 @@ function pluralize(count: number, noun: string, plural = `${noun}s`): string {
 interface StockReportGroupProps {
   group: ReportLocationGroup;
   options: StockOptionsDto;
+  countMode: StockCountMode;
   onOpenEntry: (entry: StockReportEntryDto) => void;
 }
 
@@ -71,6 +74,7 @@ interface StockReportGroupProps {
 function StockReportGroup({
   group,
   options,
+  countMode,
   onOpenEntry,
 }: StockReportGroupProps) {
   const buckets = countByStateBucket(
@@ -106,6 +110,7 @@ function StockReportGroup({
           key={`${entry.mergeKey}|${entry.stockState}|${entry.location}`}
           entry={entry}
           chips={criteriaChips(entry.properties, options)}
+          countMode={countMode}
           onPress={() => onOpenEntry(entry)}
         />
       ))}
@@ -128,6 +133,7 @@ function StockReportRootView({
   const entries = useStockReportStore(selectStockReportEntries);
   const storeOptions = useStockReportStore(selectStockReportOptions);
   const appliedFilter = useStockReportStore(selectStockReportFilter);
+  const countMode = useStockReportStore(selectStockReportCountMode);
   const view = useStockReportStore(selectStockReportView);
   const counterTiles = useStockReportStore(selectStockReportCounterTiles);
   const isLoading = useStockReportStore(selectStockReportIsLoading);
@@ -275,6 +281,7 @@ function StockReportRootView({
                 key={group.location}
                 group={group}
                 options={options}
+                countMode={countMode}
                 onOpenEntry={openEntry}
               />
             ))
@@ -283,6 +290,7 @@ function StockReportRootView({
                 key={`${row.mergeKey}|${row.stockState}`}
                 row={row}
                 chips={criteriaChips(row.properties, options)}
+                countMode={countMode}
                 onPress={() => onOpenRow(row)}
               />
             ))}
@@ -302,8 +310,12 @@ function StockReportRootView({
           keyOrder={keyOrder}
           locations={locations}
           appliedFilter={appliedFilter}
-          onApply={(filter) => {
+          countMode={countMode}
+          onApply={(filter, nextCountMode) => {
             stockActions.setReportFilter(filter);
+            if (nextCountMode !== countMode) {
+              stockActions.setReportCountMode(nextCountMode);
+            }
             stockActions.popView();
           }}
           onClose={() => stockActions.popView()}
@@ -323,6 +335,7 @@ export function StockReportPage() {
   const currentView = useStockNavigationStore(selectStockNavigationCurrentView);
   const entries = useStockReportStore(selectStockReportEntries);
   const storeOptions = useStockReportStore(selectStockReportOptions);
+  const countMode = useStockReportStore(selectStockReportCountMode);
   const [selectedRow, setSelectedRow] = useState<CompactedReportRow | null>(
     null,
   );
@@ -343,6 +356,7 @@ export function StockReportPage() {
         row={selectedRow}
         entries={entries}
         options={storeOptions ?? EMPTY_OPTIONS}
+        countMode={countMode}
         onBack={() => stockActions.popView()}
       />
     );

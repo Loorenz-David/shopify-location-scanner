@@ -16,11 +16,16 @@ export interface StockStateMeta {
   solid: string;
 }
 
+// Which number the report shows as "in stock": allocated items (the basis of
+// every threshold) or their unit sum. Per-device, default items (P7 D5).
+export type StockCountMode = "instances" | "units";
+
 export interface CompactedReportRow {
   mergeKey: string;
   itemCategory: string;
   properties: StockPropertiesDto;
   quantity: number;
+  instanceCount: number;
   unitsToRestockTarget: number;
   stockState: StockState;
   locations: string;
@@ -30,6 +35,7 @@ export interface CompactedReportRow {
 export interface ReportContribution {
   location: string;
   quantity: number;
+  instanceCount: number;
   unitsToRestockTarget: number;
 }
 
@@ -41,6 +47,7 @@ export interface ReportLocationGroup {
 export interface ReportEntryDetailItem {
   location: string;
   quantity: number;
+  instanceCount: number;
   stockState: StockState;
   configLabel: string;
 }

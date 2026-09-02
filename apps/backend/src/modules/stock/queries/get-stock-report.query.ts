@@ -25,10 +25,13 @@ export const getStockReportQuery = async (
         properties: configuration.properties,
         mergeKey: `${configuration.itemCategory}|${configuration.propertiesCanonical}`,
         quantity: configuration.quantity,
+        instanceCount: configuration.instanceCount,
         stockState: configuration.stockState,
+        // Item-based (P7): thresholds count ScanHistory rows, so the gap to the
+        // restock target is measured in instances, not units.
         unitsToRestockTarget: Math.max(
           0,
-          restockTarget - configuration.quantity,
+          restockTarget - configuration.instanceCount,
         ),
       };
     }),

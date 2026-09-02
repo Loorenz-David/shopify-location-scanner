@@ -278,3 +278,9 @@ is least likely to reach; the `shopId` asymmetry on `applyIncrement`/`updateStat
 doctrine collision, handled safely in code but never routed.
 
 Phase closed. **Project closed: all six phases APPROVED.**
+
+### 2026-09-02 — N1 discharged by P7
+The rebuild script's duplicated allocation loop (review N1: "first thing to re-check if allocation
+semantics ever change") was the first thing P7 changed. Both `computeGroup` copies now call the one
+`domain/allocation.ts` `allocateGroup`; P7 C5 re-executed C2's dry-run/live-run rows under the new
+shape (checksum-identical dry run, live run wrote both numbers). See `plan_7_per_instance_count.md`.

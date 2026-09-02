@@ -6,7 +6,8 @@ export const stockReportFixture: StockReportEntryDto[] = [
     itemCategory: "Dining Chairs",
     properties: { wood_type: ["walnut"] },
     mergeKey: "report-walnut-chairs",
-    quantity: 2,
+    quantity: 4,
+    instanceCount: 2,
     stockState: "low_in_stock",
     thresholds: [
       { state: "low_in_stock", thresholdQuantity: 10 },
@@ -20,7 +21,8 @@ export const stockReportFixture: StockReportEntryDto[] = [
     itemCategory: "Dining Chairs",
     properties: { wood_type: ["walnut"] },
     mergeKey: "report-walnut-chairs",
-    quantity: 3,
+    quantity: 6,
+    instanceCount: 3,
     stockState: "low_in_stock",
     thresholds: [
       { state: "low_in_stock", thresholdQuantity: 10 },
@@ -34,7 +36,8 @@ export const stockReportFixture: StockReportEntryDto[] = [
     itemCategory: "Dining Tables",
     properties: { shape: ["oval"] },
     mergeKey: "report-state-split",
-    quantity: 18,
+    quantity: 36,
+    instanceCount: 18,
     stockState: "high_in_stock",
     thresholds: [
       { state: "low_in_stock", thresholdQuantity: 10 },
@@ -48,7 +51,8 @@ export const stockReportFixture: StockReportEntryDto[] = [
     itemCategory: "Dining Tables",
     properties: { shape: ["oval"] },
     mergeKey: "report-state-split",
-    quantity: 4,
+    quantity: 8,
+    instanceCount: 4,
     stockState: "low_in_stock",
     thresholds: [
       { state: "low_in_stock", thresholdQuantity: 10 },
@@ -63,6 +67,7 @@ export const stockReportFixture: StockReportEntryDto[] = [
     properties: {},
     mergeKey: "report-zero-entry",
     quantity: 0,
+    instanceCount: 0,
     stockState: "out_of_stock",
     thresholds: [
       { state: "low_in_stock", thresholdQuantity: 10 },

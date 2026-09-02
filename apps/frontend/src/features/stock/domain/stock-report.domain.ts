@@ -16,6 +16,7 @@ import type {
   ReportEntryDetail,
   ReportLocationGroup,
   ReportView,
+  StockCountMode,
   StockFilterState,
 } from "../types/stock.types";
 
@@ -44,10 +45,19 @@ function compareNumbers(left: number, right: number): number {
   return left - right;
 }
 
+// The one accessor for "the number this row shows as in stock" (P7 D3/D6): UI
+// cells and the comparators both read it, so a mode flip moves both together.
+export function displayedCount(
+  item: Pick<CompactedReportRow, "quantity" | "instanceCount">,
+  countMode: StockCountMode,
+): number {
+  return countMode === "units" ? item.quantity : item.instanceCount;
+}
+
 export function missingQuantityForEntry(
   entry: Pick<
     StockReportEntryDto,
-    "quantity" | "thresholds" | "unitsToRestockTarget"
+    "instanceCount" | "thresholds" | "unitsToRestockTarget"
   >,
 ): number {
   if (entry.unitsToRestockTarget !== undefined) {
@@ -55,13 +65,14 @@ export function missingQuantityForEntry(
   }
 
   // Fallback mirrors the backend: the restock target is the highest
-  // configured threshold.
+  // configured threshold, and the gap is measured in items — thresholds are
+  // item-based, so subtracting units here would print a wrong number.
   const restockTarget = entry.thresholds.reduce(
     (highest, { thresholdQuantity }) => Math.max(highest, thresholdQuantity),
     0,
   );
 
-  return Math.max(0, restockTarget - entry.quantity);
+  return Math.max(0, restockTarget - entry.instanceCount);
 }
 
 function orderPropertyKeys(
@@ -106,8 +117,8 @@ function contributionComparisonString(
   contributions: readonly ReportContribution[],
 ): string {
   return contributions
-    .map(({ location, quantity, unitsToRestockTarget }) =>
-      [location, quantity, unitsToRestockTarget].join(KEY_VALUE_SEPARATOR),
+    .map(({ location, quantity, instanceCount, unitsToRestockTarget }) =>
+      [location, quantity, instanceCount, unitsToRestockTarget].join(KEY_VALUE_SEPARATOR),
     )
     .join(GROUP_SEPARATOR);
 }
@@ -116,10 +127,11 @@ function compareCompactRows(
   left: CompactedReportRow,
   right: CompactedReportRow,
   keyOrder: readonly string[],
+  countMode: StockCountMode,
 ): number {
   const comparisons = [
     compareByStateIndex(left.stockState, right.stockState),
-    compareNumbers(left.quantity, right.quantity),
+    compareNumbers(displayedCount(left, countMode), displayedCount(right, countMode)),
     compareNumbers(left.unitsToRestockTarget, right.unitsToRestockTarget),
     compareCaseInsensitive(left.itemCategory, right.itemCategory),
     compareCodePoints(
@@ -148,17 +160,19 @@ function compareCompactRows(
 
 export function makeCompactRowComparator(
   keyOrder: readonly string[],
+  countMode: StockCountMode = "instances",
 ): (left: CompactedReportRow, right: CompactedReportRow) => number {
-  return (left, right) => compareCompactRows(left, right, keyOrder);
+  return (left, right) => compareCompactRows(left, right, keyOrder, countMode);
 }
 
 export function makeGroupEntryComparator(
   keyOrder: readonly string[],
+  countMode: StockCountMode = "instances",
 ): (left: StockReportEntryDto, right: StockReportEntryDto) => number {
   return (left, right) => {
     const comparisons = [
       compareByStateIndex(left.stockState, right.stockState),
-      compareNumbers(left.quantity, right.quantity),
+      compareNumbers(displayedCount(left, countMode), displayedCount(right, countMode)),
       compareCaseInsensitive(left.itemCategory, right.itemCategory),
       compareCodePoints(
         propertiesComparisonString(left.properties, keyOrder),
@@ -195,6 +209,7 @@ export function compactEntries(
       .map((member) => ({
         location: member.location,
         quantity: member.quantity,
+        instanceCount: member.instanceCount,
         unitsToRestockTarget: missingQuantityForEntry(member),
       }))
       .toSorted((left, right) => compareCodePoints(left.location, right.location));
@@ -207,6 +222,7 @@ export function compactEntries(
       itemCategory: first.itemCategory,
       properties: first.properties,
       quantity: members.reduce((total, member) => total + member.quantity, 0),
+      instanceCount: members.reduce((total, member) => total + member.instanceCount, 0),
       unitsToRestockTarget: contributions.reduce(
         (total, contribution) =>
           total + contribution.unitsToRestockTarget,
@@ -266,6 +282,10 @@ export function applyStockFilters(
           (total, contribution) => total + contribution.quantity,
           0,
         ),
+        instanceCount: selectedContributions.reduce(
+          (total, contribution) => total + contribution.instanceCount,
+          0,
+        ),
         unitsToRestockTarget: selectedContributions.reduce(
           (total, contribution) => total + contribution.unitsToRestockTarget,
           0,
@@ -321,13 +341,14 @@ export function buildReportView(
   entries: readonly StockReportEntryDto[],
   filter: StockFilterState,
   keyOrder: readonly string[],
+  countMode: StockCountMode = "instances",
 ): ReportView {
   if (filter.groupByLocation) {
     const filteredEntries = applyStockFilters(entries, filter);
     const groups = groupsFromEntries(filteredEntries)
       .map((currentGroup) => ({
         ...currentGroup,
-        entries: currentGroup.entries.toSorted(makeGroupEntryComparator(keyOrder)),
+        entries: currentGroup.entries.toSorted(makeGroupEntryComparator(keyOrder, countMode)),
       }))
       .toSorted(compareGroups);
 
@@ -338,7 +359,7 @@ export function buildReportView(
   const filteredRows = applyStockFilters(compactedRows, filter);
 
   return {
-    rows: filteredRows.toSorted(makeCompactRowComparator(keyOrder)),
+    rows: filteredRows.toSorted(makeCompactRowComparator(keyOrder, countMode)),
   };
 }
 
@@ -438,6 +459,7 @@ export function deriveEntryDetail(
     entries: contributingEntries.map((entry) => ({
       location: entry.location,
       quantity: entry.quantity,
+      instanceCount: entry.instanceCount,
       stockState: entry.stockState,
       configLabel: configLabel(entry.itemCategory, entry.properties, options),
     })),

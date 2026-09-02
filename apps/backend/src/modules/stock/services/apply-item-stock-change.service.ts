@@ -2,6 +2,7 @@ import { logger } from "../../../shared/logging/logger.js";
 import type {
   GuardedDecrementContext,
   LocationStock,
+  StockDelta,
   StockOperation,
 } from "../contracts/stock.contract.js";
 import { resolveBestMatch } from "../domain/best-match.js";
@@ -195,7 +196,7 @@ const buildDecrementContext = (input: {
 const applyDecrement = async (input: {
   shopId: string;
   configuration: ResolvedStock;
-  delta: number;
+  delta: StockDelta;
   before: StockItemSnapshot | null;
   after: StockItemSnapshot | null;
   item: StockItemSnapshot;
@@ -226,7 +227,7 @@ const applyDecrement = async (input: {
 
 const applyIncrement = async (input: {
   configuration: ResolvedStock;
-  delta: number;
+  delta: StockDelta;
   shopId: string;
   before: StockItemSnapshot | null;
   after: StockItemSnapshot | null;
@@ -277,6 +278,8 @@ export const applyItemStockChange = async (
         return { changed: false };
       }
 
+      // The item stayed in the same definition: only its units moved, so the
+      // instance count is untouched on both branches.
       const delta = input.after.quantity - input.before.quantity;
       if (delta === 0) {
         return { changed: false };
@@ -286,7 +289,7 @@ export const applyItemStockChange = async (
         return {
           changed: await applyIncrement({
             configuration: afterConfiguration,
-            delta,
+            delta: { quantity: delta, instances: 0 },
             shopId: input.shopId,
             before: input.before,
             after: input.after,
@@ -300,7 +303,7 @@ export const applyItemStockChange = async (
       return {
         changed: await applyDecrement({
           configuration: beforeConfiguration,
-          delta: Math.abs(delta),
+          delta: { quantity: Math.abs(delta), instances: 0 },
           shopId: input.shopId,
           before: input.before,
           after: input.after,
@@ -316,7 +319,7 @@ export const applyItemStockChange = async (
       changed =
         (await applyDecrement({
           configuration: beforeConfiguration,
-          delta: input.before.quantity,
+          delta: { quantity: input.before.quantity, instances: 1 },
           shopId: input.shopId,
           before: input.before,
           after: input.after,
@@ -330,7 +333,7 @@ export const applyItemStockChange = async (
       changed =
         (await applyIncrement({
           configuration: afterConfiguration,
-          delta: input.after.quantity,
+          delta: { quantity: input.after.quantity, instances: 1 },
           shopId: input.shopId,
           before: input.before,
           after: input.after,

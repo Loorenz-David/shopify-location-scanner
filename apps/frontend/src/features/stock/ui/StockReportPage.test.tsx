@@ -1,4 +1,4 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -92,7 +92,7 @@ const groupedPayload: StockReportEntryDto[] = [
     itemCategory: "Dining Chairs",
     properties: { wood_type: ["oak"] },
     mergeKey: "oak-chairs",
-    quantity: 4,
+    quantity: 4, instanceCount: 4,
     stockState: STOCK_STATES[1],
     thresholds: groupedThresholds,
     unitsToRestockTarget: 16,
@@ -102,7 +102,7 @@ const groupedPayload: StockReportEntryDto[] = [
     itemCategory: "Dining Tables",
     properties: { shape: ["oval"] },
     mergeKey: "oval-tables",
-    quantity: 8,
+    quantity: 8, instanceCount: 8,
     stockState: STOCK_STATES[2],
     thresholds: groupedThresholds,
     unitsToRestockTarget: 12,
@@ -112,7 +112,7 @@ const groupedPayload: StockReportEntryDto[] = [
     itemCategory: "Side Tables",
     properties: {},
     mergeKey: "side-tables",
-    quantity: 9,
+    quantity: 9, instanceCount: 9,
     stockState: STOCK_STATES[2],
     thresholds: groupedThresholds,
     unitsToRestockTarget: 11,
@@ -122,7 +122,7 @@ const groupedPayload: StockReportEntryDto[] = [
     itemCategory: "Sofas",
     properties: {},
     mergeKey: "sofas",
-    quantity: 20,
+    quantity: 20, instanceCount: 20,
     stockState: STOCK_STATES[3],
     thresholds: groupedThresholds,
     unitsToRestockTarget: 0,
@@ -132,7 +132,7 @@ const groupedPayload: StockReportEntryDto[] = [
     itemCategory: "Bedside Tables",
     properties: {},
     mergeKey: "bedside",
-    quantity: 0,
+    quantity: 0, instanceCount: 0,
     stockState: STOCK_STATES[0],
     thresholds: groupedThresholds,
     unitsToRestockTarget: 20,
@@ -142,7 +142,7 @@ const groupedPayload: StockReportEntryDto[] = [
     itemCategory: "Dining Chairs",
     properties: { wood_type: ["oak"] },
     mergeKey: "oak-chairs",
-    quantity: 3,
+    quantity: 3, instanceCount: 3,
     stockState: STOCK_STATES[1],
     thresholds: groupedThresholds,
     unitsToRestockTarget: 17,
@@ -319,7 +319,7 @@ describe("StockReportPage (screens 01–04)", () => {
 
     await renderReport();
     const before = screen.getAllByTestId("stock-report-row").find((row) => row.getAttribute("data-row-key") === rowKey(multi))!;
-    expect(within(before).getByTestId("stock-row-quantity")).toHaveTextContent(String(multi.quantity));
+    expect(within(before).getByTestId("stock-row-quantity")).toHaveTextContent(String(multi.instanceCount));
     expect(within(before).getByTestId("stock-row-missing")).toHaveTextContent(
       String(multi.unitsToRestockTarget),
     );
@@ -331,7 +331,7 @@ describe("StockReportPage (screens 01–04)", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Filters" })).toBeNull());
 
     const after = screen.getAllByTestId("stock-report-row").find((row) => row.getAttribute("data-row-key") === rowKey(multi))!;
-    expect(within(after).getByTestId("stock-row-quantity")).toHaveTextContent(String(expectedRow.quantity));
+    expect(within(after).getByTestId("stock-row-quantity")).toHaveTextContent(String(expectedRow.instanceCount));
     expect(within(after).getByTestId("stock-row-missing")).toHaveTextContent(
       String(expectedRow.unitsToRestockTarget),
     );
@@ -396,7 +396,7 @@ describe("StockReportPage (screens 01–04)", () => {
       expect(within(header).getAllByTestId("stock-property-chip").map((chip) => chip.textContent)).toEqual(chips);
       expect(within(header).getByTestId("stock-detail-state")).toHaveTextContent(getStockStateMeta(row.stockState).label);
       expect(within(header).getByTestId("stock-detail-total")).toHaveTextContent(
-        `${row.quantity} ${row.quantity === 1 ? "unit" : "units"}`,
+        `${row.instanceCount} ${row.instanceCount === 1 ? "item" : "items"}`,
       );
 
       // (b) contributing rows match deriveEntryDetail, in its order
@@ -406,7 +406,7 @@ describe("StockReportPage (screens 01–04)", () => {
         const contribution = contributions[index]!;
         expect(within(contribution).getByText(item.location)).toBeInTheDocument();
         expect(within(contribution).getByText(item.configLabel)).toBeInTheDocument();
-        expect(within(contribution).getByTestId("stock-row-quantity")).toHaveTextContent(String(item.quantity));
+        expect(within(contribution).getByTestId("stock-row-quantity")).toHaveTextContent(String(item.instanceCount));
         expect(within(contribution).getByText(getStockStateMeta(item.stockState).label)).toBeInTheDocument();
       }
       expect(screen.getByTestId("stock-detail-count")).toHaveTextContent(String(detail.entries.length));
@@ -429,7 +429,7 @@ describe("StockReportPage (screens 01–04)", () => {
   });
 
   it("C7: a quantity-0 row renders with short OUT metadata and the split quantity bar", async () => {
-    const zeroRows = compactEntries(stockReportFixture).filter((row) => row.quantity === 0);
+    const zeroRows = compactEntries(stockReportFixture).filter((row) => row.instanceCount === 0);
     expect(zeroRows).toHaveLength(1);
     const zero = zeroRows[0]!;
 
@@ -443,7 +443,7 @@ describe("StockReportPage (screens 01–04)", () => {
     expect(within(rendered).getByTestId("stock-row-missing")).toHaveTextContent(
       `+${zero.unitsToRestockTarget}`,
     );
-    expect(within(rendered).getByText("In stock")).toBeInTheDocument();
+    expect(within(rendered).getByText("Items")).toBeInTheDocument();
     expect(within(rendered).getByText("To normal")).toBeInTheDocument();
     expect(within(rendered).getByTestId("stock-row-state")).toHaveTextContent("Out");
     expect(
@@ -471,5 +471,125 @@ describe("StockReportPage (screens 01–04)", () => {
     await userEvent.click(rows[0]!);
     await screen.findByTestId("stock-detail-header");
     assertNoBands(); // 04
+  });
+});
+
+describe("StockReportPage — P7 count mode (C7)", () => {
+  beforeEach(() => {
+    vi.stubEnv("VITE_STOCK_API_MODE", "mock");
+    localStorage.clear();
+    useStockNavigationStore.getState().reset();
+    useStockReportStore.getState().reset();
+  });
+
+  function countModeButton(sheet: HTMLElement, mode: "instances" | "units"): HTMLElement {
+    return within(sheet)
+      .getAllByTestId("stock-filter-count-mode")
+      .find((button) => button.getAttribute("data-count-mode") === mode)!;
+  }
+
+  function renderedRow(row: CompactedReportRow): HTMLElement {
+    return screen
+      .getAllByTestId("stock-report-row")
+      .find((candidate) => candidate.getAttribute("data-row-key") === rowKey(row))!;
+  }
+
+  it("C7(a): the default render shows instanceCount under an Items label, with the item gap under To normal", async () => {
+    await renderReport();
+    const rows = compactEntries(stockReportFixture).filter((row) => row.instanceCount > 0);
+    expect(rows.length).toBeGreaterThan(0);
+
+    for (const row of rows) {
+      expect(row.quantity).not.toBe(row.instanceCount);
+      const rendered = renderedRow(row);
+      expect(within(rendered).getByTestId("stock-row-quantity")).toHaveTextContent(String(row.instanceCount));
+      expect(within(rendered).getByTestId("stock-row-quantity-label")).toHaveTextContent("Items");
+      expect(within(rendered).getByTestId("stock-row-missing")).toHaveTextContent(`+${row.unitsToRestockTarget}`);
+      expect(within(rendered).getByTestId("stock-row-missing-label")).toHaveTextContent("To normal");
+    }
+    expect(useStockReportStore.getState().countMode).toBe("instances");
+  });
+
+  it("C7(b): switching to Units in the filter sheet re-renders every row with quantity, relabels the gap, persists, and survives a reload", async () => {
+    await renderReport();
+    const rows = compactEntries(stockReportFixture);
+    const multi = rows.find((row) => row.contributions.length > 1)!;
+
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
+    const sheet = await screen.findByRole("dialog", { name: "Filters" });
+    expect(countModeButton(sheet, "instances")).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(countModeButton(sheet, "units"));
+    expect(countModeButton(sheet, "units")).toHaveAttribute("aria-pressed", "true");
+    // Not applied yet: the report behind the sheet still shows items.
+    expect(within(renderedRow(multi)).getByTestId("stock-row-quantity")).toHaveTextContent(String(multi.instanceCount));
+
+    await userEvent.click(ctaButton());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Filters" })).toBeNull());
+
+    // Units mode: rows re-sort by the displayed number, so look each row up by key.
+    const expectedView = buildReportView(stockReportFixture, createDefaultStockFilter(), keyOrder, "units");
+    if (!("rows" in expectedView)) throw new Error("expected compact view");
+    expect(renderedRowKeys()).toEqual(expectedView.rows.map(rowKey));
+    for (const row of expectedView.rows) {
+      const rendered = renderedRow(row);
+      expect(within(rendered).getByTestId("stock-row-quantity")).toHaveTextContent(String(row.quantity));
+      expect(within(rendered).getByTestId("stock-row-quantity-label")).toHaveTextContent("Units");
+      expect(within(rendered).getByTestId("stock-row-missing")).toHaveTextContent(`+${row.unitsToRestockTarget}`);
+      expect(within(rendered).getByTestId("stock-row-missing-label")).toHaveTextContent("Missing items");
+    }
+    // The gap did not change basis: same item gap as in items mode (D3).
+    expect(within(renderedRow(multi)).getByTestId("stock-row-missing")).toHaveTextContent(`+${multi.unitsToRestockTarget}`);
+    // Counter tiles are mode-independent (C6(e)).
+    expect(tileValues()).toEqual(computeCounterTiles(stockReportFixture, createDefaultStockFilter()));
+
+    // Persisted on this device …
+    expect(JSON.parse(localStorage.getItem("stock-report-settings") ?? "{}")).toEqual({ countMode: "units" });
+
+    // … and a fresh mount over a fresh store (what a reload builds) comes back in units.
+    cleanup();
+    useStockReportStore.getState().reset();
+    useStockNavigationStore.getState().reset();
+    expect(useStockReportStore.getState().countMode).toBe("units");
+    await renderReport();
+    const rendered = screen.getAllByTestId("stock-report-row");
+    expect(rendered.length).toBeGreaterThan(0);
+    expect(within(rendered[0]!).getByTestId("stock-row-quantity-label")).toHaveTextContent("Units");
+
+    // Reset in the sheet restores the filter but keeps the preference (D5).
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
+    const reopened = await screen.findByRole("dialog", { name: "Filters" });
+    await userEvent.click(within(reopened).getByRole("button", { name: "Reset" }));
+    expect(countModeButton(reopened, "units")).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("C7(c): the entry detail total and its contributions follow the mode", async () => {
+    await renderReport();
+    const multi = compactEntries(stockReportFixture).find((row) => row.contributions.length > 1)!;
+    const detail = deriveEntryDetail(multi, stockReportFixture, stockOptionsFixture);
+
+    await userEvent.click(renderedRow(multi));
+    await screen.findByRole("heading", { name: multi.itemCategory });
+    expect(screen.getByTestId("stock-detail-total")).toHaveTextContent(`${multi.instanceCount} items`);
+    for (const [index, item] of detail.entries.entries()) {
+      expect(within(screen.getAllByTestId("stock-detail-contribution")[index]!).getByTestId("stock-row-quantity"))
+        .toHaveTextContent(String(item.instanceCount));
+    }
+    await userEvent.click(screen.getByRole("button", { name: "Back to the report" }));
+    await screen.findAllByTestId("stock-report-row");
+
+    await userEvent.click(screen.getByRole("button", { name: "Filters" }));
+    const sheet = await screen.findByRole("dialog", { name: "Filters" });
+    await userEvent.click(countModeButton(sheet, "units"));
+    await userEvent.click(ctaButton());
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Filters" })).toBeNull());
+
+    await userEvent.click(renderedRow(multi));
+    await screen.findByRole("heading", { name: multi.itemCategory });
+    expect(screen.getByTestId("stock-detail-total")).toHaveTextContent(`${multi.quantity} units`);
+    for (const [index, item] of detail.entries.entries()) {
+      expect(item.quantity).not.toBe(item.instanceCount);
+      expect(within(screen.getAllByTestId("stock-detail-contribution")[index]!).getByTestId("stock-row-quantity"))
+        .toHaveTextContent(String(item.quantity));
+    }
   });
 });

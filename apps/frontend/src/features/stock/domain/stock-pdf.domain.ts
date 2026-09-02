@@ -11,6 +11,7 @@ import type { StockReportEntryDto } from "../types/stock.dto";
 import type {
   CompactedReportRow,
   ReportContribution,
+  StockCountMode,
   StockFilterState,
   StockState,
 } from "../types/stock.types";
@@ -18,8 +19,16 @@ import type {
 export interface StockPdfExportQuery extends StockFilterState {
   includeSummaryCounts: boolean;
   showContributingLocations: boolean;
+  // Seeded from the report's mode when the sheet opens; editable there without
+  // touching the report (P7 task 14).
+  countMode: StockCountMode;
   propertyKeyOrder?: readonly string[];
 }
+
+export const STOCK_PDF_COUNT_LABELS: Record<StockCountMode, string> = {
+  instances: "Items",
+  units: "Units",
+};
 
 export type StockPdfRow = CompactedReportRow;
 
@@ -40,6 +49,7 @@ export interface StockPdfSettings {
   states: string[];
   grouping: "Compacted across locations" | "Grouped by location";
   locations: string[];
+  count: "Items" | "Units";
   source: string;
 }
 
@@ -50,6 +60,7 @@ export interface StockPdfModel {
   entryCount: number;
   showContributingLocations: boolean;
   groupByLocation: boolean;
+  countMode: StockCountMode;
 }
 
 function compareCodePoints(left: string, right: string): number {
@@ -70,6 +81,7 @@ function contributionForEntry(entry: StockReportEntryDto): ReportContribution[] 
   return [{
     location: entry.location,
     quantity: entry.quantity,
+    instanceCount: entry.instanceCount,
     unitsToRestockTarget: missingQuantityForEntry(entry),
   }];
 }
@@ -80,6 +92,7 @@ function toPdfRow(entry: StockReportEntryDto): StockPdfRow {
     itemCategory: entry.itemCategory,
     properties: entry.properties,
     quantity: entry.quantity,
+    instanceCount: entry.instanceCount,
     unitsToRestockTarget: missingQuantityForEntry(entry),
     stockState: entry.stockState,
     locations: entry.location,
@@ -95,6 +108,7 @@ function rowsByState(
     entries,
     query,
     query.propertyKeyOrder ?? [],
+    query.countMode,
   );
   const result = new Map<StockState, StockPdfRow[]>(
     STOCK_STATES.map((state) => [state, []]),
@@ -112,7 +126,7 @@ function rowsByState(
     }
   }
 
-  const compareRows = makeCompactRowComparator(query.propertyKeyOrder ?? []);
+  const compareRows = makeCompactRowComparator(query.propertyKeyOrder ?? [], query.countMode);
   for (const state of STOCK_STATES) {
     result.get(state)!.sort(compareRows);
   }
@@ -160,6 +174,7 @@ function settingsFor(
       ? "Grouped by location"
       : "Compacted across locations",
     locations,
+    count: query.countMode === "units" ? "Units" : "Items",
     source: `Source: ${entryCount} ${entryCount === 1 ? "entry" : "entries"}`,
   };
 }
@@ -201,6 +216,7 @@ export function buildPdfModel(
     entryCount,
     showContributingLocations: query.showContributingLocations,
     groupByLocation: query.groupByLocation,
+    countMode: query.countMode,
   };
 
   if (query.includeSummaryCounts) {

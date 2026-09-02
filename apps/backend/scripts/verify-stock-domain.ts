@@ -20,6 +20,7 @@ type DomainModules = {
   specificityScore: (criteria: Criteria) => readonly [number, number, number];
   resolveBestMatch: (candidates: readonly Candidate[], itemProperties: Record<string, string> | null) => Candidate | null;
   findConflict: (candidate: Criteria, siblings: readonly { id: string; criteria: Criteria }[]) => { conflictingId: string } | null;
+  allocateGroup: (candidates: readonly Candidate[], items: readonly { quantity: number; properties: Record<string, string> | null }[]) => Map<string, { quantity: number; instanceCount: number }>;
   ITEM_PROPERTY_OPTIONS: readonly { key: string; values: readonly string[]; categories: "universal" | readonly string[] }[];
   getPropertyOptionsForCategory: (itemCategory: string) => readonly { key: string; values: readonly string[]; categories: "universal" | readonly string[] }[];
 };
@@ -470,15 +471,86 @@ const cases: readonly VerificationCase[] = [
     id: "C9(h)",
     run: (m) => equalJson(m.getPropertyOptionsForCategory("Dining Chairs").map((option) => option.key), ["wood_type", "years", "weight_definition", "country", "upholstery", "quantity"]),
   },
+  // P7 — allocateGroup: the single allocation loop behind reconciliation and the rebuild.
+  {
+    id: "P7.C1(a)",
+    detail: "three items of quantity 4, 3, 7 on one catch-all -> 14 units, 3 instances",
+    run: (m) => {
+      const totals = m.allocateGroup(
+        [candidate(m, "all", {}, "2026-01-01T00:00:00Z")],
+        [{ quantity: 4, properties: {} }, { quantity: 3, properties: {} }, { quantity: 7, properties: {} }],
+      );
+      equalJson(totals.get("all"), { quantity: 14, instanceCount: 3 });
+    },
+  },
+  {
+    id: "P7.C1(b)",
+    detail: "an item of quantity 0 still counts as one instance (D2)",
+    run: (m) => {
+      const totals = m.allocateGroup(
+        [candidate(m, "all", {}, "2026-01-01T00:00:00Z")],
+        [{ quantity: 0, properties: {} }],
+      );
+      equalJson(totals.get("all"), { quantity: 0, instanceCount: 1 });
+    },
+  },
+  {
+    id: "P7.C1(c)",
+    detail: "best-match splits items between a catch-all and a carve-out; each pair matches a hand count",
+    run: (m) => {
+      const totals = m.allocateGroup(
+        [
+          candidate(m, "all", {}, "2026-01-01T00:00:00Z"),
+          candidate(m, "teak", { wood_type: "Teak" }, "2026-01-02T00:00:00Z"),
+        ],
+        [
+          { quantity: 4, properties: { wood_type: "Teak" } },
+          { quantity: 6, properties: { wood_type: "Teak" } },
+          { quantity: 3, properties: { wood_type: "Oak" } },
+          { quantity: 1, properties: null },
+        ],
+      );
+      equalJson(totals.get("teak"), { quantity: 10, instanceCount: 2 });
+      equalJson(totals.get("all"), { quantity: 4, instanceCount: 2 });
+    },
+  },
+  {
+    id: "P7.C1(d)",
+    detail: "a definition with no matches is present at 0/0",
+    run: (m) => {
+      const totals = m.allocateGroup(
+        [
+          candidate(m, "all", {}, "2026-01-01T00:00:00Z"),
+          candidate(m, "sweden", { country: "Sweden" }, "2026-01-02T00:00:00Z"),
+        ],
+        [{ quantity: 2, properties: { wood_type: "Teak" } }],
+      );
+      equalJson(totals.get("sweden"), { quantity: 0, instanceCount: 0 });
+      equalJson(totals.get("all"), { quantity: 2, instanceCount: 1 });
+    },
+  },
+  {
+    id: "P7.C1(e)",
+    detail: "an item matching no definition contributes to neither number",
+    run: (m) => {
+      const totals = m.allocateGroup(
+        [candidate(m, "teak", { wood_type: "Teak" }, "2026-01-01T00:00:00Z")],
+        [{ quantity: 5, properties: { wood_type: "Oak" } }, { quantity: 2, properties: { wood_type: "Teak" } }],
+      );
+      equalJson(totals.get("teak"), { quantity: 2, instanceCount: 1 });
+      assert(totals.size === 1, "an unmatched item created a phantom key");
+    },
+  },
 ];
 
 const loadModules = async (): Promise<DomainModules> => {
-  const [stockState, propertyCriteria, bestMatch, conflict, options] = await Promise.all([
+  const [stockState, propertyCriteria, bestMatch, conflict, options, allocation] = await Promise.all([
     import("../src/modules/stock/domain/stock-state.js"),
     import("../src/modules/stock/domain/property-criteria.js"),
     import("../src/modules/stock/domain/best-match.js"),
     import("../src/modules/stock/domain/conflict.js"),
     import("../src/shared/item-properties/item-property-options.js"),
+    import("../src/modules/stock/domain/allocation.js"),
   ]);
   return {
     STOCK_STATES: stockState.STOCK_STATES,
@@ -493,6 +565,7 @@ const loadModules = async (): Promise<DomainModules> => {
     specificityScore: bestMatch.specificityScore,
     resolveBestMatch: bestMatch.resolveBestMatch,
     findConflict: conflict.findConflict,
+    allocateGroup: allocation.allocateGroup,
     ITEM_PROPERTY_OPTIONS: options.ITEM_PROPERTY_OPTIONS,
     getPropertyOptionsForCategory: (itemCategory) => options.getPropertyOptionsForCategory(itemCategory as Parameters<typeof options.getPropertyOptionsForCategory>[0]),
   };

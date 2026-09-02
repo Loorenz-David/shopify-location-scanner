@@ -36,6 +36,7 @@ export interface LocationStockDto {
   itemCategory: string;
   properties: StockPropertiesDto;
   quantity: number;
+  instanceCount: number;
   stockState: StockStateDto;
   thresholds: StockThresholdDto[];
   createdAt: string;
@@ -60,7 +61,11 @@ export interface StockReportEntryDto {
   itemCategory: string;
   properties: StockPropertiesDto;
   mergeKey: string;
+  // `quantity` sums the allocated items' units; `instanceCount` counts the
+  // allocated items. Thresholds, `stockState` and `unitsToRestockTarget` are
+  // item-based (contract v1.7).
   quantity: number;
+  instanceCount: number;
   stockState: StockStateDto;
   thresholds: StockThresholdDto[];
   unitsToRestockTarget?: number;
