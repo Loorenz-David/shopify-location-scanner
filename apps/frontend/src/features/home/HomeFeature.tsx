@@ -52,6 +52,7 @@ import {
   LazyScannerLogisticPlacementPage,
   LazyShopifySettingsPage,
   LazyStockLocationsPage,
+  LazyStockReportPage,
   LazyStoreMapSettingsPage,
   LazyUsersSettingsPage,
 } from "./lazy-pages";
@@ -183,6 +184,12 @@ export function HomeFeature({ onLogout }: HomeFeatureProps) {
         title: "Store Map",
         component: LazyStoreMapSettingsPage,
         presentation: "full-overlay",
+      },
+      {
+        // Plain page: the tab bar stays visible on screens 01/02 (design 00-global).
+        id: "settings-stock-report",
+        title: "Stock report",
+        component: LazyStockReportPage,
       },
       {
         // Plain page: the tab bar stays visible on screens 06/07 (design 00-global).

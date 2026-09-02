@@ -192,3 +192,15 @@ export const LazyStockLocationsPage = createLazyFeaturePage({
   errorDescription: "The stock locations page did not load. Retry to continue.",
   variant: "inline",
 });
+
+export const LazyStockReportPage = createLazyFeaturePage({
+  load: () =>
+    import("../stock/ui/StockReportPage").then((module) => ({
+      default: module.StockReportPage,
+    })),
+  loadingTitle: "Stock report",
+  loadingDescription: "Loading the stock report...",
+  errorTitle: "Stock report unavailable",
+  errorDescription: "The stock report page did not load. Retry to continue.",
+  variant: "inline",
+});

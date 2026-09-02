@@ -77,4 +77,54 @@ tiles and no meaningful group ranking until something is scanned in (§7C). C7's
 therefore the *common* case on a fresh install, not an edge case.
 
 ## Review log
-(empty)
+
+### 2026-09-02 — implement round 1 (Claude, Fable 5) → IMPLEMENTED (pending coordinator)
+
+**Built.** `ui/StockReportPage.tsx` (screens 01/02, owns the internal view switch: root →
+`report-filter-sheet` overlay → `report-entry-detail` pushed view), `ui/StockCounterTiles.tsx`,
+`ui/StockReportEntryRows.tsx` (compact + grouped row variants and the striped thumbnail
+placeholder), `ui/StockFilterSheet.tsx` (screen 03), `ui/StockEntryDetailView.tsx` (screen 04);
+`settings-stock-report` registered as a plain page in `HomeFeature.tsx` via `LazyStockReportPage`
+in `lazy-pages.tsx` (C9). Tests: `ui/StockReportPage.test.tsx` (C1–C8, 8 tests) and
+`ui/stock-report-registration.test.tsx` (C9, 1 test, renders the real `HomeFeature` shell and
+clicks the real Settings row). 124 → 133 tests, no orphans. Mutation ledger 1/1 (M1) plus seven
+guard/argument probes — see the handoff.
+
+**Judgment calls.**
+1. *Grouped `n to fix` count.* Neither P2 nor the store precomputes it; the UI sums the three
+   problem buckets of `countByStateBucket` (the one place that knows which states are problems).
+   The UI still never decides which states count. **Candidate P2 gap:** `compareGroups` computes
+   the same three numbers internally and could expose them on `ReportLocationGroup`.
+2. *Group worst state* = `group.entries[0].stockState`, because `buildReportView` hands groups
+   with entries already in MC3 order (worst first). No sort in the UI.
+3. *Filter-sheet per-state counts* (design 03 "entry count" per row) = `countPendingRows` with
+   that single state under the pending locations and grouping — so the five rows sum to the CTA
+   count when all are selected, in every mode.
+4. *Location chips* are multi-select (MC5 models `locations` as a set; `All` clears). Chip order
+   = first appearance in the payload; the UI does not sort report data and the backend query has
+   no `orderBy`.
+5. *Screen 02 row → screen 04:* the tapped per-location entry is wrapped by
+   `compactEntries([entry])[0]` (MC4 invariant c) so the detail shows that one location. Opening
+   the full cross-location entry from a grouped row would contradict the "compaction off" mode.
+6. *CTA wording* pluralises: `Show 1 entry` / `Show N entries`.
+7. *`Generate PDF` pill* reuses `StockFloatingPill`, disabled, commented `structurally held:
+   enabled when P9 lands`. Its `+` icon is P5's; the design shows a document icon (polish).
+8. *The filter sheet is portaled to `document.body`.* Discovered in the browser: a concurrent
+   polish session's uncommitted `index.css` gives `.stock-area-font` `position: relative;
+   z-index: 0`, which trapped the sheet's `z-50` below the tab bar. The portal is correct on
+   either tree.
+9. *Subtitle:* compact `All locations · N entries` (or the selected codes joined ` · `), grouped
+   `N locations · by severity`. N is the length of the domain-composed list.
+10. *Empty states* (intention §7): "Nothing to report yet" when the payload is empty; a dashed
+    "No entries match these filters" when the filter empties the composed view.
+
+**Approximations for the polish pass (§7D).** Tab bar still visible on 04 (same shape as P6 F4;
+03 now covers it via the portal). `Generate PDF` icon is `+`. No slide-up animation on the sheet
+(no `index.css` edit in this phase's perimeter). Card surfaces use the committed P5/P6 idiom
+(`--stock-surface` + shadow); the concurrent polish session is converting P5/P6 cards to a new
+`stock-card-surface` class on a white page — these five components will need the same sweep.
+
+**Observed, not changed.** (a) A concurrent session was editing this working tree during the
+whole round (P5/P6 UI files, `index.css`, `HomeLayout.tsx`, two P6 test files, a new
+`StockSelectSheet.tsx`); none of it is in this round's checkpoint. (b) `lazy-pages.tsx` carries
+two pre-existing lint problems inside `createLazyFeaturePage` (baseline, as P5 recorded).
