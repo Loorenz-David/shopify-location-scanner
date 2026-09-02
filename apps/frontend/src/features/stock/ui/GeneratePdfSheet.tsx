@@ -206,7 +206,7 @@ function GeneratePdfSheetBody({
 
           <div className="flex flex-col gap-2.5">
             <ToggleRow
-              label="Include summary counts"
+              label="Include missing totals"
               checked={query.includeSummaryCounts}
               onChange={(checked) => stockActions.setPdfExportQuery({ includeSummaryCounts: checked })}
             />

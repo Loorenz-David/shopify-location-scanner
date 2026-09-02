@@ -33,7 +33,7 @@ export interface StockPdfSection {
 export interface StockPdfSummaryCount {
   state: StockState;
   label: string;
-  count: number;
+  missingQuantity: number;
 }
 
 export interface StockPdfSettings {
@@ -122,16 +122,25 @@ function rowsByState(
 
 function summaryCounts(
   sections: readonly StockPdfSection[],
+  selectedStates: ReadonlySet<StockState>,
 ): StockPdfSummaryCount[] {
   const counts = new Map(
-    sections.map((section) => [section.state, section.rows.length]),
+    sections.map((section) => [
+      section.state,
+      section.rows.reduce(
+        (total, row) => total + row.unitsToNormalThreshold,
+        0,
+      ),
+    ]),
   );
 
-  return STOCK_STATES.map((state) => ({
-    state,
-    label: getStockStateMeta(state).label,
-    count: counts.get(state) ?? 0,
-  }));
+  return STOCK_STATES
+    .filter((state) => selectedStates.has(state))
+    .map((state) => ({
+      state,
+      label: getStockStateMeta(state).label,
+      missingQuantity: counts.get(state) ?? 0,
+    }));
 }
 
 function settingsFor(
@@ -195,7 +204,7 @@ export function buildPdfModel(
   };
 
   if (query.includeSummaryCounts) {
-    model.summaryCounts = summaryCounts(sections);
+    model.summaryCounts = summaryCounts(sections, query.states);
   }
 
   return model;

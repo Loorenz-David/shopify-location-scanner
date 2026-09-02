@@ -354,6 +354,36 @@ export function countPendingRows(
     : view.groups.reduce((count, group) => count + group.entries.length, 0);
 }
 
+function sumCounterTiles(
+  items: Iterable<StockReportEntryDto | CompactedReportRow>,
+): CounterTiles {
+  const totals: CounterTiles = { out: 0, low: 0, medium: 0, rest: 0 };
+
+  for (const item of items) {
+    const missingQuantity = isCompactedRow(item)
+      ? item.unitsToNormalThreshold
+      : missingQuantityForEntry(item);
+
+    switch (STOCK_STATES.indexOf(item.stockState)) {
+      case 0:
+        totals.out += missingQuantity;
+        break;
+      case 1:
+        totals.low += missingQuantity;
+        break;
+      case 2:
+        totals.medium += missingQuantity;
+        break;
+      case 3:
+      case 4:
+        totals.rest += missingQuantity;
+        break;
+    }
+  }
+
+  return totals;
+}
+
 export function computeCounterTiles(
   entries: readonly StockReportEntryDto[],
   filter: StockFilterState,
@@ -364,7 +394,7 @@ export function computeCounterTiles(
       states: new Set(entries.map(({ stockState }) => stockState)),
     });
 
-    return countByStateBucket(locationFiltered.map(({ stockState }) => stockState));
+    return sumCounterTiles(locationFiltered);
   }
 
   const compactedRows = compactEntries(entries);
@@ -373,7 +403,7 @@ export function computeCounterTiles(
     states: new Set(compactedRows.map(({ stockState }) => stockState)),
   });
 
-  return countByStateBucket(locationFiltered.map(({ stockState }) => stockState));
+  return sumCounterTiles(locationFiltered);
 }
 
 function configLabel(

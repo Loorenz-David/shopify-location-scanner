@@ -224,8 +224,18 @@ describe("StockReportPage (screens 01–04)", () => {
         expectedGroup.entries.map((entry) => `${entry.mergeKey}|${entry.stockState}|${entry.location}`),
       );
       renderedEntries.forEach((entry, entryIndex) => {
+        const expectedEntry = expectedGroup.entries[entryIndex]!;
+        const expectedStateLabel = expectedEntry.stockState === STOCK_STATES[0]
+          ? "Out"
+          : getStockStateMeta(expectedEntry.stockState).label;
         expect(within(entry).getByTestId("stock-row-missing")).toHaveTextContent(
-          String(expectedGroup.entries[entryIndex]!.unitsToNormalThreshold),
+          `+${expectedEntry.unitsToNormalThreshold}`,
+        );
+        expect(within(entry).getByTestId("stock-row-state")).toHaveTextContent(
+          expectedStateLabel,
+        );
+        expect(within(entry).getByTestId("stock-row-locations")).toHaveTextContent(
+          expectedEntry.location,
         );
       });
     }
@@ -411,7 +421,7 @@ describe("StockReportPage (screens 01–04)", () => {
     }
   });
 
-  it("C7: a quantity-0 row renders with the OUT badge and is never dropped as empty", async () => {
+  it("C7: a quantity-0 row renders with short OUT metadata and the split quantity bar", async () => {
     const zeroRows = compactEntries(stockReportFixture).filter((row) => row.quantity === 0);
     expect(zeroRows).toHaveLength(1);
     const zero = zeroRows[0]!;
@@ -424,11 +434,14 @@ describe("StockReportPage (screens 01–04)", () => {
     const rendered = screen.getAllByTestId("stock-report-row").find((row) => row.getAttribute("data-row-key") === rowKey(zero))!;
     expect(within(rendered).getByTestId("stock-row-quantity")).toHaveTextContent("0");
     expect(within(rendered).getByTestId("stock-row-missing")).toHaveTextContent(
-      String(zero.unitsToNormalThreshold),
+      `+${zero.unitsToNormalThreshold}`,
     );
     expect(within(rendered).getByText("In stock")).toBeInTheDocument();
-    expect(within(rendered).getByText("Missing")).toBeInTheDocument();
-    expect(within(rendered).getByText(getStockStateMeta(STOCK_STATES[0]).label)).toBeInTheDocument();
+    expect(within(rendered).getByText("To normal")).toBeInTheDocument();
+    expect(within(rendered).getByTestId("stock-row-state")).toHaveTextContent("Out");
+    expect(
+      within(rendered).queryByText(getStockStateMeta(STOCK_STATES[0]).label),
+    ).toBeNull();
   });
 
   it("C8: no threshold numbers or band labels in the 01, 02 and 04 renders", async () => {

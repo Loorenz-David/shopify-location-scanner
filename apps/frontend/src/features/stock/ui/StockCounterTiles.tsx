@@ -6,8 +6,8 @@ interface StockCounterTilesProps {
 }
 
 // Screen 01 counter strip: Out / Low / Medium tinted by their state's meta (MC1
-// position 0/1/2 — the same idiom as StockThresholdStrip), Rest neutral. The counts
-// arrive from computeCounterTiles through the store; nothing is counted here.
+// position 0/1/2 — the same idiom as StockThresholdStrip), Rest neutral. The missing
+// unit totals arrive from computeCounterTiles through the store; nothing is summed here.
 export function StockCounterTiles({ tiles }: StockCounterTilesProps) {
   const cells = [
     { bucket: "out", label: "Out", value: tiles.out, meta: getStockStateMeta(STOCK_STATES[0]) },

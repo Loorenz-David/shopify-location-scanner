@@ -9,6 +9,7 @@ import { groupLocationsByLetter } from "../domain/stock-location-groups.domain";
 import {
   selectStockWizardAvailableLocations,
   selectStockWizardDraft,
+  selectStockWizardError,
   selectStockWizardIsEditing,
   selectStockWizardOptions,
   useStockWizardStore,
@@ -37,6 +38,7 @@ type SheetState =
   | { kind: "location" }
   | { kind: "location-letter"; letter: string }
   | { kind: "definition" }
+  | { kind: "actions" }
   | {
       kind: "values";
       key: string;
@@ -73,7 +75,14 @@ function rowsFrom(properties: StockPropertiesDto, options: StockOptionsDto): Cri
       if (value === null) {
         return { key, selectedValues: [], anyValue: true };
       }
-      return { key, selectedValues: Array.isArray(value) ? value : [value] };
+      // The API may return wire-cased values (for example `up`), whereas the picker
+      // exposes display-cased values (`Up`). Normalize and de-duplicate them here so
+      // an edited selection is visibly checked and cannot be added a second time.
+      const values = Array.isArray(value) ? value : [value];
+      const selectedValues = [...new Map(
+        values.map((item) => [item.toLowerCase(), displayValueFor(key, item, options)]),
+      ).values()];
+      return { key, selectedValues };
     });
 }
 
@@ -88,7 +97,10 @@ function rowValueLabel(row: CriteriaDraftProperty, options: StockOptionsDto): st
 
 export function StockWizardStep1View() {
   const draft = useStockWizardStore(selectStockWizardDraft);
+  const error = useStockWizardStore(selectStockWizardError);
   const isEditing = useStockWizardStore(selectStockWizardIsEditing);
+  const editingId = useStockWizardStore((state) => state.editingId);
+  const isSubmitting = useStockWizardStore((state) => state.isSubmitting);
   const availableLocations = useStockWizardStore(selectStockWizardAvailableLocations);
   const originalLocation = useStockWizardStore((state) => state.originalLocation);
   const options = useStockWizardStore(selectStockWizardOptions) ?? EMPTY_OPTIONS;
@@ -202,8 +214,11 @@ export function StockWizardStep1View() {
       if (id === ANY_VALUE_ID) {
         return { ...current, anyValue: !current.anyValue, selectedValues: [] };
       }
-      const selectedValues = current.selectedValues.includes(id)
-        ? current.selectedValues.filter((value) => value !== id)
+      const isSelected = current.selectedValues.some(
+        (value) => value.toLowerCase() === id.toLowerCase(),
+      );
+      const selectedValues = isSelected
+        ? current.selectedValues.filter((value) => value.toLowerCase() !== id.toLowerCase())
         : [...current.selectedValues, id];
       return { ...current, anyValue: false, selectedValues };
     });
@@ -226,6 +241,21 @@ export function StockWizardStep1View() {
     setIsSheetOpen(false);
   };
 
+  const deleteInstance = async () => {
+    if (editingId === null || isSubmitting) {
+      return;
+    }
+
+    try {
+      await stockActions.deleteConfiguration(editingId, originalLocation ?? draft.location);
+      stockActions.discardWizard();
+      stockActions.popView();
+    } catch {
+      // The controller has stored a user-facing error; close the action sheet so it is visible.
+      setIsSheetOpen(false);
+    }
+  };
+
   const sheetView = sheet;
   const valuesDefinition =
     sheetView?.kind === "values"
@@ -233,6 +263,23 @@ export function StockWizardStep1View() {
       : undefined;
 
   const sheetProps = (() => {
+    if (sheetView?.kind === "actions") {
+      return {
+        title: "Instance actions",
+        eyebrow: "Stock instance",
+        emptyMessage: "No actions available.",
+        monoLabels: false,
+        options: [{
+          id: "delete",
+          label: "Delete stock instance",
+          isSelected: false,
+          isDestructive: true,
+          isDisabled: isSubmitting,
+        }],
+        onSelect: () => void deleteInstance(),
+      };
+    }
+
     if (sheetView?.kind === "definition") {
       return {
         title: "Add property",
@@ -356,23 +403,49 @@ export function StockWizardStep1View() {
 
   return (
     <section className="stock-area-font stock-screen-surface mx-auto flex w-full max-w-[720px] flex-col gap-4 px-5 pb-28">
-      <StockWizardHeader
-        title={isEditing ? "Edit stock instance" : "New stock instance"}
-        eyebrow={stepEyebrow}
-        eyebrowTestId="stock-wizard-step-eyebrow"
-        dismiss="discard"
-        dismissLabel="Discard"
-        onDismiss={() => {
-          // Discarding must clear the wizard store, not just pop the view: screens 06/07
-          // render `settingsErrorMessage ?? wizardErrorMessage`, so a 409 banner left
-          // behind here follows the user back onto the location screen and stays there
-          // until the next wizard start. Unreachable against mocks, routine against a
-          // real backend, where a duplicate definition is the first thing anyone hits.
-          stockActions.discardWizard();
-          stockActions.popView();
-        }}
-      />
+      <div className="flex items-start gap-3">
+        <StockWizardHeader
+          title={isEditing ? "Edit stock instance" : "New stock instance"}
+          eyebrow={stepEyebrow}
+          eyebrowTestId="stock-wizard-step-eyebrow"
+          dismiss="discard"
+          dismissLabel="Discard"
+          onDismiss={() => {
+            // Discarding must clear the wizard store, not just pop the view: screens 06/07
+            // render `settingsErrorMessage ?? wizardErrorMessage`, so a 409 banner left
+            // behind here follows the user back onto the location screen and stays there
+            // until the next wizard start. Unreachable against mocks, routine against a
+            // real backend, where a duplicate definition is the first thing anyone hits.
+            stockActions.discardWizard();
+            stockActions.popView();
+          }}
+        />
+        {isEditing ? (
+          <button
+            type="button"
+            aria-label="More actions"
+            className="ml-auto grid h-10 w-10 flex-shrink-0 place-items-center rounded-full text-[var(--stock-heading)]"
+            onClick={() => openSheet({ kind: "actions" })}
+          >
+            <span className="flex flex-col gap-[3px]" aria-hidden="true">
+              <span className="h-1 w-1 rounded-full bg-current" />
+              <span className="h-1 w-1 rounded-full bg-current" />
+              <span className="h-1 w-1 rounded-full bg-current" />
+            </span>
+          </button>
+        ) : null}
+      </div>
       <StockWizardProgress step={1} />
+
+      {error ? (
+        <div
+          data-testid="stock-wizard-error"
+          role="alert"
+          className="rounded-[16px] border border-rose-300 bg-rose-100 px-4 py-3 text-[14px] font-semibold text-rose-900"
+        >
+          {error.message}
+        </div>
+      ) : null}
 
       <div className="mt-1 flex flex-col gap-3">
         <StockWizardSectionLabel number={1} label="Location" />

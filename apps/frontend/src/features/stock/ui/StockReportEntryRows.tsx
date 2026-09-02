@@ -1,49 +1,72 @@
-import {
-  getStockStateMeta,
-  STOCK_STATES,
-} from "../domain/stock-states.domain";
+import { getStockStateMeta, STOCK_STATES } from "../domain/stock-states.domain";
 import { missingQuantityForEntry } from "../domain/stock-report.domain";
-import type { StockReportEntryDto } from "../types/stock.dto";
+import type { StockReportEntryDto, StockStateDto } from "../types/stock.dto";
 import type { CompactedReportRow } from "../types/stock.types";
 import { StockCategoryThumbnail } from "./StockCategoryThumbnail";
 import { StockPropertyChips } from "./StockPropertyChips";
 
-const missingTextColor = getStockStateMeta(STOCK_STATES[0]).text;
+const missingMeta = getStockStateMeta(STOCK_STATES[0]);
 
-interface StockQuantityStackProps {
+interface StockQuantityBarProps {
   current: number;
   missing: number;
-  sizeClassName: string;
 }
 
-function StockQuantityStack({
-  current,
-  missing,
-  sizeClassName,
-}: StockQuantityStackProps) {
+function StockQuantityBar({ current, missing }: StockQuantityBarProps) {
   return (
-    <span className="flex flex-shrink-0 flex-col items-end">
-      <span
-        data-testid="stock-row-quantity"
-        className={`${sizeClassName} font-bold leading-none text-[var(--stock-heading)]`}
-      >
-        {current}
-      </span>
-      <span className="stock-mono mt-1 text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--stock-muted)]">
-        In stock
-      </span>
-      <span
-        data-testid="stock-row-missing"
-        className={`${sizeClassName} mt-2 font-bold leading-none`}
-        style={{ color: missingTextColor }}
-      >
-        {missing}
+    <span className="grid w-full grid-cols-2 overflow-hidden rounded-[18px] bg-[var(--stock-track)]">
+      <span className="flex min-w-0 flex-col gap-1 px-5 py-3">
+        <span className="stock-mono text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--stock-muted)]">
+          In stock
+        </span>
+        <span
+          data-testid="stock-row-quantity"
+          className="text-md font-bold leading-none text-[var(--stock-heading)]"
+        >
+          {current}
+        </span>
       </span>
       <span
-        className="stock-mono mt-1 text-[10px] font-medium uppercase tracking-[0.14em]"
-        style={{ color: missingTextColor }}
+        className="flex min-w-0 flex-col gap-1 border-l border-white/80 px-5 py-3"
+        style={{ backgroundColor: missingMeta.tint, color: missingMeta.text }}
       >
-        Missing
+        <span className="stock-mono text-[10px] font-medium uppercase tracking-[0.14em]">
+          To normal
+        </span>
+        <span
+          data-testid="stock-row-missing"
+          className="text-md font-bold leading-none"
+        >
+          +{missing}
+        </span>
+      </span>
+    </span>
+  );
+}
+
+interface StockEntryStatusProps {
+  state: StockStateDto;
+  location: string;
+}
+
+function StockEntryStatus({ state, location }: StockEntryStatusProps) {
+  const meta = getStockStateMeta(state);
+  const label = state === STOCK_STATES[0] ? "Out" : meta.label;
+
+  return (
+    <span className="flex flex-shrink-0 flex-col items-end gap-1 pt-1">
+      <span
+        data-testid="stock-row-state"
+        className="text-[11px] font-bold uppercase tracking-[0.12em]"
+        style={{ color: meta.text }}
+      >
+        {label}
+      </span>
+      <span
+        data-testid="stock-row-locations"
+        className="stock-mono text-[11px] font-medium text-[var(--stock-muted)]"
+      >
+        {location}
       </span>
     </span>
   );
@@ -55,15 +78,13 @@ interface StockCompactEntryRowProps {
   onPress: () => void;
 }
 
-// Screen 01 row: thumbnail, type, chips, current + missing quantities, then the
-// state-tinted bar with the state label left and contributing location codes right.
+// Screen 01 row: thumbnail, type and chips with short state/location metadata at the
+// upper right; current and missing quantities share the split bar below.
 export function StockCompactEntryRow({
   row,
   chips,
   onPress,
 }: StockCompactEntryRowProps) {
-  const meta = getStockStateMeta(row.stockState);
-
   return (
     <button
       type="button"
@@ -80,26 +101,12 @@ export function StockCompactEntryRow({
           </span>
           <StockPropertyChips chips={chips} />
         </span>
-        <StockQuantityStack
-          current={row.quantity}
-          missing={row.unitsToNormalThreshold}
-          sizeClassName="text-[18px]"
-        />
+        <StockEntryStatus state={row.stockState} location={row.locations} />
       </span>
-      <span
-        className="flex w-full items-center justify-between gap-3 rounded-[14px] px-4 py-2.5"
-        style={{ backgroundColor: meta.tint, color: meta.text }}
-      >
-        <span className="text-[12px] font-bold uppercase tracking-[0.12em]">
-          {meta.label}
-        </span>
-        <span
-          data-testid="stock-row-locations"
-          className="stock-mono text-[12px] font-medium"
-        >
-          {row.locations}
-        </span>
-      </span>
+      <StockQuantityBar
+        current={row.quantity}
+        missing={row.unitsToNormalThreshold}
+      />
     </button>
   );
 }
@@ -110,8 +117,8 @@ interface StockGroupedEntryRowProps {
   onPress: () => void;
 }
 
-// Screen 02 row (compact variant): solid state rail, type, chips, then current +
-// missing quantities stacked at the right. The group supplies the location.
+// Screen 02 row: solid state rail, type and chips with short state/location metadata
+// at the upper right; current and missing quantities share the split bar below.
 export function StockGroupedEntryRow({
   entry,
   chips,
@@ -124,24 +131,26 @@ export function StockGroupedEntryRow({
       type="button"
       data-testid="stock-report-entry"
       data-entry-key={`${entry.mergeKey}|${entry.stockState}|${entry.location}`}
-      className="flex w-full items-center gap-4 rounded-[24px] bg-[var(--stock-surface)] py-4 pl-4 pr-5 text-left shadow-[var(--stock-card-shadow)]"
+      className="flex w-full flex-col gap-3 rounded-[24px] bg-[var(--stock-surface)] p-4 text-left shadow-[var(--stock-card-shadow)]"
       onClick={onPress}
     >
-      <span
-        aria-hidden="true"
-        className="block h-[38px] w-2 flex-shrink-0 rounded-[4px]"
-        style={{ backgroundColor: meta.solid }}
-      />
-      <span className="flex min-w-0 flex-1 flex-col gap-2">
-        <span className="text-[14px] font-bold leading-tight text-[var(--stock-heading)]">
-          {entry.itemCategory}
+      <span className="flex w-full items-start gap-4">
+        <span
+          aria-hidden="true"
+          className="block h-[38px] w-2 flex-shrink-0 rounded-[4px]"
+          style={{ backgroundColor: meta.solid }}
+        />
+        <span className="flex min-w-0 flex-1 flex-col gap-2">
+          <span className="text-[14px] font-bold leading-tight text-[var(--stock-heading)]">
+            {entry.itemCategory}
+          </span>
+          <StockPropertyChips chips={chips} />
         </span>
-        <StockPropertyChips chips={chips} />
+        <StockEntryStatus state={entry.stockState} location={entry.location} />
       </span>
-      <StockQuantityStack
+      <StockQuantityBar
         current={entry.quantity}
         missing={missingQuantityForEntry(entry)}
-        sizeClassName="text-[17px]"
       />
     </button>
   );

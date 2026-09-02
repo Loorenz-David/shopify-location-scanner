@@ -407,13 +407,13 @@ describe("stock report domain", () => {
     }
   });
 
-  it("C7: counter tiles ignore state selection and respect location selection in compact mode", () => {
+  it("C7: counter tiles sum missing units, ignore state selection, and respect location selection in compact mode", () => {
     const tiles = computeCounterTiles([
       entry({ location: "LC1", stockState: "low_in_stock" }),
       entry({ location: "H1", stockState: "out_of_stock", quantity: 0 }),
     ], filter({ states: new Set(["out_of_stock"]), locations: new Set(["LC1"]) }));
 
-    expect(tiles).toEqual({ out: 0, low: 1, medium: 0, rest: 0 });
+    expect(tiles).toEqual({ out: 0, low: 19, medium: 0, rest: 0 });
   });
 
   it("C7 grouped mode: counter tiles use per-location entries with the same filter rule", () => {
@@ -422,7 +422,7 @@ describe("stock report domain", () => {
       entry({ location: "H1", stockState: "out_of_stock", quantity: 0 }),
     ], filter({ groupByLocation: true, states: new Set(["out_of_stock"]), locations: new Set(["LC1"]) }));
 
-    expect(tiles).toEqual({ out: 0, low: 1, medium: 0, rest: 0 });
+    expect(tiles).toEqual({ out: 0, low: 19, medium: 0, rest: 0 });
   });
 
   it("C8(a): derives a display-cased single-property config label", () => {

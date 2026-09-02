@@ -5,6 +5,7 @@ import {
   buildReportView,
   compactEntries,
   makeCompactRowComparator,
+  missingQuantityForEntry,
 } from "./stock-report.domain";
 import {
   createDefaultStockFilter,
@@ -93,6 +94,39 @@ function viewCountByState(
   }
 
   return counts;
+}
+
+function viewMissingByState(
+  entries: readonly StockReportEntryDto[],
+  filter: StockFilterState,
+): Map<StockState, number> {
+  const view = buildReportView(
+    entries,
+    filter,
+    stockOptionsFixture.propertyOptions.map((option) => option.key),
+  );
+  const totals = new Map<StockState, number>();
+
+  if ("rows" in view) {
+    for (const row of view.rows) {
+      totals.set(
+        row.stockState,
+        (totals.get(row.stockState) ?? 0) + row.unitsToNormalThreshold,
+      );
+    }
+  } else {
+    for (const group of view.groups) {
+      for (const currentEntry of group.entries) {
+        totals.set(
+          currentEntry.stockState,
+          (totals.get(currentEntry.stockState) ?? 0) +
+            missingQuantityForEntry(currentEntry),
+        );
+      }
+    }
+  }
+
+  return totals;
 }
 
 function installNavigatorShare(
@@ -231,18 +265,22 @@ describe("stock PDF domain", () => {
       locations: new Set(["LC1"]),
     });
     const model = buildPdfModel(entries, query);
-    const expected = viewCountByState(entries, query);
+    const expectedRows = viewCountByState(entries, query);
+    const expectedMissing = viewMissingByState(entries, query);
 
     expect(sectionCounts(model)).toEqual(
-      model.sections.map((section) => expected.get(section.state) ?? 0),
+      model.sections.map((section) => expectedRows.get(section.state) ?? 0),
     );
-    expect(model.summaryCounts).toHaveLength(STOCK_STATES.length);
-    expect(model.summaryCounts!.map(({ state, count }) => ({
+    const selectedStates = STOCK_STATES.filter((state) =>
+      query.states.has(state)
+    );
+    expect(model.summaryCounts).toHaveLength(selectedStates.length);
+    expect(model.summaryCounts!.map(({ state, missingQuantity }) => ({
       state,
-      count,
-    }))).toEqual(STOCK_STATES.map((state) => ({
+      missingQuantity,
+    }))).toEqual(selectedStates.map((state) => ({
       state,
-      count: expected.get(state) ?? 0,
+      missingQuantity: expectedMissing.get(state) ?? 0,
     })));
     expect(model.entryCount).toBe(2);
     expect(model.entryCount).not.toBe(entries.length);
@@ -258,20 +296,48 @@ describe("stock PDF domain", () => {
     ];
     const query = exportQuery({ groupByLocation: true });
     const model = buildPdfModel(entries, query);
-    const expected = viewCountByState(entries, query);
+    const expectedRows = viewCountByState(entries, query);
+    const expectedMissing = viewMissingByState(entries, query);
 
     expect(sectionCounts(model)).toEqual(
-      model.sections.map((section) => expected.get(section.state) ?? 0),
+      model.sections.map((section) => expectedRows.get(section.state) ?? 0),
     );
-    expect(model.summaryCounts!.map(({ state, count }) => ({
+    expect(model.summaryCounts!.map(({ state, missingQuantity }) => ({
       state,
-      count,
+      missingQuantity,
     }))).toEqual(STOCK_STATES.map((state) => ({
       state,
-      count: expected.get(state) ?? 0,
+      missingQuantity: expectedMissing.get(state) ?? 0,
     })));
     expect(model.entryCount).toBe(4);
     expect(model.entryCount).not.toBe(compactEntries(entries).length);
+  });
+
+  it("C3(c): summary tiles total missing units per state rather than stock instances", async () => {
+    const { buildPdfModel } = await loadPdfDomain();
+    const model = buildPdfModel([
+      entry({ mergeKey: "out-1", stockState: STOCK_STATES[0], unitsToNormalThreshold: 6 }),
+      entry({ mergeKey: "out-2", stockState: STOCK_STATES[0], unitsToNormalThreshold: 8 }),
+      entry({ mergeKey: "out-3", stockState: STOCK_STATES[0], unitsToNormalThreshold: 20 }),
+      entry({ mergeKey: "out-4", stockState: STOCK_STATES[0], unitsToNormalThreshold: 20 }),
+      entry({ mergeKey: "medium", stockState: STOCK_STATES[2], unitsToNormalThreshold: 8 }),
+    ], exportQuery());
+
+    expect(model.entryCount).toBe(5);
+    expect(
+      Object.fromEntries(
+        model.summaryCounts!.map(({ state, missingQuantity }) => [
+          state,
+          missingQuantity,
+        ]),
+      ),
+    ).toEqual({
+      [STOCK_STATES[0]]: 54,
+      [STOCK_STATES[1]]: 0,
+      [STOCK_STATES[2]]: 8,
+      [STOCK_STATES[3]]: 0,
+      [STOCK_STATES[4]]: 0,
+    });
   });
 
   it("C4: settings use state labels, exact grouping wording, locations, and derived source count", async () => {

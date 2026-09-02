@@ -123,7 +123,7 @@ describe("GeneratePdfSheet (screen 05)", () => {
     openSheet(readyHandle());
     const before = useStockReportStore.getState().appliedFilter;
 
-    await user.click(screen.getByRole("checkbox", { name: "Include summary counts" }));
+    await user.click(screen.getByRole("checkbox", { name: "Include missing totals" }));
     expect(setQuery).toHaveBeenLastCalledWith({ includeSummaryCounts: false });
 
     await user.click(screen.getByRole("checkbox", { name: "Show contributing locations" }));

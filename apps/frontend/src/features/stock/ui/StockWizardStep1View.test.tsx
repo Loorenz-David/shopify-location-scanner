@@ -3,8 +3,10 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useBootstrapStore } from "../../bootstrap/stores/bootstrap.store";
+import { stockActions } from "../actions/stock.actions";
 import * as stockApi from "../api";
 import { stockLocationDetailFixture } from "../api/mocks/get-stock-location-detail.fixture";
+import { __resetMockState } from "../api/mocks/mock-state";
 import { STOCK_STATES } from "../domain/stock-states.domain";
 import { useStockNavigationStore } from "../stores/stock-navigation.store";
 import { useStockSettingsStore } from "../stores/stock-settings.store";
@@ -75,6 +77,7 @@ function propertyRows() {
 describe("StockWizardStep1View (screen 08)", () => {
   beforeEach(() => {
     vi.stubEnv("VITE_STOCK_API_MODE", "mock");
+    __resetMockState();
     useBootstrapStore.getState().reset();
     useStockNavigationStore.getState().reset();
     useStockSettingsStore.getState().reset();
@@ -293,6 +296,17 @@ describe("StockWizardStep1View (screen 08)", () => {
       expect(within(propertyRowsRendered[1]!).getByText("Any value")).toBeInTheDocument();
     });
 
+    // Detail responses use wire casing (`oval`); when editing, it must still appear
+    // selected. Tapping it removes the selection rather than appending display-cased
+    // `Oval` as a duplicate.
+    await userEvent.click(within(propertyRows()[0]!).getAllByRole("button")[0]!);
+    const ovalOption = await screen.findByRole("button", { name: "Oval" });
+    expect(ovalOption).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(ovalOption);
+    expect(ovalOption).toHaveAttribute("aria-pressed", "false");
+    expect(screen.getByRole("button", { name: "Done" })).toBeDisabled();
+    await closeSheet("shape");
+
     await userEvent.click(screen.getByRole("button", { name: "Next · thresholds" }));
     await screen.findByRole("heading", { name: "Stock thresholds" });
     const limitFor = (index: 1 | 2 | 3) =>
@@ -307,5 +321,37 @@ describe("StockWizardStep1View (screen 08)", () => {
     );
     expect(screen.getByRole("button", { name: "Save changes" })).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Save instance" })).toBeNull();
+  });
+
+  it("C8: an existing instance can be deleted from the edit form's action sheet", async () => {
+    const instance = stockLocationDetailFixture[1]!;
+    const deleteSpy = vi.spyOn(stockActions, "deleteConfiguration");
+
+    render(<StockLocationsPage />);
+    const locationRows = await screen.findAllByTestId("stock-location-row");
+    await userEvent.click(
+      locationRows.find((row) => within(row).queryByText(instance.location))!,
+    );
+    const cards = await screen.findAllByTestId("stock-instance-card");
+    await userEvent.click(within(cards[1]!).getByRole("button"));
+    await screen.findByRole("heading", { name: "Edit stock instance" });
+
+    await userEvent.click(screen.getByRole("button", { name: "More actions" }));
+    const actionSheet = await screen.findByRole("dialog", { name: "Instance actions" });
+    const deleteButton = within(actionSheet).getByRole("button", {
+      name: "Delete stock instance",
+    });
+    await userEvent.click(deleteButton);
+
+    await waitFor(() => {
+      expect(deleteSpy).toHaveBeenCalledWith(instance.id, instance.location);
+      expect(useStockNavigationStore.getState().viewStack.at(-1)).toBe("location-detail");
+    });
+    expect(screen.queryByRole("heading", { name: "Edit stock instance" })).toBeNull();
+    expect(await screen.findAllByTestId("stock-instance-card")).toHaveLength(
+      stockLocationDetailFixture.filter(
+        (candidate) => candidate.location === instance.location,
+      ).length - 1,
+    );
   });
 });

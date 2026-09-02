@@ -188,7 +188,9 @@ function SummaryTiles({ counts }: { counts: readonly StockPdfSummaryCount[] }) {
             key={tile.state}
             style={[styles.tile, { backgroundColor: meta.tint, borderColor: meta.solid }]}
           >
-            <Text style={[styles.tileCount, { color: meta.text }]}>{tile.count}</Text>
+            <Text style={[styles.tileCount, { color: meta.text }]}>
+              {tile.missingQuantity}
+            </Text>
             <Text style={[styles.tileLabel, { color: meta.text }]}>{tile.label}</Text>
           </View>
         );

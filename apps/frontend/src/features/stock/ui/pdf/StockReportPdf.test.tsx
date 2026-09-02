@@ -384,4 +384,92 @@ describe("stock report PDF document", () => {
     expect(lines).toContain("83");
     expect(lines).toContain("97");
   });
+
+  it("C4: renders missing-unit totals in the state summary tiles", async () => {
+    const entries: StockReportEntryDto[] = [
+      {
+        location: "H1",
+        itemCategory: "Armchairs",
+        properties: {},
+        mergeKey: "out-1",
+        quantity: 0,
+        stockState: STOCK_STATES[0],
+        thresholds: [
+          { state: STOCK_STATES[1], thresholdQuantity: 2 },
+          { state: STOCK_STATES[2], thresholdQuantity: 4 },
+          { state: STOCK_STATES[3], thresholdQuantity: 6 },
+        ],
+        unitsToNormalThreshold: 6,
+      },
+      {
+        location: "H1",
+        itemCategory: "Sofas",
+        properties: {},
+        mergeKey: "out-2",
+        quantity: 0,
+        stockState: STOCK_STATES[0],
+        thresholds: [
+          { state: STOCK_STATES[1], thresholdQuantity: 3 },
+          { state: STOCK_STATES[2], thresholdQuantity: 6 },
+          { state: STOCK_STATES[3], thresholdQuantity: 8 },
+        ],
+        unitsToNormalThreshold: 8,
+      },
+      {
+        location: "H1",
+        itemCategory: "Dining Chairs",
+        properties: {},
+        mergeKey: "out-3",
+        quantity: 0,
+        stockState: STOCK_STATES[0],
+        thresholds: [
+          { state: STOCK_STATES[1], thresholdQuantity: 10 },
+          { state: STOCK_STATES[2], thresholdQuantity: 15 },
+          { state: STOCK_STATES[3], thresholdQuantity: 20 },
+        ],
+        unitsToNormalThreshold: 20,
+      },
+      {
+        location: "O2",
+        itemCategory: "Dining Tables",
+        properties: {},
+        mergeKey: "out-4",
+        quantity: 0,
+        stockState: STOCK_STATES[0],
+        thresholds: [
+          { state: STOCK_STATES[1], thresholdQuantity: 10 },
+          { state: STOCK_STATES[2], thresholdQuantity: 15 },
+          { state: STOCK_STATES[3], thresholdQuantity: 20 },
+        ],
+        unitsToNormalThreshold: 20,
+      },
+      {
+        location: "H1",
+        itemCategory: "Dining Chairs",
+        properties: {},
+        mergeKey: "medium",
+        quantity: 12,
+        stockState: STOCK_STATES[2],
+        thresholds: [
+          { state: STOCK_STATES[1], thresholdQuantity: 10 },
+          { state: STOCK_STATES[2], thresholdQuantity: 15 },
+          { state: STOCK_STATES[3], thresholdQuantity: 20 },
+        ],
+        unitsToNormalThreshold: 8,
+      },
+    ];
+    const model = buildPdfModel(entries, {
+      ...createDefaultStockFilter(),
+      states: new Set(STOCK_STATES.slice(0, 4)),
+      includeSummaryCounts: true,
+      showContributingLocations: true,
+      propertyKeyOrder: keyOrder,
+    });
+    const lines = (await extractPdfLines(await renderFixture(model))).flat();
+    const text = lines.join("\n");
+
+    expect(lines).toContain("54");
+    expect(lines.filter((line) => line === "8")).toHaveLength(3);
+    expect(text).not.toMatch(/high/i);
+  });
 });

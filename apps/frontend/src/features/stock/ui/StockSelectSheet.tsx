@@ -6,6 +6,8 @@ export interface StockSelectSheetOption {
   id: string;
   label: string;
   isSelected: boolean;
+  isDestructive?: boolean;
+  isDisabled?: boolean;
   isWildcard?: boolean;
   // Grid layout only: the small count under a card, and the name a screen reader hears
   // when the visible label is an abbreviation (a location's number without its letter).
@@ -120,6 +122,7 @@ export function StockSelectSheet({
                   type="button"
                   data-testid="stock-sheet-option"
                   aria-pressed={option.isSelected}
+                  disabled={option.isDisabled}
                   aria-label={option.accessibleLabel}
                   className={`flex aspect-square flex-col items-center justify-center gap-1 rounded-[18px] border text-center ${
                     option.isSelected
@@ -150,29 +153,34 @@ export function StockSelectSheet({
                   type="button"
                   data-testid="stock-sheet-option"
                   aria-pressed={option.isSelected}
+                  disabled={option.isDisabled}
                   className={`flex min-h-[56px] items-center justify-between gap-3 py-3 text-left ${
                     index < options.length - 1
                       ? "border-b border-[var(--stock-hairline)]"
                       : ""
-                  }`}
+                  } disabled:opacity-45`}
                   onClick={() => onSelect(option.id)}
                 >
                   <span
                     className={`min-w-0 leading-tight ${monoLabels ? "stock-mono text-[15px] font-medium" : "text-[14px] font-medium"} ${
                       option.isWildcard ? "italic" : ""
                     } ${
-                      option.isSelected
-                        ? "text-[var(--stock-primary)]"
-                        : "text-[var(--stock-heading)]"
-                    }`}
+                    option.isDestructive
+                      ? "text-rose-600"
+                      : option.isSelected
+                      ? "text-[var(--stock-primary)]"
+                      : "text-[var(--stock-heading)]"
+                  }`}
                   >
                     {option.label}
                   </span>
-                  <span
-                    className={`flex-shrink-0 text-[var(--stock-primary)] ${option.isSelected ? "" : "invisible"}`}
-                  >
-                    <CheckMark />
-                  </span>
+                  {!option.isDestructive ? (
+                    <span
+                      className={`flex-shrink-0 text-[var(--stock-primary)] ${option.isSelected ? "" : "invisible"}`}
+                    >
+                      <CheckMark />
+                    </span>
+                  ) : null}
                 </button>
               ))
             )}
