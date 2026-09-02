@@ -71,6 +71,35 @@ endpoint from another: assert the exact method **and** path **and** payload per 
 seven rows distinguishable from each other, not merely present.
 
 ## Review log
+- **2026-09-02 · round 1 consumption · coordinator · BLOCKED, awaiting owner-only evidence.**
+  The session delivered the automated half and **stopped at C3 because no browser was available**,
+  reporting that plainly instead of manufacturing a manual record. That is the right call and the
+  handoff says so in its own words; C3 is an explicit charter rule 1 exemption and its evidence
+  cannot be synthesised.
+
+  Verified: C1 and the seven C2 rows exist as 8 tests in
+  `api/stock-live-integration.test.ts`, each asserting method, exact final path and payload, with
+  the location and configuration ids proving URL encoding. Suite is 27 files / 176 tests, typecheck
+  clean. The tests were committed inside the owner's `80e3ba8` rather than a phase checkpoint —
+  noted, not a defect; nothing was lost.
+
+  **Still outstanding, all of it requiring a person at a browser:**
+  1. The live `create → 409 → edit → delete` round trip. Create and the 409 are already done from
+     earlier owner testing (§7C); **edit and delete are not**.
+  2. **A report with non-zero quantities.** Nothing has been scanned into any definition, so row
+     ordering, the counter tiles and MC3a's group ranking have *still* never run against real
+     numbers. Backend runbook §2 is the procedure.
+  3. A real WS refetch — a scan moving a quantity and the screen following it.
+  4. The **Firefox and desktop Safari download check** inherited from P8: `downloadPdf` revokes its
+     object URL synchronously and never attaches the anchor, which is exactly what fails in the two
+     browsers the fallback exists for.
+
+  Separately, the coordinator folded **contract v1.6** and audited the out-of-pipeline changes that
+  arrived with it; master plan **§7E** carries that in full. Nothing there required frontend work:
+  the report screen renders the new restock number unconditionally (the contract's third boundary
+  case, the one that "looks like a bug and is not"), the local fallback prefers the backend's value
+  and is recorded with a removal trigger, and **P2's and P7's named mutations were re-planted and
+  both still red** after the owner's 1359-line refactor of approved-phase code.
 
 - **2026-09-02 — Codex implement round 1:** Added the phase-specific live seam test file with
   one C1 resolver case and seven distinguishable C2 endpoint cases. The existing resolver already

@@ -64,7 +64,7 @@ fidelity to the design screenshots is approved by the owner looking at the runni
 | P7 | Report UI (screens 01–04) | Claude | APPROVED | 2026-09-02 | coordinator | approved on coordinator verification plus **the owner's acceptance pass** (S5; polish deferred, §7D); no independent review (§3A); 133 tests, 9 new, no orphans; C1's mutation re-planted **unfiltered** reddening C1–C8 as reported; seven guard/argument probes recorded; the coordinator's own probe deleted the `settings-stock-report` registry entry — the exact defect P5 shipped — and reds C9 alone, so the dead-row class is finally guarded; run on a **shared tree** with the owner's parallel visual work, handled per **S11** on both sides; lint 0 in perimeter |
 | P8 | PDF data assembly + delivery | Codex | APPROVED | 2026-09-02 | coordinator | approved on **two** coordinator passes (no visual gate, §3A); 146 tests, 13 new, no orphans; the first pass (`b908c10`, a different session) found and repaired an **S10 hole** — the initializer's `propertyKeyOrder` was unobserved, 12/12 green with it deleted — adding `C5(keyOrder)`; the second re-ran every probe **unfiltered** (M1 reds C5 alone, PA reds C5(keyOrder) alone) and found one more: a UTC `pdfFilename` did **not** red C6, whose inputs were both `23:30` and so discriminated only under a negative UTC offset — **a test whose power depends on the machine's timezone**; C6 now asserts both ends of the day, no production change; owner card answered **B**, recorded as **§4B MC10a**; lint 0 in perimeter |
 | P9 | PDF document + Generate sheet UI (screens 05, 10) | Claude | APPROVED | 2026-09-02 | coordinator | approved on coordinator verification plus **the owner's printed PDF** (S5 — the gate this phase could not pass on screen; the owner confirmed it works). 162 tests, 12 new, no orphans, lint 0 across `src/features/stock`; M1 re-planted **unfiltered** reds `C7(loading)` alone, plus a coordinator **opposite** probe (pin `isReady` false) reddening `C7(ready)`, both `C5` rows and `C8`; **the widened H1 was re-verified** — closed four-path list, still reds a stray import; owner decision 2 (`#087A50` for the design's `#0E8A5F`, which collides with the Normal state hex) routed to §7D; §10 gained the react-pdf/vitest environment findings. **Last build phase.** |
-| P10 | Live integration (gated on backend P3/P5) | Codex | PROMPT_READY | 2026-09-02 | coordinator | **Next to dispatch — the last phase.** Backend merged (§7A/§7B) and most of the contract already proven against live data (§7C), so the prompt tells the session **not to re-derive it** and names what is genuinely left: C1's production-build resolution, edit and delete against live, the report **with non-zero stock scanned in** (ordering, tiles and MC3a group ranking have never run on real numbers), a real WS refetch, and the **download fallback in Firefox and desktop Safari** — P8's inherited hazard, which no unit test can settle. Plan-lint added 1 named mutation (C1 — invert the seam default so a production build silently serves fixtures, charter rule 10's exact failure) and applied S10 to C2; `prompts/implementer/plan_10_round_1_implement.md` queued |
+| P10 | Live integration (gated on backend P3/P5) | Codex | BLOCKED | 2026-09-02 | coordinator | **BLOCKED on owner-only evidence.** The automated half is done and verified — C1 (production default resolves live) and all seven C2 endpoint rows, 8 tests, committed inside the owner's `80e3ba8`. **C3 was not run**: the session had no browser and said so rather than fabricating manual evidence, which is the correct call. Outstanding, all requiring a human at a browser: the live create→409→edit→delete round trip, **a report with non-zero quantities** (nothing has been scanned in, so ordering, tiles and MC3a ranking have still never run on real numbers), a real WS refetch, and the **Firefox / desktop Safari download check** inherited from P8. See §7E for the v1.6 fold |
 
 **Projection gate (owner decision, 2026-09-01 — revised):** **P2 only.** It was mandatory
 for P2 and P3 and was additionally run on P1 by owner directive, where it earned its keep
@@ -434,6 +434,58 @@ than a second green (owner chose the darker green in-session, 2026-09-02); P5 F3
 not highlighted on the stock pages), P5's approximations list, P6 F4 (tab bar visible on screens
 08/09 where the design hides it; Poppins italic not loaded, so "Any value" is synthesized), and P6's
 own approximations list. Each is recorded in its phase's Review log and handoff.
+
+### 7E. Contract v1.6 folded, and what changed outside the pipeline *(coordinator, 2026-09-02)*
+
+Three things happened between P9's approval and now, none of them through this pipeline. All are
+verified and none require frontend work.
+
+**1. The contract moved v1.4 → v1.6.** The frontend's copy was stale; it is now the backend's file
+verbatim, and the leftover `frontend-api-contract copy.md` is deleted.
+
+- **v1.5 corrected a worked example that was factually wrong.** v1.4 illustrated an intra-batch
+  conflict with `{}` + `{wood_type:["Teak"]}`. That pair is **not** a conflict — different key sets
+  never conflict, and the endpoint returns `201`. The contract warns that a frontend which
+  pre-validated from it would reject the feature's central catch-all-plus-carve-out pattern.
+  **We never pre-validated**: every create is a single-entry batch and conflicts are learned from
+  the server's 409 (S9). No change.
+- **v1.6 adds `thresholds` and `unitsToNormalThreshold` to the report entry**, additively — no
+  field changed or removed. The number is *units to full*, `max(0, normal_threshold − quantity)`,
+  computed on the backend deliberately: "Display it; don't recompute it."
+
+**2. The frontend already consumes them** (owner commit `80e3ba8`). Two contract hazards checked
+against the shipped code rather than assumed:
+
+- **The boundary table's third row** — a definition at `quantity 18` in `normal_in_stock` still
+  reports `2`, because normal is a *band* (16–20) and 18 is inside it but not full. The contract
+  warns: "If your UI hides the number whenever the state is normal, you will hide a legitimate
+  restock." **`StockQuantityBar` renders `+{missing}` unconditionally** — no state-conditional
+  hiding anywhere. Safe.
+- **The recompute prohibition** — `missingQuantityForEntry` **prefers the backend field** and falls
+  back to the local formula only when it is `undefined`, which is precisely the state the contract
+  describes ("treat them as `undefined` until you are told round 2 is approved"). The fallback's
+  arithmetic matches the contract's formula exactly.
+  - **Removal trigger:** when backend **P5 round 2 is APPROVED** and the field is always present,
+    that fallback becomes unreachable code that can silently diverge from the server. Delete it
+    then. Recorded because a shim with no removal trigger is how two sources of truth are born.
+  - **Live risk, stated:** backend round 2 is merged but its own checkpoints read *"not approved"*,
+    so these two fields are being consumed ahead of that track's ratification. If round 2 changes
+    the shape, this frontend follows.
+
+**3. The owner refactored approved-phase code directly** — `80e3ba8` touched 37 files, including
+P1's DTOs, **P2's `stock-report.domain.ts`**, P8's `stock-pdf.domain.ts`, and P6/P7/P9 test files.
+That is the owner's prerogative on their own codebase (§3A, §7D), but it means several APPROVED
+phases no longer match the code that was approved, so **the coordinator re-planted their named
+mutations to see whether the guards survived**:
+
+- **P2's M1** (drop `stockState` from the compaction key) still reds — its own `C2`, and now P7's
+  `C6` as well, a *wider* blast radius than at approval.
+- **P7's M1** (render `store.entries` instead of the composed `store.view`) still reds **C1–C8**,
+  the same eight rows as at approval.
+
+Both guards survived a 1359-line refactor. Suite is **27 files / 176 tests**, typecheck clean.
+**P7's C8 also survived intact** — it forbids threshold *bands* in the report area, not a restock
+quantity, so the design rule and v1.6 coexist without amendment.
 
 ## 8. Tool protocols
 
