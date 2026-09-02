@@ -82,3 +82,161 @@ legitimately empty — an implementation omitting it would still pass C1. Low st
 
 Prompt compiled → `prompts/implementer/prompt_plan6_implement_r1.md`. Gate self-test 5/5.
 Implementer scope: **C1, C2, C5** — six rows.
+
+### 2026-09-02 — P6 implementation round 1
+
+Implemented the two maintenance scripts within the declared code perimeter:
+`scripts/report-stock-property-drift.ts` and `scripts/rebuild-location-stock.ts`.
+The drift report reads only map-declared property keys, tokenizes stored values through
+`tokenizePropertyValue`, counts unknown atomic tokens, and reports configured keys with no
+observed value. The rebuild script previews from read-only repository/domain reads when
+`DRY_RUN=1` and delegates live repair to `reconcileAllGroups(SHOP_ID)`. It refuses the
+configured development database with exit 3 before database work.
+
+Judgment calls recorded for review:
+
+- Drift counts are occurrences of each unknown token across ScanHistory rows; map-key
+  `observedCount` is the number of rows with a non-empty tokenized value. This makes a planted
+  value's count visible while keeping the separate unobserved-key report meaningful.
+- Map values are tokenized with the same shared splitter as stored values, so comparison is
+  case-insensitive and treats comma/slash/ampersand-separated values atomically. Keys outside
+  the map are deliberately ignored, including Shopify fields that are not configurable.
+- The service's public `reconcileAllGroups` API writes and returns no computed values, so the
+  dry-run preview reuses its repository/domain matching and state-calculation path without
+  invoking the writer. Live mode calls the service directly. Dry-run accepts the requested
+  `DRY_RUN=1` spelling and the existing scripts' `true` spelling.
+- No `verify-all.ts` or `EXPECTED_SCRIPTS` edit was made: neither new file is a `verify-*.ts`.
+
+#### C1 Drift report
+
+| Row | Expected | Observed |
+|---|---|---|
+| C1(a) | A scratch ScanHistory row with `wood_type: "Bamboo"` is reported under `wood_type` with a count. | PASS: `{"event":"property-value-drift","key":"wood_type","token":"bamboo","count":1}`; the summary reported `driftEntries: 1`. |
+| C1(b) | Existing configured values do not create false positives, and configured keys are separately accounted for. | PASS on the unmodified development data: 1107 rows, `driftEntries: 0`, `unobservedKeys: 0`, and all 8 configured keys observed. |
+| C1(c) | The read-only report leaves `prisma/dev.db` byte-identical. | PASS: SHA-256 before `be5906923b4ed7e2dbe6a8d90964d99f47d3c3926b3875d9bd03cd2fe04f2b22`; after identical. |
+
+#### C2 Rebuild
+
+| Row | Expected | Observed |
+|---|---|---|
+| C2(a) | `DRY_RUN=1` prints current→computed deltas and writes nothing. | PASS on a SQLite `.backup` fixture: `p6-dry-stock` printed `99/high_in_stock → 7/high_in_stock`, `groupsTouched: 1`, `writes: 0`; checksum before `85c9d70175e7c6517e609bd35668fd2dd25f7faf3ff578c04be0335c98d13d2a` and after identical. |
+| C2(b) | A live run repairs a planted drifted quantity. | PASS on a separate SQLite `.backup`: planted `p6-live-stock` quantity 99; live run repaired it to `7|high_in_stock`. |
+| C2(c) | Output lists every group touched. | PASS: live fixture output contained `location-stock-group-reconciled` for `P6_LIVE_LOCATION / Dining Chairs` and completed with `groupsTouched: 1`; the dry-run preview likewise emitted one group preview. |
+
+The configured-development-database safety probe also passed: running the rebuild with
+`DATABASE_URL=file:./dev.db` printed the refusal message and exited 3. All destructive fixture
+operations used disposable SQLite backups made with `.backup`; the configured database was not
+modified by them.
+
+#### C5 Final regression seam
+
+`npm run typecheck` exited 0. The purity grep for `prisma|@prisma` in
+`src/modules/stock/domain/` and `src/shared/item-properties/item-property-options.ts` was
+empty. The final `verify-all.ts` run used a fresh SQLite `.backup` and exited 0. Full output:
+
+```text
+--- verify-stock-domain.ts ---
+PASS C2(a)
+PASS C2(b)
+PASS C2(c)
+PASS C3(a)
+PASS C3(b)
+PASS C3(c)
+PASS C3(d)
+PASS C3(e)
+PASS C3(f) (empty array)
+PASS C3(f) (blank scalar)
+PASS C4(a)
+PASS C4(b)
+PASS C4(c)
+PASS C4(d)
+PASS C4(e)
+PASS C4(f)
+PASS C5(a)
+PASS C5(b)
+PASS C5(c)
+PASS C5(d)
+PASS C5(e)
+PASS C5(f)
+PASS C6(a)
+PASS C6(b)
+PASS C6(c)
+PASS C6(d)
+PASS C6(e)
+PASS C6(f)
+PASS C6(g)
+PASS C6(h)
+PASS C7(a)
+PASS C7(b)
+PASS C7(c) (zero)
+PASS C7(c) (negative)
+PASS C7(c) (non-integer)
+PASS C7(d)
+PASS C7(e)
+PASS C7(f)
+PASS C7(g)
+PASS C8(a)
+PASS C8(b)
+PASS C8(c)
+PASS C8(d)
+PASS C8(e)
+PASS C8(f)
+PASS C8(g)
+PASS C8(h)
+PASS C9(a)
+PASS C9(b)
+PASS C9(c)
+PASS C9(d)
+PASS C9(e)
+PASS C9(f)
+PASS C9(g)
+PASS C9(h)
+PASS verify-stock-domain.ts
+--- verify-stock-reconciliation.ts ---
+PASS C1(a)
+PASS C1(b)
+PASS C1(c)
+PASS C2(a)
+PASS C2(b)
+PASS C2(c)
+PASS C2(d)
+PASS C3(a)
+PASS C3(b)
+PASS C3(c)
+PASS C3(d)
+PASS C3(e)
+PASS C4(a)
+PASS C4(b)
+PASS C4(c)
+PASS C4(d)
+PASS C5(a)
+PASS C5(b)
+PASS C6(a)
+PASS C6(b)
+PASS verify-stock-reconciliation.ts
+--- verify-stock-report.ts ---
+PASS C1(a)
+PASS C1(b)
+PASS C1(c)
+PASS C1(d)
+PASS C2(a)
+PASS C2(b)
+PASS C2(c)
+PASS C2(d)
+PASS C2(e)
+PASS C2(f)
+PASS C3(a)
+PASS C3(b)
+PASS C3(c)
+PASS C3(d)
+PASS C4(a)
+PASS C4(b)
+PASS C4(c)
+PASS C4(d)
+PASS C4(e)
+PASS verify-stock-report.ts
+SUMMARY PASS 3 script(s)
+```
+
+The implementation checkpoint is `4a0d5ef` (`CHECKPOINT (not approved): implement P6
+maintenance scripts`).
