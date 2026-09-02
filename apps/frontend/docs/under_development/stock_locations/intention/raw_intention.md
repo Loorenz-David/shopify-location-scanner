@@ -320,6 +320,31 @@ report and the other orders the visible list.
 *Invariant:* for any filter selection, group order is a function of the rendered entries
 alone. → M2.
 
+**MC10a — The PDF's summary tiles count the document, not the warehouse.** (Owner decision,
+2026-09-02, plan-8 consumption card = B.) `summaryCounts` reports, for each of the five states,
+the number of rows **present in the export**. A state the export's filter excludes therefore
+reads `0`. This **narrows MC10's "full counts per state"**, which was written before the question
+was put and read the other way; where the two disagree, MC10a governs.
+
+The coordinator raised the opposing case and the owner ruled against it, so the reasoning is
+recorded rather than re-litigated. **The document describes itself.** Every number on the page
+then answers one question — "what is in this PDF?" — and a reader can add the five tiles and get
+the row count below them. The alternative mixes two scopes on one page: tiles about the warehouse
+above a body about a slice of it, which is defensible but requires the reader to know which is
+which. It also keeps the model honest in the mechanical sense: the tiles are derivable from the
+rows the model already holds, with no second query and no second source of truth.
+
+*Residual, accepted, and stated plainly because it is the reason the question was asked:* a
+"Low only" export whose `Out of stock` tile reads `0` is a **true statement about the document and
+a false impression about the warehouse**, and paper outlives the screen that produced it. The
+mitigation is already in the model, not in a convention: MC10's settings box names the states the
+export included (plan 8 C4), so the page always discloses its own scope directly above the rows.
+A reader who checks the settings box cannot be misled; one who reads only the tiles can be. The
+owner accepted that trade knowingly.
+
+*Invariant:* for any export query, the five summary counts sum to the number of rows in the
+document, in both compacted and grouped modes. → M6.
+
 ## 5. Report data mechanism (owner decision D7 — backend amendment)
 
 The contract-v1.1 report endpoint cannot serve the designed filter sheet without round

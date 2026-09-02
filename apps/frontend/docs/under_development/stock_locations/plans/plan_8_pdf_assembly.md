@@ -182,3 +182,22 @@ is "cancelled" — P9 must call the controller synchronously inside the tap hand
 pre-rendered blob (no `await` before `share`, or iOS throws `NotAllowedError` and it is swallowed
 as a cancel). (3) `downloadPdf` revokes the object URL synchronously and never attaches the anchor;
 a P10 live check on Firefox/desktop Safari — the fallback browsers — should confirm the file lands.
+### Owner card answered — 2026-09-02 · **APPROVED**
+
+The owner ruled **B**: the PDF's summary tiles count **the document, not the warehouse**, so a
+state the export excludes reads `0`. Recorded at intention level as **§4B MC10a**, because it
+narrows MC10's "full counts per state" wording, which was written before the question was put.
+
+**No production change was required** — B is what shipped. The coordinator verified the invariant
+MC10a states now holds *by construction* rather than by convention: `summaryCounts` is derived from
+`sections` via `section.rows.length`, so the five counts necessarily sum to the document's row
+count in both modes, with no second query and no second source of truth.
+
+The opposing case was put to the owner and declined; §4B MC10a records the reasoning and the
+accepted residual rather than leaving it to be rediscovered — a "Low only" export whose
+`Out of stock` tile reads `0` is true of the document and misleading about the warehouse, mitigated
+by the settings box naming the included states directly above the rows (C4).
+
+**P8 is APPROVED.** Both coordinator passes are recorded above: the first (`b908c10`, a different
+session) found and repaired the `propertyKeyOrder` S10 hole; the second re-ran its probes unfiltered
+and found one more — C6's timezone-dependent input — repairing it with no production change.
