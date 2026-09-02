@@ -379,6 +379,35 @@ failure isolation, deletion/fallback, and a totals check that names its own trap
 companion to §7A's seven checks: §7A is what the *frontend* needs proven about the payloads, the
 runbook is what the *backend* needs proven about the data underneath them.
 
+### 7C. The seven live-data checks are discharged *(2026-09-02)*
+
+Verified against the real SQLite database and the merged backend source, after the owner applied
+migration `20260901180407_add_location_stock` and created three real definitions through the
+wizard (two on `H1`, one on `O2`). **All seven §7A checks pass; no frontend change was needed.**
+
+| # | check | result |
+|---|---|---|
+| 1 | property value casing | **Lowercase on the wire, as contract line 34 promised.** Stored rows carry `"cherry"`, `"elm"`, `"inside extension"`, `"down"`, `"up"`. The vocabulary carries display casing (`Cherry`, `Inside Extension`, `Down`), and `displayValueFor` matches case-insensitively, so multi-word values round-trip. S4c's fixture correction was right. |
+| 2 | `mergeKey` semantics | **`itemCategory` + `\|` + `propertiesCanonical`** (`get-stock-report.query.ts:14`) — **no location, no stockState.** Exactly what P2 assumed: the client appends `stockState` itself and compacts the same definition across locations into one row with contributions. |
+| 3 | `stockState` vocabulary | `out_of_stock` on all three rows — `STOCK_STATES[0]`. In the MC1 vocabulary, so `requireStockState` does not throw. |
+| 4 | `propertyOptions` key order | **Identical to the fixture**, key for key: `wood_type, years, weight_definition, country, shape, extension_type, extension_quantity, upholstery`. MC2a's ordering and plan 4's C9 `keyOrder` are safe. |
+| 5 | the 409 envelope | Both v1.4 shapes exist and are built where expected: stored-definition conflicts throw `{conflictingId, batchIndex}` — **`conflictingId` present** — and intra-batch conflicts throw `{batchIndex, conflictsWithBatchIndex}` with no id. **S9 was right**: the second is unreachable while every create is a single-entry batch. |
+| 6 | DELETE's response | Backend returns `{ ok: true }`; the frontend already types it `{ ok: boolean }` and returns `void`. No mismatch. |
+| 7 | `VITE_STOCK_API_MODE` | Live — anything but `mock` resolves to `live`. |
+
+**Two operational notes learned here, not predicted by §7B.** The stale Prisma *client* and the
+unapplied *migration* are separate failures with different symptoms: the client shows up as
+`Property 'locationStock' does not exist on type 'TransactionClient'` at **typecheck**, the
+migration as `The table main.LocationStock does not exist` as a **500 at runtime** on the settings
+screen's first call. And `prisma migrate deploy` fails with `database is locked` while the dev
+server holds the SQLite file — **stop the backend, migrate, restart**.
+
+**What the real data does not yet show.** All three definitions sit at `quantity 0` /
+`out_of_stock` because nothing has been scanned into them. So the report screen has no non-zero
+row, the counter tiles are degenerate, and **MC3a's group ranking cannot be seen**. P7's owner
+visual pass needs at least one definition holding stock; the backend track's
+`verification/end-to-end-runbook.md` §2 (the scanner path) is how to get one.
+
 ## 8. Tool protocols
 
 No archgraph in this repo — skip silently. No other per-session tools. Checkpoint
