@@ -77,6 +77,45 @@ tiles and no meaningful group ranking until something is scanned in (§7C). C7's
 therefore the *common* case on a fresh install, not an edge case.
 
 ## Review log
+- **2026-09-02 · round 1 consumption · coordinator · APPROVED.** The owner's visual pass is this
+  phase's gate (S5) and the owner has accepted it; polish is deferred to the single later pass
+  (§7D). No independent review session ran (§3A).
+
+  Verified by hand: the checkpoint perimeter is exactly the declared 11 files (7 created, 2
+  modified under C9's authorization, 2 documents); tracker, allowlist, api, fixtures and every
+  P1–P6 domain/store/controller/flow/actions/UI file untouched. Stamp re-ran green — 21 files /
+  133 tests, typecheck clean, lint unchanged at 48/14, and 0 problems across all five new
+  components plus `HomeFeature.tsx`. All 9 test names enumerated with no orphans and every
+  criterion C1–C9 present.
+
+  **C1's named mutation re-planted unfiltered** (render `store.entries` instead of the composed
+  `store.view`): reddened **C1–C8**, 8 failed / 125 passed — the same blast radius the handoff
+  reported, confirmed independently. The seven guard proofs and S10 argument probes are recorded
+  with their reds, including two the plan did not require (P4: tiles counted from the visible view
+  instead of the store's; P5: the CTA counting the applied rather than the pending filter).
+
+  **The coordinator's own adversarial probe closed the loop on C9.** Deleting the
+  `settings-stock-report` entry from `HomeFeature`'s registry — reproducing the defect P5 shipped —
+  reds `C9` and only `C9`. That is the probe P5's C1 could not have caught, because it asserted the
+  facade call rather than a rendered page. The dead-row class is now guarded by a criterion that
+  fails for the right reason.
+
+  **This round ran on a shared working tree** and handled it correctly. The owner was making
+  visual-polish changes in parallel throughout; the session staged explicit paths (**S11**), kept
+  its checkpoint free of that diff, recorded the digest of the foreign changes at its stamp, and
+  attributed every probe red per test file. It also portaled the filter sheet to `document.body`
+  after one of those edits (`.stock-area-font { z-index: 0 }`) pushed it under the tab bar — a fix
+  correct on either tree. The coordinator likewise touched only files outside the owner's dirty
+  set, restored from byte copies rather than `git checkout`, and verified the owner's uncommitted
+  work intact afterwards.
+
+  Findings routed, none blocking: the **candidate P2 gap** — `n to fix` is not precomputed, so the
+  UI sums buckets that `compareGroups` already derives internally; exposing the three counts on
+  `ReportLocationGroup` would remove the duplication, recorded for whoever revisits the report
+  domain rather than actioned here. The tab bar on screen 04 joins §7D's polish list. And **the
+  backend returns report entries unordered** (`get-stock-report.query.ts` has no `orderBy`), which
+  is harmless because the client owns ordering (D7) — noted so the polish pass does not read the
+  filter sheet's payload-order location chips as a sort bug.
 
 ### 2026-09-02 — implement round 1 (Claude, Fable 5) → IMPLEMENTED (pending coordinator)
 
