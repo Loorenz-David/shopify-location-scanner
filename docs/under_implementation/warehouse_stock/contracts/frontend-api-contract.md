@@ -154,6 +154,8 @@ entry per definition (`location × itemCategory × properties`).
 ] } }
 ```
 
+> **Not shipped yet.** The two fields below land with P5 round 2 — see §7 item 4. Treat them as `undefined` until you are told round 2 is approved.
+
 **`thresholds`** (v1.6) is the definition's three configured bands — the **same shape** §4.3 already
 returns for a configuration, so you can reuse whatever renders it there. Look the row you want up
 **by `state`**, never by array position.
@@ -220,10 +222,24 @@ items, so the unparameterized full fetch stays small.
 
 ## 7. Availability sequencing (for planning the integration order)
 
-1. This document — available now; build against mocks.
-2. Endpoints 4.1–4.6 — after backend phase P3 is approved.
-3. Endpoint 4.7 (report) — after backend phase P5.
-4. Live quantity movement from scans/sales (worth demoing end-to-end) — after backend phase P4.
+**Status as of 2026-09-02** — backend phases P1–P5 are all approved; only the maintenance and
+verification sweep (P6) remains.
+
+1. This document — available now.
+2. **Endpoints 4.1–4.6 — LIVE.** P3 approved 2026-09-02; every row re-executed against a running
+   server. Point your client at them.
+3. **Endpoint 4.7 (report) — LIVE, but with six fields, not eight.** P5 round 1 approved
+   2026-09-02. `location`, `itemCategory`, `properties`, `mergeKey`, `quantity` and `stockState`
+   are returned today.
+4. **⚠ `thresholds` and `unitsToNormalThreshold` (v1.6) are specified but NOT YET SHIPPED.** They
+   are implemented in P5 **round 2**, which is queued but not yet built. **Read them as `undefined`
+   until told otherwise** — build the restock UI behind a check, or wait for the notice that round 2
+   is approved. Everything else in §4.7 is live now. *This line is the one thing in this document
+   that describes a future state; every other section describes shipped behaviour.*
+5. **Live quantity movement from scans/sales — LIVE.** P4 approved 2026-09-02. Worth knowing: the
+   hook code was reviewed and its arithmetic executed, but its behaviour inside real scan/sale
+   flows is verified in P6's end-to-end sweep. If a demo shows a count that looks wrong, tell us —
+   that is exactly the window where it would surface.
 5. ~~Contract v1.1 (final property key/value lists in §4.1)~~ — landed.
 6. ~~Contract v1.2 (report shape per the frontend's request case)~~ — landed.
 7. ~~Contract v1.3 (complete `itemCategories`)~~ — landed.
