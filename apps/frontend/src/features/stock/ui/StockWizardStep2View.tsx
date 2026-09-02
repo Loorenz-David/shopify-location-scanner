@@ -18,7 +18,10 @@ import {
   StockWizardProgress,
 } from "./StockWizardChrome";
 
-const EMPTY_OPTIONS: StockOptionsDto = { itemCategories: [], propertyOptions: [] };
+const EMPTY_OPTIONS: StockOptionsDto = {
+  itemCategories: [],
+  propertyOptions: [],
+};
 
 interface StockWizardStep2ViewProps {
   // The page keeps the location whose detail is shown; a saved instance lands there.
@@ -30,15 +33,19 @@ export function StockWizardStep2View({ onSaved }: StockWizardStep2ViewProps) {
   const isEditing = useStockWizardStore(selectStockWizardIsEditing);
   const error = useStockWizardStore(selectStockWizardError);
   const isSubmitting = useStockWizardStore((state) => state.isSubmitting);
-  const options = useStockWizardStore(selectStockWizardOptions) ?? EMPTY_OPTIONS;
+  const options =
+    useStockWizardStore(selectStockWizardOptions) ?? EMPTY_OPTIONS;
 
   if (draft === null) {
     return null;
   }
 
   const chips = renderCriteriaChips(draft.properties, options);
-  const context = [draft.location, draft.itemCategory, ...(chips.length > 0 ? [chips.join(", ")] : [])]
-    .join(" · ");
+  const context = [
+    draft.location,
+    draft.itemCategory,
+    ...(chips.length > 0 ? [chips.join(", ")] : []),
+  ].join(" · ");
 
   const goBack = () => {
     stockActions.popView();
@@ -58,7 +65,7 @@ export function StockWizardStep2View({ onSaved }: StockWizardStep2ViewProps) {
   };
 
   return (
-    <section className="stock-area-font mx-auto flex w-full max-w-[720px] flex-col gap-4 px-5 pb-28">
+    <section className="stock-area-font stock-screen-surface mx-auto flex w-full max-w-[720px] flex-col gap-4 px-5 pb-28">
       <StockWizardHeader
         title="Stock thresholds"
         eyebrow={context}
@@ -68,11 +75,6 @@ export function StockWizardStep2View({ onSaved }: StockWizardStep2ViewProps) {
         onDismiss={goBack}
       />
       <StockWizardProgress step={2} />
-
-      <p className="m-0 text-[15px] leading-snug text-[var(--stock-body)]">
-        Set the upper limit for normal, medium and low. High and Out of stock follow from
-        them.
-      </p>
 
       {error ? (
         <div
@@ -84,8 +86,9 @@ export function StockWizardStep2View({ onSaved }: StockWizardStep2ViewProps) {
           {error.conflicting ? (
             <div className="flex flex-col gap-1.5">
               <p className="m-0">
-                Conflicts with the existing <strong>{error.conflicting.category}</strong>{" "}
-                instance in {draft.location}:
+                Conflicts with the existing{" "}
+                <strong>{error.conflicting.category}</strong> instance in{" "}
+                {draft.location}:
               </p>
               <StockPropertyChips chips={error.conflicting.properties} />
             </div>
@@ -95,11 +98,17 @@ export function StockWizardStep2View({ onSaved }: StockWizardStep2ViewProps) {
 
       <StockThresholdLadder
         thresholds={draft.thresholds}
-        onChange={(thresholds) => stockActions.updateWizardDraft({ thresholds })}
+        onChange={(thresholds) =>
+          stockActions.updateWizardDraft({ thresholds })
+        }
       />
 
       <StockWizardFooter>
-        <button type="button" className={secondaryCtaClassName} onClick={goBack}>
+        <button
+          type="button"
+          className={secondaryCtaClassName}
+          onClick={goBack}
+        >
           Back
         </button>
         <button

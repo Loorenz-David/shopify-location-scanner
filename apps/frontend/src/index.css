@@ -81,6 +81,24 @@
     color: var(--stock-body);
   }
 
+  /* Full-bleed white ground for a stock *screen* (never a sheet or a card): the shell
+     paints a gradient on <main>, which is `isolate`, so a negative z-index here lands
+     above that gradient and below every child. Kept off .stock-area-font on purpose -
+     that class also dresses sheets, which must not white out the page behind them. */
+  .stock-screen-surface::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: #ffffff;
+  }
+
+  /* Card surface for every stock screen: on white, the hairline is what separates a
+     card from the page - the shadow alone no longer reads. */
+  .stock-card-surface {
+    @apply border border-slate-900/10 bg-white/85 shadow-[0_2px_6px_rgba(15,23,42,0.05)];
+  }
+
   .stock-mono {
     font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   }
@@ -89,9 +107,9 @@
   .stock-pill-fade {
     background: linear-gradient(
       180deg,
-      rgba(240, 245, 243, 0) 0%,
-      rgba(240, 245, 243, 0.92) 55%,
-      rgba(240, 245, 243, 1) 100%
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.92) 55%,
+      rgba(255, 255, 255, 1) 100%
     );
   }
 

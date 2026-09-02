@@ -44,13 +44,24 @@ async function openWizardFromRootPill() {
   await screen.findByRole("heading", { name: "New stock instance" });
 }
 
-function pickerOptions(): string[] {
-  return screen.getAllByTestId("stock-picker-option").map((option) => option.textContent);
+// Location is picked in a bottom sheet now: tap the selector, tap the option.
+async function chooseLocation(location: string) {
+  await userEvent.click(screen.getByRole("button", { name: "Location" }));
+  await userEvent.click(await screen.findByRole("button", { name: location }));
 }
 
+function sheetOptions(): string[] {
+  return screen.getAllByTestId("stock-sheet-option").map((option) => option.textContent);
+}
+
+async function closeSheet(title: string) {
+  await userEvent.click(screen.getAllByRole("button", { name: `Close ${title}` })[0]!);
+}
+
+// Item type is a typeahead now: focus the field, then pick from the dropdown.
 async function chooseItemType(category: string) {
-  await userEvent.click(screen.getByRole("button", { name: "Item type" }));
-  await userEvent.click(screen.getByRole("button", { name: category }));
+  await userEvent.click(screen.getByRole("combobox", { name: "Item type" }));
+  await userEvent.click(await screen.findByRole("option", { name: category }));
 }
 
 function propertyRows() {
@@ -75,7 +86,7 @@ describe("StockWizardStep1View (screen 08)", () => {
     expect(next()).toBeDisabled();
 
     // (b) location only
-    await userEvent.click(screen.getByRole("button", { name: "L2" }));
+    await chooseLocation("L2");
     expect(useStockWizardStore.getState().draft?.location).toBe("L2");
     expect(next()).toBeDisabled();
 
@@ -101,12 +112,12 @@ describe("StockWizardStep1View (screen 08)", () => {
 
   it("C2: the definition picker offers universal + bound keys only, each at most once", async () => {
     await openWizardFromRootPill();
-    await userEvent.click(screen.getByRole("button", { name: "L2" }));
+    await chooseLocation("L2");
 
     // Bound category: four universal keys plus the three table-bound keys; upholstery excluded.
     await chooseItemType("Dining Tables");
     await userEvent.click(screen.getByRole("button", { name: "Add property" }));
-    expect(pickerOptions()).toEqual([
+    expect(sheetOptions()).toEqual([
       "wood_type",
       "years",
       "weight_definition",
@@ -115,24 +126,24 @@ describe("StockWizardStep1View (screen 08)", () => {
       "extension_type",
       "extension_quantity",
     ]);
-    await userEvent.click(screen.getByRole("button", { name: "Back to the form" }));
+    await closeSheet("Add property");
 
     // A different binding: the chair key appears, the table keys do not.
     await chooseItemType("Dining Chairs");
     await userEvent.click(screen.getByRole("button", { name: "Add property" }));
-    expect(pickerOptions()).toEqual([
+    expect(sheetOptions()).toEqual([
       "wood_type",
       "years",
       "weight_definition",
       "country",
       "upholstery",
     ]);
-    await userEvent.click(screen.getByRole("button", { name: "Back to the form" }));
+    await closeSheet("Add property");
 
     // The majority case (S4a): a category with no bound key offers the four universal keys only.
     await chooseItemType("Sofas");
     await userEvent.click(screen.getByRole("button", { name: "Add property" }));
-    expect(pickerOptions()).toEqual([
+    expect(sheetOptions()).toEqual([
       "wood_type",
       "years",
       "weight_definition",
@@ -148,12 +159,12 @@ describe("StockWizardStep1View (screen 08)", () => {
     expect(rows.filter((row) => within(row).queryByText("wood_type"))).toHaveLength(1);
 
     await userEvent.click(screen.getByRole("button", { name: "Add property" }));
-    expect(pickerOptions()).toEqual(["years", "weight_definition", "country"]);
+    expect(sheetOptions()).toEqual(["years", "weight_definition", "country"]);
   });
 
   it("C3: the value picker offers the key's values plus Any value, and the draft maps through buildCriteria", async () => {
     await openWizardFromRootPill();
-    await userEvent.click(screen.getByRole("button", { name: "L2" }));
+    await chooseLocation("L2");
     await chooseItemType("Dining Chairs");
     const draftProperties = () => useStockWizardStore.getState().draft?.properties;
 
@@ -163,7 +174,7 @@ describe("StockWizardStep1View (screen 08)", () => {
     // values case
     await userEvent.click(screen.getByRole("button", { name: "Add property" }));
     await userEvent.click(screen.getByRole("button", { name: "wood_type" }));
-    expect(pickerOptions()).toEqual([
+    expect(sheetOptions()).toEqual([
       "Any value",
       "Beech",
       "Birch",
@@ -251,11 +262,16 @@ describe("StockWizardStep1View (screen 08)", () => {
     await userEvent.click(within(cards[1]!).getByRole("button"));
     await screen.findByRole("heading", { name: "Edit stock instance" });
 
-    const locationCards = screen.getAllByTestId("stock-wizard-location-card");
-    expect(locationCards).toHaveLength(1);
-    expect(locationCards[0]).toHaveTextContent(second!.location);
-    expect(locationCards[0]).toHaveAttribute("aria-pressed", "true");
-    expect(screen.getByRole("button", { name: "Item type" })).toHaveTextContent(
+    const locationSelect = screen.getByTestId("stock-wizard-location-select");
+    expect(locationSelect).toHaveTextContent(second!.location);
+    // The edited instance's location is the only one on offer, and it is checked.
+    await userEvent.click(locationSelect);
+    const locationOptions = await screen.findAllByTestId("stock-sheet-option");
+    expect(locationOptions).toHaveLength(1);
+    expect(locationOptions[0]).toHaveTextContent(second!.location);
+    expect(locationOptions[0]).toHaveAttribute("aria-pressed", "true");
+    await closeSheet("Location");
+    expect(screen.getByRole("combobox", { name: "Item type" })).toHaveValue(
       second!.itemCategory,
     );
 

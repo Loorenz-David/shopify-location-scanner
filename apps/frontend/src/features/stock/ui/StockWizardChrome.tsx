@@ -25,7 +25,7 @@ export function StockWizardHeader({
     <header className="flex items-start gap-3">
       <button
         type="button"
-        className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full bg-[var(--stock-surface)] text-[var(--stock-heading)] shadow-[var(--stock-card-shadow)]"
+        className="stock-card-surface grid h-10 w-10 flex-shrink-0 place-items-center rounded-full text-[var(--stock-heading)]"
         onClick={onDismiss}
         aria-label={dismissLabel}
       >
@@ -36,11 +36,11 @@ export function StockWizardHeader({
         )}
       </button>
       <div className="min-w-0 pt-0.5">
-        <h1 className="m-0 text-[21px] font-bold leading-tight text-[var(--stock-heading)]">
+        <h1 className="m-0 text-[18px] font-bold leading-tight text-[var(--stock-heading)]">
           {title}
         </h1>
         <p
-          className="stock-mono m-0 mt-1 text-[11px] uppercase tracking-[0.14em] text-[var(--stock-muted)]"
+          className="stock-mono m-0 mt-1 text-[10px] uppercase tracking-[0.14em] text-[var(--stock-muted)]"
           data-testid={eyebrowTestId}
         >
           {eyebrow}
@@ -76,13 +76,13 @@ interface StockWizardSectionLabelProps {
 export function StockWizardSectionLabel({ number, label, note }: StockWizardSectionLabelProps) {
   return (
     <div className="flex items-center gap-2.5">
-      <span className="grid h-[22px] w-[22px] flex-shrink-0 place-items-center rounded-full bg-[var(--stock-primary)] text-[11px] font-bold leading-none text-white">
+      <span className="grid h-[22px] w-[22px] flex-shrink-0 place-items-center rounded-full bg-[var(--stock-primary)] text-[10px] font-bold leading-none text-white">
         {number}
       </span>
-      <span className="stock-mono text-[11px] uppercase tracking-[0.14em] text-[var(--stock-body)]">
+      <span className="stock-mono text-[10px] uppercase tracking-[0.14em] text-[var(--stock-body)]">
         {label}
       </span>
-      {note ? <span className="text-[13px] text-[var(--stock-muted)]">{note}</span> : null}
+      {note ? <span className="text-[12px] text-[var(--stock-muted)]">{note}</span> : null}
     </div>
   );
 }
@@ -111,7 +111,7 @@ export function StockWizardFooter({ children }: StockWizardFooterProps) {
 }
 
 export const primaryCtaClassName =
-  "inline-flex h-14 flex-1 items-center justify-center rounded-[28px] bg-[var(--stock-primary)] px-6 text-[16px] font-semibold text-white shadow-[var(--stock-cta-shadow)] transition active:scale-[0.98] disabled:opacity-45 disabled:shadow-none";
+  "inline-flex h-14 flex-1 items-center justify-center rounded-[28px] bg-[var(--stock-primary)] px-6 text-[15px] font-semibold text-white shadow-[var(--stock-cta-shadow)] transition active:scale-[0.98] disabled:opacity-45 disabled:shadow-none";
 
 export const secondaryCtaClassName =
-  "inline-flex h-14 items-center justify-center rounded-[28px] bg-[var(--stock-surface)] px-6 text-[16px] font-semibold text-[var(--stock-heading)] shadow-[var(--stock-card-shadow)] transition active:scale-[0.98]";
+  "stock-card-surface inline-flex h-14 items-center justify-center rounded-[28px] px-6 text-[15px] font-semibold text-[var(--stock-heading)] transition active:scale-[0.98]";

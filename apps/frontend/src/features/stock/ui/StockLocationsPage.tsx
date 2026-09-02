@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 
-import { ChevronLeftIcon, ChevronRightIcon, PlusIcon } from "../../../assets/icons";
+import {
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  PlusIcon,
+} from "../../../assets/icons";
 import { homeShellActions } from "../../home/actions/home-shell.actions";
 import { stockActions } from "../actions/stock.actions";
 import { useStockSettingsFlow } from "../flows/use-stock-settings.flow";
@@ -41,42 +45,45 @@ interface StockLocationsRootViewProps {
   onOpenLocation: (location: string) => void;
 }
 
-function StockLocationsRootView({ onOpenLocation }: StockLocationsRootViewProps) {
+function StockLocationsRootView({
+  onOpenLocation,
+}: StockLocationsRootViewProps) {
   useStockSettingsFlow();
   const locations = useStockSettingsStore(selectStockLocations);
   const isLoading = useStockSettingsStore(selectStockSettingsIsLoading);
-  const settingsErrorMessage = useStockSettingsStore(selectStockSettingsErrorMessage);
+  const settingsErrorMessage = useStockSettingsStore(
+    selectStockSettingsErrorMessage,
+  );
   const wizardErrorMessage = useStockWizardStore(selectStockWizardErrorMessage);
 
-  const totalInstances = locations.reduce((sum, { stockCount }) => sum + stockCount, 0);
+  const totalInstances = locations.reduce(
+    (sum, { stockCount }) => sum + stockCount,
+    0,
+  );
   const errorMessage = settingsErrorMessage ?? wizardErrorMessage;
   const isInitialLoad = isLoading && locations.length === 0;
 
   return (
-    <section className="stock-area-font mx-auto flex w-full max-w-[720px] flex-col gap-3 px-5 pb-10">
+    <section className="stock-area-font stock-screen-surface mx-auto flex w-full max-w-[720px] flex-col gap-3 px-5 pb-10">
       <header className="flex items-start gap-3">
         <button
           type="button"
-          className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full bg-[var(--stock-surface)] text-[var(--stock-heading)] shadow-[var(--stock-card-shadow)]"
+          className="stock-card-surface grid h-10 w-10 flex-shrink-0 place-items-center rounded-full text-[var(--stock-heading)]"
           onClick={() => homeShellActions.selectNavigationPage("settings")}
           aria-label="Back to settings"
         >
           <ChevronLeftIcon className="h-5 w-5" aria-hidden="true" />
         </button>
         <div className="min-w-0 pt-0.5">
-          <h1 className="m-0 text-[21px] font-bold leading-tight text-[var(--stock-heading)]">
+          <h1 className="m-0 text-[18px] font-bold leading-tight text-[var(--stock-heading)]">
             Stock locations
           </h1>
-          <p className="m-0 mt-0.5 text-[15px] text-[var(--stock-body)]">
+          <p className="m-0 mt-0.5 text-[14px] text-[var(--stock-body)]">
             {pluralize(locations.length, "location")} ·{" "}
             {pluralize(totalInstances, "stock instance")}
           </p>
         </div>
       </header>
-
-      <p className="m-0 text-[15px] leading-snug text-[var(--stock-body)]">
-        Thresholds set here decide how stock is read in the report.
-      </p>
 
       {errorMessage ? (
         <div className="rounded-[16px] border border-rose-300 bg-rose-100 px-3 py-2 text-sm font-semibold text-rose-900">
@@ -87,19 +94,19 @@ function StockLocationsRootView({ onOpenLocation }: StockLocationsRootViewProps)
       <div className="mt-1 flex flex-col gap-3">
         {isInitialLoad ? (
           <>
-            <div className="h-[92px] animate-pulse rounded-[24px] bg-white/70" />
-            <div className="h-[92px] animate-pulse rounded-[24px] bg-white/70" />
+            <div className="h-[92px] animate-pulse rounded-[24px] bg-slate-900/5" />
+            <div className="h-[92px] animate-pulse rounded-[24px] bg-slate-900/5" />
           </>
         ) : null}
 
         {!isInitialLoad && locations.length === 0 ? (
-          <div className="rounded-[24px] bg-[var(--stock-surface)] px-5 py-6 shadow-[var(--stock-card-shadow)]">
-            <p className="m-0 text-[17px] font-bold text-[var(--stock-heading)]">
+          <div className="stock-card-surface rounded-[24px] px-5 py-6">
+            <p className="m-0 text-[16px] font-bold text-[var(--stock-heading)]">
               No stock locations yet
             </p>
-            <p className="m-0 mt-1 text-[15px] leading-snug text-[var(--stock-body)]">
-              Pick a location below and configure its first stock instance. The report
-              only counts items that match a configured instance.
+            <p className="m-0 mt-1 text-[14px] leading-snug text-[var(--stock-body)]">
+              Pick a location below and configure its first stock instance. The
+              report only counts items that match a configured instance.
             </p>
           </div>
         ) : null}
@@ -109,19 +116,14 @@ function StockLocationsRootView({ onOpenLocation }: StockLocationsRootViewProps)
             key={location}
             type="button"
             data-testid="stock-location-row"
-            className="flex w-full items-center gap-4 rounded-[24px] bg-[var(--stock-surface)] px-4 py-4 text-left shadow-[var(--stock-card-shadow)]"
+            className="stock-card-surface flex w-full items-center gap-4 rounded-[24px] px-4 py-4 text-left"
             onClick={() => onOpenLocation(location)}
           >
-            <span className="stock-mono grid h-[52px] min-w-[52px] flex-shrink-0 place-items-center rounded-[16px] bg-[var(--stock-code-badge-bg)] px-2 text-[15px] font-medium text-[var(--stock-primary)]">
+            <span className="stock-mono grid h-[52px] min-w-[52px] flex-shrink-0 place-items-center rounded-[16px] bg-[var(--stock-code-badge-bg)] px-2 text-[14px] font-medium text-[var(--stock-primary)]">
               {location}
             </span>
-            <span className="flex min-w-0 flex-1 flex-col">
-              <span className="text-[17px] font-bold leading-tight text-[var(--stock-heading)]">
-                {location}
-              </span>
-              <span className="mt-0.5 text-[15px] text-[var(--stock-body)]">
-                {pluralize(stockCount, "stock instance")} configured
-              </span>
+            <span className="min-w-0 flex-1 text-[14px] text-[var(--stock-body)]">
+              {pluralize(stockCount, "stock instance")} configured
             </span>
             <ChevronRightIcon
               className="h-5 w-5 flex-shrink-0 text-[var(--stock-dashed)]"
@@ -139,10 +141,10 @@ function StockLocationsRootView({ onOpenLocation }: StockLocationsRootViewProps)
             <PlusIcon className="h-6 w-6" aria-hidden="true" />
           </span>
           <span className="flex min-w-0 flex-1 flex-col">
-            <span className="text-[17px] font-bold leading-tight text-[var(--stock-muted)]">
+            <span className="text-[16px] font-bold leading-tight text-[var(--stock-muted)]">
               New location
             </span>
-            <span className="mt-0.5 text-[15px] text-[var(--stock-faint)]">
+            <span className="mt-0.5 text-[14px] text-[var(--stock-faint)]">
               Zones without instances
             </span>
           </span>
@@ -153,7 +155,9 @@ function StockLocationsRootView({ onOpenLocation }: StockLocationsRootViewProps)
           instance-less restriction binds only the dashed row above (plan 6 C8). */}
       <StockFloatingPill
         label="New instance"
-        onPress={() => void openWizard(stockActions.startNewWizardOverAllLocations())}
+        onPress={() =>
+          void openWizard(stockActions.startNewWizardOverAllLocations())
+        }
       />
     </section>
   );

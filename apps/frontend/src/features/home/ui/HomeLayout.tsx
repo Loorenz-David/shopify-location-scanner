@@ -39,7 +39,7 @@ export function HomeLayout({
   onSelectPage,
 }: HomeLayoutProps) {
   return (
-    <main className="relative min-h-svh bg-[radial-gradient(circle_at_10%_10%,rgba(20,176,142,0.22),transparent_40%),radial-gradient(circle_at_80%_20%,rgba(242,157,68,0.22),transparent_35%),linear-gradient(180deg,#f5fbf8_0%,#edf3ff_55%,#eef2f5_100%)]">
+    <main className="relative isolate min-h-svh bg-[radial-gradient(circle_at_10%_10%,rgba(20,176,142,0.22),transparent_40%),radial-gradient(circle_at_80%_20%,rgba(242,157,68,0.22),transparent_35%),linear-gradient(180deg,#f5fbf8_0%,#edf3ff_55%,#eef2f5_100%)]">
       <PageOutlet
         activePageTitle={activePageTitle}
         ActivePageComponent={ActivePageComponent}

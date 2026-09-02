@@ -2,7 +2,10 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 
 import { getStockStateMeta, STOCK_STATES } from "../domain/stock-states.domain";
-import { commitThreshold, deriveBands } from "../domain/stock-thresholds.domain";
+import {
+  commitThreshold,
+  deriveBands,
+} from "../domain/stock-thresholds.domain";
 import type { ThresholdRow } from "../domain/stock-thresholds.domain";
 import type { StockThresholdDto } from "../types/stock.dto";
 import type { StockState, ThresholdDraft } from "../types/stock.types";
@@ -16,7 +19,10 @@ interface StockThresholdLadderProps {
 // in ladder order. Lookup by MC1 position (1 = low, 2 = medium, 3 = normal), never by
 // array position — the contract fixes the set, not the order. Same adapter shape as
 // ui/StockThresholdStrip.tsx, here in both directions (plan 6 Notes).
-function limitFor(thresholds: readonly StockThresholdDto[], state: StockState): number {
+function limitFor(
+  thresholds: readonly StockThresholdDto[],
+  state: StockState,
+): number {
   const match = thresholds.find((threshold) => threshold.state === state);
   if (!match) {
     throw new Error(`Stock configuration is missing a threshold for ${state}`);
@@ -25,7 +31,9 @@ function limitFor(thresholds: readonly StockThresholdDto[], state: StockState): 
   return match.thresholdQuantity;
 }
 
-function thresholdDraftFrom(thresholds: readonly StockThresholdDto[]): ThresholdDraft {
+function thresholdDraftFrom(
+  thresholds: readonly StockThresholdDto[],
+): ThresholdDraft {
   return {
     low: limitFor(thresholds, STOCK_STATES[1]),
     medium: limitFor(thresholds, STOCK_STATES[2]),
@@ -54,17 +62,17 @@ function DerivedRow({ state, subtitle, value }: DerivedRowProps) {
     <div className="flex items-center justify-between gap-3 py-4">
       <div className="flex min-w-0 flex-col gap-1">
         <span className="flex items-center gap-2">
-          <span className="text-[17px] font-bold leading-tight text-[var(--stock-heading)]">
+          <span className="text-[16px] font-bold leading-tight text-[var(--stock-heading)]">
             {meta.label}
           </span>
           <span className="stock-mono rounded-[7px] bg-[var(--stock-chip-bg)] px-2 py-1 text-[10px] uppercase leading-none tracking-[0.14em] text-[var(--stock-muted)]">
             derived
           </span>
         </span>
-        <span className="text-[13px] text-[var(--stock-body)]">{subtitle}</span>
+        <span className="text-[12px] text-[var(--stock-body)]">{subtitle}</span>
       </div>
       <span
-        className="stock-mono flex-shrink-0 text-[15px] font-medium"
+        className="stock-mono flex-shrink-0 text-[14px] font-medium"
         style={{ color: meta.text }}
       >
         {value}
@@ -100,15 +108,20 @@ function EditableRow({ state, row, draft, onCommit }: EditableRowProps) {
   return (
     <div className="flex items-center justify-between gap-3 py-3">
       <div className="flex min-w-0 flex-col gap-1">
-        <span className="text-[17px] font-bold leading-tight" style={{ color: meta.text }}>
+        <span
+          className="text-[16px] font-bold leading-tight"
+          style={{ color: meta.text }}
+        >
           {meta.label}
         </span>
-        <span className="text-[13px] text-[var(--stock-body)]">up to {value}</span>
+        <span className="text-[12px] text-[var(--stock-body)]">
+          up to {value}
+        </span>
       </div>
       <div className="flex flex-shrink-0 items-center gap-1 rounded-[18px] bg-[var(--stock-track)] p-1">
         <button
           type="button"
-          className="grid h-11 w-11 place-items-center rounded-[15px] bg-[var(--stock-surface)] text-[22px] font-medium leading-none text-[var(--stock-heading)] shadow-[0_4px_10px_rgba(31,60,52,0.08)] disabled:opacity-40 disabled:shadow-none"
+          className="grid h-11 w-11 place-items-center rounded-[15px] bg-[var(--stock-surface)] text-[20px] font-medium leading-none text-[var(--stock-heading)] shadow-[0_4px_10px_rgba(31,60,52,0.08)] disabled:opacity-40 disabled:shadow-none"
           aria-label={`Decrease ${row}`}
           disabled={isAtFloor}
           onClick={() => onCommit(row, value - 1)}
@@ -118,7 +131,7 @@ function EditableRow({ state, row, draft, onCommit }: EditableRowProps) {
         <input
           type="text"
           inputMode="numeric"
-          className="stock-mono w-[52px] bg-transparent text-center text-[19px] font-medium text-[var(--stock-heading)] outline-none"
+          className="stock-mono w-[52px] bg-transparent text-center text-[17px] font-medium text-[var(--stock-heading)] outline-none"
           aria-label={`${rowName} limit`}
           value={typed ?? String(value)}
           onFocus={() => setTyped(String(value))}
@@ -132,7 +145,7 @@ function EditableRow({ state, row, draft, onCommit }: EditableRowProps) {
         />
         <button
           type="button"
-          className="grid h-11 w-11 place-items-center rounded-[15px] bg-[var(--stock-surface)] text-[22px] font-medium leading-none text-[var(--stock-heading)] shadow-[0_4px_10px_rgba(31,60,52,0.08)]"
+          className="grid h-11 w-11 place-items-center rounded-[15px] bg-[var(--stock-surface)] text-[20px] font-medium leading-none text-[var(--stock-heading)] shadow-[0_4px_10px_rgba(31,60,52,0.08)]"
           aria-label={`Increase ${row}`}
           onClick={() => onCommit(row, value + 1)}
         >
@@ -147,7 +160,10 @@ function EditableRow({ state, row, draft, onCommit }: EditableRowProps) {
 // derived High / Out of stock rows with no input, three editable rows bound to
 // commitThreshold (MC7 / D14). The rail cells share the grid rows, so each colour
 // block is exactly as tall as its row.
-export function StockThresholdLadder({ thresholds, onChange }: StockThresholdLadderProps) {
+export function StockThresholdLadder({
+  thresholds,
+  onChange,
+}: StockThresholdLadderProps) {
   const draft = thresholdDraftFrom(thresholds);
   const bands = deriveBands(draft.low, draft.medium, draft.normal);
   const highBand = bands[4]!;
@@ -173,20 +189,37 @@ export function StockThresholdLadder({ thresholds, onChange }: StockThresholdLad
       key: "normal",
       state: STOCK_STATES[3],
       content: (
-        <EditableRow state={STOCK_STATES[3]} row="normal" draft={draft} onCommit={commit} />
+        <EditableRow
+          state={STOCK_STATES[3]}
+          row="normal"
+          draft={draft}
+          onCommit={commit}
+        />
       ),
     },
     {
       key: "medium",
       state: STOCK_STATES[2],
       content: (
-        <EditableRow state={STOCK_STATES[2]} row="medium" draft={draft} onCommit={commit} />
+        <EditableRow
+          state={STOCK_STATES[2]}
+          row="medium"
+          draft={draft}
+          onCommit={commit}
+        />
       ),
     },
     {
       key: "low",
       state: STOCK_STATES[1],
-      content: <EditableRow state={STOCK_STATES[1]} row="low" draft={draft} onCommit={commit} />,
+      content: (
+        <EditableRow
+          state={STOCK_STATES[1]}
+          row="low"
+          draft={draft}
+          onCommit={commit}
+        />
+      ),
     },
     {
       key: "out",
@@ -202,12 +235,20 @@ export function StockThresholdLadder({ thresholds, onChange }: StockThresholdLad
   ];
 
   return (
-    <div className="grid grid-cols-[8px_1fr] overflow-hidden rounded-[24px] bg-[var(--stock-surface)] shadow-[var(--stock-card-shadow)]">
+    <div className="stock-card-surface grid grid-cols-[8px_1fr] overflow-hidden rounded-[24px] ">
       {rows.map(({ key, state, content }, index) => (
-        <div key={key} className="contents" data-testid="stock-ladder-row" data-row={key}>
-          <div aria-hidden="true" style={{ backgroundColor: getStockStateMeta(state).solid }} />
+        <div
+          key={key}
+          className="contents"
+          data-testid="stock-ladder-row"
+          data-row={key}
+        >
           <div
-            className={`mx-5 ${index < rows.length - 1 ? "border-b border-[var(--stock-hairline)]" : ""}`}
+            aria-hidden="true"
+            style={{ backgroundColor: getStockStateMeta(state).solid }}
+          />
+          <div
+            className={`mx-5 py-3 ${index < rows.length - 1 ? "border-b border-[var(--stock-hairline)]" : ""}`}
           >
             {content}
           </div>

@@ -57,8 +57,8 @@ async function openCreateFromLocation(category: string) {
   await openLocationDetail();
   await userEvent.click(screen.getByRole("button", { name: `Add instance to ${LOCATION}` }));
   await screen.findByRole("heading", { name: "New stock instance" });
-  await userEvent.click(screen.getByRole("button", { name: "Item type" }));
-  await userEvent.click(screen.getByRole("button", { name: category }));
+  await userEvent.click(screen.getByRole("combobox", { name: "Item type" }));
+  await userEvent.click(await screen.findByRole("option", { name: category }));
   await userEvent.click(screen.getByRole("button", { name: "Next · thresholds" }));
   await screen.findByRole("heading", { name: "Stock thresholds" });
 }

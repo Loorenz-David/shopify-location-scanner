@@ -55,7 +55,7 @@ function InstanceCard({ instance, options }: InstanceCardProps) {
   return (
     <article
       data-testid="stock-instance-card"
-      className="rounded-[24px] bg-[var(--stock-surface)] shadow-[var(--stock-card-shadow)]"
+      className="stock-card-surface rounded-[24px]"
     >
       <button
         type="button"
@@ -63,7 +63,7 @@ function InstanceCard({ instance, options }: InstanceCardProps) {
         onClick={() => void openWizard(stockActions.startEditWizard(instance))}
       >
         <span className="flex w-full items-center justify-between gap-3">
-          <h2 className="m-0 text-[17px] font-bold leading-tight text-[var(--stock-heading)]">
+          <h2 className="m-0 text-[16px] font-bold leading-tight text-[var(--stock-heading)]">
             {instance.itemCategory}
           </h2>
           <ChevronRightIcon
@@ -92,21 +92,21 @@ export function StockLocationDetailView({ location }: StockLocationDetailViewPro
   const errorMessage = settingsErrorMessage ?? wizardErrorMessage;
 
   return (
-    <section className="stock-area-font mx-auto flex w-full max-w-[720px] flex-col gap-3 px-5 pb-10">
+    <section className="stock-area-font stock-screen-surface mx-auto flex w-full max-w-[720px] flex-col gap-3 px-5 pb-10">
       <header className="flex items-start gap-3">
         <button
           type="button"
-          className="grid h-10 w-10 flex-shrink-0 place-items-center rounded-full bg-[var(--stock-surface)] text-[var(--stock-heading)] shadow-[var(--stock-card-shadow)]"
+          className="stock-card-surface grid h-10 w-10 flex-shrink-0 place-items-center rounded-full text-[var(--stock-heading)]"
           onClick={() => stockActions.popView()}
           aria-label="Back to stock locations"
         >
           <ChevronLeftIcon className="h-5 w-5" aria-hidden="true" />
         </button>
         <div className="min-w-0 pt-0.5">
-          <h1 className="m-0 text-[21px] font-bold leading-tight text-[var(--stock-heading)]">
+          <h1 className="m-0 text-[18px] font-bold leading-tight text-[var(--stock-heading)]">
             {location}
           </h1>
-          <p className="m-0 mt-0.5 text-[15px] text-[var(--stock-body)]">
+          <p className="m-0 mt-0.5 text-[14px] text-[var(--stock-body)]">
             {pluralize(instances?.length ?? 0, "stock instance")}
           </p>
         </div>
@@ -120,8 +120,8 @@ export function StockLocationDetailView({ location }: StockLocationDetailViewPro
 
       {instances === undefined && isLoading ? (
         <div className="mt-2 flex flex-col gap-3" aria-busy="true">
-          <div className="h-[150px] animate-pulse rounded-[24px] bg-white/70" />
-          <div className="h-[150px] animate-pulse rounded-[24px] bg-white/70" />
+          <div className="h-[150px] animate-pulse rounded-[24px] bg-slate-900/5" />
+          <div className="h-[150px] animate-pulse rounded-[24px] bg-slate-900/5" />
         </div>
       ) : (
         <div className="mt-2 flex flex-col gap-3">
@@ -129,7 +129,7 @@ export function StockLocationDetailView({ location }: StockLocationDetailViewPro
             <InstanceCard key={instance.id} instance={instance} options={options} />
           ))}
           {instances !== undefined && instances.length === 0 ? (
-            <div className="rounded-[24px] border-2 border-dashed border-[var(--stock-dashed)] px-5 py-6 text-center text-[15px] text-[var(--stock-muted)]">
+            <div className="rounded-[24px] border-2 border-dashed border-[var(--stock-dashed)] px-5 py-6 text-center text-[14px] text-[var(--stock-muted)]">
               No stock instances in {location} yet.
             </div>
           ) : null}

@@ -31,8 +31,16 @@ function setBootstrapLocations(values: string[]): void {
   });
 }
 
-function renderedLocationCards() {
-  return screen.getAllByTestId("stock-wizard-location-card");
+// The location list lives in a bottom sheet: open it, read it, then close it again so
+// the assertions that follow act on the form underneath.
+async function readLocationSheetOptions(): Promise<HTMLElement[]> {
+  await userEvent.click(screen.getByRole("button", { name: "Location" }));
+  const options = await screen.findAllByTestId("stock-sheet-option");
+  return options;
+}
+
+async function closeLocationSheet(): Promise<void> {
+  await userEvent.click(screen.getAllByRole("button", { name: "Close Location" })[0]!);
 }
 
 describe("screen 06 wizard entry points", () => {
@@ -60,7 +68,11 @@ describe("screen 06 wizard entry points", () => {
     await userEvent.click(screen.getByRole("button", { name: /new location/i }));
     await screen.findByRole("heading", { name: "New stock instance" });
     expect(useStockWizardStore.getState().availableLocations).toEqual(["L2", "L3"]);
-    expect(renderedLocationCards().map((card) => card.textContent)).toEqual(["L2", "L3"]);
+    expect((await readLocationSheetOptions()).map((option) => option.textContent)).toEqual([
+      "L2",
+      "L3",
+    ]);
+    await closeLocationSheet();
     expect(useStockWizardStore.getState().draft?.location).toBe("");
 
     // back to 06 (× discards)
@@ -79,9 +91,10 @@ describe("screen 06 wizard entry points", () => {
         "L3",
       ]),
     );
-    const cards = renderedLocationCards();
+    const cards = await readLocationSheetOptions();
     expect(cards.map((card) => card.textContent)).toEqual(["LC1", "H1", "L2", "L3"]);
     expect(cards.every((card) => card.getAttribute("aria-pressed") === "false")).toBe(true);
+    await closeLocationSheet();
     expect(useStockWizardStore.getState().draft).toMatchObject({
       location: "",
       itemCategory: "",

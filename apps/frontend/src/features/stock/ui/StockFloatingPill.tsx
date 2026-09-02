@@ -17,7 +17,7 @@ export function StockFloatingPill({ label, onPress, disabled = false }: StockFlo
       />
       <button
         type="button"
-        className="fixed left-1/2 z-30 inline-flex h-[52px] -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-[26px] bg-[var(--stock-primary)] px-6 text-[16px] font-semibold text-white shadow-[var(--stock-cta-shadow)] transition active:scale-[0.98] disabled:opacity-60"
+        className="fixed left-1/2 z-30 inline-flex h-[52px] -translate-x-1/2 items-center gap-2 whitespace-nowrap rounded-[26px] bg-[var(--stock-primary)] px-6 text-[15px] font-semibold text-white shadow-[var(--stock-cta-shadow)] transition active:scale-[0.98] disabled:opacity-60"
         style={{ bottom: "calc(max(1rem, env(safe-area-inset-bottom)) + 5.25rem)" }}
         onClick={onPress}
         disabled={disabled}
