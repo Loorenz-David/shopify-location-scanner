@@ -275,3 +275,155 @@ by M2 and M3. Using the stored column remains correct regardless (§26.2, §21/�
 backed by the curl steps, which were re-executed.
 
 Phase closed.
+
+### 2026-09-02 — P5 implementer round 2 (Codex)
+
+Added the §27 amendment to the approved report projection. `StockReportEntry` now carries
+the definition's three `{ state, thresholdQuantity }` rows and the backend-derived
+`unitsToNormalThreshold`. The query finds the `normal_in_stock` threshold by state name,
+maps only the public threshold shape, and computes `Math.max(0, normalThreshold - quantity)`.
+The endpoint remains an uncompacted, unfiltered, unordered read; no controller, route,
+runner, migration, index, or other phase file changed.
+
+The verification instrument gained its own 10/15/20 threshold fixtures for quantities 7, 0,
+18, and 25. Each fixture writes quantity only and calls the existing repository
+`recalculateState` path. The round-1 1/3/5 fixture remains unchanged. C3(a) now asserts the
+eight-field shape, and C4(a)–(e) each has its own executable case and failure message. The
+pre-production-edit red baseline after adding those cases was 6 failures: C3(a) plus C4(a)–
+C4(e); all 14 inherited rows were still PASS.
+
+Judgment calls: a missing `normal_in_stock` row throws rather than silently defaulting to
+zero, because valid persisted definitions always contain all three configurable thresholds
+and a fallback would hide corrupt data. Threshold rows are projected explicitly to prevent
+repository-only fields from crossing the report contract. No deviations from the plan or
+ratified intention were required.
+
+Round-2 probe: the query was temporarily changed to look up `medium_in_stock` and calculate
+`max(0, medium + 1 - quantity)`, then reverted. C4(a) failed individually (`13` became `9`),
+C4(b) also failed (`20` became `16`), and C4(c) failed individually (`2` became `0`);
+C4(d) and C4(e) remained PASS. This confirms the probe reaches the selected arithmetic and
+distinguishes the owner's fill decision.
+
+Closing evidence on scratch copy `/private/tmp/warehouse-stock-p5-r2-close.fBxWxg/dev.db`:
+
+- `npm run typecheck` — exit 0.
+- Purity grep — empty.
+- Development-database refusal — exit 3 with the configured `prisma/dev.db` path.
+- `DATABASE_URL=file:/private/tmp/warehouse-stock-p5-r2-close.fBxWxg/dev.db
+  SHOP_ID=cmnractlq0000qr53y8so42t3 npx tsx scripts/verify-all.ts` — exit 0:
+
+```text
+--- verify-stock-domain.ts ---
+PASS C2(a)
+PASS C2(b)
+PASS C2(c)
+PASS C2(d)
+PASS C2(e)
+PASS C2(f)
+PASS C3(a)
+PASS C3(b)
+PASS C3(c)
+PASS C3(d)
+PASS C3(e)
+PASS C3(f) (empty array)
+PASS C3(f) (blank scalar)
+PASS C4(a)
+PASS C4(b)
+PASS C4(c)
+PASS C4(d)
+PASS C4(e)
+PASS C5(a)
+PASS C5(b)
+PASS C5(c)
+PASS C5(d)
+PASS C5(e)
+PASS C5(f)
+PASS C6(a)
+PASS C6(b)
+PASS C6(c)
+PASS C6(d)
+PASS C6(e)
+PASS C6(f)
+PASS C6(g)
+PASS C6(h)
+PASS C7(a)
+PASS C7(b)
+PASS C7(c) (zero)
+PASS C7(c) (negative)
+PASS C7(c) (non-integer)
+PASS C7(d)
+PASS C7(e)
+PASS C7(f)
+PASS C7(g)
+PASS C8(a)
+PASS C8(b)
+PASS C8(c)
+PASS C8(d)
+PASS C8(e)
+PASS C8(f)
+PASS C8(g)
+PASS C8(h)
+PASS C9(a)
+PASS C9(b)
+PASS C9(c)
+PASS C9(d)
+PASS C9(e)
+PASS C9(f)
+PASS C9(g)
+PASS C9(h)
+PASS verify-stock-domain.ts
+--- verify-stock-reconciliation.ts ---
+PASS C1(a)
+PASS C1(b)
+PASS C1(c)
+PASS C2(a)
+PASS C2(b)
+PASS C2(c)
+PASS C2(d)
+PASS C3(a)
+PASS C3(b)
+PASS C3(c)
+PASS C3(d)
+PASS C3(e)
+PASS C4(a)
+PASS C4(b)
+PASS C4(c)
+PASS C4(d)
+PASS C5(a)
+PASS C5(b)
+PASS C6(a)
+PASS C6(b)
+PASS verify-stock-reconciliation.ts
+--- verify-stock-report.ts ---
+PASS C1(a)
+PASS C1(b)
+PASS C1(c)
+PASS C1(d)
+PASS C2(a)
+PASS C2(b)
+PASS C2(c)
+PASS C2(d)
+PASS C2(e)
+PASS C2(f)
+PASS C3(a)
+PASS C3(b)
+PASS C3(c)
+PASS C3(d)
+PASS C4(a)
+PASS C4(b)
+PASS C4(c)
+PASS C4(d)
+PASS C4(e)
+PASS verify-stock-report.ts
+SUMMARY PASS 3 script(s)
+```
+
+Authenticated HTTP evidence on `/private/tmp/warehouse-stock-p5-r2-http.SqQgvE/dev.db`:
+one curl against the running server returned HTTP 200 for a real `P5HTTP` entry with quantity
+7, `low_in_stock`, thresholds 10/15/20, and `unitsToNormalThreshold: 13`.
+
+Mutation-probe files, listed separately from implementation changes: the report query was
+the only repository file temporarily changed, and the change was applied and reverted. No
+archgraph is present. The implementation write perimeter is exactly the two source files,
+the report verification script, and this Review log entry; the required handoff is recorded
+separately under `handoffs/implementer/`.

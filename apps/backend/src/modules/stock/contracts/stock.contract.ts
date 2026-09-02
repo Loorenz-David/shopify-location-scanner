@@ -197,6 +197,8 @@ export type StockReportEntry = {
   mergeKey: string;
   quantity: number;
   stockState: StockState;
+  thresholds: Array<{ state: StockState; thresholdQuantity: number }>;
+  unitsToNormalThreshold: number;
 };
 
 export type StockReportDto = {
