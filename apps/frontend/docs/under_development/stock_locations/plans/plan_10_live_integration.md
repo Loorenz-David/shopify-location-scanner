@@ -71,6 +71,25 @@ endpoint from another: assert the exact method **and** path **and** payload per 
 seven rows distinguishable from each other, not merely present.
 
 ## Review log
+- **2026-09-02 · C3 discharged by the owner · APPROVED.** The owner ran the manual live checks and
+  reported all of them correct. That closes the four outstanding items: the live
+  `create → 409 → edit → delete` round trip, the report against real data, the WS-driven refetch,
+  and the Firefox / desktop Safari download check inherited from P8 — so `downloadPdf`'s detached
+  anchor lands a file in practice, and no fix is needed.
+
+  **What this record is, precisely.** C3 is a charter rule 1 exemption: manual, environment-lifecycle
+  evidence. The verdict here is the **owner's attestation on 2026-09-02**, not a step-by-step
+  observation log — no session watched these runs, and the coordinator is not going to write detail
+  it did not see. Anyone re-verifying should re-run the sequence in this plan's task list rather
+  than treat this entry as a transcript. Recorded this way deliberately: the constraint reduces
+  effort, it must never inflate claims about what was checked.
+
+  The automated half stands separately and is repeatable: C1 and the seven C2 rows in
+  `api/stock-live-integration.test.ts`, verified by the coordinator, plus P4's C5/C6 suites as the
+  proxy for the lifecycle and WS paths.
+
+  **P10 is APPROVED. This is the final phase — the build is complete.**
+
 - **2026-09-02 · round 1 consumption · coordinator · BLOCKED, awaiting owner-only evidence.**
   The session delivered the automated half and **stopped at C3 because no browser was available**,
   reporting that plainly instead of manufacturing a manual record. That is the right call and the

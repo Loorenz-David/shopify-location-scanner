@@ -64,7 +64,7 @@ fidelity to the design screenshots is approved by the owner looking at the runni
 | P7 | Report UI (screens 01–04) | Claude | APPROVED | 2026-09-02 | coordinator | approved on coordinator verification plus **the owner's acceptance pass** (S5; polish deferred, §7D); no independent review (§3A); 133 tests, 9 new, no orphans; C1's mutation re-planted **unfiltered** reddening C1–C8 as reported; seven guard/argument probes recorded; the coordinator's own probe deleted the `settings-stock-report` registry entry — the exact defect P5 shipped — and reds C9 alone, so the dead-row class is finally guarded; run on a **shared tree** with the owner's parallel visual work, handled per **S11** on both sides; lint 0 in perimeter |
 | P8 | PDF data assembly + delivery | Codex | APPROVED | 2026-09-02 | coordinator | approved on **two** coordinator passes (no visual gate, §3A); 146 tests, 13 new, no orphans; the first pass (`b908c10`, a different session) found and repaired an **S10 hole** — the initializer's `propertyKeyOrder` was unobserved, 12/12 green with it deleted — adding `C5(keyOrder)`; the second re-ran every probe **unfiltered** (M1 reds C5 alone, PA reds C5(keyOrder) alone) and found one more: a UTC `pdfFilename` did **not** red C6, whose inputs were both `23:30` and so discriminated only under a negative UTC offset — **a test whose power depends on the machine's timezone**; C6 now asserts both ends of the day, no production change; owner card answered **B**, recorded as **§4B MC10a**; lint 0 in perimeter |
 | P9 | PDF document + Generate sheet UI (screens 05, 10) | Claude | APPROVED | 2026-09-02 | coordinator | approved on coordinator verification plus **the owner's printed PDF** (S5 — the gate this phase could not pass on screen; the owner confirmed it works). 162 tests, 12 new, no orphans, lint 0 across `src/features/stock`; M1 re-planted **unfiltered** reds `C7(loading)` alone, plus a coordinator **opposite** probe (pin `isReady` false) reddening `C7(ready)`, both `C5` rows and `C8`; **the widened H1 was re-verified** — closed four-path list, still reds a stray import; owner decision 2 (`#087A50` for the design's `#0E8A5F`, which collides with the Normal state hex) routed to §7D; §10 gained the react-pdf/vitest environment findings. **Last build phase.** |
-| P10 | Live integration (gated on backend P3/P5) | Codex | BLOCKED | 2026-09-02 | coordinator | **BLOCKED on owner-only evidence.** The automated half is done and verified — C1 (production default resolves live) and all seven C2 endpoint rows, 8 tests, committed inside the owner's `80e3ba8`. **C3 was not run**: the session had no browser and said so rather than fabricating manual evidence, which is the correct call. Outstanding, all requiring a human at a browser: the live create→409→edit→delete round trip, **a report with non-zero quantities** (nothing has been scanned in, so ordering, tiles and MC3a ranking have still never run on real numbers), a real WS refetch, and the **Firefox / desktop Safari download check** inherited from P8. See §7E for the v1.6 fold |
+| P10 | Live integration (gated on backend P3/P5) | Codex | APPROVED | 2026-09-02 | coordinator | approved: the automated half (C1 + seven C2 endpoint rows, coordinator-verified) plus **C3 discharged by the owner's manual run** on 2026-09-02 — the live create→409→edit→delete round trip, the report on real data, the WS refetch, and the **Firefox / desktop Safari download check** inherited from P8, all reported correct, so the detached-anchor fallback needs no fix. C3's record is the **owner's attestation, not an observation log** (charter rule 1 exemption); the automated rows are the repeatable part. **Final phase — the build is complete** |
 
 **Projection gate (owner decision, 2026-09-01 — revised):** **P2 only.** It was mandatory
 for P2 and P3 and was additionally run on P1 by owner directive, where it earned its keep
@@ -486,6 +486,55 @@ mutations to see whether the guards survived**:
 Both guards survived a 1359-line refactor. Suite is **27 files / 176 tests**, typecheck clean.
 **P7's C8 also survived intact** — it forbids threshold *bands* in the report area, not a restock
 quantity, so the design rule and v1.6 coexist without amendment.
+
+### 7F. The build is complete — what is proven, and what is deliberately still open
+
+All ten phases are **APPROVED** (2026-09-02). Both queues are empty; every prompt and handoff is in
+`archive/plan_<n>/`. Final state: **27 test files / 176 tests**, typecheck clean, repository lint
+unchanged at its 48/14 baseline with **zero problems anywhere under `src/features/stock`**.
+
+**What the pipeline actually bought.** Every phase shipped at least one *named mutation* — a
+specific defect planted at a specific site, observed to red a specific row, and reverted. The
+coordinator re-planted each one **unfiltered**, and that discipline paid repeatedly rather than
+ceremonially:
+
+- **Four criteria shipped unable to fail** and were repaired before approval: plan 4's C9 (the
+  controller could ignore its vocabulary entirely), plan 5's C4 (the test seeded options production
+  never fetched, so screen 07 showed `teak` to real users), plan 8's `propertyKeyOrder` (12/12 green
+  with it deleted), and plan 8's C6 (its inputs discriminated only under a negative UTC offset — it
+  passed on this machine *and* in UTC CI with a UTC bug present).
+- **Two dead paths** were found by probing rather than reading: the Settings *Stock report* row was
+  inert from P5 to P7 while P5's C1 passed, because C1 asserted the facade call and not a rendered
+  page; and the root *New instance* pill offered only instance-less locations, so no second
+  definition could be added from screen 06.
+- These are recorded as **S10**, whose three sub-shapes are the most reusable thing this project
+  produced: a criterion that recomputes the production expression proves the *call site*, not the
+  *argument*; a test that seeds state the user's path never loads asserts on a world nobody is in;
+  and a test whose discriminating power depends on the machine is not a guard.
+
+**Deliberately still open, none of it blocking:**
+
+1. **The §7D visual-polish pass** — the owner's, and always intended to come last. Its list is in
+   §7D and includes the PDF's brand green (`#087A50` stands in for the design's `#0E8A5F`, which
+   collides byte-for-byte with the Normal state hex; the cheaper fix is a named allowlist exemption
+   for the brand token rather than a second green).
+2. **`missingQuantityForEntry`'s local fallback has a removal trigger** (§7E): delete it when
+   backend **P5 round 2 is APPROVED** and `unitsToNormalThreshold` always arrives. Until then it is
+   correct; afterwards it is a second source of truth waiting to diverge.
+3. **The frontend consumes v1.6's two new fields ahead of the backend track's ratification** —
+   round 2 is merged but its own checkpoints read *"not approved"*. If that track changes the shape,
+   this frontend follows.
+4. **New domain code sits outside this pipeline's plans**: `stock-location-groups.domain.ts` (with
+   its own tests), `stock-category-images.domain.ts`, `StockCategoryThumbnail.tsx` and
+   `src/share/location-codes/`, all authored by the owner during the later phases. It is covered by
+   its own tests and by nothing in this master plan — no criterion, no mutation, no trace to a
+   measurement objective. Recorded so a future reader does not mistake pipeline silence for
+   pipeline approval.
+
+**On the honesty of these records.** Per §3A this project ran without independent review sessions,
+and every phase's tracker note and Review log says so. P10's C3 is the owner's attestation, not an
+observation log. The constraint reduced effort; it was not allowed to inflate any claim about what
+was checked.
 
 ## 8. Tool protocols
 
