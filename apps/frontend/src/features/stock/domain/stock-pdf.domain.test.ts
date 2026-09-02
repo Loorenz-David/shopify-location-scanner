@@ -116,7 +116,10 @@ function renderHandle(blob = new Blob(["pdf"], { type: "application/pdf" })):
 }
 
 describe("stock PDF domain", () => {
-  it("H1: react-pdf appears only as the controller's render-handle type", () => {
+  // Widened at P9 (owner authorization, 2026-09-02): the document, its font
+  // registration and the sheet's render hook are react-pdf's only other homes, and all
+  // three sit behind the report page's dynamic import (plan 9 C6).
+  it("H1: react-pdf appears only as the controller's render-handle type and in ui/pdf", () => {
     const modules = import.meta.glob("../**/*.{ts,tsx}", {
       eager: true,
       import: "default",
@@ -128,7 +131,12 @@ describe("stock PDF domain", () => {
       .map(([path]) => path)
       .toSorted();
 
-    expect(matches).toEqual(["../controllers/stock-report.controller.ts"]);
+    expect(matches).toEqual([
+      "../controllers/stock-report.controller.ts",
+      "../ui/pdf/StockReportPdf.tsx",
+      "../ui/pdf/stock-pdf-fonts.ts",
+      "../ui/pdf/use-stock-pdf-render.tsx",
+    ]);
     expect(modules["../controllers/stock-report.controller.ts"]).toMatch(
       /import type \{ UsePDFInstance \} from "@react-pdf\/renderer";/,
     );

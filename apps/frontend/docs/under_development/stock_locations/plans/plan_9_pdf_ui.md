@@ -83,4 +83,70 @@ Consequences for whoever implements this:
   measure the baseline from the tree you are given, and never repair a red outside your perimeter.
 
 ## Review log
-(empty)
+
+### Implementation round 1 — 2026-09-02 — Claude (Fable 5)
+
+Built screen 10 (`ui/pdf/StockReportPdf.tsx` + `stock-pdf-fonts.ts` + `stock-pdf-page-count.ts` +
+`use-stock-pdf-render.tsx`), screen 05 (`ui/GeneratePdfSheet.tsx`), and the pill wiring + lazy sheet
+mount in `ui/StockReportPage.tsx`. Handoff: `handoffs/implementer/handoff_plan_9_implement_1.md`.
+
+**Owner decisions taken in-session (2026-09-02):**
+- **H1 widened by name.** P8's H1 asserted the controller is the *only* non-test file mentioning
+  `@react-pdf/renderer`; P9's document, font registration and render hook must import it. The
+  owner authorized editing that one assertion to the closed list of four files. Proved to still
+  red on a stray import (probe P-H1).
+- **Brand green is `#087A50`** (the 00-global scanner-FAB token), not the design's `#0E8A5F`, which
+  is also the Normal state's solid hex and therefore forbidden outside the states domain by S2.
+  Owner chose the token over runtime plumbing or an S2 amendment; visible only as a slightly
+  darker header rule and mark.
+
+**Judgment calls:**
+- **Page-count read-back** parses pdfkit's `/Type /Pages … /Count n` root from the rendered bytes
+  (`readStockPdfPageCount`), so the number comes from the document, not the layout tree or the
+  model (MC10). C1 checks it against an independent count of `/Type /Page` objects.
+- **Repeated column headers without a per-table primitive.** react-pdf has none, but its splitter
+  keeps `fixed` children in both halves of a split node; each table's column-header row is `fixed`
+  inside the table view, so it repeats on every page the table spans and nowhere else. Section
+  titles are page-level siblings of their tables carrying `minPresenceAhead={72}` (title + header +
+  one row), because `minPresenceAhead` only breaks an element with non-fixed siblings before it.
+  Verified on a 4-page render: page 2 opens with the column header, not an orphan title.
+- **Smoke test runs in the node environment** (`// @vitest-environment node`): only the node build
+  exposes `renderToBuffer`, and under jsdom vitest substitutes jsdom's typed-array globals, so
+  pdfkit's `instanceof Uint8Array` fails on Node buffers and every FlateDecode stream is corrupted
+  (all high bytes become `0xFD`). The shared teardown clears `localStorage`, which node lacks; the
+  file defines a one-method shim. No `node:` import is used — `/// <reference types="node" />` was
+  tried and changed `setTimeout`'s type in `core/ws-client`, so inflate uses the Web
+  `DecompressionStream` and the `file:` font sources are served by a `fetch` stub from
+  Vite-`?inline` data URLs.
+- **C2's extractor** is a ~90-line test helper over the bytes: object walk, ToUnicode CMap
+  (`bfchar`/`bfrange`), `BT…ET` lines with `TJ` glyph runs. Counts are word-bounded, case-sensitive,
+  and expected counts are derived from the model (section labels: once per section + once per
+  settings-box mention; categories: once per row). Tiles print uppercase and so never collide.
+- **Fonts**: all six TTFs registered (Poppins 400/500/600/700, IBM Plex Mono 400/500); no italic
+  source exists and none is registered. Hyphenation disabled (`registerHyphenationCallback`) so
+  category names never hyphenate in the Type column.
+- **Sheet chips are tappable** (call `togglePdfExportState`); P8's `togglePdfExportLocation`
+  stays uncalled — the design has no location control on screen 05.
+- **`showContributingLocations` off hides the Locations column** (34/54/12 %) rather than leaving
+  it blank.
+- **Render errors surface**: `handle.error` renders an inline message; otherwise a failed font fetch
+  would leave both actions disabled forever with nothing said.
+- **Subtitle while unknown** reads `A4 · sections per state`; the count is cleared on every
+  re-render (`setPdfPageCount(null)`) so a stale number never describes a new document.
+- The page's pill calls `initializePdfExport()` then pushes `report-pdf-sheet`; the sheet returns
+  `null` if no export query exists (unreachable through the pill).
+
+**Deviations from the plan text:** the render hook file is `use-stock-pdf-render.tsx` (JSX), not
+`.ts`. Task 2 named Poppins 400/600/700; 500 was on disk and is registered too.
+
+**Baseline honesty:** the document, fonts, page-count and hook modules were written before the
+C1/C2 test file, so C1/C2 have no red baseline — their proofs of failure are the probes
+P-C1c, P-C2a, P-C2b. The nine sheet rows and C6 were written red first (module unresolved).
+
+**Observations for the coordinator:** (1) the owner's stream landed a new
+`domain/stock-location-groups.domain.test.ts` (+4 tests) and `src/share/location-codes/` during
+this round — not mine, untouched. (2) `vite build` isolates react-pdf in the 1.2 MB
+`GeneratePdfSheet` chunk; `StockReportPage` is 19.8 kB; the build's chunk-size warning is the
+expected consequence. (3) The browser harness (throwaway entry, deleted) confirmed `usePDF` +
+Vite-resolved font URLs end to end: 22.8 kB PDF, four embedded subsets, count read back, Preview
+opened as a PDF tab.

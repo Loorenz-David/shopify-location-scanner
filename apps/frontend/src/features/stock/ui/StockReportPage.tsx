@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 
 import { ChevronLeftIcon, FilterIcon } from "../../../assets/icons";
 import { homeShellActions } from "../../home/actions/home-shell.actions";
@@ -26,16 +26,33 @@ import {
   useStockReportStore,
 } from "../stores/stock-report.store";
 import type { StockOptionsDto, StockReportEntryDto } from "../types/stock.dto";
-import type { CompactedReportRow, ReportLocationGroup } from "../types/stock.types";
+import type {
+  CompactedReportRow,
+  ReportLocationGroup,
+} from "../types/stock.types";
 import { StockCounterTiles } from "./StockCounterTiles";
 import { StockEntryDetailView } from "./StockEntryDetailView";
 import { StockFilterSheet } from "./StockFilterSheet";
 import { StockFloatingPill } from "./StockFloatingPill";
-import { StockCompactEntryRow, StockGroupedEntryRow } from "./StockReportEntryRows";
+import {
+  StockCompactEntryRow,
+  StockGroupedEntryRow,
+} from "./StockReportEntryRows";
+
+// Screen 05 and react-pdf load only when the pill is pressed (plan 9 C6): the sheet is
+// the PDF module's only importer, so the report page's own chunk stays clean.
+const LazyGeneratePdfSheet = lazy(() =>
+  import("./GeneratePdfSheet").then((module) => ({
+    default: module.GeneratePdfSheet,
+  })),
+);
 
 // The controller loads the GET 4.1 vocabulary beside the report (plan 4 C9); until it
 // lands, chips fall back to the wire value rather than waiting.
-const EMPTY_OPTIONS: StockOptionsDto = { itemCategories: [], propertyOptions: [] };
+const EMPTY_OPTIONS: StockOptionsDto = {
+  itemCategories: [],
+  propertyOptions: [],
+};
 
 function pluralize(count: number, noun: string, plural = `${noun}s`): string {
   return `${count} ${count === 1 ? noun : plural}`;
@@ -51,8 +68,14 @@ interface StockReportGroupProps {
 // Entries arrive from buildReportView already in MC3 order (worst first), so the first
 // entry carries the worst state; the three problem buckets come from countByStateBucket,
 // the one place that knows which states are problems.
-function StockReportGroup({ group, options, onOpenEntry }: StockReportGroupProps) {
-  const buckets = countByStateBucket(group.entries.map((entry) => entry.stockState));
+function StockReportGroup({
+  group,
+  options,
+  onOpenEntry,
+}: StockReportGroupProps) {
+  const buckets = countByStateBucket(
+    group.entries.map((entry) => entry.stockState),
+  );
   const toFix = buckets.out + buckets.low + buckets.medium;
   const worstMeta = getStockStateMeta(group.entries[0]!.stockState);
 
@@ -63,13 +86,16 @@ function StockReportGroup({ group, options, onOpenEntry }: StockReportGroupProps
       className="flex flex-col gap-3"
     >
       <header className="flex items-center gap-3 px-1">
-        <h2 className="stock-mono m-0 text-[19px] font-bold text-[var(--stock-heading)]">
+        <h2 className="stock-mono m-0 text-[15px] font-bold text-[var(--stock-heading)]">
           {group.location}
         </h2>
-        <span className="h-px flex-1 bg-[var(--stock-dashed)]" aria-hidden="true" />
+        <span
+          className="h-px flex-1 bg-[var(--stock-dashed)]"
+          aria-hidden="true"
+        />
         <span
           data-testid="stock-group-badge"
-          className="rounded-[10px] px-2.5 py-1 text-[13px] font-bold"
+          className="rounded-[10px] px-2.5 py-1 text-[12px] font-bold"
           style={{ backgroundColor: worstMeta.tint, color: worstMeta.text }}
         >
           {toFix} to fix
@@ -89,10 +115,15 @@ function StockReportGroup({ group, options, onOpenEntry }: StockReportGroupProps
 
 interface StockReportRootViewProps {
   isFilterOpen: boolean;
+  isPdfSheetOpen: boolean;
   onOpenRow: (row: CompactedReportRow) => void;
 }
 
-function StockReportRootView({ isFilterOpen, onOpenRow }: StockReportRootViewProps) {
+function StockReportRootView({
+  isFilterOpen,
+  isPdfSheetOpen,
+  onOpenRow,
+}: StockReportRootViewProps) {
   useStockReportFlow();
   const entries = useStockReportStore(selectStockReportEntries);
   const storeOptions = useStockReportStore(selectStockReportOptions);
@@ -110,9 +141,10 @@ function StockReportRootView({ isFilterOpen, onOpenRow }: StockReportRootViewPro
   // Chip vocabulary for the sheet: every location the payload mentions, in payload order.
   const locations = [...new Set(entries.map((entry) => entry.location))];
 
-  const scopeLabel = appliedFilter.locations.size === 0
-    ? "All locations"
-    : [...appliedFilter.locations].join(" · ");
+  const scopeLabel =
+    appliedFilter.locations.size === 0
+      ? "All locations"
+      : [...appliedFilter.locations].join(" · ");
   const subtitle = isGrouped
     ? `${pluralize(view.groups.length, "location")} · by severity`
     : `${scopeLabel} · ${pluralize(view.rows.length, "entry", "entries")}`;
@@ -130,12 +162,16 @@ function StockReportRootView({ isFilterOpen, onOpenRow }: StockReportRootViewPro
   };
 
   const isEmptyReport = !isInitialLoad && entries.length === 0;
-  const isEmptyResult = !isInitialLoad && entries.length > 0 &&
+  const isEmptyResult =
+    !isInitialLoad &&
+    entries.length > 0 &&
     (isGrouped ? view.groups.length === 0 : view.rows.length === 0);
 
   const segmentClassName = (isActive: boolean) =>
-    `h-11 flex-1 rounded-[16px] text-[15px] font-semibold transition ${
-      isActive ? "bg-[var(--stock-primary)] text-white" : "text-[var(--stock-muted)]"
+    `h-11 flex-1 rounded-[16px] text-[12px] font-semibold transition ${
+      isActive
+        ? "bg-[var(--stock-primary)] text-white"
+        : "text-[var(--stock-muted)]"
     }`;
 
   return (
@@ -150,12 +186,12 @@ function StockReportRootView({ isFilterOpen, onOpenRow }: StockReportRootViewPro
           <ChevronLeftIcon className="h-5 w-5" aria-hidden="true" />
         </button>
         <div className="min-w-0 pt-0.5">
-          <h1 className="m-0 text-[21px] font-bold leading-tight text-[var(--stock-heading)]">
+          <h1 className="m-0 text-[16px] font-bold leading-tight text-[var(--stock-heading)]">
             Stock report
           </h1>
           <p
             data-testid="stock-report-scope"
-            className="m-0 mt-0.5 text-[15px] text-[var(--stock-body)]"
+            className="m-0 mt-0.5 text-[14px] text-[var(--stock-body)]"
           >
             {subtitle}
           </p>
@@ -188,7 +224,10 @@ function StockReportRootView({ isFilterOpen, onOpenRow }: StockReportRootViewPro
           onClick={() => stockActions.pushView("report-filter-sheet")}
         >
           {isStateFilterActive ? (
-            <span data-testid="stock-filter-badge" className="text-[17px] font-bold">
+            <span
+              data-testid="stock-filter-badge"
+              className="text-[14px] font-bold"
+            >
               {appliedFilter.states.size}
             </span>
           ) : null}
@@ -214,18 +253,18 @@ function StockReportRootView({ isFilterOpen, onOpenRow }: StockReportRootViewPro
 
         {isEmptyReport ? (
           <div className="rounded-[24px] bg-[var(--stock-surface)] px-5 py-6 shadow-[var(--stock-card-shadow)]">
-            <p className="m-0 text-[17px] font-bold text-[var(--stock-heading)]">
+            <p className="m-0 text-[14px] font-bold text-[var(--stock-heading)]">
               Nothing to report yet
             </p>
-            <p className="m-0 mt-1 text-[15px] leading-snug text-[var(--stock-body)]">
-              The report lists stock instances configured under Stock locations. Configure
-              one and it appears here.
+            <p className="m-0 mt-1 text-[14px] leading-snug text-[var(--stock-body)]">
+              The report lists stock instances configured under Stock locations.
+              Configure one and it appears here.
             </p>
           </div>
         ) : null}
 
         {isEmptyResult ? (
-          <div className="rounded-[24px] border-2 border-dashed border-[var(--stock-dashed)] px-5 py-6 text-center text-[15px] text-[var(--stock-muted)]">
+          <div className="rounded-[24px] border-2 border-dashed border-[var(--stock-dashed)] px-5 py-6 text-center text-[14px] text-[var(--stock-muted)]">
             No entries match these filters.
           </div>
         ) : null}
@@ -249,9 +288,13 @@ function StockReportRootView({ isFilterOpen, onOpenRow }: StockReportRootViewPro
             ))}
       </div>
 
-      {/* Structurally held: enabled when P9 lands. The pill opens screen 05's Generate
-          sheet, which P9 builds; until then it is shipped disabled, not wired. */}
-      <StockFloatingPill label="Generate PDF" onPress={() => undefined} disabled />
+      <StockFloatingPill
+        label="Generate PDF"
+        onPress={() => {
+          stockActions.initializePdfExport();
+          stockActions.pushView("report-pdf-sheet");
+        }}
+      />
 
       {isFilterOpen ? (
         <StockFilterSheet
@@ -266,6 +309,12 @@ function StockReportRootView({ isFilterOpen, onOpenRow }: StockReportRootViewPro
           onClose={() => stockActions.popView()}
         />
       ) : null}
+
+      {isPdfSheetOpen ? (
+        <Suspense fallback={null}>
+          <LazyGeneratePdfSheet onClose={() => stockActions.popView()} />
+        </Suspense>
+      ) : null}
     </section>
   );
 }
@@ -274,7 +323,9 @@ export function StockReportPage() {
   const currentView = useStockNavigationStore(selectStockNavigationCurrentView);
   const entries = useStockReportStore(selectStockReportEntries);
   const storeOptions = useStockReportStore(selectStockReportOptions);
-  const [selectedRow, setSelectedRow] = useState<CompactedReportRow | null>(null);
+  const [selectedRow, setSelectedRow] = useState<CompactedReportRow | null>(
+    null,
+  );
 
   // Entering from Settings always lands on the report, whatever view an earlier visit left behind.
   useEffect(() => {
@@ -300,6 +351,7 @@ export function StockReportPage() {
   return (
     <StockReportRootView
       isFilterOpen={currentView === "report-filter-sheet"}
+      isPdfSheetOpen={currentView === "report-pdf-sheet"}
       onOpenRow={openRow}
     />
   );
