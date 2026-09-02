@@ -47,5 +47,22 @@ pass (S5) — print one real PDF for it. Row-split-avoidance (`wrap={false}`) is
 asserted only via C1/C2 smoke plus owner inspection; a programmatic page-break
 assertion is not purchased (rule: never test the dependency's own layout engine).
 
+**This phase has a REAL overlap with the owner's visual stream** *(coordinator, 2026-09-02;
+master plan **S12**)*. Unlike P8, whose perimeter is domain/controller/store and therefore disjoint,
+this phase must wire the **`Generate PDF` pill inside `ui/StockReportPage.tsx`** — the P7 file the
+owner has been editing directly. P7 shipped that pill as a *structurally held* disabled stub with
+the trigger "enabled when P9 lands"; this is that landing.
+
+Consequences for whoever implements this:
+- Expect `StockReportPage.tsx` to look different from what P7 committed, and to keep changing while
+  you work. **Read it fresh; do not port a diff against P7's version.**
+- Touch **only the pill's wiring and the sheet mount** in that file. Its layout, classes and styling
+  belong to the owner's pass — a formatting change of yours will collide with theirs, and yours is
+  the one that should yield.
+- If the pill has been restyled, moved, or removed by the polish stream, that is a **stop and
+  report**, not a reconstruction. The owner decides where their own button lives.
+- Everything else in S12 applies: explicit paths, never `git checkout` a file you did not write,
+  measure the baseline from the tree you are given, and never repair a red outside your perimeter.
+
 ## Review log
 (empty)
