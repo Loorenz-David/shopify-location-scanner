@@ -61,7 +61,7 @@ fidelity to the design screenshots is approved by the owner looking at the runni
 | P4 | Stores, controllers, flows | Codex | APPROVED | 2026-09-02 | coordinator | approved on coordinator verification (no independent review session — see §3A); 106 tests, 24 new, no orphans; C3's named mutation re-planted **unfiltered** by the coordinator plus two adversarial probes (C2, C5), each reddening exactly its row; **C9 shipped hollow** — its fixture reached no properties comparison, so an empty `keyOrder` passed — repaired by the coordinator with `C9(vocabulary)` and proved to fail; lint 0/0 in perimeter |
 | P5 | Settings UI (screens 06–07) + stock design tokens | Claude | APPROVED | 2026-09-02 | coordinator | approved on coordinator verification plus **the owner's visual pass** (S5), which is this phase's real gate; no independent review session (§3A); 114 tests, 7 new + 1 coordinator guard, no orphans; C4's named mutation re-planted **unfiltered** (reds C4 alone) and three absence-guard probes recorded; authorized fixture edit confirmed thresholds-only; **F1 fixed by the coordinator** — the settings path never fetched the GET 4.1 vocabulary, so screen 07 rendered wire casing (`teak`) on a cold visit and display casing (`Teak`) after a wizard or report visit; guarded by `C4(cold)` and proved to fail; F2 routed to P6, F3/F5 accepted and recorded; lint 0 in perimeter |
 | P6 | Instance wizard UI (screens 08–09) | Claude | APPROVED | 2026-09-02 | coordinator | approved on coordinator verification plus **the owner's visual pass** (S5); no independent review (§3A); 124 tests, 9 new + 1 coordinator guard, no orphans; C8's mutation re-planted **unfiltered** plus a coordinator **reverse** probe proving both entry points are guarded (it reds C8 *and* P5's C3); four guard proofs incl. an S10 argument probe the session designed itself; **F1 fixed before the merge** — a 409 banner outlived the × discard and followed the user onto screens 06/07, unreachable against mocks and routine against the real backend; NUL sentinel fixed and the whole tree byte-scanned clean |
-| P7 | Report UI (screens 01–04) | Claude | NOT_STARTED | — | — | — |
+| P7 | Report UI (screens 01–04) | Claude | PROMPT_READY | 2026-09-02 | coordinator | **Next to dispatch**; no projection (§3A), owner visual pass is the gate (S5) but polish is deferred (§7D); coordinator plan-lint added 1 named mutation (C1, render raw entries instead of the composed view) and **C9** — the Settings `Stock report` row has been **dead since P5**, with no `HomeFeature` registry entry, and P5's C1 passed anyway because it asserted the facade call rather than a rendered page; **S10** applied to C1–C6 with a per-row discrimination list; `prompts/implementer/plan_7_round_1_implement.md` queued |
 | P8 | PDF data assembly + delivery | Codex | NOT_STARTED | — | — | — |
 | P9 | PDF document + Generate sheet UI (screens 05, 10) | Claude | NOT_STARTED | — | — | — |
 | P10 | Live integration (gated on backend P3/P5) | Codex | NOT_STARTED | — | — | **Backend gate met** — the backend track finished on `warehouse-stock-backend` (owner, 2026-09-02). Branch merges into `main` **after P6 is APPROVED**, before P7 (§7A): zero-file overlap, all seven routes and the `{data}` envelope match the shipped api layer. P10 is now live-data verification and repair, not a wait — §7A lists the seven checks a green frontend suite cannot make |
@@ -407,6 +407,26 @@ server holds the SQLite file — **stop the backend, migrate, restart**.
 row, the counter tiles are degenerate, and **MC3a's group ranking cannot be seen**. P7's owner
 visual pass needs at least one definition holding stock; the backend track's
 `verification/end-to-end-runbook.md` §2 (the scanner path) is how to get one.
+
+### 7D. Visual polish is deferred to a pass after implementation *(owner, 2026-09-02)*
+
+The owner exercised the duplicate-definition path against the real backend and **saw the conflict
+banner** — so P6's finding **F3 is discharged**: the 409 UI, which the mock layer could never
+render, works end to end. The owner also has visual changes they want, and has decided to
+**collect them and apply them after the implementation phases are finished** rather than round-trip
+each phase now.
+
+**What this means for the record.** A UI phase's `APPROVED` (P5, P6, and P7–P9 to come) means
+*the owner accepted it as functionally correct and good enough to keep building on* — **not** that
+it is visually final. S5 said the owner's visual pass is the gate; that gate is still the gate, but
+it is now explicitly a two-stage one: acceptance during the phase, polish in a single later pass.
+No phase should be reopened for appearance alone in the meantime, and no later session should read
+`APPROVED` as "the design is signed off".
+
+Findings already parked for that pass, so it does not start from a blank page: P5 F3 (Settings tab
+not highlighted on the stock pages), P5's approximations list, P6 F4 (tab bar visible on screens
+08/09 where the design hides it; Poppins italic not loaded, so "Any value" is synthesized), and P6's
+own approximations list. Each is recorded in its phase's Review log and handoff.
 
 ## 8. Tool protocols
 
