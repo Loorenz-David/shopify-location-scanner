@@ -124,6 +124,11 @@ probes. `executed (1) == declared (1)`.
 - `docs/under_development/stock_locations/plans/plan_9_pdf_ui.md` — Review log entry.
 - this handoff.
 
+**Checkpoint commit note (S11/S12):** `ui/StockReportPage.tsx` was staged whole, so the checkpoint
+carries the owner's uncommitted reformat of that file (+60/−25 in the foreign diff) together with my
++19/−4 wiring — `git show --stat` reports 108 lines for it. Nothing else of the owner's stream was
+staged; their other 14 modified and 5 untracked paths remain in the working tree.
+
 **Probe-touched, applied and byte-restored (no residual change):** `ui/GeneratePdfSheet.tsx`,
 `ui/pdf/stock-pdf-page-count.ts`, `ui/pdf/StockReportPdf.tsx`, `ui/StockReportPage.tsx`.
 
