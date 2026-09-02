@@ -1,7 +1,7 @@
 # Location Stock System — Frontend API Contract
 
 **Audience:** the frontend planning/implementation agent. This document is self-contained: it carries every endpoint shape, the domain meaning behind it, and the reactivity rules. It is generated from the backend master plan's naming registry (`../master_plan.md` §6) — that registry is authoritative; if the two ever disagree, report it, don't guess.
-**Version:** 1.5 (2026-09-02) — **§4.4: the worked example was factually wrong and is replaced.** v1.4 illustrated an intra-batch conflict with `{}` + `{wood_type:["Teak"]}`. That pair is **not** a conflict — different key sets never conflict (§2), and the endpoint returns `201` for it, confirmed by execution against the implemented backend. The example now uses a genuine conflict (same key set, overlapping values) and says plainly what the old one got wrong, because a frontend that pre-validated from it would reject the feature's central catch-all-plus-carve-out pattern. **Nothing else changes: the two `details` shapes in §3 are unaffected and correct.** Previously — **1.4 (2026-09-01): §3 and §4.4: conflict errors have TWO shapes, not one.** v1.1–v1.3 promised `conflictingId` on every 409. That is only true when the submitted entry clashes with something already stored; when two entries *within one batch* clash with each other, nothing is written, so no existing definition and no id exist. Both shapes are now specified, with the message each one makes possible. Everything else is unchanged. Previously — **1.3 (2026-09-01): §4.1 `itemCategories` un-elided.** The list was written `["Dining Chairs", "Easy Chairs", ...]` in v1.1 and v1.2; the `...` was literal and the real vocabulary is **28** values, not the 9 inferable from the property table's `categories` column. Answers `handoffs/frontend/handoff_item_categories_confirmation.md`. No other section changes. Previously — **1.2 (2026-09-01): §4.7 (report) replaced.** Answers `frontend_handoffs/frontend-report-endpoint-request.md` (frontend decision D7), approved by the owner and ratified into the backend intention as §26. The report is now one unparameterized read returning uncompacted entries with a `mergeKey`; compaction, filtering, ordering and ranking move to the client. **§§4.1–4.6, transport, auth, envelopes and reactivity are unchanged from v1.1.** Amendments arrive only as new versions of this file via the backend pipeline's coordinator.
+**Version:** 1.6 (2026-09-02) — **§4.7: the report entry gains `thresholds` and `unitsToNormalThreshold`.** The report said a definition was low and held 7; it never said what "enough" was, so the screen that exists to drive restocking could not say how much to bring. Each entry now carries the definition's three configured thresholds and a backend-computed **units-to-full** number. **Additive only — no existing field changes, no field is removed, and every v1.5 rule still holds**, so code built against v1.5 keeps working untouched. Backend authority: intention §27 (ratified 2026-09-02), which extends §26.1's entry shape and nothing else. **Read §4.7's boundary table before rendering the number** — one of its four cases looks like a bug and is not. Previously — **1.5 (2026-09-02): §4.4: the worked example was factually wrong and is replaced.** v1.4 illustrated an intra-batch conflict with `{}` + `{wood_type:["Teak"]}`. That pair is **not** a conflict — different key sets never conflict (§2), and the endpoint returns `201` for it, confirmed by execution against the implemented backend. The example now uses a genuine conflict (same key set, overlapping values) and says plainly what the old one got wrong, because a frontend that pre-validated from it would reject the feature's central catch-all-plus-carve-out pattern. **Nothing else changes: the two `details` shapes in §3 are unaffected and correct.** Previously — **1.4 (2026-09-01): §3 and §4.4: conflict errors have TWO shapes, not one.** v1.1–v1.3 promised `conflictingId` on every 409. That is only true when the submitted entry clashes with something already stored; when two entries *within one batch* clash with each other, nothing is written, so no existing definition and no id exist. Both shapes are now specified, with the message each one makes possible. Everything else is unchanged. Previously — **1.3 (2026-09-01): §4.1 `itemCategories` un-elided.** The list was written `["Dining Chairs", "Easy Chairs", ...]` in v1.1 and v1.2; the `...` was literal and the real vocabulary is **28** values, not the 9 inferable from the property table's `categories` column. Answers `handoffs/frontend/handoff_item_categories_confirmation.md`. No other section changes. Previously — **1.2 (2026-09-01): §4.7 (report) replaced.** Answers `frontend_handoffs/frontend-report-endpoint-request.md` (frontend decision D7), approved by the owner and ratified into the backend intention as §26. The report is now one unparameterized read returning uncompacted entries with a `mergeKey`; compaction, filtering, ordering and ranking move to the client. **§§4.1–4.6, transport, auth, envelopes and reactivity are unchanged from v1.1.** Amendments arrive only as new versions of this file via the backend pipeline's coordinator.
 
 ## 1. What this feature is
 
@@ -137,12 +137,51 @@ entry per definition (`location × itemCategory × properties`).
 { "data": { "entries": [
   { "location": "LC1", "itemCategory": "Dining Chairs",
     "properties": { "wood_type": ["walnut"] },
-    "mergeKey": "<opaque>", "quantity": 2, "stockState": "low_in_stock" },
+    "mergeKey": "<opaque>", "quantity": 2, "stockState": "low_in_stock",
+    "thresholds": [
+      { "state": "low_in_stock",    "thresholdQuantity": 10 },
+      { "state": "medium_in_stock", "thresholdQuantity": 15 },
+      { "state": "normal_in_stock", "thresholdQuantity": 20 } ],
+    "unitsToNormalThreshold": 18 },
   { "location": "H1",  "itemCategory": "Dining Chairs",
     "properties": { "wood_type": ["walnut"] },
-    "mergeKey": "<same opaque value>", "quantity": 3, "stockState": "low_in_stock" }
+    "mergeKey": "<same opaque value>", "quantity": 3, "stockState": "low_in_stock",
+    "thresholds": [
+      { "state": "low_in_stock",    "thresholdQuantity": 10 },
+      { "state": "medium_in_stock", "thresholdQuantity": 15 },
+      { "state": "normal_in_stock", "thresholdQuantity": 20 } ],
+    "unitsToNormalThreshold": 17 }
 ] } }
 ```
+
+**`thresholds`** (v1.6) is the definition's three configured bands — the **same shape** §4.3 already
+returns for a configuration, so you can reuse whatever renders it there. Look the row you want up
+**by `state`**, never by array position.
+
+**`unitsToNormalThreshold`** (v1.6) is how many units this definition needs to be **full**:
+
+```
+unitsToNormalThreshold = max(0, normal_in_stock threshold − quantity)
+```
+
+It is computed on the backend on purpose. The band boundaries are domain rules, and the same
+reasoning that keeps `mergeKey` server-side applies here — a client that re-derives them will
+eventually derive them differently. Display it; don't recompute it.
+
+**Read this table before you render it. The third row looks like a bug and is not:**
+
+| `quantity` | `stockState` | `unitsToNormalThreshold` | what to show |
+|---|---|---|---|
+| 0 | `out_of_stock` | **20** | bring a full shelf |
+| 7 | `low_in_stock` | **13** | **not 9** — 9 would only *enter* the normal band; this number fills it |
+| 18 | `normal_in_stock` | **2** | **already `normal_in_stock`, and still asking for 2.** Deliberate (owner decision, intention §27.3): normal is a band of `16–20`, and 18 is inside it but not yet full. If your UI hides the number whenever the state is normal, you will hide a legitimate restock. |
+| 25 | `high_in_stock` | **0** | never negative — safe to render unconditionally |
+
+**Why "fill" and not "clear the warning".** With thresholds 10/15/20 the states are
+`0 → out`, `1–10 → low`, `11–15 → medium`, `16–20 → normal`, `>20 → high`. A definition *enters*
+normal at 16 and *fills* it at 20. The owner chose the fill number, so it is a replenishment
+target, not the minimum that stops the warning. The field is named `unitsToNormalThreshold` rather
+than `unitsToNormal` precisely so the two cannot be confused.
 
 **`mergeKey`** is an **opaque string**, equal between two entries **iff** their `itemCategory`
 and canonical `properties` are equal. Group on it to build the compacted view. **Never parse
@@ -189,4 +228,5 @@ items, so the unparameterized full fetch stays small.
 6. ~~Contract v1.2 (report shape per the frontend's request case)~~ — landed.
 7. ~~Contract v1.3 (complete `itemCategories`)~~ — landed.
 8. ~~Contract v1.4 (both conflict-error shapes)~~ — landed.
-9. ~~Contract v1.5 (§4.4 worked example corrected)~~ — landed; this document is v1.5 and complete. It is **self-contained**: it is the only file you need for this integration, and every amendment is explained where it applies rather than in a companion notice. The mocks encoding the request case's §3 shape are now authoritative-matching and can be pointed at the real endpoint once P5 is approved.
+9. ~~Contract v1.5 (§4.4 worked example corrected)~~ — landed.
+10. ~~Contract v1.6 (report entry gains `thresholds` + `unitsToNormalThreshold`)~~ — landed; this document is v1.6 and complete. **Additive to v1.5**: nothing you built against v1.5 changes. It is **self-contained**: it is the only file you need for this integration, and every amendment is explained where it applies rather than in a companion notice. The mocks encoding the request case's §3 shape are now authoritative-matching and can be pointed at the real endpoint once P5 is approved.
