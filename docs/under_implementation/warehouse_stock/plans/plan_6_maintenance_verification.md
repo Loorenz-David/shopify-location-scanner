@@ -240,3 +240,41 @@ SUMMARY PASS 3 script(s)
 
 The implementation checkpoint is `4a0d5ef` (`CHECKPOINT (not approved): implement P6
 maintenance scripts`).
+
+### 2026-09-02 — review round 1 · APPROVED · phase and project closed
+
+Handoff: `handoffs/reviewer/handoff_plan6_review_1.md`. Tree `4a0d5ef`. Perimeter exactly the two
+new scripts; `verify-all.ts` and `EXPECTED_SCRIPTS` untouched, correctly.
+
+**C5:** `SUMMARY PASS 3 script(s)` — **97 rows** (58 + 20 + 19), none REFUSED, none MISSING.
+Typecheck 0, purity empty. `prisma/dev.db` SHA-256 `be5906923b4ed7e2…` identical before and after
+the entire review.
+
+**C1 executed by the reviewer**, against the real dev.db as C1(c) requires: 1107 rows, 0 drift, 0
+unobserved keys, checksum unchanged. On a scratch copy: planted `Bamboo` → reported; planted
+`"Oak, Bamboo / Teak"` → **only `bamboo`** reported, proving the tokenizer path; restored legal
+values → 0; removed every `upholstery` value → the un-required `property-key-unobserved` output
+fired. Lint L4 had recorded that second output as optional and empty on current data — it was
+built anyway and it works.
+
+**C2 executed by the reviewer.** The dry run re-implements the group computation rather than
+calling `reconcileGroup`, so it was tested rather than argued. Seeded three real definitions,
+reconciled to truth, corrupted every quantity to 99: the preview said H1 99→80, LC1 teak 99→107,
+LC1 catch-all 99→114, and the live run wrote exactly **80 / 107 / 114** — matching P3's review
+figures and the runbook. Checksum identical across the dry run (`writes: 0` is true, not just
+printed); one group event per group, `groupsTouched: 2`. Refusal guard exit 3 in all three forms.
+
+**N1 (note, not blocking):** `rebuild-location-stock.ts` duplicates P2's private `computeGroup`.
+Proven equivalent by execution; the clean alternative needed an approved file re-opened for a
+durability gain (§9.7). Named as the first thing to re-check if allocation semantics ever change.
+
+**C4 — measurement ledger closed. M1–M8 all verified**, with evidence pointers in the review
+handoff. M3 is the only measurement resting partly on the owner's attestation rather than recorded
+execution, and that boundary is stated rather than smoothed over.
+
+**Knowingly open at closeout**, carried in the review handoff: the three runbook steps ordinary use
+is least likely to reach; the `shopId` asymmetry on `applyIncrement`/`updateState`; the
+`thresholds[2]` coverage gap; and — the one worth doing first — the P2-propagates / P4-swallows
+doctrine collision, handled safely in code but never routed.
+
+Phase closed. **Project closed: all six phases APPROVED.**
