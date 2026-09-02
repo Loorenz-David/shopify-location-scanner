@@ -166,6 +166,32 @@ describe("stock threshold domain", () => {
     },
   );
 
+  it.each([
+    [
+      "all three configured",
+      { low: 5, medium: 15, high: 39 },
+      ["1–5", "6–15", "16–39"],
+      [STOCK_STATES[1], STOCK_STATES[2], STOCK_STATES[3]],
+    ],
+    [
+      "single high threshold",
+      { low: null, medium: null, high: 5 },
+      ["1–5"],
+      [STOCK_STATES[3]],
+    ],
+  ] as const)(
+    "C7(fixed off, %s): the out-of-stock and extra bands are left out",
+    (_name, draft, expectedLabels, expectedStates) => {
+      const bands = deriveBands(draft, { includeFixedBands: false });
+
+      expect(bands.map((band) => band.label)).toEqual([...expectedLabels]);
+      expect(bands.map((band) => band.state)).toEqual([...expectedStates]);
+      // The remaining bands still start at 1 and stay closed-ended.
+      expect(bands[0]!.minQuantity).toBe(1);
+      expect(bands.every((band) => band.maxQuantity !== null)).toBe(true);
+    },
+  );
+
   it("C8: draft/wire adapters round-trip only configured thresholds", () => {
     const wire = [
       { state: STOCK_STATES[1], thresholdQuantity: 2 },

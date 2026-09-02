@@ -8,10 +8,13 @@ interface StockThresholdStripProps {
   thresholds: readonly StockThresholdDto[];
 }
 
-// The wire carries only the configured thresholds keyed by state; deriveBands
-// renders one band per configured state plus the fixed out / extra bands.
+// The wire carries only the configured thresholds keyed by state; the strip
+// previews one band per configured state. Out of stock and extra are fixed
+// business rules the user never sets, so they stay off this preview.
 export function StockThresholdStrip({ thresholds }: StockThresholdStripProps) {
-  const bands = deriveBands(thresholdDraftFrom(thresholds));
+  const bands = deriveBands(thresholdDraftFrom(thresholds), {
+    includeFixedBands: false,
+  });
 
   return (
     <div

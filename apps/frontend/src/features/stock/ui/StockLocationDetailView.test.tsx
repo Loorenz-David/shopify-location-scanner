@@ -6,6 +6,7 @@ import { stockActions } from "../actions/stock.actions";
 import { stockLocationDetailFixture } from "../api/mocks/get-stock-location-detail.fixture";
 import { stockOptionsFixture } from "../api/mocks/get-stock-options.fixture";
 import { criteriaChips } from "../domain/stock-criteria.domain";
+import { STOCK_STATES } from "../domain/stock-states.domain";
 import {
   deriveBands,
   thresholdDraftFrom,
@@ -33,10 +34,16 @@ function chipTexts(properties: StockPropertiesDto): string[] {
   );
 }
 
+// The card previews the configured bands only: out of stock and extra are fixed
+// business rules, not something the instance defines.
+function expectedBands(instance: LocationStockDto) {
+  return deriveBands(thresholdDraftFrom(instance.thresholds), {
+    includeFixedBands: false,
+  });
+}
+
 function expectedBandLabels(instance: LocationStockDto): string[] {
-  return deriveBands(thresholdDraftFrom(instance.thresholds)).map(
-    (band) => band.label,
-  );
+  return expectedBands(instance).map((band) => band.label);
 }
 
 async function renderDetail() {
@@ -55,7 +62,7 @@ describe("StockLocationDetailView (screen 07)", () => {
     useStockWizardStore.getState().reset();
   });
 
-  it("C4: each card renders category, chips and its own five-band strip", async () => {
+  it("C4: each card renders category, chips and its own configured-band strip", async () => {
     // S10 self-check: the fixture must be able to tell one instance's bands from another's.
     const distinctLabelSets = new Set(
       locationInstances.map((instance) => expectedBandLabels(instance).join("|")),
@@ -86,7 +93,14 @@ describe("StockLocationDetailView (screen 07)", () => {
       const bands = within(card).getAllByTestId("stock-threshold-band");
       expect(bands.map((band) => band.textContent)).toEqual(expectedBandLabels(instance));
 
-      deriveBands(thresholdDraftFrom(instance.thresholds)).forEach((band, bandIndex) => {
+      // The fixed states never reach the card: no zero band, no open-ended band.
+      const configuredStates = expectedBands(instance).map((band) => band.state);
+      expect(configuredStates).not.toContain(STOCK_STATES[0]);
+      expect(configuredStates).not.toContain(STOCK_STATES[4]);
+      expect(bands.map((band) => band.textContent)).not.toContain("0");
+      expect(bands.some((band) => band.textContent?.includes("+"))).toBe(false);
+
+      expectedBands(instance).forEach((band, bandIndex) => {
         expect(bands[bandIndex]).toHaveStyle({
           backgroundColor: band.tint,
           color: band.text,

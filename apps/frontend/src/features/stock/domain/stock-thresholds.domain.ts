@@ -186,11 +186,23 @@ function bandFor(
   };
 }
 
+export interface DeriveBandsOptions {
+  // Out of stock and extra are fixed business rules (0, and anything above the
+  // highest configured threshold) rather than something the user sets, so
+  // surfaces that show what was configured pass false to leave them out.
+  includeFixedBands?: boolean;
+}
+
 // Out of stock and the configured states in ladder order, capped by the
 // "extra" band above the highest configured threshold. Unconfigured states
 // simply have no band.
-export function deriveBands(draft: ThresholdDraft): StockThresholdBand[] {
-  const bands: StockThresholdBand[] = [bandFor(STOCK_STATES[0], 0, 0)];
+export function deriveBands(
+  draft: ThresholdDraft,
+  { includeFixedBands = true }: DeriveBandsOptions = {},
+): StockThresholdBand[] {
+  const bands: StockThresholdBand[] = includeFixedBands
+    ? [bandFor(STOCK_STATES[0], 0, 0)]
+    : [];
   let previousLimit = 0;
 
   for (const row of THRESHOLD_ROWS) {
@@ -202,6 +214,9 @@ export function deriveBands(draft: ThresholdDraft): StockThresholdBand[] {
     previousLimit = limit;
   }
 
-  bands.push(bandFor(STOCK_STATES[4], previousLimit + 1, null));
+  if (includeFixedBands) {
+    bands.push(bandFor(STOCK_STATES[4], previousLimit + 1, null));
+  }
+
   return bands;
 }
