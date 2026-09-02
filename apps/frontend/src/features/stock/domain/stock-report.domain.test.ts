@@ -573,7 +573,7 @@ describe("stock report domain — P7 count mode", () => {
   });
 
   it("C7 labels: the current label follows the mode and the missing label names items in units mode", () => {
-    expect(stockCountLabels("instances")).toEqual({ current: "Items", missing: "To normal" });
+    expect(stockCountLabels("instances")).toEqual({ current: "Items", missing: "To target" });
     expect(stockCountLabels("units")).toEqual({ current: "Units", missing: "Missing items" });
     expect(countNoun(1, "instances")).toBe("item");
     expect(countNoun(2, "instances")).toBe("items");

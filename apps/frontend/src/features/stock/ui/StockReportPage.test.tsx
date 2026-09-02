@@ -444,7 +444,7 @@ describe("StockReportPage (screens 01–04)", () => {
       `+${zero.unitsToRestockTarget}`,
     );
     expect(within(rendered).getByText("Items")).toBeInTheDocument();
-    expect(within(rendered).getByText("To normal")).toBeInTheDocument();
+    expect(within(rendered).getByText("To target")).toBeInTheDocument();
     expect(within(rendered).getByTestId("stock-row-state")).toHaveTextContent("Out");
     expect(
       within(rendered).queryByText(getStockStateMeta(STOCK_STATES[0]).label),
@@ -494,7 +494,7 @@ describe("StockReportPage — P7 count mode (C7)", () => {
       .find((candidate) => candidate.getAttribute("data-row-key") === rowKey(row))!;
   }
 
-  it("C7(a): the default render shows instanceCount under an Items label, with the item gap under To normal", async () => {
+  it("C7(a): the default render shows instanceCount under an Items label, with the item gap under To target", async () => {
     await renderReport();
     const rows = compactEntries(stockReportFixture).filter((row) => row.instanceCount > 0);
     expect(rows.length).toBeGreaterThan(0);
@@ -505,7 +505,7 @@ describe("StockReportPage — P7 count mode (C7)", () => {
       expect(within(rendered).getByTestId("stock-row-quantity")).toHaveTextContent(String(row.instanceCount));
       expect(within(rendered).getByTestId("stock-row-quantity-label")).toHaveTextContent("Items");
       expect(within(rendered).getByTestId("stock-row-missing")).toHaveTextContent(`+${row.unitsToRestockTarget}`);
-      expect(within(rendered).getByTestId("stock-row-missing-label")).toHaveTextContent("To normal");
+      expect(within(rendered).getByTestId("stock-row-missing-label")).toHaveTextContent("To target");
     }
     expect(useStockReportStore.getState().countMode).toBe("instances");
   });
