@@ -49,6 +49,12 @@ const thresholds = [
   { state: "normal_in_stock" as const, thresholdQuantity: 5 },
 ];
 
+const restockThresholds = [
+  { state: "low_in_stock" as const, thresholdQuantity: 10 },
+  { state: "medium_in_stock" as const, thresholdQuantity: 15 },
+  { state: "normal_in_stock" as const, thresholdQuantity: 20 },
+];
+
 type VerificationCreateInput = Omit<
   LocationStockCreateData,
   "createdByUsername" | "updatedByUsername"
@@ -61,6 +67,12 @@ type Fixture = {
   definitions: Record<string, FixtureDefinitionWithRow>;
   primaryDefinitionNames: string[];
   otherShopDefinition: FixtureDefinitionWithRow;
+  restockDefinitions: Record<string, FixtureDefinitionWithRow>;
+};
+
+type RoundTwoReportEntry = StockReportEntry & {
+  thresholds: Array<{ state: string; thresholdQuantity: number }>;
+  unitsToNormalThreshold: number;
 };
 
 const main = async (): Promise<void> => {
@@ -205,15 +217,66 @@ const main = async (): Promise<void> => {
     ]);
     assert(otherShopRow !== undefined, "other-shop fixture row was not created");
 
+    const restockDefinitions: Record<string, FixtureDefinition> = {
+      lowQuantity: {
+        location: location("restock-low-quantity"),
+        itemCategory: "Dining Chairs",
+        properties: { wood_type: "Birch" },
+      },
+      zeroQuantity: {
+        location: location("restock-zero-quantity"),
+        itemCategory: "Dining Chairs",
+        properties: { wood_type: "Cherry" },
+      },
+      normalQuantity: {
+        location: location("restock-normal-quantity"),
+        itemCategory: "Dining Chairs",
+        properties: { wood_type: "Oak" },
+      },
+      highQuantity: {
+        location: location("restock-high-quantity"),
+        itemCategory: "Dining Chairs",
+        properties: { wood_type: "Walnut" },
+      },
+    };
+    const restockRows = await createConfigurations(
+      shopId,
+      Object.values(restockDefinitions).map((definition) => ({
+        ...definition,
+        thresholds: restockThresholds,
+      })),
+    );
+    const restockQuantities = [7, 0, 18, 25];
+    const restockDefinitionRows = Object.fromEntries(
+      Object.keys(restockDefinitions).map((name, index) => {
+        const definition = restockDefinitions[name];
+        const row = restockRows[index];
+        assert(definition !== undefined && row !== undefined, `restock fixture row ${name} was not created`);
+        return [name, { ...definition, row }];
+      }),
+    ) as Fixture["restockDefinitions"];
+    for (const [index, name] of Object.keys(restockDefinitions).entries()) {
+      const definition = restockDefinitionRows[name];
+      const quantity = restockQuantities[index];
+      assert(definition !== undefined && quantity !== undefined, `restock fixture ${name} is missing`);
+      await prisma.locationStock.update({
+        where: { id: definition.row.id },
+        data: { quantity },
+      });
+      await locationStockRepository.recalculateState(definition.row.id);
+    }
+    const allDefinitions = { ...definitionRows, ...restockDefinitionRows };
+
     return {
-      definitions: definitionRows,
-      primaryDefinitionNames: names,
+      definitions: allDefinitions,
+      primaryDefinitionNames: [...names, ...Object.keys(restockDefinitions)],
       otherShopDefinition: {
         location: location("other-shop"),
         itemCategory: "Dining Chairs",
         properties: { wood_type: "Teak" },
         row: otherShopRow,
       },
+      restockDefinitions: restockDefinitionRows,
     };
   };
 
@@ -337,9 +400,11 @@ const main = async (): Promise<void> => {
       "properties",
       "quantity",
       "stockState",
+      "thresholds",
+      "unitsToNormalThreshold",
     ];
     for (const entry of report.entries) {
-      equalJson(Object.keys(entry).sort(), expectedKeys);
+      equalJson(Object.keys(entry).sort(), expectedKeys.sort());
     }
   };
 
@@ -377,6 +442,52 @@ const main = async (): Promise<void> => {
     assert(serverSource.includes('app.use("/api/stock", stockRouter)'), "C3(d): API stock mount is missing");
   };
 
+  const restockEntryFor = (
+    report: StockReportDto,
+    fixture: Fixture,
+    name: string,
+  ): RoundTwoReportEntry => {
+    const definition = fixture.restockDefinitions[name];
+    assert(definition !== undefined, `C4: restock fixture ${name} is missing`);
+    const entry = entryFor(report, definition);
+    assert(entry !== undefined, `C4: restock definition ${name} was omitted`);
+    return entry as RoundTwoReportEntry;
+  };
+
+  const verifyC4a = (report: StockReportDto, fixture: Fixture): void => {
+    const entry = restockEntryFor(report, fixture, "lowQuantity");
+    assert(entry.stockState === "low_in_stock", `C4(a): expected low_in_stock, got ${entry.stockState}`);
+    assert(entry.unitsToNormalThreshold === 13, `C4(a): expected 13 units, got ${entry.unitsToNormalThreshold}`);
+  };
+
+  const verifyC4b = (report: StockReportDto, fixture: Fixture): void => {
+    const entry = restockEntryFor(report, fixture, "zeroQuantity");
+    assert(entry.stockState === "out_of_stock", `C4(b): expected out_of_stock, got ${entry.stockState}`);
+    assert(entry.unitsToNormalThreshold === 20, `C4(b): expected 20 units, got ${entry.unitsToNormalThreshold}`);
+  };
+
+  const verifyC4c = (report: StockReportDto, fixture: Fixture): void => {
+    const entry = restockEntryFor(report, fixture, "normalQuantity");
+    assert(entry.stockState === "normal_in_stock", `C4(c): expected normal_in_stock, got ${entry.stockState}`);
+    assert(entry.unitsToNormalThreshold === 2, `C4(c): expected 2 units, got ${entry.unitsToNormalThreshold}`);
+  };
+
+  const verifyC4d = (report: StockReportDto, fixture: Fixture): void => {
+    const entry = restockEntryFor(report, fixture, "highQuantity");
+    assert(entry.stockState === "high_in_stock", `C4(d): expected high_in_stock, got ${entry.stockState}`);
+    assert(entry.unitsToNormalThreshold === 0, `C4(d): expected 0 units, got ${entry.unitsToNormalThreshold}`);
+  };
+
+  const verifyC4e = (report: StockReportDto, fixture: Fixture): void => {
+    const entry = restockEntryFor(report, fixture, "lowQuantity");
+    const thresholdsByState = new Map(
+      entry.thresholds.map((threshold) => [threshold.state, threshold.thresholdQuantity]),
+    );
+    assert(thresholdsByState.get("low_in_stock") === 10, "C4(e): low threshold was not 10");
+    assert(thresholdsByState.get("medium_in_stock") === 15, "C4(e): medium threshold was not 15");
+    assert(thresholdsByState.get("normal_in_stock") === 20, "C4(e): normal threshold was not 20");
+  };
+
   let fixture: Fixture | undefined;
   let report: StockReportDto | undefined;
   const getFixture = async (): Promise<Fixture> => (fixture ??= await buildFixture());
@@ -401,6 +512,11 @@ const main = async (): Promise<void> => {
     { id: "C3(b)", run: async () => verifyC3b(await getReport(), await getFixture()) },
     { id: "C3(c)", run: async () => verifyC3c(await getFixture()) },
     { id: "C3(d)", run: verifyC3d },
+    { id: "C4(a)", run: async () => verifyC4a(await getReport(), await getFixture()) },
+    { id: "C4(b)", run: async () => verifyC4b(await getReport(), await getFixture()) },
+    { id: "C4(c)", run: async () => verifyC4c(await getReport(), await getFixture()) },
+    { id: "C4(d)", run: async () => verifyC4d(await getReport(), await getFixture()) },
+    { id: "C4(e)", run: async () => verifyC4e(await getReport(), await getFixture()) },
   ];
 
   let failures = 0;
