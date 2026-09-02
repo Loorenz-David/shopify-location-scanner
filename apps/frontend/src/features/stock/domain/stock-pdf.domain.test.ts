@@ -358,11 +358,22 @@ describe("stock PDF domain", () => {
   it("C6: filename uses local calendar parts and zero-pads month and day", async () => {
     const { pdfFilename } = await loadPdfDomain();
 
+    // Both ends of the day, because which one exposes a UTC implementation depends
+    // on the sign of the machine's offset: 23:30 rolls forward under a negative
+    // offset (the Americas), 00:30 rolls back under a positive one (this machine is
+    // +0200). With only the 23:30 pair, `toISOString().slice(0,10)` passed here and
+    // in UTC CI, and the bug was caught only incidentally by C7(a).
     expect(pdfFilename(new Date(2026, 0, 7, 23, 30))).toBe(
       "beyo-stock-2026-01-07.pdf",
     );
+    expect(pdfFilename(new Date(2026, 0, 8, 0, 30))).toBe(
+      "beyo-stock-2026-01-08.pdf",
+    );
     expect(pdfFilename(new Date(2026, 8, 1, 23, 30))).toBe(
       "beyo-stock-2026-09-01.pdf",
+    );
+    expect(pdfFilename(new Date(2026, 8, 2, 0, 30))).toBe(
+      "beyo-stock-2026-09-02.pdf",
     );
   });
 

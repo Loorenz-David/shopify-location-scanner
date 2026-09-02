@@ -145,6 +145,37 @@ grouping mode"; the app's tiles ignore the state filter (D13). A "Low only" expo
 tile reads `Out of stock 0` tells a manager nothing is out — silent, on paper. P8 stays
 IMPLEMENTED (coordinator-verified) until answered; answer A changes ~6 lines of `summaryCounts`.
 
+
+### Second coordinator pass — 2026-09-02 (Opus 5, verifying the consumption above)
+
+The consumption in `b908c10` was itself verified rather than trusted, since it was made by a
+different session. It holds: perimeter is the seven declared paths, the stamp re-runs green (22
+files / 146 tests, typecheck clean, lint 48/14 baseline with 0 problems across all four P8 files),
+and every criterion has a test with no orphans.
+
+**Its probes were re-run unfiltered** — that pass ran them at L1 on the phase file, which has
+historically under-reported blast radius in this project. Both hold at full scope: **M1** (hand out
+the report query's `Sets` instead of copies) reds **C5 alone**, and **PA** (initializer supplies an
+empty vocabulary) reds **`C5(keyOrder)` alone**. The S10 hole it found was real and its repair works.
+
+**One further hole, in C6.** The UTC implementation of `pdfFilename`
+(`toISOString().slice(0, 10)`) **did not red C6** — the row whose entire subject is that the
+filename uses local calendar parts. It was caught only incidentally by C7(a). Cause: C6's two
+inputs were both `23:30`, which rolls forward only under a **negative** UTC offset. This machine is
+**+0200**, and CI would be UTC, so in both places the row passed with the bug present. **A test
+whose discriminating power depends on the machine's timezone is not a guard**; this is S10's first
+sub-shape with an environmental twist.
+
+Repaired: C6 now asserts both ends of the day — `23:30` on one date and `00:30` on the next — so a
+UTC implementation reds it under either sign of offset (and correctly does not red at UTC+0, where
+there is no bug). Proved: re-planting the UTC implementation now reds **C6 and C7(a)**, where
+before it reddened C7(a) only. No production code changed; the shipped `pdfFilename` was already
+correct. Suite 146, unchanged.
+
+Known and accepted: the coordinator wrote that test change, so it carries no independent review
+beyond the mutation proof. **The owner card below remains the only thing between this phase and
+APPROVED.**
+
 **Forward hazards → P9/P10 prompt:** (1) `blobFromRenderHandle` throws while `loading` — the sheet
 must disable *Generate & share* / *Preview* until the handle has a blob. (2) Every share rejection
 is "cancelled" — P9 must call the controller synchronously inside the tap handler with the
