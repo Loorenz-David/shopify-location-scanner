@@ -1,3 +1,4 @@
+import { useStockWizardStore } from "../stores/stock-wizard.store";
 import {
   createStockConfigurationController,
   deleteStockConfigurationController,
@@ -36,6 +37,9 @@ export const stockActions = {
   ) => updateStockConfigurationController(id, patch, originalLocation),
   deleteConfiguration: deleteStockConfigurationController,
   ensureOptions: ensureWizardOptions,
+  discardWizard(): void {
+    useStockWizardStore.getState().reset();
+  },
   startNewWizard: initializeNewStockWizardController,
   startNewWizardFromRoot: () => initializeNewStockWizardController(),
   startNewWizardOverAllLocations: initializeNewStockWizardOverAllLocationsController,

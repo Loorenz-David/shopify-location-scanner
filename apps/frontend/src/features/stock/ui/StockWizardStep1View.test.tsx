@@ -210,6 +210,22 @@ describe("StockWizardStep1View (screen 08)", () => {
     expect(draftProperties()).toEqual({});
   });
 
+  it("F1: discarding clears a wizard error so it does not follow the user back to the location screen", async () => {
+    // Routed from the P6 handoff. Screens 06/07 render
+    // `settingsErrorMessage ?? wizardErrorMessage`, so an error left in the wizard store after a
+    // 409 stayed on the location screen until the next wizard start. Unreachable against the mock
+    // layer, which never 409s — and routine against the real backend, where trying to create a
+    // definition that already exists is the first thing anyone does.
+    await openWizardFromRootPill();
+    useStockWizardStore.getState().setError({ message: "Already configured for this location." });
+    expect(useStockWizardStore.getState().error).not.toBeNull();
+
+    await userEvent.click(screen.getByRole("button", { name: "Discard" }));
+
+    expect(useStockWizardStore.getState().error).toBeNull();
+    expect(useStockNavigationStore.getState().viewStack.at(-1)).not.toBe("wizard-step1");
+  });
+
   it("C7: editing the second instance prefills location, category, rows (incl. a wildcard) and thresholds", async () => {
     // S10: the edited instance is not the first, and differs from it in category and thresholds.
     const [first, second] = stockLocationDetailFixture;

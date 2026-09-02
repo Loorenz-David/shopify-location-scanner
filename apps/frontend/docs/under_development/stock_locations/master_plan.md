@@ -60,7 +60,7 @@ fidelity to the design screenshots is approved by the owner looking at the runni
 | P3 | Config domain (criteria, thresholds, bands) | Codex | APPROVED | 2026-09-01 | coordinator | approved on coordinator verification (no independent review session — see §3A); 50 tests, 18 new, no orphans, 2/2 mutations (1 re-planted by the coordinator), lint 0/0 in perimeter |
 | P4 | Stores, controllers, flows | Codex | APPROVED | 2026-09-02 | coordinator | approved on coordinator verification (no independent review session — see §3A); 106 tests, 24 new, no orphans; C3's named mutation re-planted **unfiltered** by the coordinator plus two adversarial probes (C2, C5), each reddening exactly its row; **C9 shipped hollow** — its fixture reached no properties comparison, so an empty `keyOrder` passed — repaired by the coordinator with `C9(vocabulary)` and proved to fail; lint 0/0 in perimeter |
 | P5 | Settings UI (screens 06–07) + stock design tokens | Claude | APPROVED | 2026-09-02 | coordinator | approved on coordinator verification plus **the owner's visual pass** (S5), which is this phase's real gate; no independent review session (§3A); 114 tests, 7 new + 1 coordinator guard, no orphans; C4's named mutation re-planted **unfiltered** (reds C4 alone) and three absence-guard probes recorded; authorized fixture edit confirmed thresholds-only; **F1 fixed by the coordinator** — the settings path never fetched the GET 4.1 vocabulary, so screen 07 rendered wire casing (`teak`) on a cold visit and display casing (`Teak`) after a wizard or report visit; guarded by `C4(cold)` and proved to fail; F2 routed to P6, F3/F5 accepted and recorded; lint 0 in perimeter |
-| P6 | Instance wizard UI (screens 08–09) | Claude | PROMPT_READY | 2026-09-02 | coordinator | **Next to dispatch**; no projection (§3A), owner visual pass is the gate (S5); coordinator plan-lint added **C8** (P5's routed F2 — the root pill must offer all locations, D3 binds only the dashed row) with 1 named mutation, applied **S10** to C2/C3/C4/C7/C8, and routed the threshold-adapter decision (F4); narrowly authorizes `StockLocationsPage.tsx` and an **additive** wizard-controller entry point; `prompts/implementer/plan_6_round_1_implement.md` queued |
+| P6 | Instance wizard UI (screens 08–09) | Claude | APPROVED | 2026-09-02 | coordinator | approved on coordinator verification plus **the owner's visual pass** (S5); no independent review (§3A); 124 tests, 9 new + 1 coordinator guard, no orphans; C8's mutation re-planted **unfiltered** plus a coordinator **reverse** probe proving both entry points are guarded (it reds C8 *and* P5's C3); four guard proofs incl. an S10 argument probe the session designed itself; **F1 fixed before the merge** — a 409 banner outlived the × discard and followed the user onto screens 06/07, unreachable against mocks and routine against the real backend; NUL sentinel fixed and the whole tree byte-scanned clean |
 | P7 | Report UI (screens 01–04) | Claude | NOT_STARTED | — | — | — |
 | P8 | PDF data assembly + delivery | Codex | NOT_STARTED | — | — | — |
 | P9 | PDF document + Generate sheet UI (screens 05, 10) | Claude | NOT_STARTED | — | — | — |
@@ -499,6 +499,20 @@ Charter standing rules 1–16 apply. Project-specific additions:
   test that *seeds* state to make a component work is asserting on a world the user may never be in.
   Seed only what a user's own path would have already loaded, or add a row that renders cold.
   Plan 5's `C4(cold)` is that row.
+- **S11 — never `git add -A` from the repo root while an implementation session is running**
+  *(added 2026-09-02, coordinator's own error)*. Commit `75cfbb5` was meant to be a `master_plan.md`
+  amendment (§7A, the backend merge sequencing). It was staged with `git add -A` from the repo root
+  while the P6 session was concurrently writing to the same tree, so it swept in **11 of that
+  session's uncommitted source files** — including, at that moment, a file containing a NUL byte the
+  session had not yet found. Nothing was lost and no file was mixed: the P6 perimeter is still
+  exactly verifiable as `git diff 4b4c652..HEAD -- src`, and `75cfbb5`'s only non-P6 content is
+  `master_plan.md`. But the commit does not describe what it contains, and a coordinator commit
+  claiming to be documentation shipped someone else's work-in-progress.
+  - **The rule:** the coordinator stages **explicit paths** — `git add docs/...` — never `-A`, and
+    never from the repo root, unless the tree is known to be quiet. A phase gate commit made *after*
+    a session has handed off may use `-A` safely; an amendment made *during* one may not.
+  - **Do not rewrite the history to tidy this.** Checkpoints are never squashed, the tree is
+    correct, and the implementer documented the sweep in its own handoff. The record is the fix.
 - **S7:** A criterion row whose subject is build/test infrastructure rather than product
   behavior (a runner starting, typecheck/lint passing) is an **infra-enabler row**: it
   traces to no measurement-ledger entry because it measures no product outcome. Its trace

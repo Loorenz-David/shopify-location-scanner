@@ -90,6 +90,41 @@ need care is the property step: for 19 of 28 categories `Add property` offers th
 universal keys only.
 
 ## Review log
+- **2026-09-02 · round 1 consumption · coordinator · APPROVED.** The owner's visual pass is this
+  phase's gate (S5) and the owner has given it. No independent review session ran (§3A).
+
+  Verified by hand: the source perimeter is exactly the declared 11 files (8 created, 3 modified)
+  measured from `4b4c652`, the last commit before the contamination described below; tracker,
+  allowlist, api, fixtures and every P1–P5 domain/store/flow file untouched. The closing stamp
+  re-ran green (19 files / 123 tests, typecheck clean, lint unchanged at 48/14, scoped lint 0).
+  All 9 test names enumerated against the coverage map with no orphans and every criterion C1–C8
+  present. The NUL sentinel is gone: a full byte scan of all 445 tracked frontend source files
+  finds NUL only in the six font files and one PNG.
+
+  **C8's named mutation re-planted unfiltered** (point the pill back at the dashed row's
+  selector): reddened exactly `C8`, 1 failed / 122 passed. The coordinator additionally ran the
+  **reverse** probe the plan did not require — point the *dashed row* at the all-locations
+  selector — which reds both `C8` and **P5's C3**. The two entry points are therefore
+  distinguished in both directions, and D3 is guarded by two independent criteria rather than one.
+  The four guard proofs (A–D) are recorded with their reds, including probe D, an S10 *argument*
+  probe on C7's display casing that this session designed itself.
+
+  **F1 fixed before the backend merge.** A 409 left `error` in the wizard store; the × discard only
+  popped the view, and screens 06/07 render `settingsErrorMessage ?? wizardErrorMessage`, so the
+  banner followed the user back to the location screen and stayed until the next wizard start. The
+  handoff correctly judged it unreachable against the mock layer, which never 409s — but §7A merges the
+  real backend next, and attempting a definition that already exists is the first thing anyone does
+  while testing. Fix: a `discardWizard` facade key calling the wizard store's existing `reset()`,
+  wired into step 1's × only; step 2's Back keeps the draft by design and was left alone. Guard:
+  **`F1`** in `StockWizardStep1View.test.tsx`, proved to fail — removing the one added call reds it
+  and only it. Suite is 124 tests; the stamp was re-run after.
+
+  Known and accepted: the coordinator wrote that fix and its test, so they carry no independent
+  review beyond the mutation proof. F2 (`renderedCriteriaChips` unread by the UI) and F5 (edit
+  cannot move an instance, which matches W1) are informational. F3 — the conflict UI cannot be
+  exercised in the running app because the mock layer has no 409 path — **is discharged by the
+  merge**: it becomes reachable against the real backend, and is worth trying deliberately once.
+  F4 is cosmetic and accepted by the owner's pass.
 **2026-09-02 — implement round 1 (Claude, Fable 5).** Built `ui/StockWizardStep1View.tsx`,
 `StockWizardStep2View.tsx`, `StockThresholdLadder.tsx`, subcomponents `StockWizardPicker.tsx` +
 `StockWizardChrome.tsx`, 3 RTL files / 9 tests; replaced `StockWizardPendingView` in

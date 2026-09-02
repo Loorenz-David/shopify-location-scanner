@@ -233,7 +233,15 @@ export function StockWizardStep1View() {
         eyebrowTestId="stock-wizard-step-eyebrow"
         dismiss="discard"
         dismissLabel="Discard"
-        onDismiss={() => stockActions.popView()}
+        onDismiss={() => {
+          // Discarding must clear the wizard store, not just pop the view: screens 06/07
+          // render `settingsErrorMessage ?? wizardErrorMessage`, so a 409 banner left
+          // behind here follows the user back onto the location screen and stays there
+          // until the next wizard start. Unreachable against mocks, routine against a
+          // real backend, where a duplicate definition is the first thing anyone hits.
+          stockActions.discardWizard();
+          stockActions.popView();
+        }}
       />
       <StockWizardProgress step={1} />
 
