@@ -1,6 +1,6 @@
 import { useBootstrapStore } from "../../bootstrap/stores/bootstrap.store";
 import * as stockApi from "../api";
-import { renderCriteriaChips } from "../domain/stock-criteria.domain";
+import { criteriaSummaryText } from "../domain/stock-criteria.domain";
 import { STOCK_STATES } from "../domain/stock-states.domain";
 import { useStockNavigationStore } from "../stores/stock-navigation.store";
 import { useStockSettingsStore } from "../stores/stock-settings.store";
@@ -119,7 +119,7 @@ export async function initializeEditStockWizardController(
   store.setOriginalLocation(definition.location);
   store.setAvailableLocations([definition.location]);
   store.setRenderedCriteriaChips(
-    renderCriteriaChips(definition.properties, options),
+    criteriaSummaryText(definition.properties, options),
   );
   store.setStep(1);
   store.setError(null);

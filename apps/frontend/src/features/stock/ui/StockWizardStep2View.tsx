@@ -1,5 +1,5 @@
 import { stockActions } from "../actions/stock.actions";
-import { renderCriteriaChips } from "../domain/stock-criteria.domain";
+import { criteriaSummaryText } from "../domain/stock-criteria.domain";
 import {
   selectStockWizardDraft,
   selectStockWizardError,
@@ -40,12 +40,8 @@ export function StockWizardStep2View({ onSaved }: StockWizardStep2ViewProps) {
     return null;
   }
 
-  const chips = renderCriteriaChips(draft.properties, options);
-  const context = [
-    draft.location,
-    draft.itemCategory,
-    ...(chips.length > 0 ? [chips.join(", ")] : []),
-  ].join(" · ");
+  const criteria = criteriaSummaryText(draft.properties, options);
+  const context = [draft.location, draft.itemCategory, ...criteria].join(" · ");
 
   const goBack = () => {
     stockActions.popView();

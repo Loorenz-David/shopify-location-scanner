@@ -204,7 +204,12 @@ describe("stock settings controller", () => {
     expect(createSpy).toHaveBeenCalledTimes(1);
     expect(useStockWizardStore.getState().error).toEqual({
       message: "Already configured",
-      conflicting: { category: "Dining Chairs", properties: ["Teak"] },
+      conflicting: {
+        category: "Dining Chairs",
+        properties: [
+          { key: "wood_type", label: "Wood Type", values: ["Teak"], isWildcard: false },
+        ],
+      },
     });
   });
 
@@ -232,7 +237,12 @@ describe("stock settings controller", () => {
     expect(updateSpy).toHaveBeenCalledTimes(1);
     expect(useStockWizardStore.getState().error).toEqual({
       message: "Already configured",
-      conflicting: { category: "Dining Chairs", properties: ["Teak"] },
+      conflicting: {
+        category: "Dining Chairs",
+        properties: [
+          { key: "wood_type", label: "Wood Type", values: ["Teak"], isWildcard: false },
+        ],
+      },
     });
   });
 

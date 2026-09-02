@@ -429,7 +429,7 @@ describe("stock report domain", () => {
     const [source] = compactEntries([entry({ itemCategory: "Dining Chairs", properties: { wood_type: ["walnut"] } })]);
     const detail = deriveEntryDetail(source, [entry({ itemCategory: "Dining Chairs", properties: { wood_type: ["walnut"] } })], stockOptionsFixture);
 
-    expect(detail.entries[0].configLabel).toBe("Config: Dining Chairs / Walnut");
+    expect(detail.entries[0].configLabel).toBe("Config: Dining Chairs / Wood Type: Walnut");
   });
 
   it("C8(b): renders catch-all config with the vocabulary's plural category", () => {
@@ -443,14 +443,14 @@ describe("stock report domain", () => {
     const source = compactEntries([entry({ properties: { upholstery: null } })])[0];
     const detail = deriveEntryDetail(source, [entry({ properties: { upholstery: null } })], stockOptionsFixture);
 
-    expect(detail.entries[0].configLabel).toBe("Config: Dining Chairs / Upholstery any");
+    expect(detail.entries[0].configLabel).toBe("Config: Dining Chairs / Upholstery: Any");
   });
 
   it("C8(c2): a wildcard config on quantity reads as Set Of", () => {
     const source = compactEntries([entry({ properties: { quantity: null } })])[0];
     const detail = deriveEntryDetail(source, [entry({ properties: { quantity: null } })], stockOptionsFixture);
 
-    expect(detail.entries[0].configLabel).toBe("Config: Dining Chairs / Set Of any");
+    expect(detail.entries[0].configLabel).toBe("Config: Dining Chairs / Set Of: Any");
   });
 
   it("C8(d): orders two config keys by propertyOptions and joins values", () => {
@@ -461,7 +461,9 @@ describe("stock report domain", () => {
     const source = compactEntries([entry({ properties })])[0];
     const detail = deriveEntryDetail(source, [entry({ properties })], stockOptionsFixture);
 
-    expect(detail.entries[0].configLabel).toBe("Config: Dining Chairs / Walnut, Oak, Sweden");
+    expect(detail.entries[0].configLabel).toBe(
+      "Config: Dining Chairs / Wood Type: Walnut, Oak · Country: Sweden",
+    );
   });
 
   it("C8 detail: orders members by location and marks only multi-location groups", () => {

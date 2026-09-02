@@ -218,7 +218,7 @@ describe("StockWizardStep1View (screen 08)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Next · thresholds" }));
     await screen.findByRole("heading", { name: "Stock thresholds" });
     expect(screen.getByTestId("stock-wizard-context").textContent).toBe(
-      "L2 · Dining Chairs · Teak, Oak, UPHOLSTERY · any",
+      "L2 · Dining Chairs · Wood Type: Teak, Oak · Upholstery: Any",
     );
     await userEvent.click(screen.getByRole("button", { name: "Back" }));
     await screen.findByRole("heading", { name: "New stock instance" });

@@ -1,6 +1,6 @@
 import { ApiClientError } from "../../../core/api-client";
 import * as stockApi from "../api";
-import { renderCriteriaChips } from "../domain/stock-criteria.domain";
+import { criteriaChips } from "../domain/stock-criteria.domain";
 import { useStockSettingsStore } from "../stores/stock-settings.store";
 import { useStockWizardStore } from "../stores/stock-wizard.store";
 import type {
@@ -68,7 +68,7 @@ function createOperationError(error: unknown): StockOperationError {
     message,
     conflicting: {
       category: conflicting.itemCategory,
-      properties: renderCriteriaChips(properties, options),
+      properties: criteriaChips(properties, options),
     },
   };
 }

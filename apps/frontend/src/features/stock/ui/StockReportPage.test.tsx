@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import * as stockApi from "../api";
 import { stockOptionsFixture } from "../api/mocks/get-stock-options.fixture";
 import { stockReportFixture } from "../api/mocks/get-stock-report.fixture";
-import { renderCriteriaChips } from "../domain/stock-criteria.domain";
+import { criteriaChips } from "../domain/stock-criteria.domain";
 import {
   applyStockFilters,
   buildReportView,
@@ -26,7 +26,7 @@ import {
   createDefaultStockFilter,
   useStockReportStore,
 } from "../stores/stock-report.store";
-import type { StockReportEntryDto } from "../types/stock.dto";
+import type { StockPropertiesDto, StockReportEntryDto } from "../types/stock.dto";
 import type { CompactedReportRow, StockFilterState } from "../types/stock.types";
 
 vi.mock("../../../core/ws-client/use-ws-event", () => ({
@@ -36,6 +36,13 @@ vi.mock("../../../core/ws-client/use-ws-event", () => ({
 import { StockReportPage } from "./StockReportPage";
 
 const keyOrder = stockOptionsFixture.propertyOptions.map((option) => option.key);
+
+// A chip renders its key label over its value, so its text is the two concatenated.
+function chipTexts(properties: StockPropertiesDto): string[] {
+  return criteriaChips(properties, stockOptionsFixture).map(
+    (chip) => `${chip.label}${chip.values.join(", ")}`,
+  );
+}
 
 function rowKey(row: Pick<CompactedReportRow, "mergeKey" | "stockState">): string {
   return `${row.mergeKey}|${row.stockState}`;
@@ -384,7 +391,7 @@ describe("StockReportPage (screens 01–04)", () => {
       await screen.findByRole("heading", { name: row.itemCategory });
 
       // (a) chips, state tile, total
-      const chips = renderCriteriaChips(row.properties, stockOptionsFixture);
+      const chips = chipTexts(row.properties);
       const header = screen.getByTestId("stock-detail-header");
       expect(within(header).getAllByTestId("stock-property-chip").map((chip) => chip.textContent)).toEqual(chips);
       expect(within(header).getByTestId("stock-detail-state")).toHaveTextContent(getStockStateMeta(row.stockState).label);

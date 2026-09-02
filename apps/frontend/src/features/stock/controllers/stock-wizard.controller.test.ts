@@ -66,7 +66,7 @@ describe("stock wizard controller", () => {
       properties: edited.properties,
       thresholds: edited.thresholds,
     });
-    expect(state.renderedCriteriaChips).toEqual(["UPHOLSTERY · any"]);
+    expect(state.renderedCriteriaChips).toEqual(["Upholstery: Any"]);
     expect(state.editingId).toBe(edited.id);
   });
 

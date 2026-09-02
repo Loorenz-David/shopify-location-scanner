@@ -1,4 +1,4 @@
-import { displayValueFor, propertyKeyLabel } from "./stock-criteria.domain";
+import { criteriaSummaryText } from "./stock-criteria.domain";
 import {
   compareByStateIndex,
   countByStateBucket,
@@ -411,18 +411,11 @@ function configLabel(
   properties: StockPropertiesDto,
   options: StockOptionsDto,
 ): string {
-  const keyOrder = options.propertyOptions.map((option) => option.key);
-  const values = orderPropertyKeys(properties, keyOrder).flatMap((key) => {
-    const value = properties[key];
-    if (value === null) {
-      return [`${propertyKeyLabel(key)} any`];
-    }
+  // Same key-and-value text the chips carry, on one line: this sits under a location
+  // in the contributing list, where there is no room for pills.
+  const criteria = criteriaSummaryText(properties, options);
 
-    const wireValues = Array.isArray(value) ? value : [value];
-    return wireValues.map((wireValue) => displayValueFor(key, wireValue, options));
-  });
-
-  return `Config: ${itemCategory}${values.length > 0 ? ` / ${values.join(", ")}` : ""}`;
+  return `Config: ${itemCategory}${criteria.length > 0 ? ` / ${criteria.join(" · ")}` : ""}`;
 }
 
 export function deriveEntryDetail(

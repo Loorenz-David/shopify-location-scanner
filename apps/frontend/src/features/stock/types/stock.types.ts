@@ -1,4 +1,5 @@
 import { STOCK_STATES } from "../domain/stock-states.domain";
+import type { CriteriaChip } from "../domain/stock-criteria.domain";
 import type {
   LocationStockDto,
   StockPropertiesDto,
@@ -70,7 +71,7 @@ export interface StockOperationError {
   message: string;
   conflicting?: {
     category: string;
-    properties: string[];
+    properties: CriteriaChip[];
   };
 }
 

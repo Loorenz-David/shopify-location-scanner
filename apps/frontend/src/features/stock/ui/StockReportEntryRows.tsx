@@ -1,5 +1,6 @@
 import { getStockStateMeta, STOCK_STATES } from "../domain/stock-states.domain";
 import { missingQuantityForEntry } from "../domain/stock-report.domain";
+import type { CriteriaChip } from "../domain/stock-criteria.domain";
 import type { StockReportEntryDto, StockStateDto } from "../types/stock.dto";
 import type { CompactedReportRow } from "../types/stock.types";
 import { StockCategoryThumbnail } from "./StockCategoryThumbnail";
@@ -74,7 +75,7 @@ function StockEntryStatus({ state, location }: StockEntryStatusProps) {
 
 interface StockCompactEntryRowProps {
   row: CompactedReportRow;
-  chips: readonly string[];
+  chips: readonly CriteriaChip[];
   onPress: () => void;
 }
 
@@ -113,7 +114,7 @@ export function StockCompactEntryRow({
 
 interface StockGroupedEntryRowProps {
   entry: StockReportEntryDto;
-  chips: readonly string[];
+  chips: readonly CriteriaChip[];
   onPress: () => void;
 }
 

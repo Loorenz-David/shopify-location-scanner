@@ -101,35 +101,27 @@ describe("StockWizardStep2View (screen 09)", () => {
     setBootstrapLocations([LOCATION, "H1", "L2"]);
   });
 
-  it("C4: exactly three steppers, derived rows carry no input, every edit commits through commitThreshold", async () => {
+  it("C4: exactly three steppers, only configurable rows shown, every edit commits through commitThreshold", async () => {
     await openCreateFromLocation("Sofas");
 
-    // (a) three steppers and nothing else
+    // (a) three steppers with a remove button each, and nothing else
     expect(screen.getAllByRole("textbox")).toHaveLength(3);
     expect(screen.getAllByRole("button", { name: /^Decrease / })).toHaveLength(3);
     expect(screen.getAllByRole("button", { name: /^Increase / })).toHaveLength(3);
+    expect(screen.getAllByRole("button", { name: /^Remove .* threshold$/ })).toHaveLength(3);
     expect(screen.getAllByTestId("stock-ladder-row").map((row) => row.dataset.row)).toEqual([
-      "extra",
       "high",
       "medium",
       "low",
-      "out",
     ]);
 
-    // (b) the derived rows have no input of any kind
-    for (const derived of ["extra", "out"]) {
-      const row = ladderRow(derived);
-      expect(within(row).queryAllByRole("textbox")).toHaveLength(0);
-      expect(within(row).queryAllByRole("spinbutton")).toHaveLength(0);
-      expect(within(row).queryAllByRole("button")).toHaveLength(0);
-      expect(row.querySelector("input")).toBeNull();
-      expect(within(row).getByText("derived")).toBeInTheDocument();
-    }
+    // (b) the fixed business-rule states are not part of the form
+    expect(screen.queryByText("derived")).toBeNull();
+    expect(screen.queryByText("Out of stock")).toBeNull();
+    expect(screen.queryByText("Extra")).toBeNull();
 
     // defaults from the controller
     expect(displayedTriple()).toEqual([10, 15, 20]);
-    expect(ladderRow("extra")).toHaveTextContent("21 and above");
-    expect(ladderRow("out")).toHaveTextContent("nothing on the shelf");
 
     // (c) a stepper tap moves one row by one and leaves the others alone
     await userEvent.click(screen.getByRole("button", { name: "Increase low" }));
@@ -148,11 +140,8 @@ describe("StockWizardStep2View (screen 09)", () => {
     expect(displayedTriple()).toEqual([15, 16, 20]);
     expectStrictLadder(displayedTriple());
 
-    // derived rows follow the three values
-    expect(ladderRow("extra")).toHaveTextContent("21 and above");
     await userEvent.click(screen.getByRole("button", { name: "Increase high" }));
     expect(displayedTriple()).toEqual([15, 16, 21]);
-    expect(ladderRow("extra")).toHaveTextContent("22 and above");
 
     // non-numeric typed input reverts, the ladder is untouched
     await userEvent.clear(limitInput("Medium"));
@@ -166,6 +155,38 @@ describe("StockWizardStep2View (screen 09)", () => {
       { state: STOCK_STATES[2], thresholdQuantity: 16 },
       { state: STOCK_STATES[3], thresholdQuantity: 21 },
     ]);
+  });
+
+  it("C4(remove): the remove button drops a threshold, fades its row, and Add restores it", async () => {
+    await openCreateFromLocation("Sofas");
+
+    // removing high drops it from the draft; the row fades and loses its stepper
+    await userEvent.click(screen.getByRole("button", { name: "Remove high threshold" }));
+    expect(useStockWizardStore.getState().draft!.thresholds).toEqual([
+      { state: STOCK_STATES[1], thresholdQuantity: 10 },
+      { state: STOCK_STATES[2], thresholdQuantity: 15 },
+    ]);
+    const highRow = ladderRow("high");
+    expect(within(highRow).getByText("removed")).toBeInTheDocument();
+    expect(within(highRow).queryByRole("textbox")).toBeNull();
+    expect(within(highRow).queryByRole("button", { name: "Decrease high" })).toBeNull();
+    expect(highRow.querySelector(".opacity-40")).not.toBeNull();
+
+    // the last remaining threshold cannot be removed
+    await userEvent.click(screen.getByRole("button", { name: "Remove medium threshold" }));
+    expect(screen.getByRole("button", { name: "Remove low threshold" })).toBeDisabled();
+    expect(useStockWizardStore.getState().draft!.thresholds).toEqual([
+      { state: STOCK_STATES[1], thresholdQuantity: 10 },
+    ]);
+
+    // Add slots the threshold back in strictly above the rows below it
+    await userEvent.click(within(ladderRow("medium")).getByRole("button", { name: "Add medium threshold" }));
+    expect(useStockWizardStore.getState().draft!.thresholds).toEqual([
+      { state: STOCK_STATES[1], thresholdQuantity: 10 },
+      { state: STOCK_STATES[2], thresholdQuantity: 11 },
+    ]);
+    expect(within(ladderRow("medium")).getByRole("textbox")).toHaveValue("11");
+    expect(ladderRow("medium").querySelector(".opacity-40")).toBeNull();
   });
 
   it("C5(create): Save instance posts the draft as a single-entry batch and pops to the location detail", async () => {

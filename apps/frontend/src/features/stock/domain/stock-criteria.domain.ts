@@ -104,24 +104,66 @@ function comparePropertyKeys(
   return left.localeCompare(right);
 }
 
-export function renderCriteriaChips(
+/**
+ * The wildcard value, rendered where a criterion accepts every value of its key.
+ */
+const ANY_VALUE = "Any";
+
+/** One criterion — one pill: a key label with every value that key accepts. */
+export interface CriteriaChip {
+  key: string;
+  label: string;
+  values: readonly string[];
+  isWildcard: boolean;
+}
+
+/**
+ * Criteria as ordered key/values pairs, vocabulary order first, unknown keys last.
+ *
+ * Both the label and the values are display text: `Set Of` / `4`, never `quantity`
+ * / the wire casing. A value is never shown without its label — several mapped keys
+ * carry values that mean nothing alone (`quantity` and `extension_quantity` are bare
+ * numbers, `upholstery` has a `None`), and the report renders them beside its own
+ * quantity columns, where a lone `4` reads as a stock count.
+ */
+export function criteriaChips(
   properties: StockPropertiesDto,
   options: StockOptionsDto,
-): string[] {
+): CriteriaChip[] {
   const keyOrder = new Map(
     options.propertyOptions.map((option, index) => [option.key, index]),
   );
 
   return Object.entries(properties)
     .sort(([left], [right]) => comparePropertyKeys(left, right, keyOrder))
-    .flatMap(([key, value]) => {
+    .map(([key, value]) => {
+      const label = propertyKeyLabel(key);
+
       if (value === null) {
-        return [`${propertyKeyLabel(key).toUpperCase()} · any`];
+        return { key, label, values: [ANY_VALUE], isWildcard: true };
       }
 
-      const values = Array.isArray(value) ? value : [value];
-      return values.map((wireValue) =>
-        displayValueFor(key, wireValue, options),
-      );
+      const wireValues = Array.isArray(value) ? value : [value];
+      return {
+        key,
+        label,
+        values: wireValues.map((wireValue) =>
+          displayValueFor(key, wireValue, options),
+        ),
+        isWildcard: false,
+      };
     });
+}
+
+/**
+ * The same criteria as plain text, one entry per key, for the places that have no
+ * room for pills: the wizard context line, the entry detail's config line.
+ */
+export function criteriaSummaryText(
+  properties: StockPropertiesDto,
+  options: StockOptionsDto,
+): string[] {
+  return criteriaChips(properties, options).map(
+    (chip) => `${chip.label}: ${chip.values.join(", ")}`,
+  );
 }

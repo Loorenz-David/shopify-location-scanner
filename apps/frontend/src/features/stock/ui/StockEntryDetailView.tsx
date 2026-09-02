@@ -1,5 +1,5 @@
 import { ChevronLeftIcon } from "../../../assets/icons";
-import { renderCriteriaChips } from "../domain/stock-criteria.domain";
+import { criteriaChips } from "../domain/stock-criteria.domain";
 import { deriveEntryDetail } from "../domain/stock-report.domain";
 import { getStockStateMeta } from "../domain/stock-states.domain";
 import type { StockOptionsDto, StockReportEntryDto } from "../types/stock.dto";
@@ -35,7 +35,7 @@ function InfoIcon() {
 // were a mockup error (intention D4) and are removed, not deferred.
 export function StockEntryDetailView({ row, entries, options, onBack }: StockEntryDetailViewProps) {
   const meta = getStockStateMeta(row.stockState);
-  const chips = renderCriteriaChips(row.properties, options);
+  const chips = criteriaChips(row.properties, options);
   const detail = deriveEntryDetail(row, entries, options);
   const locationCount = detail.entries.length;
 

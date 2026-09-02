@@ -1,6 +1,6 @@
 import { ChevronLeftIcon, ChevronRightIcon } from "../../../assets/icons";
 import { stockActions } from "../actions/stock.actions";
-import { renderCriteriaChips } from "../domain/stock-criteria.domain";
+import { criteriaChips } from "../domain/stock-criteria.domain";
 import { useStockSettingsFlow } from "../flows/use-stock-settings.flow";
 import {
   selectStockReportOptions,
@@ -50,7 +50,7 @@ interface InstanceCardProps {
 }
 
 function InstanceCard({ instance, options }: InstanceCardProps) {
-  const chips = renderCriteriaChips(instance.properties, options);
+  const chips = criteriaChips(instance.properties, options);
 
   return (
     <article

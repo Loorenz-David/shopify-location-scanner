@@ -1,6 +1,6 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
-import { renderCriteriaChips } from "../../domain/stock-criteria.domain";
+import { criteriaChips } from "../../domain/stock-criteria.domain";
 import {
   getStockStateMeta,
   STOCK_STATES,
@@ -123,6 +123,12 @@ const styles = StyleSheet.create({
   },
   cellType: { fontWeight: 600, color: HEADING },
   cellProperties: { color: BODY },
+  propertyKey: { color: MUTED },
+  propertyValue: { color: HEADING, fontWeight: 600 },
+  // No italic face is registered (stock-pdf-fonts), so a wildcard is set apart by
+  // colour alone: it keeps the muted key colour instead of the value's dark one.
+  propertyWildcard: { color: MUTED },
+  propertySeparator: { color: TABLE_RULE },
   cellLocations: { fontFamily: STOCK_PDF_MONO, fontSize: 9, color: BODY },
   cellQuantity: { fontWeight: 700, textAlign: "right" },
   settingsBox: {
@@ -205,8 +211,31 @@ interface SectionProps {
   showContributingLocations: boolean;
 }
 
-function propertiesLine(row: StockPdfRow, options: StockOptionsDto): string {
-  return renderCriteriaChips(row.properties, options).join(" · ");
+interface PropertiesCellProps {
+  row: StockPdfRow;
+  options: StockOptionsDto;
+  width: string;
+}
+
+// Key then value, muted then dark, the same pairing the settings box uses: the column
+// is narrow, so the criteria read as one wrapped line rather than a stack, and a bare
+// `4` never sits under `Properties` next to the `Current` and `Missing` numbers.
+function PropertiesCell({ row, options, width }: PropertiesCellProps) {
+  const lines = criteriaChips(row.properties, options);
+
+  return (
+    <Text style={[styles.cellProperties, { width }]}>
+      {lines.map((line, index) => (
+        <Text key={line.key}>
+          {index > 0 ? <Text style={styles.propertySeparator}>{"  ·  "}</Text> : null}
+          <Text style={styles.propertyKey}>{line.label}: </Text>
+          <Text style={line.isWildcard ? styles.propertyWildcard : styles.propertyValue}>
+            {line.values.join(", ")}
+          </Text>
+        </Text>
+      ))}
+    </Text>
+  );
 }
 
 function locationsLine(row: StockPdfRow): string {
@@ -253,9 +282,7 @@ function Section({ section, options, showContributingLocations }: SectionProps) 
         {section.rows.map((row) => (
           <View key={`${row.mergeKey}|${row.locations}`} style={styles.row} wrap={false}>
             <Text style={[styles.cellType, { width: widths.type }]}>{row.itemCategory}</Text>
-            <Text style={[styles.cellProperties, { width: widths.properties }]}>
-              {propertiesLine(row, options)}
-            </Text>
+            <PropertiesCell row={row} options={options} width={widths.properties} />
             {showContributingLocations ? (
               <Text style={[styles.cellLocations, { width: COLUMN_WIDTHS.withLocations.locations }]}>
                 {locationsLine(row)}

@@ -3,7 +3,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 import { ChevronLeftIcon, FilterIcon } from "../../../assets/icons";
 import { homeShellActions } from "../../home/actions/home-shell.actions";
 import { stockActions } from "../actions/stock.actions";
-import { renderCriteriaChips } from "../domain/stock-criteria.domain";
+import { criteriaChips } from "../domain/stock-criteria.domain";
 import { compactEntries } from "../domain/stock-report.domain";
 import {
   countByStateBucket,
@@ -105,7 +105,7 @@ function StockReportGroup({
         <StockGroupedEntryRow
           key={`${entry.mergeKey}|${entry.stockState}|${entry.location}`}
           entry={entry}
-          chips={renderCriteriaChips(entry.properties, options)}
+          chips={criteriaChips(entry.properties, options)}
           onPress={() => onOpenEntry(entry)}
         />
       ))}
@@ -282,7 +282,7 @@ function StockReportRootView({
               <StockCompactEntryRow
                 key={`${row.mergeKey}|${row.stockState}`}
                 row={row}
-                chips={renderCriteriaChips(row.properties, options)}
+                chips={criteriaChips(row.properties, options)}
                 onPress={() => onOpenRow(row)}
               />
             ))}

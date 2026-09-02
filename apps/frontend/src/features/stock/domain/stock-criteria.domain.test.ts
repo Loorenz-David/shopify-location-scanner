@@ -3,9 +3,10 @@ import { stockOptionsFixture } from "../api/mocks/get-stock-options.fixture";
 import type { StockPropertiesDto } from "../types/stock.dto";
 import {
   buildCriteria,
+  criteriaChips,
+  criteriaSummaryText,
   displayValueFor,
   propertyKeyLabel,
-  renderCriteriaChips,
 } from "./stock-criteria.domain";
 
 describe("stock criteria domain", () => {
@@ -49,8 +50,10 @@ describe("stock criteria domain", () => {
       wood_type: ["teak"],
       upholstery: null,
     };
-    const chips = renderCriteriaChips(wireCriteria, stockOptionsFixture);
-    const renderedValues = chips.filter((chip) => chip !== "UPHOLSTERY · any");
+    const chips = criteriaChips(wireCriteria, stockOptionsFixture);
+    const renderedValues = chips.flatMap((chip) =>
+      chip.key === "wood_type" ? [...chip.values] : [],
+    );
     const rebuilt = buildCriteria({
       properties: [
         {
@@ -61,7 +64,9 @@ describe("stock criteria domain", () => {
         {
           key: "upholstery",
           selectedValues: [],
-          anyValue: chips.includes("UPHOLSTERY · any"),
+          anyValue: chips.some(
+            (chip) => chip.key === "upholstery" && chip.isWildcard,
+          ),
         },
       ],
     });
@@ -69,8 +74,18 @@ describe("stock criteria domain", () => {
     expect(displayValueFor("wood_type", "teak", stockOptionsFixture)).toBe(
       "Teak",
     );
-    expect(chips).toContain("Teak");
-    expect(chips).toContain("UPHOLSTERY · any");
+    expect(chips).toContainEqual({
+      key: "wood_type",
+      label: "Wood Type",
+      values: ["Teak"],
+      isWildcard: false,
+    });
+    expect(chips).toContainEqual({
+      key: "upholstery",
+      label: "Upholstery",
+      values: ["Any"],
+      isWildcard: true,
+    });
     expect(rebuilt).toEqual({ wood_type: ["Teak"], upholstery: null });
     expect(
       Object.fromEntries(
@@ -88,17 +103,24 @@ describe("stock criteria domain", () => {
 
   it("C3: an unknown wire value is rendered raw without throwing", () => {
     expect(
-      renderCriteriaChips(
-        { wood_type: ["mystery"] },
-        stockOptionsFixture,
-      ),
-    ).toEqual(["mystery"]);
+      criteriaChips({ wood_type: ["mystery"] }, stockOptionsFixture),
+    ).toEqual([
+      { key: "wood_type", label: "Wood Type", values: ["mystery"], isWildcard: false },
+    ]);
   });
 
-  it("C3(b): quantity reads as Set Of everywhere a key is shown", () => {
+  it("C3(b): quantity reads as Set Of, and a bare number never stands alone", () => {
     expect(propertyKeyLabel("quantity")).toBe("Set Of");
-    expect(renderCriteriaChips({ quantity: null }, stockOptionsFixture)).toEqual([
-      "SET OF · any",
+    expect(criteriaChips({ quantity: null }, stockOptionsFixture)).toEqual([
+      { key: "quantity", label: "Set Of", values: ["Any"], isWildcard: true },
+    ]);
+    // The defect this pairing exists for: `6` beside the report's own quantity
+    // columns read as a stock count.
+    expect(criteriaChips({ quantity: ["6"] }, stockOptionsFixture)).toEqual([
+      { key: "quantity", label: "Set Of", values: ["6"], isWildcard: false },
+    ]);
+    expect(criteriaSummaryText({ quantity: ["6"] }, stockOptionsFixture)).toEqual([
+      "Set Of: 6",
     ]);
   });
 
@@ -109,11 +131,11 @@ describe("stock criteria domain", () => {
       "A Key The Backend Added",
     );
     expect(propertyKeyLabel("height_2")).toBe("Height 2");
-    expect(renderCriteriaChips({ upholstery: null }, stockOptionsFixture)).toEqual([
-      "UPHOLSTERY · any",
+    expect(criteriaSummaryText({ upholstery: null }, stockOptionsFixture)).toEqual([
+      "Upholstery: Any",
     ]);
-    expect(renderCriteriaChips({ wood_type: null }, stockOptionsFixture)).toEqual([
-      "WOOD TYPE · any",
+    expect(criteriaSummaryText({ wood_type: null }, stockOptionsFixture)).toEqual([
+      "Wood Type: Any",
     ]);
   });
 
@@ -137,11 +159,31 @@ describe("stock criteria domain", () => {
       years: ["1950-1960s"],
     };
 
-    expect(renderCriteriaChips(universalOnly, stockOptionsFixture)).toEqual([
-      "Teak",
-      "1950-1960s",
-      "1-20 kg",
-      "Sweden",
+    expect(
+      criteriaChips(universalOnly, stockOptionsFixture).map(
+        (chip) => `${chip.label}: ${chip.values.join(", ")}`,
+      ),
+    ).toEqual([
+      "Wood Type: Teak",
+      "Years: 1950-1960s",
+      "Weight Definition: 1-20 kg",
+      "Country: Sweden",
+    ]);
+  });
+
+  it("C4(b): a multi-value criterion is one chip, not one per value", () => {
+    const properties: StockPropertiesDto = { wood_type: ["teak", "oak"] };
+
+    expect(criteriaChips(properties, stockOptionsFixture)).toEqual([
+      {
+        key: "wood_type",
+        label: "Wood Type",
+        values: ["Teak", "Oak"],
+        isWildcard: false,
+      },
+    ]);
+    expect(criteriaSummaryText(properties, stockOptionsFixture)).toEqual([
+      "Wood Type: Teak, Oak",
     ]);
   });
 });

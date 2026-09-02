@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { stockActions } from "../actions/stock.actions";
 import { stockLocationDetailFixture } from "../api/mocks/get-stock-location-detail.fixture";
 import { stockOptionsFixture } from "../api/mocks/get-stock-options.fixture";
-import { renderCriteriaChips } from "../domain/stock-criteria.domain";
+import { criteriaChips } from "../domain/stock-criteria.domain";
 import {
   deriveBands,
   thresholdDraftFrom,
@@ -13,7 +13,7 @@ import {
 import { useStockNavigationStore } from "../stores/stock-navigation.store";
 import { useStockSettingsStore } from "../stores/stock-settings.store";
 import { useStockWizardStore } from "../stores/stock-wizard.store";
-import type { LocationStockDto } from "../types/stock.dto";
+import type { LocationStockDto, StockPropertiesDto } from "../types/stock.dto";
 
 vi.mock("../../../core/ws-client/use-ws-event", () => ({
   useWsEvent: vi.fn(),
@@ -25,6 +25,13 @@ const LOCATION = "LC1";
 const locationInstances = stockLocationDetailFixture.filter(
   (instance) => instance.location === LOCATION,
 );
+
+// A chip renders its key label over its value, so its text is the two concatenated.
+function chipTexts(properties: StockPropertiesDto): string[] {
+  return criteriaChips(properties, stockOptionsFixture).map(
+    (chip) => `${chip.label}${chip.values.join(", ")}`,
+  );
+}
 
 function expectedBandLabels(instance: LocationStockDto): string[] {
   return deriveBands(thresholdDraftFrom(instance.thresholds)).map(
@@ -64,7 +71,7 @@ describe("StockLocationDetailView (screen 07)", () => {
         within(card).getByRole("heading", { name: instance.itemCategory }),
       ).toBeInTheDocument();
 
-      const expectedChips = renderCriteriaChips(instance.properties, stockOptionsFixture);
+      const expectedChips = chipTexts(instance.properties);
       if (expectedChips.length === 0) {
         const anyProperty = within(card).getByText("any property");
         expect(anyProperty.tagName).toBe("EM");
@@ -89,7 +96,7 @@ describe("StockLocationDetailView (screen 07)", () => {
   });
 
   it("C4(cold): chips show display casing on a first visit, with no options preloaded", async () => {
-    // F1, routed from the P5 handoff. renderCriteriaChips needs the GET 4.1 vocabulary
+    // F1, routed from the P5 handoff. criteriaChips needs the GET 4.1 vocabulary
     // to turn wire values into display casing, and nothing on the settings path fetched
     // it: a cold visit rendered "teak" where the wizard and report screens render "Teak",
     // so the same screen read differently depending on where the user had already been.
@@ -97,8 +104,12 @@ describe("StockLocationDetailView (screen 07)", () => {
     const chipped = locationInstances.find(
       (instance) => Object.keys(instance.properties).length > 0,
     )!;
-    const expectedChips = renderCriteriaChips(chipped.properties, stockOptionsFixture);
-    expect(expectedChips.some((chip) => /[A-Z][a-z]/.test(chip.split("·").pop()!))).toBe(true);
+    const expectedChips = chipTexts(chipped.properties);
+    expect(
+      criteriaChips(chipped.properties, stockOptionsFixture).some((chip) =>
+        chip.values.some((value) => /[A-Z][a-z]/.test(value)),
+      ),
+    ).toBe(true);
 
     render(<StockLocationDetailView location={LOCATION} />);
     const cards = await screen.findAllByTestId("stock-instance-card");
