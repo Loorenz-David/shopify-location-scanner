@@ -60,11 +60,33 @@ Stop and report if any of these does not hold:
 **Do not gate on a clean working tree** — see §3 below, and `package.json`/`package-lock.json` are
 legitimately dirty here. The coordinator owns every tracker transition; **do not edit the tracker**.
 
-## 3. You may be sharing this working tree
+## 3. You ARE sharing this working tree — expect it
 
-The owner has been making a parallel stream of **visual changes** to the stock UI, and intended to
-commit them before this phase runs — but verify rather than assume. Run `git status` at the start
-and record what is already dirty. If foreign changes are present:
+**The owner is editing the report screens while you work.** This is not a possibility to check for;
+it is the stated plan. The wizard-polish stream was committed before you started, and the owner is
+now making visual changes to the **report page** — which is P7's code: `ui/StockReportPage.tsx`,
+`StockCounterTiles.tsx`, `StockReportEntryRows.tsx`, `StockFilterSheet.tsx`,
+`StockEntryDetailView.tsx`, and possibly `ui/StockReportPage.test.tsx` alongside them.
+
+Run `git status` at the start, record what is dirty, and then:
+
+- **If a P7 test goes red and you did not cause it, STOP AND REPORT IT. Do not fix it.** This is
+  the most likely way this round goes wrong. Those tests belong to an approved phase and are being
+  moved by their owner in real time; "helpfully" repairing someone else's failing test destroys the
+  signal that something is mid-flight, and may silently weaken a criterion that was proven. Say
+  which test, which file, and that it is outside your perimeter.
+- **Re-run your own suite before concluding anything from a red.** The tree changes under you; a
+  failure you saw thirty seconds ago may be gone, or may be new.
+- Your closing stamp will be taken on a tree containing the owner's diff. **Record its digest**, as
+  P7 did, so your numbers are attributable, and state plainly which files in it are not yours.
+
+Your perimeter is domain, controller, store and actions; the owner's stream is UI. **The overlap
+should be nil** — with one seam to be careful about: you extend `stock-report.store.ts` and
+`stock-report.controller.ts`, and the report page *reads* from that store. Keep your additions
+**purely additive** so the page keeps working no matter what the owner is doing to it. If you find
+yourself needing to change something the page already reads, **stop and report**.
+
+General rules while sharing a tree:
 
 - **Stage explicit paths only. Never `git add -A`** (master plan **S11**, written after the
   coordinator swept a live session's files into an unrelated commit).

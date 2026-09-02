@@ -423,6 +423,9 @@ it is now explicitly a two-stage one: acceptance during the phase, polish in a s
 No phase should be reopened for appearance alone in the meantime, and no later session should read
 `APPROVED` as "the design is signed off".
 
+The polish runs **concurrently with the implementation phases**, not only after them — the owner
+edits screens while later phases build; **S12** carries the protocol that makes that safe.
+
 Findings already parked for that pass, so it does not start from a blank page: P5 F3 (Settings tab
 not highlighted on the stock pages), P5's approximations list, P6 F4 (tab bar visible on screens
 08/09 where the design hides it; Poppins italic not loaded, so "Any value" is synthesized), and P6's
@@ -590,6 +593,28 @@ Charter standing rules 1–16 apply. Project-specific additions:
     a session has handed off may use `-A` safely; an amendment made *during* one may not.
   - **Do not rewrite the history to tidy this.** Checkpoints are never squashed, the tree is
     correct, and the implementer documented the sweep in its own handoff. The record is the fix.
+- **S12 — the owner edits UI in parallel with logic phases; a session never repairs someone else's
+  red** *(added 2026-09-02)*. From P7 onward the owner has run a continuous visual-polish stream
+  against the stock screens while implementation phases run: the wizard screens during P7, the
+  report screens during P8, and further passes to come (§7D collects the polish itself). This is
+  normal here, not an incident, and every prompt from P8 onward must say so plainly rather than
+  describe it as a possibility.
+  - **Perimeter is what keeps it safe.** Logic phases own domain, controllers, stores and actions;
+    the owner's stream owns UI and `index.css`. Overlap should be nil. Where a logic phase extends
+    something the UI *reads* — P8 extends `stock-report.store.ts`, which the report page reads —
+    the extension must be **purely additive**, so the screen keeps working whatever is being done
+    to it. Needing to change what a screen already reads is a stop-and-report, not an edit.
+  - **A red outside your perimeter is a report, never a repair.** The likeliest failure mode is a
+    session "helpfully" fixing an approved phase's test that the owner has just moved. That
+    destroys the signal that something is mid-flight and can silently weaken a criterion that was
+    proven with a mutation. Name the test and the file, say it is not yours, and stop.
+  - **Never `git checkout` a file you did not write** to undo a probe — restore from a byte copy
+    you made yourself. A checkout on a file the owner is editing destroys uncommitted work
+    permanently. The coordinator follows this rule too, and verifies the owner's working tree
+    intact after consuming a handoff.
+  - **Stage explicit paths** (**S11**), record the digest of any foreign diff at the closing stamp,
+    and **measure the baseline from the tree you are given** — test counts recorded in this
+    document go stale between phases as the owner's stream lands.
 - **S7:** A criterion row whose subject is build/test infrastructure rather than product
   behavior (a runner starting, typecheck/lint passing) is an **infra-enabler row**: it
   traces to no measurement-ledger entry because it measures no product outcome. Its trace
