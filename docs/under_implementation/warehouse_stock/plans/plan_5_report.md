@@ -427,3 +427,29 @@ the only repository file temporarily changed, and the change was applied and rev
 archgraph is present. The implementation write perimeter is exactly the two source files,
 the report verification script, and this Review log entry; the required handoff is recorded
 separately under `handoffs/implementer/`.
+
+### 2026-09-02 — review round 2 · APPROVED · phase closed
+
+Handoff: `handoffs/reviewer/handoff_plan5_review_2.md`. Tree `c65dca7`. Perimeter exactly the
+three permitted files; controller, routes and `verify-all.ts` untouched as lint L3 required.
+
+Instruments: typecheck 0 · purity empty · `verify-all.ts` `SUMMARY PASS 3 script(s)` with **19**
+P5 rows · refusal exit 3 · `prisma/dev.db` untouched.
+
+Code uses the **state-named** lookup and `Math.max(0, …)`; thresholds projected to
+`{state, thresholdQuantity}` only. Round-1 fixtures (1/3/5) untouched; C4 uses its own 10/15/20.
+
+Live on real inventory: LC1 at 221 with 200/250/300 → `medium_in_stock`, needs **79**; H1 teak at
+34 with 10/15/20 → `high_in_stock`, needs **0** (clamped); an empty Sofas definition → needs
+**20**. Eight fields per entry.
+
+**Reviewer probes:** the plan's probe (`medium + 1`) reddened C4(a) 13→9, C4(b) 20→16, C4(c) 2→0
+— *it discriminates*, which round 1's did not. `thresholds[0]` reddened three rows; dropping the
+clamp reddened C4(d) at −5.
+
+**N1 — `thresholds[2]` instead of the state lookup reddens nothing.** Alphabetical `orderBy`
+makes index 2 *be* normal today, by accident. The shipped code is correct; no row would notice a
+regression. Not blocking (§9.7); routed to P6 as an **optional** row. The transferable point: a
+hazard named in a plan is not a hazard covered by a criterion.
+
+Phase closed. P5 complete at 19 rows across two rounds.
