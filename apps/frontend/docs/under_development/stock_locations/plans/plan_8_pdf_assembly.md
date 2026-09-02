@@ -73,4 +73,47 @@ that "Any value" renders synthesized-italic in the app for that reason. P9's `Fo
 not assume one exists.
 
 ## Review log
-(empty)
+
+### Implementation round 1 — 2026-09-02 — Codex
+
+Implemented the non-visual PDF assembly and delivery seam. `buildPdfModel` composes the
+existing report pipeline, so compact rows still come from compaction, filtering and the
+registered comparator; grouped exports are normalized to the same PDF row shape after the
+grouped report view has applied its query. The model carries canonical state sections, the
+first non-empty `produce first` marker, optional five-state summary counts, settings-box
+content, a derived entry count, and the two PDF display toggles. The controller now owns a
+copied export query, page-count state awaiting P9's render, a react-pdf render-handle type
+only, preview, Web Share file delivery, file-capability fallback, anchor download, and
+cancelled-share handling. The actions facade exposes the export state transitions for P9.
+
+Judgment calls:
+
+- The export query carries the report's fetched `propertyKeyOrder` as derived context. This
+  keeps `buildPdfModel(entries, query)` at the planned two-argument seam while ensuring C2
+  uses the same vocabulary ordering as the report controller.
+- `StockPdfRow` is the existing `CompactedReportRow` shape. Grouped raw entries are adapted
+  with one contribution and one location, allowing P9 to render one table contract for both
+  modes; the model retains `showContributingLocations` for the document component to honor.
+- Summary counts always contain all five canonical states when enabled, with zero for a
+  state excluded by the export filter. Sections themselves remain limited to selected,
+  non-empty states as MC10 requires.
+- A rejected `navigator.share` resolves as `{ method: "cancelled" }`; it never calls the
+  download fallback and does not write an export error. `navigator.canShare({ files })`, when
+  present and false or throwing, uses the download fallback.
+- Page-count parsing/read-back remains structurally held for P9. This round only supplies
+  `StockPdfRenderHandle`, `pageCount` state, and `setStockPdfPageCountController`; no number
+  is fabricated.
+
+Observations:
+
+- The supplied tree was initially clean, but the owner’s parallel visual stream landed while
+  this round ran. Six UI files were left untouched and are listed in the handoff. Feature
+  tests emit jsdom `Window's scrollTo() method` not-implemented messages from those UI tests,
+  but the tests pass; this is not a P8 change.
+- The pre-edit baseline measured 21 test files, 133 listed tests, and 451 source files. The
+  finished phase tree measures 22 test files, 145 listed tests, and 453 source files: this
+  round adds one test file, twelve tests including the PDF-import guard, and two source files.
+- The P8 test fixture deliberately discriminates S10: C1 has an empty middle state and a
+  second first-section case; C2 starts in the wrong order and ties through the comparator's
+  earlier keys; C3 filtered and grouped counts differ; C4's derived model count differs from
+  raw fixture length.

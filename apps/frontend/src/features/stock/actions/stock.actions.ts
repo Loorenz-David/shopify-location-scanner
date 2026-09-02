@@ -8,8 +8,16 @@ import {
 } from "../controllers/stock-settings.controller";
 import {
   hydrateStockReportController,
+  initializeStockPdfExportController,
+  previewStockPdfController,
   resetStockReportFilterController,
+  setStockPdfExportGroupByLocationController,
+  setStockPdfExportQueryController,
+  setStockPdfPageCountController,
   setStockReportFilterController,
+  generateAndShareStockPdfController,
+  toggleStockPdfLocationController,
+  toggleStockPdfStateController,
 } from "../controllers/stock-report.controller";
 import {
   getInstanceLessStockLocations,
@@ -51,6 +59,14 @@ export const stockActions = {
   getInstanceLessLocations: getInstanceLessStockLocations,
   setReportFilter: setStockReportFilterController,
   resetReportFilter: resetStockReportFilterController,
+  initializePdfExport: initializeStockPdfExportController,
+  setPdfExportQuery: setStockPdfExportQueryController,
+  setPdfExportGroupByLocation: setStockPdfExportGroupByLocationController,
+  togglePdfExportState: toggleStockPdfStateController,
+  togglePdfExportLocation: toggleStockPdfLocationController,
+  setPdfPageCount: setStockPdfPageCountController,
+  generateAndSharePdf: generateAndShareStockPdfController,
+  previewPdf: previewStockPdfController,
   pushView(view: StockInternalView): void {
     useStockNavigationStore.getState().push(view);
   },
