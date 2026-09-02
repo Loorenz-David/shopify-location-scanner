@@ -63,7 +63,7 @@ fidelity to the design screenshots is approved by the owner looking at the runni
 | P6 | Instance wizard UI (screens 08–09) | Claude | APPROVED | 2026-09-02 | coordinator | approved on coordinator verification plus **the owner's visual pass** (S5); no independent review (§3A); 124 tests, 9 new + 1 coordinator guard, no orphans; C8's mutation re-planted **unfiltered** plus a coordinator **reverse** probe proving both entry points are guarded (it reds C8 *and* P5's C3); four guard proofs incl. an S10 argument probe the session designed itself; **F1 fixed before the merge** — a 409 banner outlived the × discard and followed the user onto screens 06/07, unreachable against mocks and routine against the real backend; NUL sentinel fixed and the whole tree byte-scanned clean |
 | P7 | Report UI (screens 01–04) | Claude | APPROVED | 2026-09-02 | coordinator | approved on coordinator verification plus **the owner's acceptance pass** (S5; polish deferred, §7D); no independent review (§3A); 133 tests, 9 new, no orphans; C1's mutation re-planted **unfiltered** reddening C1–C8 as reported; seven guard/argument probes recorded; the coordinator's own probe deleted the `settings-stock-report` registry entry — the exact defect P5 shipped — and reds C9 alone, so the dead-row class is finally guarded; run on a **shared tree** with the owner's parallel visual work, handled per **S11** on both sides; lint 0 in perimeter |
 | P8 | PDF data assembly + delivery | Codex | APPROVED | 2026-09-02 | coordinator | approved on **two** coordinator passes (no visual gate, §3A); 146 tests, 13 new, no orphans; the first pass (`b908c10`, a different session) found and repaired an **S10 hole** — the initializer's `propertyKeyOrder` was unobserved, 12/12 green with it deleted — adding `C5(keyOrder)`; the second re-ran every probe **unfiltered** (M1 reds C5 alone, PA reds C5(keyOrder) alone) and found one more: a UTC `pdfFilename` did **not** red C6, whose inputs were both `23:30` and so discriminated only under a negative UTC offset — **a test whose power depends on the machine's timezone**; C6 now asserts both ends of the day, no production change; owner card answered **B**, recorded as **§4B MC10a**; lint 0 in perimeter |
-| P9 | PDF document + Generate sheet UI (screens 05, 10) | Claude | PROMPT_READY | 2026-09-02 | coordinator | **Next to dispatch**; owner visual pass is the gate and needs **one printed PDF** (S5; polish deferred §7D); coordinator plan-lint added 1 named mutation (C7) and gave P8's two forward hazards rows of their own — **C7** the actions must be *disabled* while the render handle is loading (`blobFromRenderHandle` throws), **C8** share must be called synchronously in the tap handler or iOS's `NotAllowedError` is swallowed as a cancellation by P8's own C7(c); S10 applied to C2/C3/C5; P8's third hazard (the download fallback's detached anchor) routed to **P10**; **this phase overlaps the owner's visual stream** in `StockReportPage.tsx` (S12) and the prompt says to stop and report rather than reconstruct the pill; `prompts/implementer/plan_9_round_1_implement.md` queued |
+| P9 | PDF document + Generate sheet UI (screens 05, 10) | Claude | IMPLEMENTED | 2026-09-02 | coordinator | **coordinator verification complete; APPROVED waits on the owner's printed PDF** (S5 — this phase's gate cannot be judged on screen); perimeter = the 12 declared paths, 162 tests, 12 new, no orphans, lint 0 across `src/features/stock`; M1 re-planted **unfiltered** reds `C7(loading)` alone, plus a coordinator **opposite** probe (pin `isReady` false) reddening `C7(ready)`, both `C5` rows and `C8`, so both directions of the readiness gate hold; **the widened H1 was re-verified** — closed four-path list, still reds a stray import; owner decision 2 (`#087A50` instead of the design's `#0E8A5F`, which collides with the Normal state hex) routed to §7D; the checkpoint carries a disclosed foreign reformat of `StockReportPage.tsx`; §10 gained the react-pdf/vitest environment findings |
 | P10 | Live integration (gated on backend P3/P5) | Codex | NOT_STARTED | — | — | **Backend gate met** — the backend track finished on `warehouse-stock-backend` (owner, 2026-09-02). Branch merges into `main` **after P6 is APPROVED**, before P7 (§7A): zero-file overlap, all seven routes and the `{data}` envelope match the shipped api layer. P10 is now live-data verification and repair, not a wait — §7A lists the seven checks a green frontend suite cannot make |
 
 **Projection gate (owner decision, 2026-09-01 — revised):** **P2 only.** It was mandatory
@@ -426,7 +426,11 @@ No phase should be reopened for appearance alone in the meantime, and no later s
 The polish runs **concurrently with the implementation phases**, not only after them — the owner
 edits screens while later phases build; **S12** carries the protocol that makes that safe.
 
-Findings already parked for that pass, so it does not start from a blank page: P5 F3 (Settings tab
+Findings already parked for that pass, so it does not start from a blank page: **the PDF's brand
+green** — the design's `#0E8A5F` is byte-identical to the Normal state's solid hex, which S2
+forbids outside the state domain, so P9 shipped `#087A50` instead; the rule caught a coincidence
+rather than a leak, and the cheaper fix is a named allowlist exemption for the brand token rather
+than a second green (owner chose the darker green in-session, 2026-09-02); P5 F3 (Settings tab
 not highlighted on the stock pages), P5's approximations list, P6 F4 (tab bar visible on screens
 08/09 where the design hides it; Poppins italic not loaded, so "Any value" is synthesized), and P6's
 own approximations list. Each is recorded in its phase's Review log and handoff.
@@ -635,6 +639,18 @@ Charter standing rules 1–16 apply. Project-specific additions:
   project's work and would put edits outside every phase perimeter.
 
 ## 10. Environment topology (verified 2026-09-01; if reality disagrees, update here)
+
+**PDF rendering under vitest** *(added 2026-09-02, P9)*. react-pdf must be exercised under
+`// @vitest-environment node`: jsdom swaps the typed-array globals, so pdfkit's
+`instanceof Uint8Array` fails for Node buffers and every compressed stream is mangled (all high
+bytes become `0xFD`) — the output looks like a PDF and is corrupt. Consequences for any later PDF
+work: a node-env test file must shim `localStorage` (the shared `src/test/setup.ts` clears it in
+`afterEach`); do **not** add `/// <reference types="node" />` to a test, because `tsconfig.app.json`
+types only `vite/client` and the reference changes `setTimeout`'s type in `core/ws-client` and
+breaks typecheck — use the web `DecompressionStream` and Vite `?inline` imports instead; and font
+sources are `new URL(…, import.meta.url).href`, which Vite hashes in dev and build but which
+resolve to `file:` URLs under node-env tests, where react-pdf routes them through `fetch`.
+
 
 - Workspace: `apps/frontend` (npm; `package-lock.json`). Node scripts (verified in
   `package.json`): `dev` (vite), `typecheck` (`tsc -b`), `build`, `lint`, `preview`.

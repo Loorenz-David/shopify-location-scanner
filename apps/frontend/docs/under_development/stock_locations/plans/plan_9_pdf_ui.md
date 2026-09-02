@@ -83,6 +83,50 @@ Consequences for whoever implements this:
   measure the baseline from the tree you are given, and never repair a red outside your perimeter.
 
 ## Review log
+- **2026-09-02 · round 1 consumption · coordinator · IMPLEMENTED, awaiting the owner's printed PDF.**
+  Coordinator verification is complete and clean; **S5's gate for this phase is one printed page**,
+  which cannot be judged on screen and has not yet been given. The tracker therefore stays at
+  IMPLEMENTED. Nothing else blocks.
+
+  Verified by hand: the checkpoint perimeter is exactly the 12 declared paths; stamp re-runs green
+  (26 files / 162 tests, typecheck clean, lint 48/14 baseline with 0 problems anywhere under
+  `src/features/stock`); all 12 new tests enumerated against the coverage map with no orphans and
+  every criterion C1–C8 present.
+
+  **M1 re-planted unfiltered** (drop both `disabled={!isReady}` bindings): reds `C7(loading)` alone,
+  1 failed / 161 passed — matching the handoff, which had already run it unfiltered without being
+  asked twice. The coordinator added the **opposite** probe the plan did not require — pin
+  `isReady` to `false`, so the actions never enable — which reds `C7(ready)`, `C5(share)`,
+  `C5(preview)` and `C8`. Both directions of the readiness gate are guarded, not just the eager one.
+
+  **The widened H1 was verified rather than accepted.** Owner decision 1 authorized editing an
+  approved phase's guard (plan 8 C8) so P9 could import react-pdf under `ui/pdf/`. It was widened
+  the right way — to a **closed four-path list**, not a relaxed glob — and the coordinator confirmed
+  it still bites: a stray `import type { UsePDFInstance }` added to a file outside that list reds H1
+  alone. Widening a guard is the moment guards usually die; this one did not.
+
+  **Owner decision 2 is a visual deviation and belongs on §7D's list.** The design's brand green
+  `#0E8A5F` is byte-identical to the Normal state's solid hex, which S2's allowlist forbids outside
+  the state domain, so the PDF ships `#087A50` (the 00-global scanner-FAB token) for its header rule
+  and brand mark. The rule caught a **coincidence**, not a leak — nothing about that green was being
+  used as a state colour — so the PDF's brand green now differs from the app's. The owner chose the
+  darker green in-session and that stands; recorded here so the polish pass can revisit it cheaply,
+  where the alternative is a named allowlist exemption for the brand token rather than a second
+  green.
+
+  **The checkpoint carries a foreign reformat, disclosed rather than hidden.** `StockReportPage.tsx`
+  was staged whole, so the owner's uncommitted reformat of that file (+60/−25) rides in the
+  checkpoint alongside the session's +19/−4 of pill wiring. Nothing else of the owner's stream was
+  staged; their other 14 modified and 5 untracked paths — which by now include **new domain files**,
+  not only visual polish — remain in the working tree. The coordinator backed all of it up before
+  consuming, probed only files outside that set, restored from byte copies, and verified afterwards
+  that nothing of the owner's was reverted.
+
+  The handoff's four **environment surprises** are worth keeping: react-pdf under vitest+jsdom
+  corrupts output because jsdom swaps the typed-array globals, so the document tests must run under
+  `@vitest-environment node`; node-env tests need a `localStorage` shim; `node:` type references
+  break `core/ws-client`'s `setTimeout` typing; font sources go through `new URL(…, import.meta.url)`.
+  Folded into §10 rather than left in an archived handoff.
 
 ### Implementation round 1 — 2026-09-02 — Claude (Fable 5)
 
