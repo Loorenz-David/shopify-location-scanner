@@ -1,7 +1,10 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
 import { renderCriteriaChips } from "../../domain/stock-criteria.domain";
-import { getStockStateMeta } from "../../domain/stock-states.domain";
+import {
+  getStockStateMeta,
+  STOCK_STATES,
+} from "../../domain/stock-states.domain";
 import type {
   StockPdfModel,
   StockPdfRow,
@@ -28,14 +31,26 @@ const MUTED = "#8A9791";
 const TABLE_RULE = "#DDE4E1";
 const ROW_RULE = "#EFF2F1";
 const SETTINGS_BG = "#FAFBFA";
+const MISSING = getStockStateMeta(STOCK_STATES[0]).text;
 
 // A section title never sits within this many points of the page bottom (design 10:
 // a title is followed by its column header and at least one row on the same page).
 const SECTION_MIN_PRESENCE = 72;
 
 const COLUMN_WIDTHS = {
-  withLocations: { type: "30%", properties: "38%", locations: "20%", quantity: "12%" },
-  withoutLocations: { type: "34%", properties: "54%", quantity: "12%" },
+  withLocations: {
+    type: "28%",
+    properties: "32%",
+    locations: "20%",
+    current: "10%",
+    missing: "10%",
+  },
+  withoutLocations: {
+    type: "34%",
+    properties: "46%",
+    current: "10%",
+    missing: "10%",
+  },
 } as const;
 
 const styles = StyleSheet.create({
@@ -226,8 +241,11 @@ function Section({ section, options, showContributingLocations }: SectionProps) 
               Locations
             </Text>
           ) : null}
-          <Text style={[styles.columnLabel, { width: widths.quantity, textAlign: "right" }]}>
-            Qty
+          <Text style={[styles.columnLabel, { width: widths.current, textAlign: "right" }]}>
+            Current
+          </Text>
+          <Text style={[styles.columnLabel, { width: widths.missing, textAlign: "right" }]}>
+            Missing
           </Text>
         </View>
         {section.rows.map((row) => (
@@ -241,8 +259,11 @@ function Section({ section, options, showContributingLocations }: SectionProps) 
                 {locationsLine(row)}
               </Text>
             ) : null}
-            <Text style={[styles.cellQuantity, { width: widths.quantity, color: meta.text }]}>
+            <Text style={[styles.cellQuantity, { width: widths.current, color: HEADING }]}>
               {row.quantity}
+            </Text>
+            <Text style={[styles.cellQuantity, { width: widths.missing, color: MISSING }]}>
+              {row.unitsToNormalThreshold}
             </Text>
           </View>
         ))}

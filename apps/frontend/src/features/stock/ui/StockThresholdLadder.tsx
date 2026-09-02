@@ -62,7 +62,7 @@ function DerivedRow({ state, subtitle, value }: DerivedRowProps) {
     <div className="flex items-center justify-between gap-3 py-4">
       <div className="flex min-w-0 flex-col gap-1">
         <span className="flex items-center gap-2">
-          <span className="text-[16px] font-bold leading-tight text-[var(--stock-heading)]">
+          <span className="text-[14px] font-bold leading-tight text-[var(--stock-heading)]">
             {meta.label}
           </span>
           <span className="stock-mono rounded-[7px] bg-[var(--stock-chip-bg)] px-2 py-1 text-[10px] uppercase leading-none tracking-[0.14em] text-[var(--stock-muted)]">
@@ -109,7 +109,7 @@ function EditableRow({ state, row, draft, onCommit }: EditableRowProps) {
     <div className="flex items-center justify-between gap-3 py-3">
       <div className="flex min-w-0 flex-col gap-1">
         <span
-          className="text-[16px] font-bold leading-tight"
+          className="text-[14px] font-bold leading-tight"
           style={{ color: meta.text }}
         >
           {meta.label}
@@ -121,7 +121,7 @@ function EditableRow({ state, row, draft, onCommit }: EditableRowProps) {
       <div className="flex flex-shrink-0 items-center gap-1 rounded-[18px] bg-[var(--stock-track)] p-1">
         <button
           type="button"
-          className="grid h-11 w-11 place-items-center rounded-[15px] bg-[var(--stock-surface)] text-[20px] font-medium leading-none text-[var(--stock-heading)] shadow-[0_4px_10px_rgba(31,60,52,0.08)] disabled:opacity-40 disabled:shadow-none"
+          className="grid h-11 w-11 place-items-center rounded-[15px] bg-[var(--stock-surface)] text-[18px] font-medium leading-none text-[var(--stock-heading)] shadow-[0_4px_10px_rgba(31,60,52,0.08)] disabled:opacity-40 disabled:shadow-none"
           aria-label={`Decrease ${row}`}
           disabled={isAtFloor}
           onClick={() => onCommit(row, value - 1)}
@@ -131,7 +131,7 @@ function EditableRow({ state, row, draft, onCommit }: EditableRowProps) {
         <input
           type="text"
           inputMode="numeric"
-          className="stock-mono w-[52px] bg-transparent text-center text-[17px] font-medium text-[var(--stock-heading)] outline-none"
+          className="stock-mono w-[52px] bg-transparent text-center text-[15px] font-medium text-[var(--stock-heading)] outline-none"
           aria-label={`${rowName} limit`}
           value={typed ?? String(value)}
           onFocus={() => setTyped(String(value))}
@@ -145,7 +145,7 @@ function EditableRow({ state, row, draft, onCommit }: EditableRowProps) {
         />
         <button
           type="button"
-          className="grid h-11 w-11 place-items-center rounded-[15px] bg-[var(--stock-surface)] text-[20px] font-medium leading-none text-[var(--stock-heading)] shadow-[0_4px_10px_rgba(31,60,52,0.08)]"
+          className="grid h-11 w-11 place-items-center rounded-[15px] bg-[var(--stock-surface)] text-[18px] font-medium leading-none text-[var(--stock-heading)] shadow-[0_4px_10px_rgba(31,60,52,0.08)]"
           aria-label={`Increase ${row}`}
           onClick={() => onCommit(row, value + 1)}
         >

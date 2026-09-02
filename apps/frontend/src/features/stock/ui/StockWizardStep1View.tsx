@@ -1,9 +1,11 @@
 import { useRef, useState } from "react";
 
 import { ChevronRightIcon, CloseIcon, PlusIcon } from "../../../assets/icons";
+import { locationBlockOf, splitLocationCode } from "../../../share/location-codes";
 import { stockActions } from "../actions/stock.actions";
 import { buildCriteria, displayValueFor } from "../domain/stock-criteria.domain";
 import type { CriteriaDraftProperty } from "../domain/stock-criteria.domain";
+import { groupLocationsByLetter } from "../domain/stock-location-groups.domain";
 import {
   selectStockWizardAvailableLocations,
   selectStockWizardDraft,
@@ -23,6 +25,7 @@ import {
   StockWizardProgress,
   StockWizardSectionLabel,
 } from "./StockWizardChrome";
+import { StockCategoryThumbnail } from "./StockCategoryThumbnail";
 import { StockSelectSheet } from "./StockSelectSheet";
 
 const EMPTY_OPTIONS: StockOptionsDto = { itemCategories: [], propertyOptions: [] };
@@ -32,6 +35,7 @@ const ANY_VALUE_ID = "__any_value__";
 // definition list (a drill-down that goes back to it) or straight from a property row.
 type SheetState =
   | { kind: "location" }
+  | { kind: "location-letter"; letter: string }
   | { kind: "definition" }
   | {
       kind: "values";
@@ -277,19 +281,67 @@ export function StockWizardStep1View() {
       };
     }
 
+    const commitLocation = (location: string) => {
+      stockActions.updateWizardDraft({ location });
+      setIsSheetOpen(false);
+    };
+
+    const { groups, unstructured } = groupLocationsByLetter(availableLocations);
+
+    if (sheetView?.kind === "location-letter") {
+      const group = groups.find((entry) => entry.letter === sheetView.letter);
+      const locations = group?.locations ?? [];
+
+      return {
+        title: "Location",
+        eyebrow: `${sheetView.letter} · ${locations.length} ${
+          locations.length === 1 ? "location" : "locations"
+        }`,
+        emptyMessage: "No locations in this block.",
+        monoLabels: true,
+        layout: "grid" as const,
+        options: locations.map((location) => ({
+          id: location,
+          // The card shows the number alone — the letter is the step you are standing in.
+          label: splitLocationCode(location)?.suffix ?? location,
+          accessibleLabel: location,
+          isSelected: location === draft.location,
+        })),
+        onSelect: commitLocation,
+        onBack: () => setSheet({ kind: "location" }),
+        backLabel: "Back to location blocks",
+      };
+    }
+
     return {
       title: "Location",
       eyebrow: `${availableLocations.length} available`,
       emptyMessage: "Every location already has stock instances.",
       monoLabels: true,
-      options: availableLocations.map((location) => ({
-        id: location,
-        label: location,
-        isSelected: location === draft.location,
-      })),
-      onSelect: (location: string) => {
-        stockActions.updateWizardDraft({ location });
-        setIsSheetOpen(false);
+      layout: "grid" as const,
+      // Letter blocks first, then any code that does not split into letter + number —
+      // those are offered whole rather than hidden behind a block that cannot exist.
+      options: [
+        ...groups.map((group) => ({
+          id: `letter:${group.letter}`,
+          label: group.letter,
+          accessibleLabel: group.letter,
+          caption: `${group.locations.length}`,
+          isSelected: locationBlockOf(draft.location) === group.letter,
+        })),
+        ...unstructured.map((location) => ({
+          id: `location:${location}`,
+          label: location,
+          accessibleLabel: location,
+          isSelected: location === draft.location,
+        })),
+      ],
+      onSelect: (id: string) => {
+        if (id.startsWith("letter:")) {
+          setSheet({ kind: "location-letter", letter: id.slice("letter:".length) });
+          return;
+        }
+        commitLocation(id.slice("location:".length));
       },
     };
   })();
@@ -335,8 +387,8 @@ export function StockWizardStep1View() {
           <span
             className={
               draft.location === ""
-                ? "text-[16px] font-semibold leading-tight text-[var(--stock-muted)]"
-                : "stock-mono text-[17px] font-medium leading-tight text-[var(--stock-heading)]"
+                ? "text-[14px] font-semibold leading-tight text-[var(--stock-muted)]"
+                : "stock-mono text-[15px] font-medium leading-tight text-[var(--stock-heading)]"
             }
           >
             {draft.location === "" ? "Choose a location" : draft.location}
@@ -372,7 +424,7 @@ export function StockWizardStep1View() {
               aria-autocomplete="list"
               aria-controls="stock-wizard-category-list"
               data-testid="stock-wizard-category-input"
-              className="min-w-0 flex-1 bg-transparent py-4 text-[16px] font-semibold leading-tight text-[var(--stock-heading)] outline-none placeholder:font-semibold placeholder:text-[var(--stock-muted)]"
+              className="min-w-0 flex-1 bg-transparent py-4 text-[14px] font-semibold leading-tight text-[var(--stock-heading)] outline-none placeholder:font-semibold placeholder:text-[var(--stock-muted)]"
               placeholder="Search item types"
               value={categoryText}
               onChange={(event) => editCategoryQuery(event.target.value)}
@@ -412,7 +464,7 @@ export function StockWizardStep1View() {
                   role="option"
                   aria-selected={category === draft.itemCategory}
                   data-testid="stock-wizard-category-option"
-                  className={`flex min-h-[52px] items-center justify-between gap-3 py-3 text-left text-[14px] font-medium leading-tight ${
+                  className={`flex min-h-[56px] items-center gap-3 py-2.5 text-left text-[14px] font-medium leading-tight ${
                     index < categoryMatches.length - 1
                       ? "border-b border-[var(--stock-hairline)]"
                       : ""
@@ -424,7 +476,8 @@ export function StockWizardStep1View() {
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => selectCategory(category)}
                 >
-                  {category}
+                  <StockCategoryThumbnail itemCategory={category} size={34} />
+                  <span className="min-w-0 flex-1">{category}</span>
                 </button>
               ))}
             </div>

@@ -5,7 +5,7 @@ import { getStockStateMeta } from "../domain/stock-states.domain";
 import type { StockOptionsDto, StockReportEntryDto } from "../types/stock.dto";
 import type { CompactedReportRow } from "../types/stock.types";
 import { StockPropertyChips } from "./StockPropertyChips";
-import { StockThumbnailPlaceholder } from "./StockReportEntryRows";
+import { StockCategoryThumbnail } from "./StockCategoryThumbnail";
 
 interface StockEntryDetailViewProps {
   row: CompactedReportRow;
@@ -22,7 +22,7 @@ function InfoIcon() {
   return (
     <span
       aria-hidden="true"
-      className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-sky-500 text-[13px] font-bold text-white"
+      className="grid h-7 w-7 flex-shrink-0 place-items-center rounded-full bg-sky-500 text-[12px] font-bold text-white"
     >
       i
     </span>
@@ -50,7 +50,7 @@ export function StockEntryDetailView({ row, entries, options, onBack }: StockEnt
         >
           <ChevronLeftIcon className="h-5 w-5" aria-hidden="true" />
         </button>
-        <p className="m-0 text-[19px] font-semibold text-[var(--stock-muted)]">Report entry</p>
+        <p className="m-0 text-[14px] font-semibold text-[var(--stock-muted)]">Report entry</p>
       </header>
 
       <article
@@ -58,9 +58,9 @@ export function StockEntryDetailView({ row, entries, options, onBack }: StockEnt
         className="flex flex-col gap-4 rounded-[26px] bg-[var(--stock-surface)] p-4 shadow-[var(--stock-card-shadow)]"
       >
         <div className="flex items-start gap-4">
-          <StockThumbnailPlaceholder size={88} />
+          <StockCategoryThumbnail itemCategory={row.itemCategory} size={88} />
           <div className="flex min-w-0 flex-1 flex-col gap-2 pt-1">
-            <h1 className="m-0 text-[24px] font-bold leading-tight text-[var(--stock-heading)]">
+            <h1 className="m-0 text-[17px] font-bold leading-tight text-[var(--stock-heading)]">
               {row.itemCategory}
             </h1>
             <StockPropertyChips chips={chips} />
@@ -72,17 +72,17 @@ export function StockEntryDetailView({ row, entries, options, onBack }: StockEnt
             className="flex flex-col gap-1 rounded-[18px] px-4 py-3.5"
             style={{ backgroundColor: meta.tint, color: meta.text }}
           >
-            <span className="stock-mono text-[11px] uppercase tracking-[0.14em]">State</span>
-            <span className="text-[22px] font-bold leading-tight">{meta.label}</span>
+            <span className="stock-mono text-[10px] uppercase tracking-[0.14em]">State</span>
+            <span className="text-[16px] font-bold leading-tight">{meta.label}</span>
           </div>
           <div
             data-testid="stock-detail-total"
             className="flex flex-col gap-1 rounded-[18px] bg-[var(--stock-track)] px-4 py-3.5"
           >
-            <span className="stock-mono text-[11px] uppercase tracking-[0.14em] text-[var(--stock-muted)]">
+            <span className="stock-mono text-[10px] uppercase tracking-[0.14em] text-[var(--stock-muted)]">
               Total
             </span>
-            <span className="text-[22px] font-bold leading-tight text-[var(--stock-heading)]">
+            <span className="text-[16px] font-bold leading-tight text-[var(--stock-heading)]">
               {row.quantity} {unitLabel(row.quantity)}
             </span>
           </div>
@@ -90,12 +90,12 @@ export function StockEntryDetailView({ row, entries, options, onBack }: StockEnt
       </article>
 
       <div className="flex items-center justify-between px-1">
-        <p className="stock-mono m-0 text-[11px] uppercase tracking-[0.14em] text-[var(--stock-muted)]">
+        <p className="stock-mono m-0 text-[10px] uppercase tracking-[0.14em] text-[var(--stock-muted)]">
           Contributing locations
         </p>
         <span
           data-testid="stock-detail-count"
-          className="text-[15px] font-semibold text-[var(--stock-muted)]"
+          className="text-[14px] font-semibold text-[var(--stock-muted)]"
         >
           {locationCount}
         </span>
@@ -116,20 +116,20 @@ export function StockEntryDetailView({ row, entries, options, onBack }: StockEnt
                 style={{ backgroundColor: itemMeta.solid }}
               />
               <span className="flex min-w-0 flex-1 flex-col gap-1">
-                <span className="stock-mono text-[17px] font-semibold text-[var(--stock-heading)]">
+                <span className="stock-mono text-[14px] font-semibold text-[var(--stock-heading)]">
                   {item.location}
                 </span>
-                <span className="text-[14px] text-[var(--stock-muted)]">{item.configLabel}</span>
+                <span className="text-[12px] text-[var(--stock-muted)]">{item.configLabel}</span>
               </span>
               <span className="flex flex-shrink-0 flex-col items-end">
                 <span
                   data-testid="stock-row-quantity"
-                  className="text-[24px] font-bold leading-none text-[var(--stock-heading)]"
+                  className="text-[17px] font-bold leading-none text-[var(--stock-heading)]"
                 >
                   {item.quantity}
                 </span>
                 <span
-                  className="mt-1 text-[11px] font-bold uppercase tracking-[0.1em]"
+                  className="mt-1 text-[10px] font-bold uppercase tracking-[0.1em]"
                   style={{ color: itemMeta.text }}
                 >
                   {itemMeta.label}
@@ -143,7 +143,7 @@ export function StockEntryDetailView({ row, entries, options, onBack }: StockEnt
       {detail.isMultiLocation ? (
         <div
           data-testid="stock-detail-note"
-          className="flex items-start gap-3 rounded-[22px] bg-[#EEF6FC] px-4 py-4 text-[15px] leading-snug text-[var(--stock-body)]"
+          className="flex items-start gap-3 rounded-[22px] bg-[#EEF6FC] px-4 py-4 text-[14px] leading-snug text-[var(--stock-body)]"
         >
           <InfoIcon />
           <p className="m-0">

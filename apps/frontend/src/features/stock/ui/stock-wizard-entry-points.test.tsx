@@ -39,6 +39,21 @@ async function readLocationSheetOptions(): Promise<HTMLElement[]> {
   return options;
 }
 
+function cardLabels(cards: HTMLElement[]): (string | null)[] {
+  return cards.map((card) => card.getAttribute("aria-label"));
+}
+
+// The picker groups locations into letter blocks, so everything on offer is only visible
+// one block at a time; this opens one and comes back.
+async function readLocationBlock(letter: string): Promise<(string | null)[]> {
+  await userEvent.click(screen.getByRole("button", { name: letter }));
+  const locations = cardLabels(await screen.findAllByTestId("stock-sheet-option"));
+  await userEvent.click(
+    screen.getByRole("button", { name: "Back to location blocks" }),
+  );
+  return locations;
+}
+
 async function closeLocationSheet(): Promise<void> {
   await userEvent.click(screen.getAllByRole("button", { name: "Close Location" })[0]!);
 }
@@ -68,10 +83,8 @@ describe("screen 06 wizard entry points", () => {
     await userEvent.click(screen.getByRole("button", { name: /new location/i }));
     await screen.findByRole("heading", { name: "New stock instance" });
     expect(useStockWizardStore.getState().availableLocations).toEqual(["L2", "L3"]);
-    expect((await readLocationSheetOptions()).map((option) => option.textContent)).toEqual([
-      "L2",
-      "L3",
-    ]);
+    expect(cardLabels(await readLocationSheetOptions())).toEqual(["L"]);
+    expect(await readLocationBlock("L")).toEqual(["L2", "L3"]);
     await closeLocationSheet();
     expect(useStockWizardStore.getState().draft?.location).toBe("");
 
@@ -92,8 +105,12 @@ describe("screen 06 wizard entry points", () => {
       ]),
     );
     const cards = await readLocationSheetOptions();
-    expect(cards.map((card) => card.textContent)).toEqual(["LC1", "H1", "L2", "L3"]);
+    expect(cardLabels(cards)).toEqual(["H", "L", "LC"]);
     expect(cards.every((card) => card.getAttribute("aria-pressed") === "false")).toBe(true);
+    // Every bootstrap location stays reachable, one block down.
+    expect(await readLocationBlock("H")).toEqual(["H1"]);
+    expect(await readLocationBlock("L")).toEqual(["L2", "L3"]);
+    expect(await readLocationBlock("LC")).toEqual(["LC1"]);
     await closeLocationSheet();
     expect(useStockWizardStore.getState().draft).toMatchObject({
       location: "",

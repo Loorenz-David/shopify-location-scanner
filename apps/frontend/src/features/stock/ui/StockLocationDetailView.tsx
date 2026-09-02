@@ -63,7 +63,7 @@ function InstanceCard({ instance, options }: InstanceCardProps) {
         onClick={() => void openWizard(stockActions.startEditWizard(instance))}
       >
         <span className="flex w-full items-center justify-between gap-3">
-          <h2 className="m-0 text-[16px] font-bold leading-tight text-[var(--stock-heading)]">
+          <h2 className="m-0 text-[14px] font-bold leading-tight text-[var(--stock-heading)]">
             {instance.itemCategory}
           </h2>
           <ChevronRightIcon
@@ -103,7 +103,7 @@ export function StockLocationDetailView({ location }: StockLocationDetailViewPro
           <ChevronLeftIcon className="h-5 w-5" aria-hidden="true" />
         </button>
         <div className="min-w-0 pt-0.5">
-          <h1 className="m-0 text-[18px] font-bold leading-tight text-[var(--stock-heading)]">
+          <h1 className="m-0 text-[16px] font-bold leading-tight text-[var(--stock-heading)]">
             {location}
           </h1>
           <p className="m-0 mt-0.5 text-[14px] text-[var(--stock-body)]">

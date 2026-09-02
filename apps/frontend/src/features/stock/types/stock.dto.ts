@@ -62,6 +62,8 @@ export interface StockReportEntryDto {
   mergeKey: string;
   quantity: number;
   stockState: StockStateDto;
+  thresholds: StockThresholdDto[];
+  unitsToNormalThreshold?: number;
 }
 
 export interface StockReportResponseDto {

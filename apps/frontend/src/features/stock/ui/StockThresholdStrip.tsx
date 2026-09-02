@@ -35,7 +35,7 @@ export function StockThresholdStrip({ thresholds }: StockThresholdStripProps) {
         <span
           key={band.state}
           data-testid="stock-threshold-band"
-          className="grid flex-1 place-items-center text-[13px] font-semibold leading-none"
+          className="grid flex-1 place-items-center text-[12px] font-semibold leading-none"
           style={{ backgroundColor: band.tint, color: band.text }}
         >
           {band.label}

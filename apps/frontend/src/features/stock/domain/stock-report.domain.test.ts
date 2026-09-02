@@ -22,10 +22,16 @@ import {
   deriveEntryDetail,
   makeCompactRowComparator,
   makeGroupEntryComparator,
+  missingQuantityForEntry,
   propertiesComparisonString,
 } from "./stock-report.domain";
 
 const keyOrder = stockOptionsFixture.propertyOptions.map((option) => option.key);
+const thresholds = [
+  { state: "low_in_stock", thresholdQuantity: 10 },
+  { state: "medium_in_stock", thresholdQuantity: 15 },
+  { state: "normal_in_stock", thresholdQuantity: 20 },
+] satisfies StockReportEntryDto["thresholds"];
 
 function entry(
   overrides: Partial<StockReportEntryDto> = {},
@@ -37,6 +43,8 @@ function entry(
     mergeKey: "k1",
     quantity: 1,
     stockState: "normal_in_stock",
+    thresholds,
+    unitsToNormalThreshold: 19,
     ...overrides,
   };
 }
@@ -55,14 +63,16 @@ function filter(
 function row(overrides: Partial<CompactedReportRow> = {}): CompactedReportRow {
   const location = overrides.locations ?? "H1";
   const quantity = overrides.quantity ?? 1;
+  const unitsToNormalThreshold = overrides.unitsToNormalThreshold ?? 19;
   return {
     mergeKey: "k1",
     itemCategory: "Dining Chairs",
     properties: { wood_type: ["walnut"] },
     quantity,
+    unitsToNormalThreshold,
     stockState: "normal_in_stock",
     locations: location,
-    contributions: [{ location, quantity }],
+    contributions: [{ location, quantity, unitsToNormalThreshold }],
     ...overrides,
   };
 }
@@ -91,32 +101,34 @@ function groupedView(view: ReportView): ReportLocationGroup[] {
 }
 
 describe("stock report domain", () => {
-  it("C1(a): compacts same-key same-state entries and retains sorted contributions", () => {
+  it("C1(a): compacts current and missing quantities and retains sorted contributions", () => {
     const result = compactEntries([
-      entry({ location: "LC1", quantity: 2 }),
-      entry({ location: "H1", quantity: 3 }),
+      entry({ location: "LC1", quantity: 2, unitsToNormalThreshold: 18 }),
+      entry({ location: "H1", quantity: 3, unitsToNormalThreshold: 17 }),
     ]);
 
     expect(result).toHaveLength(1);
     expect(result[0]).toMatchObject({
       mergeKey: "k1",
       quantity: 5,
+      unitsToNormalThreshold: 35,
       locations: "H1 · LC1",
       contributions: [
-        { location: "H1", quantity: 3 },
-        { location: "LC1", quantity: 2 },
+        { location: "H1", quantity: 3, unitsToNormalThreshold: 17 },
+        { location: "LC1", quantity: 2, unitsToNormalThreshold: 18 },
       ],
     });
 
     expect(compactEntries([
-      entry({ location: "LC1", quantity: 2 }),
-      entry({ location: "LC1", quantity: 3 }),
+      entry({ location: "LC1", quantity: 2, unitsToNormalThreshold: 18 }),
+      entry({ location: "LC1", quantity: 3, unitsToNormalThreshold: 17 }),
     ])[0]).toMatchObject({
       quantity: 5,
+      unitsToNormalThreshold: 35,
       locations: "LC1",
       contributions: [
-        { location: "LC1", quantity: 2 },
-        { location: "LC1", quantity: 3 },
+        { location: "LC1", quantity: 2, unitsToNormalThreshold: 18 },
+        { location: "LC1", quantity: 3, unitsToNormalThreshold: 17 },
       ],
     });
   });
@@ -168,6 +180,17 @@ describe("stock report domain", () => {
     });
   });
 
+  it("C1(e): derives missing units from the state-keyed normal threshold during rollout", () => {
+    expect(missingQuantityForEntry(entry({
+      quantity: 18,
+      unitsToNormalThreshold: undefined,
+    }))).toBe(2);
+    expect(missingQuantityForEntry(entry({
+      quantity: 25,
+      unitsToNormalThreshold: undefined,
+    }))).toBe(0);
+  });
+
   it("C2: keeps same-key entries in different states as separate rows", () => {
     const result = compactEntries([
       entry({ location: "LC1", mergeKey: "same", quantity: 2, stockState: "low_in_stock" }),
@@ -215,8 +238,14 @@ describe("stock report domain", () => {
 
   it("C3(e): orders the joined location list and returns zero only for identical rows", () => {
     const compare = makeCompactRowComparator(keyOrder);
-    const left = row({ locations: "H1", contributions: [{ location: "H1", quantity: 1 }] });
-    const right = row({ locations: "LC1", contributions: [{ location: "LC1", quantity: 1 }] });
+    const left = row({
+      locations: "H1",
+      contributions: [{ location: "H1", quantity: 1, unitsToNormalThreshold: 19 }],
+    });
+    const right = row({
+      locations: "LC1",
+      contributions: [{ location: "LC1", quantity: 1, unitsToNormalThreshold: 19 }],
+    });
 
     expect(compare(left, right)).toBeLessThan(0);
     expect(compare(left, { ...left })).toBe(0);
@@ -306,17 +335,22 @@ describe("stock report domain", () => {
     ).map(({ location }) => location)).toEqual(["LC1"]);
   });
 
-  it("C5(c): compact location filtering re-quantifies selected contributions", () => {
+  it("C5(c): compact location filtering re-quantifies current and missing contributions", () => {
     const [source] = compactEntries([
-      entry({ location: "LC1", quantity: 2 }),
-      entry({ location: "H1", quantity: 18 }),
+      entry({ location: "LC1", quantity: 2, unitsToNormalThreshold: 18 }),
+      entry({ location: "H1", quantity: 18, unitsToNormalThreshold: 2 }),
     ]);
     const [result] = applyStockFilters(source ? [source] : [], filter({ locations: new Set(["LC1"]) }));
 
     expect(result).toMatchObject({
       quantity: 2,
+      unitsToNormalThreshold: 18,
       locations: "LC1",
-      contributions: [{ location: "LC1", quantity: 2 }],
+      contributions: [{
+        location: "LC1",
+        quantity: 2,
+        unitsToNormalThreshold: 18,
+      }],
     });
   });
 

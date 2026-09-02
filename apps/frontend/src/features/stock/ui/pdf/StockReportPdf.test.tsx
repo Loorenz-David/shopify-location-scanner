@@ -264,6 +264,12 @@ function twoPageEntries(): StockReportEntryDto[] {
         mergeKey: `p9-${categoryIndex}-${variant}`,
         quantity: ordinal % 7,
         stockState: STOCK_STATES[ordinal % STOCK_STATES.length]!,
+        thresholds: [
+          { state: STOCK_STATES[1], thresholdQuantity: 10 },
+          { state: STOCK_STATES[2], thresholdQuantity: 15 },
+          { state: STOCK_STATES[3], thresholdQuantity: 20 },
+        ],
+        unitsToNormalThreshold: 20 - (ordinal % 7),
       });
     }
   });
@@ -346,5 +352,36 @@ describe("stock report PDF document", () => {
       [...expectedCategories.keys()].map((category) => [category, countWordBounded(text, category)]),
     );
     expect(categoryCounts).toEqual(Object.fromEntries(expectedCategories));
+  });
+
+  it("C3: renders separate Current and Missing columns with their supplied values", async () => {
+    const model = buildPdfModel([
+      {
+        location: "LC1",
+        itemCategory: "Dining Chairs",
+        properties: {},
+        mergeKey: "current-missing-proof",
+        quantity: 83,
+        stockState: STOCK_STATES[1],
+        thresholds: [
+          { state: STOCK_STATES[1], thresholdQuantity: 90 },
+          { state: STOCK_STATES[2], thresholdQuantity: 95 },
+          { state: STOCK_STATES[3], thresholdQuantity: 180 },
+        ],
+        unitsToNormalThreshold: 97,
+      },
+    ], {
+      ...createDefaultStockFilter(),
+      includeSummaryCounts: false,
+      showContributingLocations: true,
+      propertyKeyOrder: keyOrder,
+    });
+    const lines = (await extractPdfLines(await renderFixture(model))).flat();
+    const text = lines.join("\n");
+
+    expect(text).toMatch(/current/i);
+    expect(text).toMatch(/missing/i);
+    expect(lines).toContain("83");
+    expect(lines).toContain("97");
   });
 });

@@ -75,7 +75,7 @@ function StockLocationsRootView({
           <ChevronLeftIcon className="h-5 w-5" aria-hidden="true" />
         </button>
         <div className="min-w-0 pt-0.5">
-          <h1 className="m-0 text-[18px] font-bold leading-tight text-[var(--stock-heading)]">
+          <h1 className="m-0 text-[16px] font-bold leading-tight text-[var(--stock-heading)]">
             Stock locations
           </h1>
           <p className="m-0 mt-0.5 text-[14px] text-[var(--stock-body)]">
@@ -101,7 +101,7 @@ function StockLocationsRootView({
 
         {!isInitialLoad && locations.length === 0 ? (
           <div className="stock-card-surface rounded-[24px] px-5 py-6">
-            <p className="m-0 text-[16px] font-bold text-[var(--stock-heading)]">
+            <p className="m-0 text-[14px] font-bold text-[var(--stock-heading)]">
               No stock locations yet
             </p>
             <p className="m-0 mt-1 text-[14px] leading-snug text-[var(--stock-body)]">
@@ -141,7 +141,7 @@ function StockLocationsRootView({
             <PlusIcon className="h-6 w-6" aria-hidden="true" />
           </span>
           <span className="flex min-w-0 flex-1 flex-col">
-            <span className="text-[16px] font-bold leading-tight text-[var(--stock-muted)]">
+            <span className="text-[14px] font-bold leading-tight text-[var(--stock-muted)]">
               New location
             </span>
             <span className="mt-0.5 text-[14px] text-[var(--stock-faint)]">

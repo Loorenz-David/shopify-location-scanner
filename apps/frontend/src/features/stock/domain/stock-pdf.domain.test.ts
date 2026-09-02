@@ -36,6 +36,12 @@ function entry(
     mergeKey: "chairs-walnut",
     quantity: 1,
     stockState: "normal_in_stock",
+    thresholds: [
+      { state: "low_in_stock", thresholdQuantity: 10 },
+      { state: "medium_in_stock", thresholdQuantity: 15 },
+      { state: "normal_in_stock", thresholdQuantity: 20 },
+    ],
+    unitsToNormalThreshold: 19,
     ...overrides,
   };
 }

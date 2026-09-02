@@ -2,6 +2,7 @@ import { motion } from "framer-motion";
 import { useMemo, useRef, useState } from "react";
 
 import { CloseIcon } from "../../../assets/icons";
+import { splitLocationCode } from "../../../share/location-codes";
 import { SearchBar } from "../../../share/searchbar";
 import {
   filterLogisticLocations,
@@ -13,13 +14,6 @@ import { useLocationOptionsStore } from "../stores/location-options.store";
 interface UnifiedLocationManualInputPanelProps {
   onClose: () => void;
   onSelectValue: (value: string, kind: LocationKind) => void;
-}
-
-const LETTER_NUMBER_RE = /^([A-Za-z]+)(\d+)$/;
-
-function parseLetterNumber(name: string): { letter: string; number: string } | null {
-  const m = name.match(LETTER_NUMBER_RE);
-  return m ? { letter: m[1].toUpperCase(), number: m[2] } : null;
 }
 
 type LocationKind = "shop" | "logistic";
@@ -56,7 +50,7 @@ function buildLetterGroups(items: LocationItem[]): {
   const unstructured: LocationItem[] = [];
 
   for (const item of items) {
-    const parsed = parseLetterNumber(item.label);
+    const parsed = splitLocationCode(item.label);
     if (parsed) {
       const bucket = map.get(parsed.letter) ?? [];
       bucket.push(item);
@@ -228,7 +222,7 @@ export function UnifiedLocationManualInputPanel({
         ) : activeGroup ? (
           <div className="grid grid-cols-4 gap-2">
             {activeGroup.items.map((item) => {
-              const parsed = parseLetterNumber(item.label);
+              const parsed = splitLocationCode(item.label);
               return (
                 <button
                   key={item.key}
@@ -237,7 +231,7 @@ export function UnifiedLocationManualInputPanel({
                   onClick={() => onSelectValue(item.value, item.kind)}
                 >
                   <span className="text-xl font-bold">
-                    {parsed ? parsed.number : item.label}
+                    {parsed ? parsed.suffix : item.label}
                   </span>
                 </button>
               );

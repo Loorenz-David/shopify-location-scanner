@@ -45,8 +45,12 @@ async function openWizardFromRootPill() {
 }
 
 // Location is picked in a bottom sheet now: tap the selector, tap the option.
+// The picker is two steps: the letter block, then the number inside it.
 async function chooseLocation(location: string) {
   await userEvent.click(screen.getByRole("button", { name: "Location" }));
+  await userEvent.click(
+    await screen.findByRole("button", { name: location.replace(/\d+$/, "") }),
+  );
   await userEvent.click(await screen.findByRole("button", { name: location }));
 }
 
@@ -266,9 +270,14 @@ describe("StockWizardStep1View (screen 08)", () => {
     expect(locationSelect).toHaveTextContent(second!.location);
     // The edited instance's location is the only one on offer, and it is checked.
     await userEvent.click(locationSelect);
+    // The picker opens on the letter blocks; the block holding the selection is marked.
+    const blocks = await screen.findAllByTestId("stock-sheet-option");
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0]).toHaveAttribute("aria-pressed", "true");
+    await userEvent.click(blocks[0]!);
     const locationOptions = await screen.findAllByTestId("stock-sheet-option");
     expect(locationOptions).toHaveLength(1);
-    expect(locationOptions[0]).toHaveTextContent(second!.location);
+    expect(locationOptions[0]).toHaveAttribute("aria-label", second!.location);
     expect(locationOptions[0]).toHaveAttribute("aria-pressed", "true");
     await closeSheet("Location");
     expect(screen.getByRole("combobox", { name: "Item type" })).toHaveValue(

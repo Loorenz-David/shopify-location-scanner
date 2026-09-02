@@ -7,6 +7,10 @@ export interface StockSelectSheetOption {
   label: string;
   isSelected: boolean;
   isWildcard?: boolean;
+  // Grid layout only: the small count under a card, and the name a screen reader hears
+  // when the visible label is an abbreviation (a location's number without its letter).
+  caption?: string;
+  accessibleLabel?: string;
 }
 
 interface StockSelectSheetProps {
@@ -17,6 +21,9 @@ interface StockSelectSheetProps {
   emptyMessage: string;
   // Location codes and property keys are set in the mono face on every other stock screen.
   monoLabels?: boolean;
+  // Short codes read as a grid of cards (the scanner's manual location panel); anything
+  // with a sentence-length label stays a list.
+  layout?: "list" | "grid";
   onSelect: (id: string) => void;
   onClose: () => void;
   // A step reached from a list inside the sheet (a property's values) goes back to it
@@ -53,6 +60,7 @@ export function StockSelectSheet({
   options,
   emptyMessage,
   monoLabels = false,
+  layout = "list",
   onSelect,
   onClose,
   onBack,
@@ -91,20 +99,50 @@ export function StockSelectSheet({
               <p className="stock-mono m-0 text-[10px] uppercase tracking-[0.14em] text-[var(--stock-muted)]">
                 {eyebrow}
               </p>
-              <h2 className="m-0 mt-0.5 truncate text-[16px] font-bold leading-tight text-[var(--stock-heading)]">
+              <h2 className="m-0 mt-0.5 truncate text-[15px] font-bold leading-tight text-[var(--stock-heading)]">
                 {title}
               </h2>
             </div>
           </header>
 
           <div
-            className="flex flex-col overflow-y-auto px-5"
+            className={`overflow-y-auto px-5 ${layout === "grid" ? "grid grid-cols-4 gap-2 pt-4" : "flex flex-col"}`}
             style={cta ? undefined : { paddingBottom: safeAreaPadding }}
           >
             {options.length === 0 ? (
-              <p className="m-0 py-6 text-center text-[14px] text-[var(--stock-muted)]">
+              <p className="col-span-4 m-0 py-6 text-center text-[14px] text-[var(--stock-muted)]">
                 {emptyMessage}
               </p>
+            ) : layout === "grid" ? (
+              options.map((option) => (
+                <button
+                  key={option.id}
+                  type="button"
+                  data-testid="stock-sheet-option"
+                  aria-pressed={option.isSelected}
+                  aria-label={option.accessibleLabel}
+                  className={`flex aspect-square flex-col items-center justify-center gap-1 rounded-[18px] border text-center ${
+                    option.isSelected
+                      ? "border-[var(--stock-primary)] bg-[#F0F8F4] text-[var(--stock-primary)]"
+                      : "border-slate-900/10 bg-white text-[var(--stock-heading)]"
+                  }`}
+                  onClick={() => onSelect(option.id)}
+                >
+                  <span
+                    className={`leading-none ${monoLabels ? "stock-mono" : ""} text-[16px] font-bold`}
+                  >
+                    {option.label}
+                  </span>
+                  {option.caption === undefined ? null : (
+                    <span
+                      aria-hidden="true"
+                      className="text-[10px] leading-none text-[var(--stock-muted)]"
+                    >
+                      {option.caption}
+                    </span>
+                  )}
+                </button>
+              ))
             ) : (
               options.map((option, index) => (
                 <button
@@ -120,7 +158,7 @@ export function StockSelectSheet({
                   onClick={() => onSelect(option.id)}
                 >
                   <span
-                    className={`min-w-0 leading-tight ${monoLabels ? "stock-mono text-[16px] font-medium" : "text-[14px] font-medium"} ${
+                    className={`min-w-0 leading-tight ${monoLabels ? "stock-mono text-[15px] font-medium" : "text-[14px] font-medium"} ${
                       option.isWildcard ? "italic" : ""
                     } ${
                       option.isSelected

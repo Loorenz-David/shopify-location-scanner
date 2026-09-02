@@ -2,6 +2,7 @@ import { displayValueFor } from "./stock-criteria.domain";
 import {
   compareByStateIndex,
   countByStateBucket,
+  STOCK_STATES,
 } from "./stock-states.domain";
 import type {
   StockOptionsDto,
@@ -41,6 +42,26 @@ function compareCaseInsensitive(left: string, right: string): number {
 
 function compareNumbers(left: number, right: number): number {
   return left - right;
+}
+
+export function missingQuantityForEntry(
+  entry: Pick<
+    StockReportEntryDto,
+    "quantity" | "thresholds" | "unitsToNormalThreshold"
+  >,
+): number {
+  if (entry.unitsToNormalThreshold !== undefined) {
+    return entry.unitsToNormalThreshold;
+  }
+
+  const normalThreshold = entry.thresholds.find(
+    (threshold) => threshold.state === STOCK_STATES[3],
+  );
+  if (normalThreshold === undefined) {
+    throw new Error("Stock report entry is missing its normal threshold");
+  }
+
+  return Math.max(0, normalThreshold.thresholdQuantity - entry.quantity);
 }
 
 function orderPropertyKeys(
@@ -85,7 +106,9 @@ function contributionComparisonString(
   contributions: readonly ReportContribution[],
 ): string {
   return contributions
-    .map(({ location, quantity }) => `${location}${KEY_VALUE_SEPARATOR}${quantity}`)
+    .map(({ location, quantity, unitsToNormalThreshold }) =>
+      [location, quantity, unitsToNormalThreshold].join(KEY_VALUE_SEPARATOR),
+    )
     .join(GROUP_SEPARATOR);
 }
 
@@ -97,6 +120,7 @@ function compareCompactRows(
   const comparisons = [
     compareByStateIndex(left.stockState, right.stockState),
     compareNumbers(left.quantity, right.quantity),
+    compareNumbers(left.unitsToNormalThreshold, right.unitsToNormalThreshold),
     compareCaseInsensitive(left.itemCategory, right.itemCategory),
     compareCodePoints(
       propertiesComparisonString(left.properties, keyOrder),
@@ -168,7 +192,11 @@ export function compactEntries(
   return [...groups.values()].map((members) => {
     const first = members[0];
     const contributions = members
-      .map(({ location, quantity }) => ({ location, quantity }))
+      .map((member) => ({
+        location: member.location,
+        quantity: member.quantity,
+        unitsToNormalThreshold: missingQuantityForEntry(member),
+      }))
       .toSorted((left, right) => compareCodePoints(left.location, right.location));
     const locations = [...new Set(contributions.map(({ location }) => location))]
       .toSorted(compareCodePoints)
@@ -179,6 +207,11 @@ export function compactEntries(
       itemCategory: first.itemCategory,
       properties: first.properties,
       quantity: members.reduce((total, member) => total + member.quantity, 0),
+      unitsToNormalThreshold: contributions.reduce(
+        (total, contribution) =>
+          total + contribution.unitsToNormalThreshold,
+        0,
+      ),
       stockState: first.stockState,
       locations,
       contributions,
@@ -231,6 +264,10 @@ export function applyStockFilters(
         ...item,
         quantity: selectedContributions.reduce(
           (total, contribution) => total + contribution.quantity,
+          0,
+        ),
+        unitsToNormalThreshold: selectedContributions.reduce(
+          (total, contribution) => total + contribution.unitsToNormalThreshold,
           0,
         ),
         locations,

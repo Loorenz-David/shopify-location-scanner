@@ -71,7 +71,25 @@ endpoint from another: assert the exact method **and** path **and** payload per 
 seven rows distinguishable from each other, not merely present.
 
 ## Review log
-(empty)
+
+- **2026-09-02 — Codex implement round 1:** Added the phase-specific live seam test file with
+  one C1 resolver case and seven distinguishable C2 endpoint cases. The existing resolver already
+  implements the contract (`mock` only on explicit `"mock"`, otherwise `live`), so no production
+  seam change was needed. The required M1 mutation was applied at the resolver definition,
+  executed unfiltered, observed red, and restored from a byte copy; see the implementer handoff
+  for the complete failure-ID ledger and tree evidence. The production build was run with an
+  empty `VITE_STOCK_API_MODE` process value and succeeded; the emitted stock bundle resolves the
+  default branch to `live`.
+- **Judgment call:** The download fallback was not changed. The plan requires confirmation in
+  Firefox and desktop Safari before applying the prescribed anchor-lifecycle fix; the browser
+  runtime exposed no available browser in this session, so changing the code would be an
+  unobserved defect fix rather than evidence-led repair.
+- **Environment:** `apps/backend` reports no pending Prisma migrations. The repository-wide lint
+  baseline remains 48 errors / 14 warnings; the new test file and the resolver are lint-clean,
+  and frontend typecheck is green.
+- **Blocking observation:** C3's live create → 409 → edit → delete, non-zero report, and WS
+  refetch run was not performed because the browser inventory was empty. The phase must not be
+  marked IMPLEMENTED until that manual run and the Firefox/Safari fallback check are recorded.
 ## Inherited hazard — the download fallback is unverified in a real browser
 
 *(Routed by the coordinator 2026-09-02 from P8's consumption, forward hazard 3.)*

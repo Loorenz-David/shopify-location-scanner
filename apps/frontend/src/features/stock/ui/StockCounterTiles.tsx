@@ -30,10 +30,10 @@ export function StockCounterTiles({ tiles }: StockCounterTilesProps) {
               : { backgroundColor: "rgba(255,255,255,0.65)", color: "var(--stock-muted)" }
           }
         >
-          <span data-testid="stock-counter-value" className="text-[24px] font-bold leading-none">
+          <span data-testid="stock-counter-value" className="text-[17px] font-bold leading-none">
             {value}
           </span>
-          <span className="stock-mono text-[11px] uppercase tracking-[0.14em]">{label}</span>
+          <span className="stock-mono text-[10px] uppercase tracking-[0.14em]">{label}</span>
         </div>
       ))}
     </div>

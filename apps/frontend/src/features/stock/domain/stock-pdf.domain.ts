@@ -1,6 +1,7 @@
 import {
   buildReportView,
   makeCompactRowComparator,
+  missingQuantityForEntry,
 } from "./stock-report.domain";
 import {
   getStockStateMeta,
@@ -66,7 +67,11 @@ function compareCodePoints(left: string, right: string): number {
 }
 
 function contributionForEntry(entry: StockReportEntryDto): ReportContribution[] {
-  return [{ location: entry.location, quantity: entry.quantity }];
+  return [{
+    location: entry.location,
+    quantity: entry.quantity,
+    unitsToNormalThreshold: missingQuantityForEntry(entry),
+  }];
 }
 
 function toPdfRow(entry: StockReportEntryDto): StockPdfRow {
@@ -75,6 +80,7 @@ function toPdfRow(entry: StockReportEntryDto): StockPdfRow {
     itemCategory: entry.itemCategory,
     properties: entry.properties,
     quantity: entry.quantity,
+    unitsToNormalThreshold: missingQuantityForEntry(entry),
     stockState: entry.stockState,
     locations: entry.location,
     contributions: contributionForEntry(entry),

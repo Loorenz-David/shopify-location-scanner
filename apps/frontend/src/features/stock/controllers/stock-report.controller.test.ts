@@ -75,6 +75,8 @@ describe("stock report controller", () => {
         mergeKey: "vocab-oak",
         quantity: 5,
         stockState: "low_in_stock",
+        thresholds: stockReportFixture[0]!.thresholds,
+        unitsToNormalThreshold: 15,
       },
       {
         location: "LC1",
@@ -83,6 +85,8 @@ describe("stock report controller", () => {
         mergeKey: "vocab-pine",
         quantity: 5,
         stockState: "low_in_stock",
+        thresholds: stockReportFixture[0]!.thresholds,
+        unitsToNormalThreshold: 15,
       },
     ] satisfies typeof stockReportFixture;
 

@@ -20,6 +20,7 @@ export interface CompactedReportRow {
   itemCategory: string;
   properties: StockPropertiesDto;
   quantity: number;
+  unitsToNormalThreshold: number;
   stockState: StockState;
   locations: string;
   contributions: ReportContribution[];
@@ -28,6 +29,7 @@ export interface CompactedReportRow {
 export interface ReportContribution {
   location: string;
   quantity: number;
+  unitsToNormalThreshold: number;
 }
 
 export interface ReportLocationGroup {

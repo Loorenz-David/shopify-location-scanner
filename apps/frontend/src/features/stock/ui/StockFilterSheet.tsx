@@ -39,7 +39,7 @@ function CheckMark() {
 }
 
 const eyebrowClassName =
-  "stock-mono m-0 text-[11px] uppercase tracking-[0.14em] text-[var(--stock-muted)]";
+  "stock-mono m-0 text-[10px] uppercase tracking-[0.14em] text-[var(--stock-muted)]";
 
 // Screen 03: bottom sheet over the dimmed report. It edits a pending copy of the filter;
 // every count on it comes from countPendingRows over the pending selection (MC5, D12),
@@ -115,10 +115,10 @@ export function StockFilterSheet({
 
         <div className="flex flex-col gap-5 overflow-y-auto px-5 pb-8 pt-2">
           <header className="flex items-center justify-between">
-            <h2 className="m-0 text-[24px] font-bold text-[var(--stock-heading)]">Filters</h2>
+            <h2 className="m-0 text-[16px] font-bold text-[var(--stock-heading)]">Filters</h2>
             <button
               type="button"
-              className="text-[16px] font-semibold text-[var(--stock-primary)]"
+              className="text-[14px] font-semibold text-[var(--stock-primary)]"
               onClick={() => setPending(createDefaultStockFilter())}
             >
               Reset
@@ -161,10 +161,10 @@ export function StockFilterSheet({
                     className="h-2.5 w-2.5 flex-shrink-0 rounded-full"
                     style={{ backgroundColor: meta.solid }}
                   />
-                  <span className="flex-1 text-[17px] font-semibold text-[var(--stock-heading)]">
+                  <span className="flex-1 text-[14px] font-semibold text-[var(--stock-heading)]">
                     {meta.label}
                   </span>
-                  <span className="text-[15px] font-semibold text-[var(--stock-muted)]">
+                  <span className="text-[14px] font-semibold text-[var(--stock-muted)]">
                     {countForState(state)}
                   </span>
                 </label>
@@ -178,7 +178,7 @@ export function StockFilterSheet({
               <button
                 type="button"
                 aria-pressed={isAllLocations}
-                className={`stock-mono rounded-[16px] px-5 py-3 text-[15px] font-medium ${
+                className={`stock-mono rounded-[16px] px-5 py-3 text-[14px] font-medium ${
                   isAllLocations
                     ? "bg-[var(--stock-primary)] text-white"
                     : "bg-[var(--stock-chip-bg)] text-[var(--stock-body)]"
@@ -194,7 +194,7 @@ export function StockFilterSheet({
                     key={location}
                     type="button"
                     aria-pressed={isSelected}
-                    className={`stock-mono rounded-[16px] px-5 py-3 text-[15px] font-medium ${
+                    className={`stock-mono rounded-[16px] px-5 py-3 text-[14px] font-medium ${
                       isSelected
                         ? "bg-[var(--stock-primary)] text-white"
                         : "bg-[var(--stock-chip-bg)] text-[var(--stock-body)]"
@@ -210,10 +210,10 @@ export function StockFilterSheet({
 
           <div className="flex items-center justify-between gap-3 rounded-[20px] bg-[var(--stock-track)] px-4 py-3.5">
             <div>
-              <p className="m-0 text-[17px] font-semibold text-[var(--stock-heading)]">
+              <p className="m-0 text-[14px] font-semibold text-[var(--stock-heading)]">
                 Group by location
               </p>
-              <p className="m-0 mt-0.5 text-[13px] text-[var(--stock-muted)]">
+              <p className="m-0 mt-0.5 text-[12px] text-[var(--stock-muted)]">
                 Disables cross-location merge
               </p>
             </div>
@@ -244,7 +244,7 @@ export function StockFilterSheet({
 
           <button
             type="button"
-            className="inline-flex h-14 w-full items-center justify-center rounded-[28px] bg-[var(--stock-primary)] text-[17px] font-semibold text-white shadow-[var(--stock-cta-shadow)] transition active:scale-[0.98]"
+            className="inline-flex h-14 w-full items-center justify-center rounded-[28px] bg-[var(--stock-primary)] text-[14px] font-semibold text-white shadow-[var(--stock-cta-shadow)] transition active:scale-[0.98]"
             onClick={() => onApply(pending)}
           >
             Show {pendingCount} {pendingCount === 1 ? "entry" : "entries"}

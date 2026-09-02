@@ -73,6 +73,12 @@ async function renderReport(): Promise<void> {
 // out+low+medium count AND their worst state, and the raw payload order (L2, L3, L1)
 // must differ from the MC3 ranking (L1, L2, L3) — and from the design-02 sum reading
 // D11 overrode (L2, L1, L3) — or the rendered order proves nothing.
+const groupedThresholds = [
+  { state: STOCK_STATES[1], thresholdQuantity: 10 },
+  { state: STOCK_STATES[2], thresholdQuantity: 15 },
+  { state: STOCK_STATES[3], thresholdQuantity: 20 },
+];
+
 const groupedPayload: StockReportEntryDto[] = [
   {
     location: "L2",
@@ -81,6 +87,8 @@ const groupedPayload: StockReportEntryDto[] = [
     mergeKey: "oak-chairs",
     quantity: 4,
     stockState: STOCK_STATES[1],
+    thresholds: groupedThresholds,
+    unitsToNormalThreshold: 16,
   },
   {
     location: "L2",
@@ -89,6 +97,8 @@ const groupedPayload: StockReportEntryDto[] = [
     mergeKey: "oval-tables",
     quantity: 8,
     stockState: STOCK_STATES[2],
+    thresholds: groupedThresholds,
+    unitsToNormalThreshold: 12,
   },
   {
     location: "L2",
@@ -97,6 +107,8 @@ const groupedPayload: StockReportEntryDto[] = [
     mergeKey: "side-tables",
     quantity: 9,
     stockState: STOCK_STATES[2],
+    thresholds: groupedThresholds,
+    unitsToNormalThreshold: 11,
   },
   {
     location: "L3",
@@ -105,6 +117,8 @@ const groupedPayload: StockReportEntryDto[] = [
     mergeKey: "sofas",
     quantity: 20,
     stockState: STOCK_STATES[3],
+    thresholds: groupedThresholds,
+    unitsToNormalThreshold: 0,
   },
   {
     location: "L1",
@@ -113,6 +127,8 @@ const groupedPayload: StockReportEntryDto[] = [
     mergeKey: "bedside",
     quantity: 0,
     stockState: STOCK_STATES[0],
+    thresholds: groupedThresholds,
+    unitsToNormalThreshold: 20,
   },
   {
     location: "L1",
@@ -121,6 +137,8 @@ const groupedPayload: StockReportEntryDto[] = [
     mergeKey: "oak-chairs",
     quantity: 3,
     stockState: STOCK_STATES[1],
+    thresholds: groupedThresholds,
+    unitsToNormalThreshold: 17,
   },
 ];
 
@@ -198,12 +216,18 @@ describe("StockReportPage (screens 01–04)", () => {
       expect(badge).toHaveStyle({ color: getStockStateMeta(worst).text });
 
       // entries within the group, in MC3 order
-      const entryKeys = within(group)
-        .getAllByTestId("stock-report-entry")
-        .map((entry) => entry.getAttribute("data-entry-key"));
+      const renderedEntries = within(group).getAllByTestId("stock-report-entry");
+      const entryKeys = renderedEntries.map((entry) =>
+        entry.getAttribute("data-entry-key"),
+      );
       expect(entryKeys).toEqual(
         expectedGroup.entries.map((entry) => `${entry.mergeKey}|${entry.stockState}|${entry.location}`),
       );
+      renderedEntries.forEach((entry, entryIndex) => {
+        expect(within(entry).getByTestId("stock-row-missing")).toHaveTextContent(
+          String(expectedGroup.entries[entryIndex]!.unitsToNormalThreshold),
+        );
+      });
     }
     expect(fixCounts.size).toBe(groups.length);
     expect(worstStates.size).toBe(groups.length);
@@ -279,6 +303,9 @@ describe("StockReportPage (screens 01–04)", () => {
     await renderReport();
     const before = screen.getAllByTestId("stock-report-row").find((row) => row.getAttribute("data-row-key") === rowKey(multi))!;
     expect(within(before).getByTestId("stock-row-quantity")).toHaveTextContent(String(multi.quantity));
+    expect(within(before).getByTestId("stock-row-missing")).toHaveTextContent(
+      String(multi.unitsToNormalThreshold),
+    );
 
     await userEvent.click(screen.getByRole("button", { name: "Filters" }));
     const sheet = await screen.findByRole("dialog", { name: "Filters" });
@@ -288,6 +315,9 @@ describe("StockReportPage (screens 01–04)", () => {
 
     const after = screen.getAllByTestId("stock-report-row").find((row) => row.getAttribute("data-row-key") === rowKey(multi))!;
     expect(within(after).getByTestId("stock-row-quantity")).toHaveTextContent(String(expectedRow.quantity));
+    expect(within(after).getByTestId("stock-row-missing")).toHaveTextContent(
+      String(expectedRow.unitsToNormalThreshold),
+    );
     expect(within(after).getByTestId("stock-row-locations")).toHaveTextContent(expectedRow.locations);
     expect(screen.getByTestId("stock-report-scope")).toHaveTextContent(location);
   });
@@ -393,6 +423,11 @@ describe("StockReportPage (screens 01–04)", () => {
 
     const rendered = screen.getAllByTestId("stock-report-row").find((row) => row.getAttribute("data-row-key") === rowKey(zero))!;
     expect(within(rendered).getByTestId("stock-row-quantity")).toHaveTextContent("0");
+    expect(within(rendered).getByTestId("stock-row-missing")).toHaveTextContent(
+      String(zero.unitsToNormalThreshold),
+    );
+    expect(within(rendered).getByText("In stock")).toBeInTheDocument();
+    expect(within(rendered).getByText("Missing")).toBeInTheDocument();
     expect(within(rendered).getByText(getStockStateMeta(STOCK_STATES[0]).label)).toBeInTheDocument();
   });
 

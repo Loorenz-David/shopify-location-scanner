@@ -42,7 +42,7 @@ describe("stock API seam", () => {
     localStorage.setItem("accessToken", "a.eyJ1c2VySWQiOiIxIn0.c");
   });
 
-  it("C3(a): every report entry has exactly the six contract fields", async () => {
+  it("C3(a): every report entry has exactly the eight contract fields", async () => {
     vi.stubEnv("VITE_STOCK_API_MODE", "mock");
     const entries = await getStockReport();
     const keys = [
@@ -52,6 +52,8 @@ describe("stock API seam", () => {
       "mergeKey",
       "quantity",
       "stockState",
+      "thresholds",
+      "unitsToNormalThreshold",
     ];
 
     for (const entry of entries) {
@@ -98,6 +100,22 @@ describe("stock API seam", () => {
     expect(
       entries.filter((entry) => entry.mergeKey === "report-zero-entry"),
     ).toHaveLength(1);
+  });
+
+  it("C3(e): report thresholds are state-keyed and full-target missing units stay visible in normal", async () => {
+    vi.stubEnv("VITE_STOCK_API_MODE", "mock");
+    const entries = await getStockReport();
+    const normal = entries.find((entry) =>
+      entry.stockState === "normal_in_stock" && entry.quantity === 18
+    );
+
+    expect(normal).toBeDefined();
+    expect(
+      normal!.thresholds.find((threshold) =>
+        threshold.state === "normal_in_stock"
+      )?.thresholdQuantity,
+    ).toBe(20);
+    expect(normal!.unitsToNormalThreshold).toBe(2);
   });
 
   it("C4(a): options expose the exact eight-key final vocabulary", async () => {
