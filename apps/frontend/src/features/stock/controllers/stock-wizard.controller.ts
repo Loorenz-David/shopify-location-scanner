@@ -149,6 +149,7 @@ export async function submitStockWizardController(): Promise<void> {
     );
   }
 
+  // Pop the wizard frames so a save lands on the saved instance's location detail.
   while (true) {
     const navigationStore = useStockNavigationStore.getState();
     const currentView = navigationStore.viewStack.at(-1);
@@ -158,8 +159,11 @@ export async function submitStockWizardController(): Promise<void> {
 
     navigationStore.pop();
   }
+  // A wizard opened from the locations root pops back to the root with no detail
+  // frame. Push one rather than resetting: a reset would leave the detail alone at
+  // the bottom of the stack, and its back button — a plain pop — would do nothing.
   if (useStockNavigationStore.getState().viewStack.at(-1) !== "location-detail") {
-    useStockNavigationStore.getState().reset("location-detail");
+    useStockNavigationStore.getState().push("location-detail");
   }
   useStockWizardStore.getState().reset();
 }

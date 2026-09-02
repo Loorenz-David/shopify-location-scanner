@@ -103,4 +103,30 @@ describe("stock wizard controller", () => {
     expect(useStockWizardStore.getState().draft).toBeNull();
     expect(useStockNavigationStore.getState().viewStack).toEqual(["location-detail"]);
   });
+
+  it("C2(save from the root): the detail it lands on keeps the root underneath it", async () => {
+    // A save used to reset the stack to the detail alone, so the detail's back
+    // button — a plain pop, which refuses to empty the stack — did nothing at all.
+    const created = {
+      ...stockLocationDetailFixture[0]!,
+      id: "created-2",
+      location: "L2",
+    };
+    vi.spyOn(stockApi, "createStockConfigurations").mockResolvedValueOnce([created]);
+    vi.spyOn(stockApi, "getStockLocationDetail").mockResolvedValueOnce([created]);
+    useStockNavigationStore.getState().reset("locations-root");
+
+    await initializeNewStockWizardController("L2");
+    updateStockWizardDraft({ itemCategory: "Dining Chairs", properties: {} });
+    useStockNavigationStore.getState().push("wizard-step1");
+    useStockNavigationStore.getState().push("wizard-step2");
+    await submitStockWizardController();
+
+    expect(useStockNavigationStore.getState().viewStack).toEqual([
+      "locations-root",
+      "location-detail",
+    ]);
+    expect(useStockNavigationStore.getState().pop()).toBe("location-detail");
+    expect(useStockNavigationStore.getState().viewStack).toEqual(["locations-root"]);
+  });
 });
