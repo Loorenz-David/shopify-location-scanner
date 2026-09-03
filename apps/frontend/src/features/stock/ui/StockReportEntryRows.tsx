@@ -9,6 +9,11 @@ import { StockPropertyChips } from "./StockPropertyChips";
 
 const missingMeta = getStockStateMeta(STOCK_STATES[0]);
 
+// A definition can carry many properties, and a row that grows a chip stack for each one
+// reads as a wall rather than a list. Two rows of chips, then a "3+" pill; the entry
+// detail behind the row shows the full set.
+const REPORT_ROW_CHIP_ROWS = 2;
+
 interface StockQuantityBarProps {
   current: number;
   missing: number;
@@ -113,7 +118,7 @@ export function StockCompactEntryRow({
           <span className="text-[14px] font-bold leading-tight text-[var(--stock-heading)]">
             {row.itemCategory}
           </span>
-          <StockPropertyChips chips={chips} />
+          <StockPropertyChips chips={chips} maxRows={REPORT_ROW_CHIP_ROWS} />
         </span>
         <StockEntryStatus state={row.stockState} location={row.locations} />
       </span>
@@ -161,7 +166,7 @@ export function StockGroupedEntryRow({
           <span className="text-[14px] font-bold leading-tight text-[var(--stock-heading)]">
             {entry.itemCategory}
           </span>
-          <StockPropertyChips chips={chips} />
+          <StockPropertyChips chips={chips} maxRows={REPORT_ROW_CHIP_ROWS} />
         </span>
         <StockEntryStatus state={entry.stockState} location={entry.location} />
       </span>
