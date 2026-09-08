@@ -1,9 +1,18 @@
 import type { ItemCategory } from "../category/item-categories.js";
+import { WOOD_GROUP_KEY, WOOD_GROUP_NAMES } from "./wood-groups.js";
 
 export const ITEM_PROPERTY_OPTIONS = [
   {
     key: "wood_type",
     values: ["Beech", "Birch", "Cherry", "Elm", "Mahogany", "Oak", "Santos Rosewood", "Teak", "Walnut"],
+    categories: "universal",
+  },
+  // Derived, not stored: no item carries `wood_group`. The matcher computes it
+  // from the item's first `wood_type` token, and a definition uses either this
+  // key or `wood_type`, never both (see validateStockCriteria).
+  {
+    key: WOOD_GROUP_KEY,
+    values: WOOD_GROUP_NAMES,
     categories: "universal",
   },
   {

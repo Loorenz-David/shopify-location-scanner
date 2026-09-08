@@ -1,6 +1,6 @@
 import { NotFoundError } from "../../../shared/errors/http-errors.js";
 import { locationStockRepository } from "../repositories/location-stock.repository.js";
-import { reconcileGroup } from "../services/stock-reconciliation.service.js";
+import { reconcileCategory } from "../services/stock-reconciliation.service.js";
 
 export const deleteLocationStockCommand = async (input: {
   id: string;
@@ -12,5 +12,5 @@ export const deleteLocationStockCommand = async (input: {
   }
 
   await locationStockRepository.deleteById(input.id, input.shopId);
-  await reconcileGroup(input.shopId, existing.location, existing.itemCategory);
+  await reconcileCategory(input.shopId, existing.itemCategory);
 };

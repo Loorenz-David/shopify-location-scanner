@@ -1,4 +1,5 @@
 import { ChevronLeftIcon, ChevronRightIcon } from "../../../assets/icons";
+import { formatLocationLabel } from "../../../share/location-codes";
 import { stockActions } from "../actions/stock.actions";
 import { criteriaChips } from "../domain/stock-criteria.domain";
 import { useStockSettingsFlow } from "../flows/use-stock-settings.flow";
@@ -104,7 +105,7 @@ export function StockLocationDetailView({ location }: StockLocationDetailViewPro
         </button>
         <div className="min-w-0 pt-0.5">
           <h1 className="m-0 text-[16px] font-bold leading-tight text-[var(--stock-heading)]">
-            {location}
+            {formatLocationLabel(location)}
           </h1>
           <p className="m-0 mt-0.5 text-[14px] text-[var(--stock-body)]">
             {pluralize(instances?.length ?? 0, "stock instance")}
@@ -130,14 +131,14 @@ export function StockLocationDetailView({ location }: StockLocationDetailViewPro
           ))}
           {instances !== undefined && instances.length === 0 ? (
             <div className="rounded-[24px] border-2 border-dashed border-[var(--stock-dashed)] px-5 py-6 text-center text-[14px] text-[var(--stock-muted)]">
-              No stock instances in {location} yet.
+              No stock instances in {formatLocationLabel(location)} yet.
             </div>
           ) : null}
         </div>
       )}
 
       <StockFloatingPill
-        label={`Add instance to ${location}`}
+        label={`Add instance to ${formatLocationLabel(location)}`}
         onPress={() =>
           void openWizard(stockActions.startNewWizardFromLocation(location))
         }

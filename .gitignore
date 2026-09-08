@@ -9,9 +9,10 @@
 secrets/
 
 # databases
-dev.db
-dev.db-wal
-dev.db-shm
+# Every local SQLite artefact, not just the three exact names: a backup copy
+# (dev.db.pre-migration, dev.db.backup-<timestamp> from secrets/download-db-backup.sh)
+# is hundreds of MB and GitHub rejects any push carrying one.
+dev.db*
 
 # dependencies
 node_modules/

@@ -11,15 +11,20 @@ export type StockCriteriaInput = Record<string, string | string[] | null>;
  * uses it is `upholstery: "Up & Down"`, which the map carries as a single choice
  * alongside `Down` and `None`. Splitting it would make that choice unselectable
  * and would silently fold those items into the `Down` configuration.
+ *
+ * `orderedPropertyTokens` is the same split with order kept, which wood-group
+ * derivation needs: only an item's FIRST wood counts. The Set form is built
+ * from it so the split rule itself lives in exactly one place.
  */
+export const orderedPropertyTokens = (stored: string): string[] =>
+  stored
+    .split(/[,\/]/)
+    .map((token) => token.trim())
+    .filter(Boolean)
+    .map((token) => token.toLowerCase());
+
 export const tokenizePropertyValue = (stored: string): Set<string> =>
-  new Set(
-    stored
-      .split(/[,\/]/)
-      .map((token) => token.trim())
-      .filter(Boolean)
-      .map((token) => token.toLowerCase()),
-  );
+  new Set(orderedPropertyTokens(stored));
 
 export const normalizeCriteria = (input: StockCriteriaInput): StockCriteria => {
   if (typeof input !== "object" || input === null || Array.isArray(input)) {

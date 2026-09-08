@@ -1,4 +1,5 @@
 import type { StockReportDto } from "../contracts/stock.contract.js";
+import { isLocationPattern } from "../domain/location-pattern.js";
 import { locationStockRepository } from "../repositories/location-stock.repository.js";
 
 export const getStockReportQuery = async (
@@ -21,6 +22,7 @@ export const getStockReportQuery = async (
           thresholdQuantity,
         })),
         location: configuration.location,
+        isLocationPattern: isLocationPattern(configuration.location),
         itemCategory: configuration.itemCategory,
         properties: configuration.properties,
         mergeKey: `${configuration.itemCategory}|${configuration.propertiesCanonical}`,

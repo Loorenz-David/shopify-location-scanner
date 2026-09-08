@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useState } from "react";
 
 import { ChevronLeftIcon, FilterIcon } from "../../../assets/icons";
 import { homeShellActions } from "../../home/actions/home-shell.actions";
+import { formatLocationLabel } from "../../../share/location-codes";
 import { stockActions } from "../actions/stock.actions";
 import { criteriaChips } from "../domain/stock-criteria.domain";
 import { compactEntries } from "../domain/stock-report.domain";
@@ -91,7 +92,7 @@ function StockReportGroup({
     >
       <header className="flex items-center gap-3 px-1">
         <h2 className="stock-mono m-0 text-[15px] font-bold text-[var(--stock-heading)]">
-          {group.location}
+          {formatLocationLabel(group.location)}
         </h2>
         <span
           className="h-px flex-1 bg-[var(--stock-dashed)]"

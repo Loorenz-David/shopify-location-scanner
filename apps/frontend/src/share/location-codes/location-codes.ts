@@ -21,3 +21,36 @@ export function splitLocationCode(code: string): LocationCodeParts | null {
 export function locationBlockOf(code: string): string | null {
   return splitLocationCode(code)?.letter ?? null;
 }
+
+// A definition's location may be a prefix pattern rather than one code: "LC%"
+// catches every code that starts with LC (LC10, LC9, LC1:2). The trailing `%`
+// is the whole grammar — the backend rejects it anywhere else — so recognising
+// one is a suffix test, and the block it stands for is what comes before it.
+export const LOCATION_PATTERN_SUFFIX = "%";
+
+export function isLocationPattern(code: string): boolean {
+  return code.trim().endsWith(LOCATION_PATTERN_SUFFIX);
+}
+
+// The pattern that catches a whole letter block: "LC" -> "LC%".
+export function patternForBlock(letter: string): string {
+  return `${letter}${LOCATION_PATTERN_SUFFIX}`;
+}
+
+// The block a pattern stands for, or null when the code is not a pattern.
+export function blockOfPattern(code: string): string | null {
+  const trimmed = code.trim();
+  return isLocationPattern(trimmed)
+    ? trimmed.slice(0, -LOCATION_PATTERN_SUFFIX.length)
+    : null;
+}
+
+/**
+ * What the user reads. A concrete code shows as itself; a pattern shows as its
+ * block and what it means, because "LC%" is our storage grammar and not
+ * something anyone was asked to learn.
+ */
+export function formatLocationLabel(code: string): string {
+  const block = blockOfPattern(code);
+  return block === null ? code : `${block} \u00b7 all`;
+}

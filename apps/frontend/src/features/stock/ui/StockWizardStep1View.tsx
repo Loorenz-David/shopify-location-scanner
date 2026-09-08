@@ -1,9 +1,20 @@
 import { useRef, useState } from "react";
 
 import { ChevronRightIcon, CloseIcon, PlusIcon } from "../../../assets/icons";
-import { locationBlockOf, splitLocationCode } from "../../../share/location-codes";
+import {
+  blockOfPattern,
+  formatLocationLabel,
+  locationBlockOf,
+  patternForBlock,
+  splitLocationCode,
+} from "../../../share/location-codes";
 import { stockActions } from "../actions/stock.actions";
 import { buildCriteria, displayValueFor, propertyKeyLabel } from "../domain/stock-criteria.domain";
+import {
+  WOOD_GROUP_KEY,
+  withoutConflictingWoodKey,
+  woodGroupCaption,
+} from "../domain/stock-wood-groups.domain";
 import type { CriteriaDraftProperty } from "../domain/stock-criteria.domain";
 import { groupLocationsByLetter } from "../domain/stock-location-groups.domain";
 import { restrictLocationsToBlock } from "../domain/stock-location-restriction.domain";
@@ -125,8 +136,11 @@ export function StockWizardStep1View() {
 
   const rows = rowsFrom(draft.properties, options);
   const definitions = draft.itemCategory === "" ? [] : definitionsFor(options, draft.itemCategory);
-  const unusedDefinitions = definitions.filter(
-    (definition) => !rows.some((row) => row.key === definition.key),
+  const unusedDefinitions = withoutConflictingWoodKey(
+    definitions.filter(
+      (definition) => !rows.some((row) => row.key === definition.key),
+    ),
+    rows.map((row) => row.key),
   );
   const canContinue = draft.location !== "" && draft.itemCategory !== "";
 
@@ -316,11 +330,20 @@ export function StockWizardStep1View() {
             isSelected: sheetView.anyValue,
             isWildcard: true,
           },
-          ...(valuesDefinition?.values ?? []).map((value) => ({
-            id: value,
-            label: value,
-            isSelected: sheetView.selectedValues.includes(value),
-          })),
+          ...(valuesDefinition?.values ?? []).map((value) => {
+            // A group name says nothing on its own, so it carries the woods it
+            // catches. Every other property's values speak for themselves.
+            const caption =
+              sheetView.key === WOOD_GROUP_KEY
+                ? woodGroupCaption(value, options)
+                : null;
+            return {
+              id: value,
+              label: value,
+              ...(caption === null ? {} : { caption }),
+              isSelected: sheetView.selectedValues.includes(value),
+            };
+          }),
         ],
         onSelect: toggleValue,
         // Reached from the definition list, ‹ returns to it; opened from a row, it dismisses.
@@ -355,14 +378,33 @@ export function StockWizardStep1View() {
         emptyMessage: "No locations in this block.",
         monoLabels: true,
         layout: "grid" as const,
-        options: locations.map((location) => ({
-          id: location,
-          // The card shows the number alone — the letter is the step you are standing in.
-          label: splitLocationCode(location)?.suffix ?? location,
-          accessibleLabel: location,
-          isSelected: location === draft.location,
-        })),
-        onSelect: commitLocation,
+        options: [
+          // The whole block, as a prefix pattern. It sits on this step rather
+          // than the letter step because the block restriction opens straight
+          // here, which would otherwise leave no way to reach it at all.
+          {
+            id: `pattern:${sheetView.letter}`,
+            label: "All",
+            accessibleLabel: `All ${sheetView.letter} locations`,
+            caption: sheetView.letter,
+            isSelected: draft.location === patternForBlock(sheetView.letter),
+            isWildcard: true,
+          },
+          ...locations.map((location) => ({
+            id: `location:${location}`,
+            // The card shows the number alone — the letter is the step you are standing in.
+            label: splitLocationCode(location)?.suffix ?? location,
+            accessibleLabel: location,
+            isSelected: location === draft.location,
+          })),
+        ],
+        onSelect: (id: string) => {
+          if (id.startsWith("pattern:")) {
+            commitLocation(patternForBlock(id.slice("pattern:".length)));
+            return;
+          }
+          commitLocation(id.slice("location:".length));
+        },
         // Entered directly on a block, there is no letter step to go back to, so the
         // sheet keeps its × dismiss.
         onBack:
@@ -385,12 +427,16 @@ export function StockWizardStep1View() {
           label: group.letter,
           accessibleLabel: group.letter,
           caption: `${group.locations.length}`,
-          isSelected: locationBlockOf(draft.location) === group.letter,
+          // A pattern draft ("LC%") stands on its block, so the LC card reads
+          // as selected even though the draft is not one of its codes.
+          isSelected:
+            (blockOfPattern(draft.location) ?? locationBlockOf(draft.location)) ===
+            group.letter,
         })),
         ...unstructured.map((location) => ({
           id: `location:${location}`,
-          label: location,
-          accessibleLabel: location,
+          label: formatLocationLabel(location),
+          accessibleLabel: formatLocationLabel(location),
           isSelected: location === draft.location,
         })),
       ],
@@ -410,7 +456,7 @@ export function StockWizardStep1View() {
   const propertiesHelper =
     draft.itemCategory === "" || draft.location === ""
       ? "Leave empty to apply these thresholds to every item of this type in the location."
-      : `Leave empty to apply these thresholds to every ${draft.itemCategory} item in ${draft.location}.`;
+      : `Leave empty to apply these thresholds to every ${draft.itemCategory} item in ${formatLocationLabel(draft.location)}.`;
 
   return (
     <section className="stock-area-font stock-screen-surface mx-auto flex w-full max-w-[720px] flex-col gap-4 px-5 pb-28">
@@ -483,7 +529,9 @@ export function StockWizardStep1View() {
                 : "stock-mono text-[15px] font-medium leading-tight text-[var(--stock-heading)]"
             }
           >
-            {draft.location === "" ? "Choose a location" : draft.location}
+            {draft.location === ""
+              ? "Choose a location"
+              : formatLocationLabel(draft.location)}
           </span>
           <ChevronRightIcon
             className="h-5 w-5 flex-shrink-0 rotate-90 text-[var(--stock-muted)]"

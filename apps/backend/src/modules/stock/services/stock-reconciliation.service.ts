@@ -13,34 +13,30 @@ import { locationStockRepository } from "../repositories/location-stock.reposito
 
 export type ReconciliationHooks = {
   betweenPasses?: () => Promise<void>;
-  onGroupReconciled?: (group: {
-    location: string;
-    itemCategory: string;
-  }) => void;
+  onCategoryReconciled?: (category: { itemCategory: string }) => void;
 };
 
 export type ReconciliationResult = Map<string, ReconciliationValue>;
 
-type GroupSnapshot = {
+type CategorySnapshot = {
   configurations: LocationStock[];
   values: ReconciliationResult;
 };
 
-const groupKey = (location: string, itemCategory: string): string =>
-  JSON.stringify([location, itemCategory]);
-
-const computeGroup = async (
+// The reconciliation unit is the item category, not a single location. A prefix
+// definition ("LC%") and a concrete one ("LC10") compete for the same items, so
+// any narrower unit would recompute one of them from a set of items that does
+// not contain everything it owns — and write that shortfall as an absolute.
+const computeCategory = async (
   shopId: string,
-  location: string,
   itemCategory: string,
-): Promise<GroupSnapshot> => {
-  const configurations = await locationStockRepository.listByGroup(
+): Promise<CategorySnapshot> => {
+  const configurations = await locationStockRepository.listByCategory(
     shopId,
-    location,
     itemCategory,
   );
 
-  // A deleted configuration's group is reconciled after deletion. Returning
+  // A deleted configuration's category is reconciled after deletion. Returning
   // before the item read keeps that path empty, silent, and transaction-free.
   if (configurations.length === 0) {
     return { configurations, values: new Map() };
@@ -48,13 +44,13 @@ const computeGroup = async (
 
   const eligibleItems = await locationStockRepository.listEligibleItems(
     shopId,
-    location,
     itemCategory,
   );
   const totals = allocateGroup(
     configurations.map((configuration) => ({
       id: configuration.id,
       createdAt: configuration.createdAt,
+      location: configuration.location,
       criteria: configuration.properties,
     })),
     eligibleItems,
@@ -79,7 +75,7 @@ const computeGroup = async (
 };
 
 const writeChangedValues = async (
-  snapshot: GroupSnapshot,
+  snapshot: CategorySnapshot,
   target: ReconciliationResult,
 ): Promise<void> => {
   await prisma.$transaction(async (tx) => {
@@ -109,10 +105,9 @@ const writeChangedValues = async (
 };
 
 const writePassTwoDifferences = async (
-  passOne: GroupSnapshot,
-  passTwo: GroupSnapshot,
+  passOne: CategorySnapshot,
+  passTwo: CategorySnapshot,
   shopId: string,
-  location: string,
   itemCategory: string,
 ): Promise<void> => {
   const deltas: Array<{
@@ -177,19 +172,17 @@ const writePassTwoDifferences = async (
 
   logger.warn("Stock reconciliation pass 2 corrected an interleaved change", {
     shopId,
-    location,
     itemCategory,
     delta: deltas,
   });
 };
 
-export const reconcileGroup = async (
+export const reconcileCategory = async (
   shopId: string,
-  location: string,
   itemCategory: string,
   hooks?: ReconciliationHooks,
 ): Promise<ReconciliationResult> => {
-  const passOne = await computeGroup(shopId, location, itemCategory);
+  const passOne = await computeCategory(shopId, itemCategory);
   if (passOne.configurations.length === 0) {
     return passOne.values;
   }
@@ -197,43 +190,28 @@ export const reconcileGroup = async (
   await writeChangedValues(passOne, passOne.values);
   await hooks?.betweenPasses?.();
 
-  const passTwo = await computeGroup(shopId, location, itemCategory);
+  const passTwo = await computeCategory(shopId, itemCategory);
   if (passTwo.configurations.length === 0) {
     return passTwo.values;
   }
 
-  await writePassTwoDifferences(
-    passOne,
-    passTwo,
-    shopId,
-    location,
-    itemCategory,
-  );
+  await writePassTwoDifferences(passOne, passTwo, shopId, itemCategory);
 
   return passTwo.values;
 };
 
-export const reconcileAllGroups = async (
+export const reconcileAllCategories = async (
   shopId: string,
   hooks?: ReconciliationHooks,
 ): Promise<void> => {
   const configurations = await locationStockRepository.listByShop(shopId);
-  const groups = new Map<
-    string,
-    { location: string; itemCategory: string }
-  >();
+  const categories = new Set(
+    configurations.map((configuration) => configuration.itemCategory),
+  );
 
-  for (const configuration of configurations) {
-    const group = {
-      location: configuration.location,
-      itemCategory: configuration.itemCategory,
-    };
-    groups.set(groupKey(group.location, group.itemCategory), group);
-  }
-
-  for (const group of groups.values()) {
-    await reconcileGroup(shopId, group.location, group.itemCategory, hooks);
-    hooks?.onGroupReconciled?.(group);
+  for (const itemCategory of categories) {
+    await reconcileCategory(shopId, itemCategory, hooks);
+    hooks?.onCategoryReconciled?.({ itemCategory });
   }
 };
 

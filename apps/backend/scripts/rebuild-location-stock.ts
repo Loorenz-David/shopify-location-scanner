@@ -21,7 +21,7 @@ import {
   type EligibleItem,
 } from "../src/modules/stock/repositories/location-stock.repository.js";
 import type { LocationStock } from "../src/modules/stock/contracts/stock.contract.js";
-import { reconcileAllGroups } from "../src/modules/stock/services/stock-reconciliation.service.js";
+import { reconcileAllCategories } from "../src/modules/stock/services/stock-reconciliation.service.js";
 
 const DRY_RUN = process.env.DRY_RUN === "1" || process.env.DRY_RUN === "true";
 const ALLOW_CONFIGURED_DATABASE = process.env.ALLOW_CONFIGURED_DATABASE === "1";
@@ -49,8 +49,16 @@ const log = (event: string, data: Record<string, unknown>): void => {
   console.log(JSON.stringify({ event, ...data }));
 };
 
+/**
+ * The unit of a preview is the item CATEGORY, never (location, category).
+ *
+ * A prefix definition ("LC%") competes with every other definition of its
+ * category, so previewing it against only the ones sharing its location string
+ * hands it items that a more specific definition really wins — the preview
+ * would report numbers the live run never writes. Matching what
+ * reconcileAllCategories does keeps the two in step.
+ */
 type Group = {
-  location: string;
   itemCategory: string;
 };
 
@@ -60,16 +68,12 @@ type ComputedValue = {
   stockState: LocationStock["stockState"];
 };
 
-const groupKey = (group: Group): string =>
-  JSON.stringify([group.location, group.itemCategory]);
+const groupKey = (group: Group): string => group.itemCategory;
 
 const groupsFor = (configurations: readonly LocationStock[]): Group[] => {
   const groups = new Map<string, Group>();
   for (const configuration of configurations) {
-    const group = {
-      location: configuration.location,
-      itemCategory: configuration.itemCategory,
-    };
+    const group = { itemCategory: configuration.itemCategory };
     groups.set(groupKey(group), group);
   }
   return [...groups.values()];
@@ -82,7 +86,6 @@ const computeGroup = async (
 ): Promise<Map<string, ComputedValue>> => {
   const eligibleItems: EligibleItem[] = await locationStockRepository.listEligibleItems(
     shopId,
-    group.location,
     group.itemCategory,
   );
   // Same allocation loop the reconciliation service runs (domain/allocation.ts),
@@ -91,6 +94,7 @@ const computeGroup = async (
     configurations.map((configuration) => ({
       id: configuration.id,
       createdAt: configuration.createdAt,
+      location: configuration.location,
       criteria: configuration.properties,
     })),
     eligibleItems,
@@ -148,15 +152,13 @@ const main = async (): Promise<void> => {
     shopId: SHOP_ID,
     dryRun: DRY_RUN,
     configurations: configurations.length,
-    groups: groups.length,
+    categories: groups.length,
   });
 
   if (DRY_RUN) {
     for (const group of groups) {
       const groupConfigurations = configurations.filter(
-        (configuration) =>
-          configuration.location === group.location &&
-          configuration.itemCategory === group.itemCategory,
+        (configuration) => configuration.itemCategory === group.itemCategory,
       );
       const computed = await computeGroup(SHOP_ID, group, groupConfigurations);
       const deltas = groupConfigurations.map((configuration) => {
@@ -166,6 +168,7 @@ const main = async (): Promise<void> => {
         }
         return {
           id: configuration.id,
+          location: configuration.location,
           current: {
             quantity: configuration.quantity,
             instanceCount: configuration.instanceCount,
@@ -174,8 +177,7 @@ const main = async (): Promise<void> => {
           computed: next,
         };
       });
-      log("location-stock-group-preview", {
-        location: group.location,
+      log("location-stock-category-preview", {
         itemCategory: group.itemCategory,
         deltas,
       });
@@ -183,23 +185,23 @@ const main = async (): Promise<void> => {
     log("location-stock-rebuild-complete", {
       shopId: SHOP_ID,
       dryRun: true,
-      groupsTouched: groups.length,
+      categoriesTouched: groups.length,
       writes: 0,
     });
     return;
   }
 
-  let groupsTouched = 0;
-  await reconcileAllGroups(SHOP_ID, {
-    onGroupReconciled: (group) => {
-      groupsTouched += 1;
-      log("location-stock-group-reconciled", group);
+  let categoriesTouched = 0;
+  await reconcileAllCategories(SHOP_ID, {
+    onCategoryReconciled: (category) => {
+      categoriesTouched += 1;
+      log("location-stock-category-reconciled", category);
     },
   });
   log("location-stock-rebuild-complete", {
     shopId: SHOP_ID,
     dryRun: false,
-    groupsTouched,
+    categoriesTouched,
   });
 };
 

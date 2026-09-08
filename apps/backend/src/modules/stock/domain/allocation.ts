@@ -1,6 +1,9 @@
 import { resolveBestMatch, type StockMatchCandidate } from "./best-match.js";
 
 export type AllocationItem = {
+  // Where the item actually is. Candidates are no longer pre-filtered by an
+  // exact location, so the match itself decides which definitions can claim it.
+  location: string;
   quantity: number;
   properties: Record<string, string> | null;
 };
@@ -30,7 +33,10 @@ export const allocateGroup = (
   );
 
   for (const item of items) {
-    const winner = resolveBestMatch(candidates, item.properties);
+    const winner = resolveBestMatch(candidates, {
+      location: item.location,
+      properties: item.properties,
+    });
     if (!winner) {
       continue;
     }

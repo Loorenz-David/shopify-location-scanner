@@ -435,6 +435,7 @@ model LocationStock {
 
   @@unique([shopId, location, itemCategory, propertiesCanonical])
   @@index([shopId, location, itemCategory])
+  @@index([shopId, itemCategory])
 }
 
 model StockThresholdsLocation {

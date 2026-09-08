@@ -643,4 +643,65 @@ describe("stock report PDF document — P7 count mode (C7(d))", () => {
     expect(text).toMatch(/MISSING \nITEMS/);
     expect(settingsValue(lines, "Count · ")).toBe("Units");
   });
+  // ---------------------------------------------------------------------------
+  // WG — the wood-group legend. A group name alone ("Dark") does not say which
+  // woods it catches, so the report explains itself at the foot of the page.
+  // ---------------------------------------------------------------------------
+
+  function legendModel(
+    properties: StockReportEntryDto["properties"],
+  ): StockPdfModel {
+    return buildPdfModel(
+      [
+        {
+          location: "LC%",
+          itemCategory: "Armchairs",
+          properties,
+          mergeKey: "wg-legend",
+          quantity: 3,
+          instanceCount: 3,
+          stockState: STOCK_STATES[1]!,
+          thresholds: [{ state: STOCK_STATES[1], thresholdQuantity: 10 }],
+          unitsToRestockTarget: 7,
+        },
+      ],
+      {
+        ...createDefaultStockFilter(),
+        includeSummaryCounts: false,
+        showContributingLocations: false,
+        countMode: "instances",
+        propertyKeyOrder: keyOrder,
+      },
+    );
+  }
+
+  // The eyebrow is uppercased by the stylesheet and long member lists wrap, so
+  // the haystack is normalised rather than matched line by line.
+  async function flatText(model: StockPdfModel): Promise<string> {
+    const buffer = await renderFixture(model);
+    const lines = await extractPdfLines(buffer);
+    return lines.flat().join(" ").replace(/\s+/g, " ").toLowerCase();
+  }
+
+  it("WG1: a report using a wood group prints the legend, with every group and its woods", async () => {
+    const text = await flatText(legendModel({ wood_group: ["dark"] }));
+
+    expect(text).toContain("wood groups");
+    const groups = stockOptionsFixture.woodGroups;
+    expect(groups).toBeDefined();
+    // Every configured group is listed, not only the one this report uses: the
+    // reader's question is usually about a wood that is NOT on the page.
+    for (const [group, members] of Object.entries(groups!)) {
+      expect(text).toContain(group.toLowerCase());
+      expect(text).toContain(members.join(", ").toLowerCase());
+    }
+  });
+
+  it("WG2: a report with no wood-group row prints no legend", async () => {
+    const text = await flatText(legendModel({ wood_type: ["teak"] }));
+
+    expect(text).not.toContain("wood groups");
+    // ...and the row itself still renders, so the absence is the legend's doing.
+    expect(text).toContain("armchairs");
+  });
 });

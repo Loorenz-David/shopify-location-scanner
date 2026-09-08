@@ -1,7 +1,11 @@
 import { locationStockRepository } from "../repositories/location-stock.repository.js";
+import { isLocationPattern } from "../domain/location-pattern.js";
 
 export type StockLocationSummary = {
   location: string;
+  // A prefix definition ("LC%") groups into its own card, labelled as a block
+  // rather than shown as a raw pattern string.
+  isLocationPattern: boolean;
   stockCount: number;
 };
 
@@ -19,7 +23,11 @@ export const getStockLocationsSummaryQuery = async (
   }
 
   return [...counts.entries()]
-    .map(([location, stockCount]) => ({ location, stockCount }))
+    .map(([location, stockCount]) => ({
+      location,
+      isLocationPattern: isLocationPattern(location),
+      stockCount,
+    }))
     .sort((left, right) =>
       left.location < right.location ? -1 : left.location > right.location ? 1 : 0,
     );

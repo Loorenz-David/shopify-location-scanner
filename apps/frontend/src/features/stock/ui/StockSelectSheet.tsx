@@ -124,10 +124,16 @@ export function StockSelectSheet({
                   aria-pressed={option.isSelected}
                   disabled={option.isDisabled}
                   aria-label={option.accessibleLabel}
-                  className={`flex aspect-square flex-col items-center justify-center gap-1 rounded-[18px] border text-center ${
+                  // A wildcard card (the whole block) is dashed so it reads as a
+                  // rule rather than as one more code sitting in the grid.
+                  className={`flex aspect-square flex-col items-center justify-center gap-1 rounded-[18px] text-center ${
+                    option.isWildcard ? "border-2 border-dashed" : "border"
+                  } ${
                     option.isSelected
                       ? "border-[var(--stock-primary)] bg-[#F0F8F4] text-[var(--stock-primary)]"
-                      : "border-slate-900/10 bg-white text-[var(--stock-heading)]"
+                      : option.isWildcard
+                        ? "border-[var(--stock-dashed)] bg-white text-[var(--stock-primary)]"
+                        : "border-slate-900/10 bg-white text-[var(--stock-heading)]"
                   }`}
                   onClick={() => onSelect(option.id)}
                 >
@@ -161,18 +167,25 @@ export function StockSelectSheet({
                   } disabled:opacity-45`}
                   onClick={() => onSelect(option.id)}
                 >
-                  <span
-                    className={`min-w-0 leading-tight ${monoLabels ? "stock-mono text-[15px] font-medium" : "text-[14px] font-medium"} ${
-                      option.isWildcard ? "italic" : ""
-                    } ${
-                    option.isDestructive
-                      ? "text-rose-600"
-                      : option.isSelected
-                      ? "text-[var(--stock-primary)]"
-                      : "text-[var(--stock-heading)]"
-                  }`}
-                  >
-                    {option.label}
+                  <span className="flex min-w-0 flex-col gap-0.5">
+                    <span
+                      className={`min-w-0 leading-tight ${monoLabels ? "stock-mono text-[15px] font-medium" : "text-[14px] font-medium"} ${
+                        option.isWildcard ? "italic" : ""
+                      } ${
+                      option.isDestructive
+                        ? "text-rose-600"
+                        : option.isSelected
+                        ? "text-[var(--stock-primary)]"
+                        : "text-[var(--stock-heading)]"
+                    }`}
+                    >
+                      {option.label}
+                    </span>
+                    {option.caption === undefined ? null : (
+                      <span className="truncate text-[12px] leading-tight text-[var(--stock-muted)]">
+                        {option.caption}
+                      </span>
+                    )}
                   </span>
                   {!option.isDestructive ? (
                     <span

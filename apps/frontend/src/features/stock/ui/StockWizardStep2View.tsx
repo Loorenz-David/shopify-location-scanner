@@ -1,3 +1,4 @@
+import { formatLocationLabel } from "../../../share/location-codes";
 import { stockActions } from "../actions/stock.actions";
 import { criteriaSummaryText } from "../domain/stock-criteria.domain";
 import {
@@ -41,7 +42,7 @@ export function StockWizardStep2View({ onSaved }: StockWizardStep2ViewProps) {
   }
 
   const criteria = criteriaSummaryText(draft.properties, options);
-  const context = [draft.location, draft.itemCategory, ...criteria].join(" · ");
+  const context = [formatLocationLabel(draft.location), draft.itemCategory, ...criteria].join(" · ");
 
   const goBack = () => {
     stockActions.popView();
@@ -84,7 +85,7 @@ export function StockWizardStep2View({ onSaved }: StockWizardStep2ViewProps) {
               <p className="m-0">
                 Conflicts with the existing{" "}
                 <strong>{error.conflicting.category}</strong> instance in{" "}
-                {draft.location}:
+                {formatLocationLabel(draft.location)}:
               </p>
               <StockPropertyChips chips={error.conflicting.properties} />
             </div>

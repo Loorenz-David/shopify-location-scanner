@@ -97,18 +97,21 @@ const resolveConfiguration = async (
     return null;
   }
 
-  const configurations = await locationStockRepository.listByGroup(
+  // Candidates are every definition of this category: a stored "LC%" cannot be
+  // selected by SQL equality on the item's code, so the matcher does the
+  // location filtering (best-match.ts) rather than the query.
+  const configurations = await locationStockRepository.listByCategory(
     shopId,
-    location,
     itemCategory,
   );
   const winner = resolveBestMatch(
     configurations.map((configuration) => ({
       id: configuration.id,
       createdAt: configuration.createdAt,
+      location: configuration.location,
       criteria: configuration.properties,
     })),
-    item.properties,
+    { location, properties: item.properties },
   );
 
   if (!winner) {

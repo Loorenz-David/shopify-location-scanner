@@ -1,6 +1,8 @@
 import { Document, Page, StyleSheet, Text, View } from "@react-pdf/renderer";
 
+import { formatLocationLabel } from "../../../../share/location-codes";
 import { criteriaChips } from "../../domain/stock-criteria.domain";
+import { woodGroupLegend } from "../../domain/stock-wood-groups.domain";
 import { STOCK_PDF_COUNT_LABELS } from "../../domain/stock-pdf.domain";
 import { displayedCount } from "../../domain/stock-report.domain";
 import {
@@ -151,6 +153,17 @@ const styles = StyleSheet.create({
     marginBottom: 6,
   },
   settingsLine: { flexDirection: "row", flexWrap: "wrap", gap: 16, marginBottom: 4 },
+  legendBox: {
+    borderWidth: 1,
+    borderColor: TABLE_RULE,
+    borderRadius: 6,
+    padding: 12,
+    marginTop: 4,
+    marginBottom: 8,
+  },
+  legendRow: { flexDirection: "row", marginBottom: 2 },
+  legendGroup: { width: "22%", fontWeight: 700, color: HEADING },
+  legendMembers: { flex: 1, color: BODY },
   settingsKey: { color: MUTED },
   settingsValue: { color: HEADING },
   footer: {
@@ -251,7 +264,9 @@ function PropertiesCell({ row, options, width }: PropertiesCellProps) {
 }
 
 function locationsLine(row: StockPdfRow): string {
-  return row.contributions.map((contribution) => contribution.location).join(", ");
+  return row.contributions
+    .map((contribution) => formatLocationLabel(contribution.location))
+    .join(", ");
 }
 
 // The title and the table are page-level siblings on purpose: `minPresenceAhead` only
@@ -310,6 +325,31 @@ function Section({ section, options, showContributingLocations, countMode }: Sec
         ))}
       </View>
     </>
+  );
+}
+
+/**
+ * Explains the wood groups a row can be configured with, since a group name on
+ * its own ("Dark") says nothing about which woods it catches.
+ *
+ * Rendered only when the report actually uses groups, and kept whole on one
+ * page: a legend split across a page break is worse than one further down.
+ */
+function WoodGroupLegend({ entries }: { entries: ReturnType<typeof woodGroupLegend> }) {
+  if (entries.length === 0) {
+    return null;
+  }
+
+  return (
+    <View style={styles.legendBox} wrap={false}>
+      <Text style={styles.settingsEyebrow}>Wood groups</Text>
+      {entries.map((entry) => (
+        <View key={entry.group} style={styles.legendRow}>
+          <Text style={styles.legendGroup}>{entry.group}</Text>
+          <Text style={styles.legendMembers}>{entry.members}</Text>
+        </View>
+      ))}
+    </View>
   );
 }
 
@@ -383,6 +423,13 @@ export function StockReportPdfDocument({
             countMode={model.countMode}
           />
         ))}
+
+        <WoodGroupLegend
+          entries={woodGroupLegend(
+            model.sections.flatMap((section) => section.rows),
+            options,
+          )}
+        />
 
         <SettingsBox model={model} />
 

@@ -111,7 +111,7 @@ const main = async (): Promise<void> => {
   const { locationStockRepository } = await import(
     "../src/modules/stock/repositories/location-stock.repository.js"
   );
-  const { reconcileAllGroups, reconcileGroup } = await import(
+  const { reconcileAllCategories, reconcileCategory } = await import(
     "../src/modules/stock/services/stock-reconciliation.service.js"
   );
   const { canonicalCriteriaString } = await import(
@@ -352,7 +352,7 @@ const main = async (): Promise<void> => {
     await createItem({ shopId, productId: `${groupLocation}-wrong-category`, location: groupLocation, itemCategory: "Easy Chairs", quantity: 8, properties: { wood_type: "Teak" } });
     await createItem({ shopId, productId: `${groupLocation}-sold`, location: groupLocation, itemCategory, quantity: 6, isSold: true, properties: { wood_type: "Teak" } });
 
-    const result = await reconcileGroup(shopId, groupLocation, itemCategory);
+    const result = await reconcileCategory(shopId, itemCategory);
     assert(result.get(specific.id)?.quantity === 4, "specific winner did not receive item quantity 4");
     assert(result.get(wildcard.id)?.quantity === 3, "wildcard winner did not receive item quantity 3");
     assert(result.get(zeroMatch.id)?.quantity === 0, "zero-match configuration was not reset to zero");
@@ -385,7 +385,7 @@ const main = async (): Promise<void> => {
 
     let firstPassTimestamp: Date | undefined;
     let firstHookCount = 0;
-    const firstResult = await reconcileGroup(shopId, groupLocation, itemCategory, {
+    const firstResult = await reconcileCategory(shopId, itemCategory, {
       betweenPasses: async () => {
         firstHookCount += 1;
         const row = await prisma.locationStock.findUnique({ where: { id: created.id }, select: { updatedAt: true } });
@@ -399,7 +399,7 @@ const main = async (): Promise<void> => {
 
     let secondHookCount = 0;
     const { value: secondResult, output } = await captureOutput(() =>
-      reconcileGroup(shopId, groupLocation, itemCategory, {
+      reconcileCategory(shopId, itemCategory, {
         betweenPasses: async () => {
           secondHookCount += 1;
           await prisma.scanHistory.update({ where: { id: itemId }, data: { quantity: 4 } });
@@ -430,7 +430,7 @@ const main = async (): Promise<void> => {
 
   const verifyC4b = async (): Promise<void> => {
     const scenario = await runC4Scenario();
-    assert(scenario.warningContext.location !== undefined, "warning did not name location");
+    assert(scenario.warningContext.location === undefined, "warning still names a single location; the unit is the category");
     assert(scenario.warningContext.itemCategory === itemCategory, "warning did not name item category");
     const delta = scenario.warningContext.delta;
     assert(Array.isArray(delta) && delta.length === 1, "warning did not contain one config delta");
@@ -463,7 +463,7 @@ const main = async (): Promise<void> => {
     await prisma.locationStock.update({ where: { id: created.id }, data: { quantity: 99, stockState: "extra_in_stock", updatedByUsername: "manual-drift" } });
 
     const { value: result, output } = await captureOutput(() =>
-      reconcileGroup(shopId, groupLocation, itemCategory),
+      reconcileCategory(shopId, itemCategory),
     );
     assert(result.get(created.id)?.quantity === 3, "absolute reconciliation did not repair quantity 99 to 3");
     const after = await findConfig(created.id);
@@ -488,15 +488,17 @@ const main = async (): Promise<void> => {
     await createItem({ shopId: temporaryShop.id, productId: "p2-c6-first-item", location: firstLocation, itemCategory, quantity: 2, properties: { wood_type: "Teak" } });
     await createItem({ shopId: temporaryShop.id, productId: "p2-c6-second-item", location: secondLocation, itemCategory, quantity: 3, properties: { wood_type: "Oak" } });
 
-    const groups: Array<{ location: string; itemCategory: string }> = [];
-    await reconcileAllGroups(temporaryShop.id, {
-      onGroupReconciled: (group) => groups.push(group),
+    // Both locations share one category, so the sweep is one call that still has
+    // to land the right number on all three definitions across both of them.
+    const categories: Array<{ itemCategory: string }> = [];
+    await reconcileAllCategories(temporaryShop.id, {
+      onCategoryReconciled: (category) => categories.push(category),
     });
-    assert(groups.length === 2, `expected two group hook calls, got ${groups.length}`);
-    assert(new Set(groups.map((group) => `${group.location}|${group.itemCategory}`)).size === 2, "group hook calls were not distinct");
-    assert((await locationStockRepository.findById(firstSpecific.id, temporaryShop.id))?.quantity === 2, "first group specific config was not reconciled");
-    assert((await locationStockRepository.findById(firstCatchAll.id, temporaryShop.id))?.quantity === 0, "first group catch-all was not reconciled");
-    assert((await locationStockRepository.findById(secondCatchAll.id, temporaryShop.id))?.quantity === 3, "second group was not reconciled");
+    assert(categories.length === 1, `expected one category hook call, got ${categories.length}`);
+    assert(categories[0]?.itemCategory === itemCategory, "category hook did not name the category");
+    assert((await locationStockRepository.findById(firstSpecific.id, temporaryShop.id))?.quantity === 2, "first location specific config was not reconciled");
+    assert((await locationStockRepository.findById(firstCatchAll.id, temporaryShop.id))?.quantity === 0, "first location catch-all was not reconciled");
+    assert((await locationStockRepository.findById(secondCatchAll.id, temporaryShop.id))?.quantity === 3, "second location was not reconciled");
   };
 
   // ---------------------------------------------------------------------------
@@ -526,7 +528,7 @@ const main = async (): Promise<void> => {
     await createItem({ shopId, productId: `${groupLocation}-wrong-location`, location: `${groupLocation}-other`, itemCategory, quantity: 9, properties: { wood_type: "Teak" } });
     await createItem({ shopId, productId: `${groupLocation}-wrong-category`, location: groupLocation, itemCategory: "Easy Chairs", quantity: 8, properties: { wood_type: "Teak" } });
     await createItem({ shopId, productId: `${groupLocation}-sold`, location: groupLocation, itemCategory, quantity: 6, isSold: true, properties: { wood_type: "Teak" } });
-    await reconcileGroup(shopId, groupLocation, itemCategory);
+    await reconcileCategory(shopId, itemCategory);
     p7Allocation = {
       specific: await findConfig(specific.id),
       wildcard: await findConfig(wildcard.id),
@@ -554,7 +556,7 @@ const main = async (): Promise<void> => {
       where: { id: created.id },
       data: { quantity: 3, instanceCount: 99, stockState: "extra_in_stock", updatedByUsername: "manual-drift" },
     });
-    const result = await reconcileGroup(shopId, groupLocation, itemCategory);
+    const result = await reconcileCategory(shopId, itemCategory);
     assert(result.get(created.id)?.instanceCount === 1, "P7.C2(b): recount did not return instanceCount 1");
     const after = await findConfig(created.id);
     assert(after.instanceCount === 1, `P7.C2(b): drifted instanceCount was not repaired, got ${after.instanceCount}`);
@@ -571,7 +573,7 @@ const main = async (): Promise<void> => {
     assert(created !== undefined, "P7.C2(c) config was not created");
     await createItem({ shopId, productId: `${groupLocation}-first`, location: groupLocation, itemCategory, quantity: 2, properties: {} });
     const { output } = await captureOutput(() =>
-      reconcileGroup(shopId, groupLocation, itemCategory, {
+      reconcileCategory(shopId, itemCategory, {
         betweenPasses: async () => {
           await createItem({ shopId, productId: `${groupLocation}-second`, location: groupLocation, itemCategory, quantity: 5, properties: {} });
         },
@@ -602,7 +604,7 @@ const main = async (): Promise<void> => {
     ]);
     assert(created !== undefined, "P7.C2(d) config was not created");
     await createItem({ shopId, productId: `${groupLocation}-item`, location: groupLocation, itemCategory, quantity: 5, properties: {} });
-    const result = await reconcileGroup(shopId, groupLocation, itemCategory);
+    const result = await reconcileCategory(shopId, itemCategory);
     const value = result.get(created.id);
     assert(value !== undefined, "P7.C2(d): no result for the definition");
     assert(value.quantity === 5 && value.instanceCount === 1, `P7.C2(d): expected 5/1, got ${value.quantity}/${value.instanceCount}`);
@@ -623,7 +625,7 @@ const main = async (): Promise<void> => {
       where: { id: created.id },
       data: { quantity: 3, instanceCount: 0, stockState: "out_of_stock" },
     });
-    await reconcileGroup(shopId, groupLocation, itemCategory);
+    await reconcileCategory(shopId, itemCategory);
     const after = await findConfig(created.id);
     assert(after.instanceCount === 1 && after.quantity === 3, `P7.C2(e): backfill left ${after.quantity}/${after.instanceCount}`);
     assert(after.stockState === "low_in_stock", `P7.C2(e): state not re-derived after backfill, got ${after.stockState}`);
@@ -761,6 +763,282 @@ const main = async (): Promise<void> => {
     assert(statesChecked === 6, `P7.C3(h): expected 6 state checks across (a)-(e), got ${statesChecked}`);
   };
 
+  // ---------------------------------------------------------------------------
+  // LP — prefix location patterns ("LC%"). A pattern definition draws items from
+  // many locations at once, which is exactly what the old per-location
+  // reconciliation unit could not see.
+  // ---------------------------------------------------------------------------
+
+  type LpScenario = {
+    afterFirst: LocationStock;
+    afterSecond: LocationStock;
+    exact: LocationStock;
+    pattern: LocationStock;
+  };
+  let lpScenario: LpScenario | null = null;
+  const runLpScenario = async (): Promise<LpScenario> => {
+    if (lpScenario) {
+      return lpScenario;
+    }
+
+    // The label is unique per run, so no other case's location can sit under
+    // this prefix and the counts below are the only items in play.
+    const blockPrefix = location("lp");
+    const [pattern, exact] = await createConfigurations(shopId, [
+      { location: `${blockPrefix}%`, itemCategory, properties: {}, thresholds },
+      { location: `${blockPrefix}A1`, itemCategory, properties: {}, thresholds },
+    ]);
+    assert(pattern !== undefined && exact !== undefined, "LP configs were not created");
+
+    await createItem({ shopId, productId: `${blockPrefix}-a1`, location: `${blockPrefix}A1`, itemCategory, quantity: 2, properties: {} });
+    await createItem({ shopId, productId: `${blockPrefix}-a2`, location: `${blockPrefix}A2`, itemCategory, quantity: 3, properties: {} });
+    await createItem({ shopId, productId: `${blockPrefix}-a9`, location: `${blockPrefix}A9`, itemCategory, quantity: 4, properties: {} });
+    // Outside the prefix: it must reach neither definition.
+    await createItem({ shopId, productId: `${blockPrefix}-out`, location: `ZZ${blockPrefix}`, itemCategory, quantity: 9, properties: {} });
+
+    await reconcileCategory(shopId, itemCategory);
+    const afterFirst = await findConfig(pattern.id);
+    // The regression: a second sweep must not walk the pattern back to zero.
+    await reconcileCategory(shopId, itemCategory);
+
+    lpScenario = {
+      afterFirst,
+      afterSecond: await findConfig(pattern.id),
+      exact: await findConfig(exact.id),
+      pattern: await findConfig(pattern.id),
+    };
+    return lpScenario;
+  };
+
+  const verifyLp1a = async (): Promise<void> => {
+    const { afterFirst } = await runLpScenario();
+    assert(
+      afterFirst.quantity === 7 && afterFirst.instanceCount === 2,
+      `LP1(a): the pattern should hold A2+A9 = 7/2, got ${afterFirst.quantity}/${afterFirst.instanceCount}`,
+    );
+  };
+
+  const verifyLp1b = async (): Promise<void> => {
+    const { afterSecond } = await runLpScenario();
+    assert(
+      afterSecond.quantity === 7 && afterSecond.instanceCount === 2,
+      `LP1(b): a second sweep zeroed the pattern definition to ${afterSecond.quantity}/${afterSecond.instanceCount}`,
+    );
+  };
+
+  const verifyLp1c = async (): Promise<void> => {
+    const { exact } = await runLpScenario();
+    assert(
+      exact.quantity === 2 && exact.instanceCount === 1,
+      `LP1(c): the exact definition should keep A1 alone at 2/1, got ${exact.quantity}/${exact.instanceCount}`,
+    );
+  };
+
+  const verifyLp2 = async (): Promise<void> => {
+    // Scan-time precedence, through the incremental path rather than the recount:
+    // an exact definition takes the item even when the pattern carries properties.
+    const blockPrefix = location("lp2");
+    const [pattern, exact] = await createConfigurations(shopId, [
+      { location: `${blockPrefix}%`, itemCategory, properties: { wood_type: "Teak" }, thresholds },
+      { location: `${blockPrefix}A1`, itemCategory, properties: {}, thresholds },
+    ]);
+    assert(pattern !== undefined && exact !== undefined, "LP2 configs were not created");
+
+    const enter = (locationName: string) =>
+      applyItemStockChange({
+        shopId,
+        before: null,
+        after: { location: locationName, itemCategory, properties: { wood_type: "Teak" }, quantity: 5, isSold: false },
+        operation: "location_move",
+        itemIdentifiers: { productId: `${blockPrefix}-product` },
+      });
+
+    await enter(`${blockPrefix}A1`);
+    const exactAfterA1 = await findConfig(exact.id);
+    const patternAfterA1 = await findConfig(pattern.id);
+    assert(
+      exactAfterA1.quantity === 5 && exactAfterA1.instanceCount === 1,
+      `LP2: the exact definition did not take the A1 item, got ${exactAfterA1.quantity}/${exactAfterA1.instanceCount}`,
+    );
+    assert(
+      patternAfterA1.quantity === 0 && patternAfterA1.instanceCount === 0,
+      `LP2: the pattern stole an item the exact definition owns, got ${patternAfterA1.quantity}/${patternAfterA1.instanceCount}`,
+    );
+
+    await enter(`${blockPrefix}A2`);
+    const patternAfterA2 = await findConfig(pattern.id);
+    assert(
+      patternAfterA2.quantity === 5 && patternAfterA2.instanceCount === 1,
+      `LP2: the pattern did not catch the A2 item, got ${patternAfterA2.quantity}/${patternAfterA2.instanceCount}`,
+    );
+  };
+
+  // WG — wood groups. The group is derived from the item's FIRST wood_type
+  // token, and a named wood outranks a group. Both must hold identically on the
+  // absolute path (reconciliation) and the incremental one (a scan), or the two
+  // drift apart the moment anything is recounted.
+  const woodProperties = (wood: string): Record<string, string> => ({
+    wood_type: wood,
+    country: "Denmark",
+    years: "1960-1970s",
+  });
+
+  const woodItems: readonly { suffix: string; wood: string; quantity: number }[] = [
+    { suffix: "teak", wood: "Teak", quantity: 2 },
+    { suffix: "mahogany", wood: "Mahogany", quantity: 3 },
+    // Both definitions match this one: the group on the first wood (Santos
+    // Rosewood is Dark), the named definition on the second (Teak). The named
+    // wood wins.
+    { suffix: "rosewood-teak", wood: "Santos Rosewood, Teak", quantity: 4 },
+    // First wood is Teak, so the Dark group misses it entirely.
+    { suffix: "teak-mahogany", wood: "Teak, Mahogany", quantity: 5 },
+    // Ungrouped and not Teak: owned by neither definition. `Other` is the live
+    // shop's only wood_type value outside every group.
+    { suffix: "other", wood: "Other", quantity: 6 },
+  ];
+
+  const verifyWg1 = async (): Promise<void> => {
+    const woodLocation = location("wg1");
+    const [named, group] = await createConfigurations(shopId, [
+      { location: woodLocation, itemCategory, properties: { wood_type: "Teak" }, thresholds },
+      // Deliberately the BROADER wood with the NARROWER everything-else: on the
+      // property ladder alone this group outranks the bare named wood (weight 6
+      // to 2). Only the wood rung gives the shared item to the named wood, so
+      // these numbers move the moment that rung is removed.
+      {
+        location: woodLocation,
+        itemCategory,
+        properties: { wood_group: "Dark", country: "Denmark", years: "1960-1970s" },
+        thresholds,
+      },
+    ]);
+    assert(named !== undefined && group !== undefined, "WG1 configs were not created");
+
+    for (const item of woodItems) {
+      await createItem({
+        shopId,
+        productId: `wg1-${item.suffix}`,
+        location: woodLocation,
+        itemCategory,
+        quantity: item.quantity,
+        properties: woodProperties(item.wood),
+      });
+    }
+
+    await reconcileCategory(shopId, itemCategory);
+    const namedRow = await findConfig(named.id);
+    const groupRow = await findConfig(group.id);
+
+    assert(
+      namedRow.quantity === 11 && namedRow.instanceCount === 3,
+      `WG1: the named wood should hold Teak + Rosewood/Teak + Teak/Mahogany = 11/3, got ${namedRow.quantity}/${namedRow.instanceCount}`,
+    );
+    assert(
+      groupRow.quantity === 3 && groupRow.instanceCount === 1,
+      `WG1: the Dark group should hold Mahogany alone at 3/1, got ${groupRow.quantity}/${groupRow.instanceCount}`,
+    );
+
+    // Idempotent: a second sweep must land on the same numbers.
+    await reconcileCategory(shopId, itemCategory);
+    const namedAgain = await findConfig(named.id);
+    const groupAgain = await findConfig(group.id);
+    assert(
+      namedAgain.quantity === 11 && namedAgain.instanceCount === 3,
+      `WG1: a second sweep moved the named wood to ${namedAgain.quantity}/${namedAgain.instanceCount}`,
+    );
+    assert(
+      groupAgain.quantity === 3 && groupAgain.instanceCount === 1,
+      `WG1: a second sweep moved the group to ${groupAgain.quantity}/${groupAgain.instanceCount}`,
+    );
+  };
+
+  const verifyWg2 = async (): Promise<void> => {
+    // The same five items, but through the incremental scan path. The totals
+    // must come out identical to WG1's recount.
+    const woodLocation = location("wg2");
+    const [named, group] = await createConfigurations(shopId, [
+      { location: woodLocation, itemCategory, properties: { wood_type: "Teak" }, thresholds },
+      {
+        location: woodLocation,
+        itemCategory,
+        properties: { wood_group: "Dark", country: "Denmark", years: "1960-1970s" },
+        thresholds,
+      },
+    ]);
+    assert(named !== undefined && group !== undefined, "WG2 configs were not created");
+
+    for (const item of woodItems) {
+      await applyItemStockChange({
+        shopId,
+        before: null,
+        after: {
+          location: woodLocation,
+          itemCategory,
+          properties: woodProperties(item.wood),
+          quantity: item.quantity,
+          isSold: false,
+        },
+        operation: "location_move",
+        itemIdentifiers: { productId: `wg2-${item.suffix}` },
+      });
+    }
+
+    const namedRow = await findConfig(named.id);
+    const groupRow = await findConfig(group.id);
+    assert(
+      namedRow.quantity === 11 && namedRow.instanceCount === 3,
+      `WG2: the scan path gave the named wood ${namedRow.quantity}/${namedRow.instanceCount}, not 11/3 as the recount does`,
+    );
+    assert(
+      groupRow.quantity === 3 && groupRow.instanceCount === 1,
+      `WG2: the scan path gave the group ${groupRow.quantity}/${groupRow.instanceCount}, not 3/1 as the recount does`,
+    );
+  };
+
+  const verifyWg3 = async (): Promise<void> => {
+    // An item leaving must be taken off the same definition that caught it —
+    // the guarded decrement resolves the group again, so a mismatch here would
+    // strand the count above zero.
+    const woodLocation = location("wg3");
+    const [group] = await createConfigurations(shopId, [
+      { location: woodLocation, itemCategory, properties: { wood_group: "Dark" }, thresholds },
+    ]);
+    assert(group !== undefined, "WG3 config was not created");
+
+    const item = {
+      location: woodLocation,
+      itemCategory,
+      properties: { wood_type: "Santos Rosewood, Oak" },
+      quantity: 4,
+      isSold: false,
+    };
+    await applyItemStockChange({
+      shopId,
+      before: null,
+      after: item,
+      operation: "location_move",
+      itemIdentifiers: { productId: "wg3-product" },
+    });
+    const entered = await findConfig(group.id);
+    assert(
+      entered.quantity === 4 && entered.instanceCount === 1,
+      `WG3: the group did not take the entering item, got ${entered.quantity}/${entered.instanceCount}`,
+    );
+
+    await applyItemStockChange({
+      shopId,
+      before: item,
+      after: null,
+      operation: "location_move",
+      itemIdentifiers: { productId: "wg3-product" },
+    });
+    const left = await findConfig(group.id);
+    assert(
+      left.quantity === 0 && left.instanceCount === 0,
+      `WG3: the leaving item did not come off the group, got ${left.quantity}/${left.instanceCount}`,
+    );
+  };
+
   const cases: readonly { id: string; run: () => Promise<void> }[] = [
     { id: "C1(a)", run: verifyC1 },
     { id: "C1(b)", run: verifyC1 },
@@ -795,6 +1073,13 @@ const main = async (): Promise<void> => {
     { id: "P7.C3(f)", run: verifyP7C3f },
     { id: "P7.C3(g)", run: verifyP7C3g },
     { id: "P7.C3(h)", run: verifyP7C3h },
+    { id: "LP1(a)", run: verifyLp1a },
+    { id: "LP1(b)", run: verifyLp1b },
+    { id: "LP1(c)", run: verifyLp1c },
+    { id: "LP2", run: verifyLp2 },
+    { id: "WG1", run: verifyWg1 },
+    { id: "WG2", run: verifyWg2 },
+    { id: "WG3", run: verifyWg3 },
   ];
 
   let failures = 0;

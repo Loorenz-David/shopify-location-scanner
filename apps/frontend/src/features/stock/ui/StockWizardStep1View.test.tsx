@@ -123,12 +123,14 @@ describe("StockWizardStep1View (screen 08)", () => {
     await openWizardFromRootPill();
     await chooseLocation("LC1");
 
-    // Bound category: four universal keys plus the three table-bound keys; the
-    // chair-bound keys (upholstery, quantity) are excluded.
+    // Bound category: five universal keys plus the three table-bound keys; the
+    // chair-bound keys (upholstery, quantity) are excluded. Wood Group is
+    // universal like Wood Type, and both are offered until one is picked (C13).
     await chooseItemType("Dining Tables");
     await userEvent.click(screen.getByRole("button", { name: "Add property" }));
     expect(sheetOptions()).toEqual([
       "Wood Type",
+      "Wood Group",
       "Years",
       "Weight Definition",
       "Country",
@@ -143,6 +145,7 @@ describe("StockWizardStep1View (screen 08)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Add property" }));
     expect(sheetOptions()).toEqual([
       "Wood Type",
+      "Wood Group",
       "Years",
       "Weight Definition",
       "Country",
@@ -156,6 +159,7 @@ describe("StockWizardStep1View (screen 08)", () => {
     await userEvent.click(screen.getByRole("button", { name: "Add property" }));
     expect(sheetOptions()).toEqual([
       "Wood Type",
+      "Wood Group",
       "Years",
       "Weight Definition",
       "Country",
@@ -283,9 +287,12 @@ describe("StockWizardStep1View (screen 08)", () => {
     expect(
       screen.queryByRole("button", { name: "Back to location blocks" }),
     ).toBeNull();
-    expect(locationOptions).toHaveLength(1);
-    expect(locationOptions[0]).toHaveAttribute("aria-label", second!.location);
-    expect(locationOptions[0]).toHaveAttribute("aria-pressed", "true");
+    // Two cards: the block rule, and the code this instance is actually on.
+    expect(locationOptions).toHaveLength(2);
+    expect(locationOptions[0]).toHaveAttribute("aria-label", "All LC locations");
+    expect(locationOptions[0]).toHaveAttribute("aria-pressed", "false");
+    expect(locationOptions[1]).toHaveAttribute("aria-label", second!.location);
+    expect(locationOptions[1]).toHaveAttribute("aria-pressed", "true");
     await closeSheet("Location");
     expect(screen.getByRole("combobox", { name: "Item type" })).toHaveValue(
       second!.itemCategory,
@@ -327,6 +334,32 @@ describe("StockWizardStep1View (screen 08)", () => {
     expect(screen.queryByRole("button", { name: "Save instance" })).toBeNull();
   });
 
+  it("LP1: the block card commits a prefix pattern and reads as the block, not as LC%", async () => {
+    await openWizardFromRootPill();
+
+    await userEvent.click(screen.getByRole("button", { name: "Location" }));
+    // The restriction opens straight on the LC numbers, so the block card is the
+    // only way to reach a pattern at all.
+    await userEvent.click(
+      await screen.findByRole("button", { name: "All LC locations" }),
+    );
+
+    await waitFor(() =>
+      expect(useStockWizardStore.getState().draft?.location).toBe("LC%"),
+    );
+    // The storage grammar never reaches the screen.
+    const locationSelect = screen.getByTestId("stock-wizard-location-select");
+    expect(locationSelect).toHaveTextContent("LC · all");
+    expect(locationSelect).not.toHaveTextContent("LC%");
+
+    // Reopened, the block card is the one that reads as chosen.
+    await userEvent.click(screen.getByRole("button", { name: "Location" }));
+    const options = await screen.findAllByTestId("stock-sheet-option");
+    expect(options[0]).toHaveAttribute("aria-label", "All LC locations");
+    expect(options[0]).toHaveAttribute("aria-pressed", "true");
+    expect(options[1]).toHaveAttribute("aria-pressed", "false");
+  });
+
   it("C8: an existing instance can be deleted from the edit form's action sheet", async () => {
     const instance = stockLocationDetailFixture[1]!;
     const deleteSpy = vi.spyOn(stockActions, "deleteConfiguration");
@@ -357,5 +390,63 @@ describe("StockWizardStep1View (screen 08)", () => {
         (candidate) => candidate.location === instance.location,
       ).length - 1,
     );
+  });
+
+  it("WG1: a wood group is captioned with its woods and commits as wood_group", async () => {
+    await openWizardFromRootPill();
+    await chooseLocation("LC1");
+    await chooseItemType("Sofas");
+
+    await userEvent.click(screen.getByRole("button", { name: "Add property" }));
+    await userEvent.click(screen.getByRole("button", { name: "Wood Group" }));
+
+    // A group name alone says nothing about which items it takes, so each one
+    // carries the woods behind it. The list comes from the API, never from a
+    // second copy in the client — the members are expected to be edited.
+    expect(sheetOptions()).toEqual([
+      "Any value",
+      "DarkMahogany, Santos Rosewood, Dark Oak, Dark Teak, Walnut",
+      "TeakTeak, Cherry",
+      "LightOak, Beech, Pine, Birch, Elm",
+    ]);
+
+    await userEvent.click(screen.getByRole("button", { name: /^Dark/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+
+    expect(useStockWizardStore.getState().draft?.properties).toEqual({
+      wood_group: ["Dark"],
+    });
+    const row = propertyRows()[0]!;
+    expect(within(row).getByText("Wood Group")).toBeInTheDocument();
+    expect(within(row).getByText("Dark")).toBeInTheDocument();
+  });
+
+  it("WG2: the two wood keys exclude each other, in both directions", async () => {
+    await openWizardFromRootPill();
+    await chooseLocation("LC1");
+    await chooseItemType("Sofas");
+
+    // Criteria are AND-ed, so a definition holding both a named wood and a
+    // group matches their intersection — nothing. The API refuses the pair, so
+    // the picker must never let one be built.
+    await userEvent.click(screen.getByRole("button", { name: "Add property" }));
+    await userEvent.click(screen.getByRole("button", { name: "Wood Group" }));
+    await userEvent.click(screen.getByRole("button", { name: /^Teak/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Add property" }));
+    expect(sheetOptions()).not.toContain("Wood Type");
+    expect(sheetOptions()).toEqual(["Years", "Weight Definition", "Country"]);
+    await closeSheet("Add property");
+
+    // ...and the same holds the other way round.
+    await userEvent.click(within(propertyRows()[0]!).getByRole("button", { name: /Remove Wood Group/ }));
+    await userEvent.click(screen.getByRole("button", { name: "Add property" }));
+    await userEvent.click(screen.getByRole("button", { name: "Wood Type" }));
+    await userEvent.click(screen.getByRole("button", { name: "Teak" }));
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+
+    await userEvent.click(screen.getByRole("button", { name: "Add property" }));
+    expect(sheetOptions()).not.toContain("Wood Group");
   });
 });

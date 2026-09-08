@@ -48,6 +48,11 @@ export const stockOptionsFixture: StockOptionsDto = {
       categories: "universal",
     },
     {
+      key: "wood_group",
+      values: ["Dark", "Teak", "Light"],
+      categories: "universal",
+    },
+    {
       key: "years",
       values: [
         "1950-1960s",
@@ -122,4 +127,9 @@ export const stockOptionsFixture: StockOptionsDto = {
       categories: ["Dining Chairs", "Easy Chairs", "Armchairs"],
     },
   ],
+  woodGroups: {
+    Dark: ["Mahogany", "Santos Rosewood", "Dark Oak", "Dark Teak", "Walnut"],
+    Teak: ["Teak", "Cherry"],
+    Light: ["Oak", "Beech", "Pine", "Birch", "Elm"],
+  },
 };

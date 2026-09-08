@@ -27,6 +27,9 @@ type LocationStockWithThresholds = Prisma.LocationStockGetPayload<{
 export type EligibleItem = {
   id: string;
   productId: string;
+  // Where the item is. Allocation needs it because candidates are matched by
+  // location pattern rather than pre-filtered on one exact code.
+  location: string;
   quantity: number;
   properties: Record<string, string> | null;
 };
@@ -317,6 +320,23 @@ export const locationStockRepository = {
     return rows.map(toDomain);
   },
 
+  // Every definition that could claim an item of this category. Location is not
+  // a filter here: a stored "LC%" has to be compared to the item's code by the
+  // matcher, which no SQL equality can express.
+  async listByCategory(
+    shopId: string,
+    itemCategory: string,
+    tx?: Prisma.TransactionClient,
+  ): Promise<LocationStock[]> {
+    const client = tx ?? prisma;
+    const rows = await client.locationStock.findMany({
+      where: { shopId, itemCategory },
+      include: thresholdsInclude,
+    });
+
+    return rows.map(toDomain);
+  },
+
   async listByShop(
     shopId: string,
     tx?: Prisma.TransactionClient,
@@ -344,9 +364,11 @@ export const locationStockRepository = {
     return row ? toDomain(row) : null;
   },
 
+  // Every eligible item of a category, wherever it sits. A prefix definition
+  // ("LC%") draws from many locations at once, so the read can no longer be
+  // narrowed to one code without hiding the items that definition owns.
   async listEligibleItems(
     shopId: string,
-    location: string,
     itemCategory: string,
     tx?: Prisma.TransactionClient,
   ): Promise<EligibleItem[]> {
@@ -354,25 +376,35 @@ export const locationStockRepository = {
     const rows = await client.scanHistory.findMany({
       where: {
         shopId,
-        latestLocation: location,
         itemCategory,
         isSold: false,
+        latestLocation: { not: null },
       },
       select: {
         id: true,
         productId: true,
+        latestLocation: true,
         quantity: true,
         properties: true,
       },
     });
 
-    return rows.map((row) => ({
-      id: row.id,
-      productId: row.productId,
-      quantity: row.quantity,
-      properties:
-        row.properties === null ? null : normalizeStoredProperties(row.properties),
-    }));
+    return rows.flatMap((row) =>
+      row.latestLocation === null
+        ? []
+        : [
+            {
+              id: row.id,
+              productId: row.productId,
+              location: row.latestLocation,
+              quantity: row.quantity,
+              properties:
+                row.properties === null
+                  ? null
+                  : normalizeStoredProperties(row.properties),
+            },
+          ],
+    );
   },
 
   // One guarded statement covers both columns: a refusal writes neither, so

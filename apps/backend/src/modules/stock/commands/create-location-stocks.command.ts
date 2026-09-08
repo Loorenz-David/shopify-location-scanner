@@ -12,7 +12,7 @@ import {
   type StockCriteria,
 } from "../contracts/stock.contract.js";
 import { locationStockRepository } from "../repositories/location-stock.repository.js";
-import { reconcileGroup } from "../services/stock-reconciliation.service.js";
+import { reconcileCategory } from "../services/stock-reconciliation.service.js";
 
 type Group = {
   location: string;
@@ -150,12 +150,14 @@ export const createLocationStocksCommand = async (input: {
     throw error;
   }
 
-  for (const { group } of groups.values()) {
-    await reconcileGroup(
-      input.shopId,
-      group.location,
-      group.itemCategory,
-    );
+  // One recount per category touched: a category's definitions compete for the
+  // same items across locations, so reconciling it once covers every group in
+  // this batch that belongs to it.
+  const touchedCategories = new Set(
+    [...groups.values()].map(({ group }) => group.itemCategory),
+  );
+  for (const itemCategory of touchedCategories) {
+    await reconcileCategory(input.shopId, itemCategory);
   }
 
   // Reconciliation correctly attributes sibling changes to the system. The

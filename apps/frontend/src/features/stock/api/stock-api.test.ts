@@ -119,7 +119,7 @@ describe("stock API seam", () => {
     expect(normal!.unitsToRestockTarget).toBe(2);
   });
 
-  it("C4(a): options expose the exact eight-key final vocabulary", async () => {
+  it("C4(a): options expose the exact nine-key final vocabulary", async () => {
     vi.stubEnv("VITE_STOCK_API_MODE", "mock");
     const options = await getStockOptions();
 
@@ -137,6 +137,12 @@ describe("stock API seam", () => {
           "Teak",
           "Walnut",
         ],
+        categories: "universal",
+      },
+      {
+        // Derived from wood_type by the matcher; no item ever stores it.
+        key: "wood_group",
+        values: ["Dark", "Teak", "Light"],
         categories: "universal",
       },
       {

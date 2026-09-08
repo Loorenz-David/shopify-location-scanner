@@ -86,7 +86,9 @@ describe("screen 06 wizard entry points", () => {
     await screen.findByRole("heading", { name: "New stock instance" });
     expect(useStockWizardStore.getState().availableLocations).toEqual(["L2", "L3"]);
     expect(cardLabels(await readLocationSheetOptions())).toEqual(["L"]);
-    expect(await readLocationBlock("L")).toEqual(["L2", "L3"]);
+    // The block's own card leads the numbers: it commits "L%", which catches every
+    // code in the block rather than one of them.
+    expect(await readLocationBlock("L")).toEqual(["All L locations", "L2", "L3"]);
     await closeLocationSheet();
     expect(useStockWizardStore.getState().draft?.location).toBe("");
 
@@ -110,7 +112,7 @@ describe("screen 06 wizard entry points", () => {
     // temporarily restricted to the LC block, so it opens on those numbers directly and
     // the H and L codes are not on offer.
     const cards = await readLocationSheetOptions();
-    expect(cardLabels(cards)).toEqual(["LC1"]);
+    expect(cardLabels(cards)).toEqual(["All LC locations", "LC1"]);
     expect(cards.every((card) => card.getAttribute("aria-pressed") === "false")).toBe(true);
     expect(screen.queryByRole("button", { name: "Back to location blocks" })).toBeNull();
     await closeLocationSheet();

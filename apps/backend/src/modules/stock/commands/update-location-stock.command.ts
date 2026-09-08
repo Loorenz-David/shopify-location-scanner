@@ -11,7 +11,7 @@ import {
   type UpdateLocationStockInput,
 } from "../contracts/stock.contract.js";
 import { locationStockRepository } from "../repositories/location-stock.repository.js";
-import { reconcileGroup } from "../services/stock-reconciliation.service.js";
+import { reconcileCategory } from "../services/stock-reconciliation.service.js";
 
 type Group = {
   location: string;
@@ -125,13 +125,16 @@ export const updateLocationStockCommand = async (input: {
   }
 
   if (allocationChanged) {
-    const groups = new Map<string, Group>();
-    for (const group of [previousGroup, nextGroup]) {
-      groups.set(JSON.stringify([group.location, group.itemCategory]), group);
-    }
+    // Reconciliation is category-scoped: a definition that moved between
+    // locations stays inside one category's recount, but a category change
+    // needs both the category it left and the one it joined.
+    const categories = new Set([
+      previousGroup.itemCategory,
+      nextGroup.itemCategory,
+    ]);
 
-    for (const group of groups.values()) {
-      await reconcileGroup(input.shopId, group.location, group.itemCategory);
+    for (const itemCategory of categories) {
+      await reconcileCategory(input.shopId, itemCategory);
     }
 
     // The recount stamps changed rows with the system sentinel. Restore the

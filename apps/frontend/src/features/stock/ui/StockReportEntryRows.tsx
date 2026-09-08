@@ -5,6 +5,7 @@ import type { CriteriaChip } from "../domain/stock-criteria.domain";
 import type { StockReportEntryDto, StockStateDto } from "../types/stock.dto";
 import type { CompactedReportRow, StockCountMode } from "../types/stock.types";
 import { StockCategoryThumbnail } from "./StockCategoryThumbnail";
+import { formatLocationLabel } from "../../../share/location-codes";
 import { StockPropertyChips } from "./StockPropertyChips";
 
 const missingMeta = getStockStateMeta(STOCK_STATES[0]);
@@ -168,7 +169,10 @@ export function StockGroupedEntryRow({
           </span>
           <StockPropertyChips chips={chips} maxRows={REPORT_ROW_CHIP_ROWS} />
         </span>
-        <StockEntryStatus state={entry.stockState} location={entry.location} />
+        <StockEntryStatus
+          state={entry.stockState}
+          location={formatLocationLabel(entry.location)}
+        />
       </span>
       <StockQuantityBar
         current={displayedCount(entry, countMode)}

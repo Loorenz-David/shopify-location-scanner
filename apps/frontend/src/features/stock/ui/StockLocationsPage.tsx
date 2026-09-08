@@ -6,6 +6,7 @@ import {
   PlusIcon,
 } from "../../../assets/icons";
 import { homeShellActions } from "../../home/actions/home-shell.actions";
+import { formatLocationLabel } from "../../../share/location-codes";
 import { stockActions } from "../actions/stock.actions";
 import { useStockSettingsFlow } from "../flows/use-stock-settings.flow";
 import {
@@ -120,7 +121,7 @@ function StockLocationsRootView({
             onClick={() => onOpenLocation(location)}
           >
             <span className="stock-mono grid h-[52px] min-w-[52px] flex-shrink-0 place-items-center rounded-[16px] bg-[var(--stock-code-badge-bg)] px-2 text-[14px] font-medium text-[var(--stock-primary)]">
-              {location}
+              {formatLocationLabel(location)}
             </span>
             <span className="min-w-0 flex-1 text-[14px] text-[var(--stock-body)]">
               {pluralize(stockCount, "stock instance")} configured

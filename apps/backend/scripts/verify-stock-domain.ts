@@ -4,8 +4,18 @@ type CriteriaInput = Record<string, string | string[] | null>;
 type Candidate = {
   id: string;
   createdAt: Date;
+  location: string;
   criteria: Criteria;
 };
+
+type LocationPattern =
+  | { kind: "exact"; value: string }
+  | { kind: "prefix"; prefix: string };
+
+// Every pre-pattern case is written against one concrete code, so the location
+// rungs of the ladder tie and the cases assert exactly what they asserted
+// before patterns existed.
+const DEFAULT_LOCATION = "LC10";
 
 type DomainModules = {
   STOCK_STATES: readonly string[];
@@ -18,9 +28,21 @@ type DomainModules = {
   canonicalCriteriaString: (criteria: Criteria) => string;
   matchesCriteria: (itemProperties: Record<string, string> | null, criteria: Criteria) => boolean;
   specificityScore: (criteria: Criteria) => readonly [number, number, number];
-  resolveBestMatch: (candidates: readonly Candidate[], itemProperties: Record<string, string> | null) => Candidate | null;
+  orderedPropertyTokens: (stored: string) => string[];
+  deriveItemProperties: (properties: Record<string, string> | null) => Record<string, string> | null;
+  woodSpecificity: (criteria: Criteria) => number;
+  woodGroupOfToken: (token: string) => string | null;
+  WOOD_GROUPS: Readonly<Record<string, readonly string[]>>;
+  WOOD_GROUP_NAMES: readonly string[];
+  validateStockCriteria: (itemCategory: string, criteria: CriteriaInput) => Criteria;
+  resolveBestMatch: (candidates: readonly Candidate[], item: { location: string; properties: Record<string, string> | null }) => Candidate | null;
+  parseLocationPattern: (stored: string) => LocationPattern;
+  isLocationPattern: (stored: string) => boolean;
+  matchesLocation: (pattern: LocationPattern, itemLocation: string) => boolean;
+  locationSpecificity: (pattern: LocationPattern) => readonly [number, number];
+  locationBlock: (stored: string) => string | null;
   findConflict: (candidate: Criteria, siblings: readonly { id: string; criteria: Criteria }[]) => { conflictingId: string } | null;
-  allocateGroup: (candidates: readonly Candidate[], items: readonly { quantity: number; properties: Record<string, string> | null }[]) => Map<string, { quantity: number; instanceCount: number }>;
+  allocateGroup: (candidates: readonly Candidate[], items: readonly { quantity: number; properties: Record<string, string> | null; location?: string }[]) => Map<string, { quantity: number; instanceCount: number }>;
   ITEM_PROPERTY_OPTIONS: readonly { key: string; values: readonly string[]; categories: "universal" | readonly string[] }[];
   getPropertyOptionsForCategory: (itemCategory: string) => readonly { key: string; values: readonly string[]; categories: "universal" | readonly string[] }[];
 };
@@ -58,9 +80,16 @@ const expectValidationError = (operation: () => unknown): void => {
 
 const criteria = (modules: DomainModules, input: CriteriaInput): Criteria => modules.normalizeCriteria(input);
 
-const candidate = (modules: DomainModules, id: string, input: CriteriaInput, createdAt: string): Candidate => ({
+const candidate = (
+  modules: DomainModules,
+  id: string,
+  input: CriteriaInput,
+  createdAt: string,
+  location: string = DEFAULT_LOCATION,
+): Candidate => ({
   id,
   createdAt: new Date(createdAt),
+  location,
   criteria: criteria(modules, input),
 });
 
@@ -68,7 +97,12 @@ const winnerId = (
   modules: DomainModules,
   candidates: readonly Candidate[],
   itemProperties: Record<string, string> | null,
-): string | null => modules.resolveBestMatch(candidates, itemProperties)?.id ?? null;
+  itemLocation: string = DEFAULT_LOCATION,
+): string | null =>
+  modules.resolveBestMatch(candidates, {
+    location: itemLocation,
+    properties: itemProperties,
+  })?.id ?? null;
 
 const conflictId = (
   modules: DomainModules,
@@ -84,6 +118,11 @@ const expectedOptions = [
   {
     key: "wood_type",
     values: ["Beech", "Birch", "Cherry", "Elm", "Mahogany", "Oak", "Santos Rosewood", "Teak", "Walnut"],
+    categories: "universal" as const,
+  },
+  {
+    key: "wood_group",
+    values: ["Dark", "Teak", "Light"],
     categories: "universal" as const,
   },
   {
@@ -438,7 +477,7 @@ const cases: readonly VerificationCase[] = [
   {
     id: "C9(c)",
     run: (m) => {
-      for (const key of ["wood_type", "years", "weight_definition", "country"]) {
+      for (const key of ["wood_type", "wood_group", "years", "weight_definition", "country"]) {
         assert(m.ITEM_PROPERTY_OPTIONS.find((option) => option.key === key)?.categories === "universal", `${key} was not universal`);
       }
     },
@@ -461,15 +500,15 @@ const cases: readonly VerificationCase[] = [
   },
   {
     id: "C9(f)",
-    run: (m) => equalJson(m.getPropertyOptionsForCategory("Sofas").map((option) => option.key), ["wood_type", "years", "weight_definition", "country"]),
+    run: (m) => equalJson(m.getPropertyOptionsForCategory("Sofas").map((option) => option.key), ["wood_type", "wood_group", "years", "weight_definition", "country"]),
   },
   {
     id: "C9(g)",
-    run: (m) => equalJson(m.getPropertyOptionsForCategory("Dining Tables").map((option) => option.key), ["wood_type", "years", "weight_definition", "country", "shape", "extension_type", "extension_quantity"]),
+    run: (m) => equalJson(m.getPropertyOptionsForCategory("Dining Tables").map((option) => option.key), ["wood_type", "wood_group", "years", "weight_definition", "country", "shape", "extension_type", "extension_quantity"]),
   },
   {
     id: "C9(h)",
-    run: (m) => equalJson(m.getPropertyOptionsForCategory("Dining Chairs").map((option) => option.key), ["wood_type", "years", "weight_definition", "country", "upholstery", "quantity"]),
+    run: (m) => equalJson(m.getPropertyOptionsForCategory("Dining Chairs").map((option) => option.key), ["wood_type", "wood_group", "years", "weight_definition", "country", "upholstery", "quantity"]),
   },
   // P7 — allocateGroup: the single allocation loop behind reconciliation and the rebuild.
   {
@@ -541,16 +580,482 @@ const cases: readonly VerificationCase[] = [
       assert(totals.size === 1, "an unmatched item created a phantom key");
     },
   },
+  // LP — prefix location patterns ("LC%"): the grammar, the match, and the rung
+  // of the ladder that sits above property specificity.
+  {
+    id: "LP.C1(a)",
+    detail: "a plain code parses as exact; a trailing % parses as a prefix",
+    run: (m) => {
+      equalJson(m.parseLocationPattern("LC10"), { kind: "exact", value: "LC10" });
+      equalJson(m.parseLocationPattern("LC%"), { kind: "prefix", prefix: "LC" });
+      equalJson(m.parseLocationPattern("  LC%  "), { kind: "prefix", prefix: "LC" });
+      assert(!m.isLocationPattern("LC10"), "a concrete code reported as a pattern");
+      assert(m.isLocationPattern("LC%"), "a prefix did not report as a pattern");
+    },
+  },
+  {
+    id: "LP.C1(b)",
+    detail: "% is rejected anywhere but last, and a bare % is rejected outright",
+    run: (m) => {
+      expectValidationError(() => m.parseLocationPattern("%LC"));
+      expectValidationError(() => m.parseLocationPattern("L%C"));
+      expectValidationError(() => m.parseLocationPattern("LC%%"));
+      expectValidationError(() => m.parseLocationPattern("%"));
+      expectValidationError(() => m.parseLocationPattern("   "));
+    },
+  },
+  {
+    id: "LP.C1(c)",
+    detail: "a prefix catches every code that starts with it; an exact code catches only itself",
+    run: (m) => {
+      const block = m.parseLocationPattern("LC%");
+      assert(m.matchesLocation(block, "LC10"), "LC% missed LC10");
+      assert(m.matchesLocation(block, "LC9"), "LC% missed LC9");
+      assert(m.matchesLocation(block, "LC1:2"), "LC% missed a levelled code");
+      assert(m.matchesLocation(block, "LC"), "LC% missed its own prefix");
+      assert(!m.matchesLocation(block, "H1"), "LC% caught another block");
+      assert(!m.matchesLocation(block, "lc10"), "LC% matched case-insensitively");
+
+      const exact = m.parseLocationPattern("LC10");
+      assert(m.matchesLocation(exact, "LC10"), "LC10 missed itself");
+      assert(!m.matchesLocation(exact, "LC101"), "LC10 matched by prefix");
+    },
+  },
+  {
+    id: "LP.C1(d)",
+    detail: "the `_` of SQL LIKE is a literal here: LC_% catches only codes with a real underscore",
+    run: (m) => {
+      const pattern = m.parseLocationPattern("LC_%");
+      assert(m.matchesLocation(pattern, "LC_1"), "LC_% missed LC_1");
+      assert(!m.matchesLocation(pattern, "LC10"), "an underscore behaved as a wildcard");
+    },
+  },
+  {
+    id: "LP.C1(e)",
+    detail: "exact outranks any prefix; a longer prefix outranks a shorter one",
+    run: (m) => {
+      equalJson(m.locationSpecificity(m.parseLocationPattern("LC10")), [1, 4]);
+      equalJson(m.locationSpecificity(m.parseLocationPattern("LC%")), [0, 2]);
+      equalJson(m.locationSpecificity(m.parseLocationPattern("L%")), [0, 1]);
+    },
+  },
+  {
+    id: "LP.C2(a)",
+    detail: "an exact definition with no properties beats a prefix definition with three",
+    run: (m) =>
+      equalJson(
+        winnerId(
+          m,
+          [
+            candidate(m, "block", { wood_type: "Teak", country: "Denmark", years: "1960-1970s" }, "2026-01-01T00:00:00Z", "LC%"),
+            candidate(m, "shelf", {}, "2026-01-02T00:00:00Z", "LC10"),
+          ],
+          { wood_type: "Teak", country: "Denmark", years: "1960-1970s" },
+          "LC10",
+        ),
+        "shelf",
+      ),
+  },
+  {
+    id: "LP.C2(b)",
+    detail: "the longer prefix wins between two overlapping block rules",
+    run: (m) =>
+      equalJson(
+        winnerId(
+          m,
+          [
+            candidate(m, "wide", {}, "2026-01-01T00:00:00Z", "L%"),
+            candidate(m, "narrow", {}, "2026-01-02T00:00:00Z", "LC%"),
+          ],
+          {},
+          "LC10",
+        ),
+        "narrow",
+      ),
+  },
+  {
+    id: "LP.C2(c)",
+    detail: "at equal location specificity the property ladder decides, exactly as before",
+    run: (m) =>
+      equalJson(
+        winnerId(
+          m,
+          [
+            candidate(m, "catch-all", {}, "2026-01-01T00:00:00Z", "LC%"),
+            candidate(m, "teak", { wood_type: "Teak" }, "2026-01-02T00:00:00Z", "LC%"),
+          ],
+          { wood_type: "Teak" },
+          "LC10",
+        ),
+        "teak",
+      ),
+  },
+  {
+    id: "LP.C2(d)",
+    detail: "a definition whose location does not match is not a candidate at all",
+    run: (m) => {
+      equalJson(
+        winnerId(
+          m,
+          [candidate(m, "block", {}, "2026-01-01T00:00:00Z", "LC%")],
+          {},
+          "H1",
+        ),
+        null,
+      );
+      equalJson(
+        winnerId(
+          m,
+          [candidate(m, "shelf", {}, "2026-01-01T00:00:00Z", "LC10")],
+          {},
+          "LC11",
+        ),
+        null,
+      );
+    },
+  },
+  {
+    id: "LP.C3(a)",
+    detail: "allocation spreads a block rule across locations while an exact rule keeps its own",
+    run: (m) => {
+      const totals = m.allocateGroup(
+        [
+          candidate(m, "block", {}, "2026-01-01T00:00:00Z", "LC%"),
+          candidate(m, "shelf", {}, "2026-01-02T00:00:00Z", "LC10"),
+        ],
+        [
+          { quantity: 2, properties: {}, location: "LC10" },
+          { quantity: 3, properties: {}, location: "LC11" },
+          { quantity: 4, properties: {}, location: "LC9" },
+          { quantity: 5, properties: {}, location: "H1" },
+        ],
+      );
+      // LC10 belongs to the exact rule; LC11 and LC9 fall to the block rule; H1
+      // matches neither and contributes to neither number.
+      equalJson(totals.get("shelf"), { quantity: 2, instanceCount: 1 });
+      equalJson(totals.get("block"), { quantity: 7, instanceCount: 2 });
+    },
+  },
+
+  // WG — wood groups: a coarse alternative to naming individual woods. The
+  // group is DERIVED from the item's first wood_type token; no item stores it.
+  {
+    id: "LP.C4(a)",
+    detail: "the letter block of a code, and the codes that have none",
+    run: (m) => {
+      assert(m.locationBlock("LC10") === "LC", "LC10 did not resolve to LC");
+      assert(m.locationBlock("LC2:1") === "LC", "LC2:1 did not resolve to LC");
+      assert(m.locationBlock("H1") === "H", "H1 did not resolve to H");
+      assert(m.locationBlock("  LC0  ") === "LC", "a padded code did not resolve");
+      // No number to strip: converting these to patterns would widen them
+      // ("STORE%" would also catch STOREROOM), so the caller must skip them.
+      assert(m.locationBlock("STORE") === null, "an all-letter code produced a block");
+      assert(m.locationBlock("LC%") === null, "an existing pattern produced a block");
+      assert(m.locationBlock("1LC") === null, "a leading-digit code produced a block");
+      assert(m.locationBlock("") === null, "an empty code produced a block");
+    },
+  },
+  {
+    id: "WG.C1(a)",
+    detail: "the table is well formed: no separator in a name, no wood in two groups",
+    run: (m) => {
+      // This is the guard on the one file that is meant to be hand-edited. A
+      // name carrying ',' or '/' would be re-split by the tokenizer into pieces
+      // that match nothing; a wood in two groups would resolve by declaration
+      // order. Both fail silently in production, so they fail loudly here.
+      const seen = new Map<string, string>();
+      for (const [group, members] of Object.entries(m.WOOD_GROUPS)) {
+        assert(!/[,\/]/.test(group), `group name '${group}' contains a separator`);
+        for (const member of members) {
+          const key = member.trim().toLowerCase();
+          const previous = seen.get(key);
+          assert(previous === undefined, `'${member}' is in both '${previous}' and '${group}'`);
+          seen.set(key, group);
+        }
+      }
+      assert(seen.size > 0, "the wood group table is empty");
+    },
+  },
+  {
+    id: "WG.C1(b)",
+    detail: "every member resolves to its group, case-insensitively",
+    run: (m) => {
+      for (const [group, members] of Object.entries(m.WOOD_GROUPS)) {
+        for (const member of members) {
+          assert(m.woodGroupOfToken(member) === group, `'${member}' did not resolve to ${group}`);
+          assert(m.woodGroupOfToken(member.toLowerCase()) === group, `'${member}' lowercased did not resolve to ${group}`);
+          assert(m.woodGroupOfToken(`  ${member.toUpperCase()}  `) === group, `'${member}' padded/uppercased did not resolve to ${group}`);
+        }
+      }
+    },
+  },
+  {
+    id: "WG.C1(c)",
+    detail: "a wood in no group, and an unknown wood, both resolve to null",
+    run: (m) => {
+      const grouped = new Set(
+        Object.values(m.WOOD_GROUPS).flatMap((members) => members.map((member) => member.toLowerCase())),
+      );
+      // `Other` is the live shop's only wood_type value outside every group, so
+      // it is the stand-in for "ungrouped" throughout these cases. If a future
+      // edit adopts it, this fails rather than letting the cases below quietly
+      // stop testing the ungrouped path at all.
+      assert(!grouped.has("other"), "'Other' joined a group; the ungrouped cases below need a new stand-in");
+      assert(m.woodGroupOfToken("Other") === null, "an ungrouped wood resolved to a group");
+      assert(m.woodGroupOfToken("Wenge") === null, "an unknown wood resolved to a group");
+      assert(m.woodGroupOfToken("") === null, "an empty token resolved to a group");
+      // Dark Oak and Dark Teak are listed but absent from the data; they must
+      // still resolve, and must not be confused with plain Oak and Teak.
+      assert(m.woodGroupOfToken("Dark Oak") === "Dark", "Dark Oak did not resolve to Dark");
+      assert(m.woodGroupOfToken("Dark Teak") === "Dark", "Dark Teak did not resolve to Dark");
+      assert(m.woodGroupOfToken("Oak") === "Light", "plain Oak was pulled into Dark");
+      assert(m.woodGroupOfToken("Teak") === "Teak", "plain Teak was pulled into Dark");
+    },
+  },
+  {
+    id: "WG.C2(a)",
+    detail: "ordered tokens keep source order; the Set form is built from them",
+    run: (m) => {
+      equalJson(m.orderedPropertyTokens("Teak, Beech"), ["teak", "beech"]);
+      equalJson(m.orderedPropertyTokens("Beech, Teak"), ["beech", "teak"]);
+      equalJson(m.orderedPropertyTokens("Oval/Rectangular"), ["oval", "rectangular"]);
+      equalJson(m.orderedPropertyTokens("  Teak  "), ["teak"]);
+      equalJson(m.orderedPropertyTokens(""), []);
+    },
+  },
+  {
+    id: "WG.C2(b)",
+    detail: "the ordered split is the same rule as the Set split, '&' included",
+    run: (m) => {
+      for (const stored of ["Teak, Beech", "Up & Down", "Oval/Rectangular", "1-20 kg", "Santos Rosewood"]) {
+        equalJson(setValues(new Set(m.orderedPropertyTokens(stored))), setValues(m.tokenizePropertyValue(stored)));
+      }
+    },
+  },
+  {
+    id: "WG.C3(a)",
+    detail: "the derived group comes from the FIRST wood only",
+    run: (m) => {
+      // Mahogany is Dark and Beech is Light; the item is Dark because Mahogany
+      // is written first. This is the whole point of the feature.
+      equalJson(m.deriveItemProperties({ wood_type: "Mahogany, Beech" })?.wood_group, "Dark");
+      equalJson(m.deriveItemProperties({ wood_type: "Beech, Mahogany" })?.wood_group, "Light");
+      equalJson(m.deriveItemProperties({ wood_type: "Teak, Beech" })?.wood_group, "Teak");
+    },
+  },
+  {
+    id: "WG.C3(b)",
+    detail: "an ungrouped wood gets no wood_group key at all",
+    run: (m) => {
+      const derived = m.deriveItemProperties({ wood_type: "Other, Teak" });
+      assert(derived !== null && !("wood_group" in derived), "an ungrouped first wood still produced a group");
+      // ...and so the key is absent, which matchesCriteria treats as no match
+      // rather than as a wildcard.
+      assert(!m.matchesCriteria(derived, criteria(m, { wood_group: "Teak" })), "an ungrouped item matched a group");
+    },
+  },
+  {
+    id: "WG.C3(c)",
+    detail: "null properties, a missing wood_type and a blank one are all passed through",
+    run: (m) => {
+      assert(m.deriveItemProperties(null) === null, "null properties did not stay null");
+      equalJson(m.deriveItemProperties({ country: "Denmark" }), { country: "Denmark" });
+      equalJson(m.deriveItemProperties({ wood_type: "   " }), { wood_type: "   " });
+      equalJson(m.deriveItemProperties({}), {});
+    },
+  },
+  {
+    id: "WG.C3(d)",
+    detail: "a wood_group stored on the item is overwritten, and the input is not mutated",
+    run: (m) => {
+      const item = { wood_type: "Teak", wood_group: "Light" };
+      const derived = m.deriveItemProperties(item);
+      equalJson(derived?.wood_group, "Teak");
+      equalJson(item.wood_group, "Light");
+    },
+  },
+  {
+    id: "WG.C4(a)",
+    detail: "a group definition catches every wood in its group",
+    run: (m) => {
+      const candidates = [candidate(m, "dark", { wood_group: "Dark" }, "2026-01-01T00:00:00Z")];
+      assert(winnerId(m, candidates, { wood_type: "Mahogany" }) === "dark", "Mahogany missed the Dark group");
+      assert(winnerId(m, candidates, { wood_type: "Santos Rosewood" }) === "dark", "Santos Rosewood missed the Dark group");
+      assert(winnerId(m, candidates, { wood_type: "Walnut" }) === "dark", "Walnut missed the Dark group");
+      assert(winnerId(m, candidates, { wood_type: "Oak" }) === null, "Oak matched the Dark group");
+      assert(winnerId(m, candidates, { wood_type: "Other" }) === null, "an ungrouped wood matched the Dark group");
+      assert(winnerId(m, candidates, null) === null, "an item with no properties matched a group");
+    },
+  },
+  {
+    id: "WG.C4(b)",
+    detail: "a group reads the first wood only, while wood_type still reads any",
+    run: (m) => {
+      const groups = [candidate(m, "light", { wood_group: "Light" }, "2026-01-01T00:00:00Z")];
+      // "Teak, Beech": Beech is Light, but it is not first, so the group misses.
+      assert(winnerId(m, groups, { wood_type: "Teak, Beech" }) === null, "a group matched on a non-first wood");
+      assert(winnerId(m, groups, { wood_type: "Beech, Teak" }) === "light", "a group missed its first wood");
+
+      // The same item against a named criterion: unchanged, still any-token.
+      const named = [candidate(m, "beech", { wood_type: "Beech" }, "2026-01-01T00:00:00Z")];
+      assert(winnerId(m, named, { wood_type: "Teak, Beech" }) === "beech", "wood_type stopped matching on a later token");
+    },
+  },
+  {
+    id: "WG.C4(c)",
+    detail: "a wildcard group requires the item's first wood to be in some group",
+    run: (m) => {
+      const candidates = [candidate(m, "any-group", { wood_group: null }, "2026-01-01T00:00:00Z")];
+      assert(winnerId(m, candidates, { wood_type: "Teak" }) === "any-group", "a grouped wood missed the wildcard group");
+      assert(winnerId(m, candidates, { wood_type: "Other" }) === null, "an ungrouped wood matched the wildcard group");
+    },
+  },
+  {
+    id: "WG.C5(a)",
+    detail: "the wood specificity scale: named 3, group 2, wildcard 1, absent 0",
+    run: (m) => {
+      assert(m.woodSpecificity(criteria(m, { wood_type: "Teak" })) === 3, "a named wood did not score 3");
+      assert(m.woodSpecificity(criteria(m, { wood_type: ["Teak", "Oak"] })) === 3, "a multi-value named wood did not score 3");
+      assert(m.woodSpecificity(criteria(m, { wood_group: "Teak" })) === 2, "a group did not score 2");
+      assert(m.woodSpecificity(criteria(m, { wood_type: null })) === 1, "a wood_type wildcard did not score 1");
+      assert(m.woodSpecificity(criteria(m, { wood_group: null })) === 1, "a wood_group wildcard did not score 1");
+      assert(m.woodSpecificity(criteria(m, { country: "Denmark" })) === 0, "a criteria set with no wood scored above 0");
+      assert(m.woodSpecificity(criteria(m, {})) === 0, "empty criteria scored above 0");
+    },
+  },
+  {
+    id: "WG.C5(b)",
+    detail: "a named wood beats a group, always — even a group pinning three more properties",
+    run: (m) => {
+      const winner = winnerId(
+        m,
+        [
+          candidate(m, "group", { wood_group: "Teak", country: "Denmark", years: "1960-1970s" }, "2026-01-01T00:00:00Z"),
+          candidate(m, "named", { wood_type: "Teak" }, "2026-01-02T00:00:00Z"),
+        ],
+        { wood_type: "Teak", country: "Denmark", years: "1960-1970s" },
+      );
+      // The group is older and matches on three keys to the named one's single
+      // key; the wood rung is read first, so the named wood still wins.
+      assert(winner === "named", `expected the named wood to win, got ${winner}`);
+    },
+  },
+  {
+    id: "WG.C5(c)",
+    detail: "a group beats a definition carrying no wood criterion at all",
+    run: (m) => {
+      const winner = winnerId(
+        m,
+        [
+          candidate(m, "no-wood", { country: "Denmark", years: "1960-1970s" }, "2026-01-01T00:00:00Z"),
+          candidate(m, "group", { wood_group: "Teak" }, "2026-01-02T00:00:00Z"),
+        ],
+        { wood_type: "Teak", country: "Denmark", years: "1960-1970s" },
+      );
+      assert(winner === "group", `expected the group to win, got ${winner}`);
+    },
+  },
+  {
+    id: "WG.C5(d)",
+    detail: "at equal wood specificity the property ladder decides, exactly as before",
+    run: (m) => {
+      const winner = winnerId(
+        m,
+        [
+          candidate(m, "bare", { wood_group: "Teak" }, "2026-01-01T00:00:00Z"),
+          candidate(m, "narrow", { wood_group: "Teak", country: "Denmark" }, "2026-01-02T00:00:00Z"),
+        ],
+        { wood_type: "Teak", country: "Denmark" },
+      );
+      assert(winner === "narrow", `expected the extra property to decide, got ${winner}`);
+    },
+  },
+  {
+    id: "WG.C5(e)",
+    detail: "location still outranks wood: an exact-location group beats a block-rule named wood",
+    run: (m) => {
+      const winner = winnerId(
+        m,
+        [
+          candidate(m, "block-named", { wood_type: "Teak" }, "2026-01-01T00:00:00Z", "LC%"),
+          candidate(m, "exact-group", { wood_group: "Teak" }, "2026-01-02T00:00:00Z", "LC10"),
+        ],
+        { wood_type: "Teak" },
+        "LC10",
+      );
+      assert(winner === "exact-group", `expected location to outrank wood, got ${winner}`);
+    },
+  },
+  {
+    id: "WG.C6(a)",
+    detail: "a definition carrying both a wood type and a wood group is refused",
+    run: (m) => {
+      expectValidationError(() => m.validateStockCriteria("Sofas", { wood_type: "Teak", wood_group: "Teak" }));
+      expectValidationError(() => m.validateStockCriteria("Sofas", { wood_type: null, wood_group: "Dark" }));
+      expectValidationError(() => m.validateStockCriteria("Sofas", { wood_type: "Teak", wood_group: null }));
+    },
+  },
+  {
+    id: "WG.C6(b)",
+    detail: "either key alone is accepted, for every category",
+    run: (m) => {
+      for (const category of ["Sofas", "Dining Tables", "Dining Chairs"]) {
+        equalJson(m.validateStockCriteria(category, { wood_group: "Dark" }), { wood_group: ["dark"] });
+        equalJson(m.validateStockCriteria(category, { wood_type: "Teak" }), { wood_type: ["teak"] });
+      }
+    },
+  },
+  {
+    id: "WG.C6(c)",
+    detail: "a group name outside the table is refused, like any other vocabulary value",
+    run: (m) => {
+      expectValidationError(() => m.validateStockCriteria("Sofas", { wood_group: "Medium" }));
+      // ...and the accepted names are exactly the table's keys.
+      equalJson(m.WOOD_GROUP_NAMES, Object.keys(m.WOOD_GROUPS));
+    },
+  },
+  {
+    id: "WG.C7(a)",
+    detail: "allocation splits items between a named definition and a group across both paths",
+    run: (m) => {
+      const totals = m.allocateGroup(
+        [
+          candidate(m, "named-teak", { wood_type: "Teak" }, "2026-01-01T00:00:00Z"),
+          candidate(m, "dark", { wood_group: "Dark" }, "2026-01-02T00:00:00Z"),
+        ],
+        [
+          { quantity: 2, properties: { wood_type: "Teak" } },
+          // Dark only.
+          { quantity: 3, properties: { wood_type: "Mahogany" } },
+          // The interesting one: BOTH match — the group on the first wood
+          // (Santos Rosewood is Dark), the named definition on the second
+          // (Teak). The wood rung gives it to the named definition, so the
+          // precedence rule holds on the allocation path and not just in
+          // resolveBestMatch.
+          { quantity: 4, properties: { wood_type: "Santos Rosewood, Teak" } },
+          // First wood is Teak, so the Dark group misses it entirely.
+          { quantity: 5, properties: { wood_type: "Teak, Mahogany" } },
+          // Ungrouped and not Teak: counted by neither.
+          { quantity: 6, properties: { wood_type: "Other" } },
+        ],
+      );
+      equalJson(totals.get("named-teak"), { quantity: 11, instanceCount: 3 });
+      equalJson(totals.get("dark"), { quantity: 3, instanceCount: 1 });
+    },
+  },
 ];
 
 const loadModules = async (): Promise<DomainModules> => {
-  const [stockState, propertyCriteria, bestMatch, conflict, options, allocation] = await Promise.all([
+  const [stockState, propertyCriteria, bestMatch, conflict, options, allocation, locationPattern, woodGroups, contract] = await Promise.all([
     import("../src/modules/stock/domain/stock-state.js"),
     import("../src/modules/stock/domain/property-criteria.js"),
     import("../src/modules/stock/domain/best-match.js"),
     import("../src/modules/stock/domain/conflict.js"),
     import("../src/shared/item-properties/item-property-options.js"),
     import("../src/modules/stock/domain/allocation.js"),
+    import("../src/modules/stock/domain/location-pattern.js"),
+    import("../src/shared/item-properties/wood-groups.js"),
+    import("../src/modules/stock/contracts/stock.contract.js"),
   ]);
   return {
     STOCK_STATES: stockState.STOCK_STATES,
@@ -563,9 +1068,29 @@ const loadModules = async (): Promise<DomainModules> => {
     canonicalCriteriaString: propertyCriteria.canonicalCriteriaString,
     matchesCriteria: propertyCriteria.matchesCriteria,
     specificityScore: bestMatch.specificityScore,
+    orderedPropertyTokens: propertyCriteria.orderedPropertyTokens,
+    deriveItemProperties: bestMatch.deriveItemProperties,
+    woodSpecificity: bestMatch.woodSpecificity,
+    woodGroupOfToken: woodGroups.woodGroupOfToken,
+    WOOD_GROUPS: woodGroups.WOOD_GROUPS,
+    WOOD_GROUP_NAMES: woodGroups.WOOD_GROUP_NAMES,
+    validateStockCriteria: (itemCategory, input) => contract.validateStockCriteria(itemCategory, input),
     resolveBestMatch: bestMatch.resolveBestMatch,
+    parseLocationPattern: locationPattern.parseLocationPattern,
+    isLocationPattern: locationPattern.isLocationPattern,
+    matchesLocation: locationPattern.matchesLocation,
+    locationSpecificity: locationPattern.locationSpecificity,
+    locationBlock: locationPattern.locationBlock,
     findConflict: conflict.findConflict,
-    allocateGroup: allocation.allocateGroup,
+    allocateGroup: (candidates, items) =>
+      allocation.allocateGroup(
+        candidates,
+        items.map((item) => ({
+          location: item.location ?? DEFAULT_LOCATION,
+          quantity: item.quantity,
+          properties: item.properties,
+        })),
+      ),
     ITEM_PROPERTY_OPTIONS: options.ITEM_PROPERTY_OPTIONS,
     getPropertyOptionsForCategory: (itemCategory) => options.getPropertyOptionsForCategory(itemCategory as Parameters<typeof options.getPropertyOptionsForCategory>[0]),
   };

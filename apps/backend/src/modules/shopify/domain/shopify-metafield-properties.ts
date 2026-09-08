@@ -67,6 +67,7 @@ export const EXCLUDED_PROPERTY_METAFIELD_KEYS: ReadonlySet<string> = new Set([
   "damage_details", // not wanted in the bag
   "link", // external auction URL, not an item attribute
   "reserved", // not wanted in the bag
+  "wood_group", // derived from wood_type at match time; never stored
 ]);
 
 const METAFIELD_SELECTION_PAGE_SIZE = 100;
