@@ -36,6 +36,7 @@ export function UnifiedLocationScanPage({
     onSelectLens,
     onClearLocationScan,
     onScanNext,
+    onDone,
     onDismissLocationWarning,
     onDismissPlacementError,
     onClearItemScan,
@@ -49,6 +50,7 @@ export function UnifiedLocationScanPage({
     : null;
   const canChangeLocation = Boolean(selectedLocation);
   const isPlacementPending = phase === "placing";
+  const isPlaced = phase === "placed";
   const selectedLocationLabel = selectedLocation
     ? selectedLocation.mode === "shop"
       ? selectedLocation.label
@@ -159,6 +161,21 @@ export function UnifiedLocationScanPage({
                 disabled={!canScanNext}
               >
                 {isPlacementPending ? "Saving..." : "Next scan"}
+              </button>
+            ) : null}
+
+            {selectedLocation?.mode === "logistic" ? (
+              <button
+                type="button"
+                className={`w-full rounded-lg px-3 py-3 text-md font-bold ${
+                  isPlaced
+                    ? "bg-sky-500/90 text-sky-50"
+                    : "bg-slate-800 text-slate-300"
+                }`}
+                onClick={onDone}
+                disabled={!isPlaced}
+              >
+                {isPlacementPending ? "Saving..." : "Done"}
               </button>
             ) : null}
           </div>

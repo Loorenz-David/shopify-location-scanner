@@ -137,6 +137,7 @@ export interface UnifiedScannerPageContextValue {
   onClearItemScan: () => void;
   onClearLocationScan: () => void;
   onScanNext: () => void;
+  onDone: () => void;
   onDismissItemError: () => void;
   onDismissLocationWarning: () => void;
   onDismissPlacementError: () => void;

@@ -1,4 +1,5 @@
 import { homeShellActions } from "../../home/actions/home-shell.actions";
+import { logisticTasksActions } from "../../logistic-tasks/actions/logistic-tasks.actions";
 import { markItemFixedApi } from "../../logistic-tasks/api/mark-item-fixed.api";
 import { useTaskCountStore } from "../../logistic-tasks/stores/task-count.store";
 import { useLogisticTasksStore } from "../../logistic-tasks/stores/logistic-tasks.store";
@@ -100,6 +101,17 @@ export const unifiedScannerActions = {
   closeScanner(): void {
     useUnifiedScannerStore.getState().resetCycle();
     homeShellActions.closeFullFeaturePage();
+  },
+  finishLogisticPlacement(): void {
+    const placedItemId = useUnifiedScannerStore.getState().selectedItem?.id;
+
+    unifiedScannerActions.closeScanner();
+
+    // Confirm the optimistic eviction against the server so the task list
+    // and badge reflect the placement even if local state was stale.
+    if (placedItemId) {
+      void logisticTasksActions.refreshByIds([placedItemId]);
+    }
   },
   clearItemLookupError(): void {
     useUnifiedScannerStore.getState().setItemLookupError(null);

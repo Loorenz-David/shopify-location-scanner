@@ -1,6 +1,7 @@
 import { normalizeLogisticTasksPage } from "../domain/logistic-tasks.domain";
 import { getLogisticTasksApi } from "../api/get-logistic-tasks.api";
 import { useLogisticTasksStore } from "../stores/logistic-tasks.store";
+import { useTaskCountStore } from "../stores/task-count.store";
 import type { LogisticTaskFilters } from "../types/logistic-tasks.types";
 
 export async function loadLogisticTasksController(
@@ -74,6 +75,7 @@ export async function refreshLogisticTasksByIdsController(
     for (const id of ids) {
       if (!returnedIds.has(id)) {
         store.removeItem(id);
+        useTaskCountStore.getState().removeId(id);
       }
     }
   } catch {

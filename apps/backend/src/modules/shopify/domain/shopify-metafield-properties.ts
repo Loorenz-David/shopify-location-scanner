@@ -68,6 +68,7 @@ export const EXCLUDED_PROPERTY_METAFIELD_KEYS: ReadonlySet<string> = new Set([
   "link", // external auction URL, not an item attribute
   "reserved", // not wanted in the bag
   "wood_group", // derived from wood_type at match time; never stored
+  "drawers_range", // derived from drawers_qty at match time; never stored
 ]);
 
 const METAFIELD_SELECTION_PAGE_SIZE = 100;

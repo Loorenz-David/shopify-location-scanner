@@ -1,5 +1,6 @@
 import type { ItemCategory } from "../category/item-categories.js";
 import { WOOD_GROUP_KEY, WOOD_GROUP_NAMES } from "./wood-groups.js";
+import { DRAWER_RANGE_NAMES, DRAWERS_RANGE_KEY } from "./drawer-ranges.js";
 
 export const ITEM_PROPERTY_OPTIONS = [
   {
@@ -54,6 +55,14 @@ export const ITEM_PROPERTY_OPTIONS = [
     key: "quantity",
     values: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "12"],
     categories: ["Dining Chairs", "Easy Chairs", "Armchairs"],
+  },
+  // Derived, not stored, like `wood_group`: the matcher computes the range from
+  // the item's `drawers_qty` (a purchase-API count). The raw count is not an
+  // option — definitions select by range only (see drawer-ranges.ts).
+  {
+    key: DRAWERS_RANGE_KEY,
+    values: DRAWER_RANGE_NAMES,
+    categories: ["Chest of Drawers", "Sideboards", "Storage Cabinets", "Hall Tables", "Bookshelves"],
   },
 ] as const;
 

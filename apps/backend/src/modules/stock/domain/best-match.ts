@@ -10,6 +10,11 @@ import {
   woodGroupOfToken,
 } from "../../../shared/item-properties/wood-groups.js";
 import {
+  DRAWERS_QTY_KEY,
+  DRAWERS_RANGE_KEY,
+  drawerRangeOf,
+} from "../../../shared/item-properties/drawer-ranges.js";
+import {
   matchesCriteria,
   orderedPropertyTokens,
   type StockCriteria,
@@ -51,21 +56,45 @@ export const specificityScore = (criteria: StockCriteria): SpecificityScore => {
 };
 
 /**
- * Adds the derived `wood_group` key to an item's properties.
- *
- * The value is the group of the item's FIRST `wood_type` token and nothing
- * else, so "Teak, Beech" is Teak: it matches a Teak group and not a Light one.
- * Because the derived value is a single token, `matchesCriteria`'s existing
- * "OR within a key" rule already gives first-token semantics with no change to
- * it, while `wood_type` itself keeps matching on ANY of the item's tokens.
+ * The group of an item's FIRST `wood_type` token and nothing else, so
+ * "Teak, Beech" is Teak: it matches a Teak group and not a Light one. Because
+ * the derived value is a single token, `matchesCriteria`'s existing "OR within
+ * a key" rule already gives first-token semantics with no change to it, while
+ * `wood_type` itself keeps matching on ANY of the item's tokens.
+ */
+const deriveWoodGroup = (properties: Record<string, string>): string | null => {
+  const woodType = properties[WOOD_TYPE_KEY];
+  if (typeof woodType !== "string") {
+    return null;
+  }
+
+  const [firstToken] = orderedPropertyTokens(woodType);
+  if (firstToken === undefined) {
+    return null;
+  }
+
+  // A wood in no group matches no group criterion, rather than falling into
+  // some catch-all one.
+  return woodGroupOfToken(firstToken);
+};
+
+const deriveDrawersRange = (properties: Record<string, string>): string | null => {
+  const drawersQty = properties[DRAWERS_QTY_KEY];
+  return typeof drawersQty === "string" ? drawerRangeOf(drawersQty) : null;
+};
+
+/**
+ * Adds the derived keys to an item's properties: `wood_group` (from
+ * `wood_type`) and `drawers_range` (from `drawers_qty`).
  *
  * Applied once inside `resolveBestMatch`, which is the only caller of
  * `matchesCriteria` — so the incremental scan path and the absolute
- * reconciliation path cannot disagree about what an item's group is.
+ * reconciliation path cannot disagree about what an item's group or range is.
  *
- * A `wood_group` already present on the item is overwritten rather than
- * trusted: the key is excluded at ingestion, and a derived value is the only
- * definition of it the matcher recognises.
+ * A derived key already present on the item is overwritten rather than
+ * trusted: both keys are excluded at ingestion, and a derived value is the only
+ * definition of them the matcher recognises. When a source value derives to
+ * nothing, the key is simply not added, and the item matches no criterion on it.
  */
 export const deriveItemProperties = (
   properties: Record<string, string> | null,
@@ -74,24 +103,17 @@ export const deriveItemProperties = (
     return null;
   }
 
-  const woodType = properties[WOOD_TYPE_KEY];
-  if (typeof woodType !== "string") {
+  const woodGroup = deriveWoodGroup(properties);
+  const drawersRange = deriveDrawersRange(properties);
+  if (woodGroup === null && drawersRange === null) {
     return properties;
   }
 
-  const [firstToken] = orderedPropertyTokens(woodType);
-  if (firstToken === undefined) {
-    return properties;
-  }
-
-  const group = woodGroupOfToken(firstToken);
-  if (group === null) {
-    // A wood in no group matches no group criterion, rather than falling into
-    // some catch-all one.
-    return properties;
-  }
-
-  return { ...properties, [WOOD_GROUP_KEY]: group };
+  return {
+    ...properties,
+    ...(woodGroup !== null ? { [WOOD_GROUP_KEY]: woodGroup } : {}),
+    ...(drawersRange !== null ? { [DRAWERS_RANGE_KEY]: drawersRange } : {}),
+  };
 };
 
 /** A named wood is narrower than a group, and a group is narrower than "any

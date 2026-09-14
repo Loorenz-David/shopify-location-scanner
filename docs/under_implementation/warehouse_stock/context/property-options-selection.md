@@ -106,3 +106,18 @@ been invisible to every quantity criterion while the report still counted their 
 
 Observed today: 1 (938 items), 2 (71), 4 (164), 5 (7), 6 (112), 7 (2), 8 (14), 10 (4).
 The map adds 3, 9 and 12 so a new set size is not unconfigurable on arrival.
+
+### Addition (David, 2026-09-14) — `drawers_range`
+
+`drawers_qty` (a purchase-API count) was OUT on the 2026-09-01 sheet on a sample of 6
+chests; it now sits on 23 of 55 Chest of Drawers rows. It enters the map as a
+**derived range**, not as the raw count: key `drawers_range`, values `1-2`, `3-5`, `6+`
+(6 or more), categories Chest of Drawers, Sideboards, Storage Cabinets, Hall Tables,
+Bookshelves — the categories where `drawers_qty` appears in the data.
+
+Same mechanism as `wood_group`: no item stores `drawers_range`; the matcher computes it
+from `drawers_qty` (`shared/item-properties/drawer-ranges.ts`), and the key is excluded
+at both ingestion points. A count of `0`, a blank or a non-integer falls in no range and
+matches no drawers criterion. Items without `drawers_qty` are invisible to any definition
+that uses the key — the value has to be filled in the purchase app, then pulled in with
+`backfill-item-properties.ts`.

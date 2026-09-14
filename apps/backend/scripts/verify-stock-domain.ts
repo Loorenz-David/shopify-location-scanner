@@ -34,6 +34,8 @@ type DomainModules = {
   woodGroupOfToken: (token: string) => string | null;
   WOOD_GROUPS: Readonly<Record<string, readonly string[]>>;
   WOOD_GROUP_NAMES: readonly string[];
+  drawerRangeOf: (stored: string) => string | null;
+  DRAWER_RANGE_NAMES: readonly string[];
   validateStockCriteria: (itemCategory: string, criteria: CriteriaInput) => Criteria;
   resolveBestMatch: (candidates: readonly Candidate[], item: { location: string; properties: Record<string, string> | null }) => Candidate | null;
   parseLocationPattern: (stored: string) => LocationPattern;
@@ -164,6 +166,11 @@ const expectedOptions = [
     key: "quantity",
     values: ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "12"],
     categories: ["Dining Chairs", "Easy Chairs", "Armchairs"],
+  },
+  {
+    key: "drawers_range",
+    values: ["1-2", "3-5", "6+"],
+    categories: ["Chest of Drawers", "Sideboards", "Storage Cabinets", "Hall Tables", "Bookshelves"],
   },
 ] as const;
 
@@ -1043,10 +1050,122 @@ const cases: readonly VerificationCase[] = [
       equalJson(totals.get("dark"), { quantity: 3, instanceCount: 1 });
     },
   },
+  // Drawer ranges — `drawers_range` is derived from the item's `drawers_qty`.
+  {
+    id: "DR.C1(a)",
+    detail: "each count lands in exactly one range, boundaries included",
+    run: (m) => {
+      const expected: ReadonlyArray<[string, string]> = [
+        ["1", "1-2"], ["2", "1-2"], ["3", "3-5"], ["5", "3-5"],
+        ["6", "6+"], ["8", "6+"], ["12", "6+"], [" 4 ", "3-5"],
+      ];
+      for (const [stored, range] of expected) {
+        equalJson(m.drawerRangeOf(stored), range);
+      }
+    },
+  },
+  {
+    id: "DR.C1(b)",
+    detail: "zero, blanks and anything that is not a whole count fall in no range",
+    run: (m) => {
+      for (const stored of ["0", "", "   ", "4.5", "3-4", "-1", "two", "6+"]) {
+        assert(m.drawerRangeOf(stored) === null, `'${stored}' resolved to a range`);
+      }
+    },
+  },
+  {
+    id: "DR.C1(c)",
+    detail: "the option values are exactly the range table's names",
+    run: (m) => equalJson(m.DRAWER_RANGE_NAMES, ["1-2", "3-5", "6+"]),
+  },
+  {
+    id: "DR.C2(a)",
+    detail: "the range is added beside the raw count and the wood group; the input is not mutated",
+    run: (m) => {
+      const item = { drawers_qty: "4", wood_type: "Teak" };
+      equalJson(m.deriveItemProperties(item), { drawers_qty: "4", wood_type: "Teak", wood_group: "Teak", drawers_range: "3-5" });
+      assert(!("drawers_range" in item), "the input was mutated");
+    },
+  },
+  {
+    id: "DR.C2(b)",
+    detail: "a count in no range gets no drawers_range key at all",
+    run: (m) => {
+      const derived = m.deriveItemProperties({ drawers_qty: "0" });
+      assert(derived !== null && !("drawers_range" in derived), "a zero count still produced a range");
+    },
+  },
+  {
+    id: "DR.C3(a)",
+    detail: "a range definition catches every count in its range and nothing else",
+    run: (m) => {
+      const candidates = [
+        candidate(m, "few", { drawers_range: "1-2" }, "2026-01-01T00:00:00Z"),
+        candidate(m, "mid", { drawers_range: "3-5" }, "2026-01-01T00:00:00Z"),
+        candidate(m, "many", { drawers_range: "6+" }, "2026-01-01T00:00:00Z"),
+      ];
+      assert(winnerId(m, candidates, { drawers_qty: "2" }) === "few", "2 drawers missed 1-2");
+      assert(winnerId(m, candidates, { drawers_qty: "3" }) === "mid", "3 drawers missed 3-5");
+      assert(winnerId(m, candidates, { drawers_qty: "6" }) === "many", "6 drawers missed 6+");
+      assert(winnerId(m, candidates, { drawers_qty: "0" }) === null, "0 drawers matched a range");
+      assert(winnerId(m, candidates, { wood_type: "Teak" }) === null, "an item with no drawer count matched a range");
+    },
+  },
+  {
+    id: "DR.C3(b)",
+    detail: "a wildcard range needs a count that is in some range",
+    run: (m) => {
+      const candidates = [candidate(m, "any", { drawers_range: null }, "2026-01-01T00:00:00Z")];
+      assert(winnerId(m, candidates, { drawers_qty: "4" }) === "any", "a counted item missed the wildcard range");
+      assert(winnerId(m, candidates, { drawers_qty: "0" }) === null, "a zero count matched the wildcard range");
+    },
+  },
+  {
+    id: "DR.C4(a)",
+    detail: "ranges are selectable on the drawer categories only, and only as ranges",
+    run: (m) => {
+      for (const category of ["Chest of Drawers", "Sideboards", "Storage Cabinets", "Hall Tables", "Bookshelves"]) {
+        equalJson(m.validateStockCriteria(category, { drawers_range: ["6+", "1-2"] }), { drawers_range: ["1-2", "6+"] });
+      }
+      expectValidationError(() => m.validateStockCriteria("Sofas", { drawers_range: "1-2" }));
+      expectValidationError(() => m.validateStockCriteria("Chest of Drawers", { drawers_range: "7+" }));
+      expectValidationError(() => m.validateStockCriteria("Chest of Drawers", { drawers_qty: "4" }));
+    },
+  },
+  {
+    id: "DR.C4(b)",
+    detail: "Chest of Drawers offers the universal keys plus drawers_range",
+    run: (m) => equalJson(
+      m.getPropertyOptionsForCategory("Chest of Drawers").map((option) => option.key),
+      ["wood_type", "wood_group", "years", "weight_definition", "country", "drawers_range"],
+    ),
+  },
+  {
+    id: "DR.C5(a)",
+    detail: "allocation splits items by range, and a zero count is counted by none",
+    run: (m) => {
+      const totals = m.allocateGroup(
+        [
+          candidate(m, "few", { drawers_range: "1-2" }, "2026-01-01T00:00:00Z"),
+          candidate(m, "many", { drawers_range: "6+" }, "2026-01-01T00:00:00Z"),
+        ],
+        [
+          { quantity: 1, properties: { drawers_qty: "2" } },
+          { quantity: 1, properties: { drawers_qty: "6" } },
+          { quantity: 1, properties: { drawers_qty: "8" } },
+          // In a range, but not one either definition tracks.
+          { quantity: 1, properties: { drawers_qty: "4" } },
+          { quantity: 1, properties: { drawers_qty: "0" } },
+        ],
+      );
+      equalJson(totals.get("few"), { quantity: 1, instanceCount: 1 });
+      equalJson(totals.get("many"), { quantity: 2, instanceCount: 2 });
+    },
+  },
 ];
 
 const loadModules = async (): Promise<DomainModules> => {
-  const [stockState, propertyCriteria, bestMatch, conflict, options, allocation, locationPattern, woodGroups, contract] = await Promise.all([
+  const [stockState, propertyCriteria, bestMatch, conflict, options, allocation, locationPattern, woodGroups, contract, drawerRanges] = await Promise.all([
     import("../src/modules/stock/domain/stock-state.js"),
     import("../src/modules/stock/domain/property-criteria.js"),
     import("../src/modules/stock/domain/best-match.js"),
@@ -1056,6 +1175,7 @@ const loadModules = async (): Promise<DomainModules> => {
     import("../src/modules/stock/domain/location-pattern.js"),
     import("../src/shared/item-properties/wood-groups.js"),
     import("../src/modules/stock/contracts/stock.contract.js"),
+    import("../src/shared/item-properties/drawer-ranges.js"),
   ]);
   return {
     STOCK_STATES: stockState.STOCK_STATES,
@@ -1074,6 +1194,8 @@ const loadModules = async (): Promise<DomainModules> => {
     woodGroupOfToken: woodGroups.woodGroupOfToken,
     WOOD_GROUPS: woodGroups.WOOD_GROUPS,
     WOOD_GROUP_NAMES: woodGroups.WOOD_GROUP_NAMES,
+    drawerRangeOf: drawerRanges.drawerRangeOf,
+    DRAWER_RANGE_NAMES: drawerRanges.DRAWER_RANGE_NAMES,
     validateStockCriteria: (itemCategory, input) => contract.validateStockCriteria(itemCategory, input),
     resolveBestMatch: bestMatch.resolveBestMatch,
     parseLocationPattern: locationPattern.parseLocationPattern,

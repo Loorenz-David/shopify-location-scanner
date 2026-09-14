@@ -153,6 +153,7 @@ export function UnifiedScannerProvider({
     onClearItemScan: handleClearItemScan,
     onClearLocationScan: handleClearLocationScan,
     onScanNext: handleScanNext,
+    onDone: unifiedScannerActions.finishLogisticPlacement,
     onDismissItemError: handleDismissItemError,
     onDismissLocationWarning: unifiedScannerActions.clearLocationWarningBanner,
     onDismissPlacementError: unifiedScannerActions.clearPlacementError,

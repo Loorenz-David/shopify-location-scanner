@@ -36,9 +36,13 @@ export function buildCriteria(draft: CriteriaDraft): StockPropertiesDto {
  * `quantity` is the size of the set an item is sold in (a set of 6 chairs), not
  * a stock count — and it is rendered right next to the report's own quantity
  * numbers, so the raw key would read as a duplicate of them.
+ *
+ * `drawers_range` values are already ranges (`3-5`), so the label only needs to
+ * say what is counted: `Drawers: 3-5`.
  */
 const PROPERTY_KEY_LABELS: Readonly<Record<string, string>> = {
   quantity: "Set Of",
+  drawers_range: "Drawers",
 };
 
 /**

@@ -29,6 +29,8 @@ export const EXCLUDED_PURCHASE_ATTRIBUTE_KEYS: ReadonlySet<string> = new Set([
   // `wood_group` is derived from `wood_type` at match time and is never stored;
   // an upstream attribute of that name would shadow the derivation.
   "wood_group",
+  // Same for `drawers_range`, derived from `drawers_qty`.
+  "drawers_range",
 ]);
 
 /** Truncates long values and drops anything past the key cap, deterministically

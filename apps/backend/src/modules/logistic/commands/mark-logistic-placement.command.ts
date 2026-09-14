@@ -117,7 +117,7 @@ export const markLogisticPlacementCommand = async (input: {
           orderId: scanHistory.orderId ?? null,
           logisticLocationId: input.payload.logisticLocationId,
         },
-        ["manager"],
+        ["manager", "worker"],
       );
       await scheduleRoleNotification(input.shopId, "manager");
     } else {
@@ -129,7 +129,7 @@ export const markLogisticPlacementCommand = async (input: {
           orderId: scanHistory.orderId ?? null,
           logisticLocationId: input.payload.logisticLocationId,
         },
-        ["seller"],
+        ["seller", "worker"],
       );
     }
   } else if (input.callerRole === "manager") {

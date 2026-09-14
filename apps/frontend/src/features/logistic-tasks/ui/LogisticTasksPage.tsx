@@ -1,10 +1,12 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 
 import { logisticTasksActions } from "../actions/logistic-tasks.actions";
 import {
   useLogisticTasksFlow,
   useLogisticTasksLoadingVisibilityFlow,
 } from "../flows/use-logistic-tasks.flow";
+import { useLogisticTasksPullRefreshFlow } from "../flows/use-logistic-tasks-pull-refresh.flow";
+import { ItemScanHistoryPullRefreshIndicator } from "../../item-scan-history/ui/ItemScanHistoryPullRefreshIndicator";
 import { countActiveLogisticTaskFilters } from "../domain/logistic-tasks-filters.domain";
 import { useRoleCapabilities } from "../../role-context/hooks/use-role-capabilities";
 import { LogisticTasksPageProvider } from "../context/logistic-tasks-page.context";
@@ -52,6 +54,9 @@ export function LogisticTasksPage() {
     hasLoaded,
   );
   const activeFilterCount = countActiveLogisticTaskFilters(filters);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const pullRefresh = useLogisticTasksPullRefreshFlow({ scrollContainerRef });
+  const isContentHidden = isLoadingVisible || pullRefresh.isPullLoadingVisible;
 
   const visibleGroups = useMemo(
     () =>
@@ -111,43 +116,59 @@ export function LogisticTasksPage() {
         </div>
 
         <div className="relative min-h-0 flex-1">
-          <div className="h-full overflow-y-auto overscroll-contain pt-36">
-            {isLoadingVisible && <LogisticTasksLoadingCards />}
+          <div
+            ref={scrollContainerRef}
+            className="h-full overflow-y-auto overscroll-contain pt-36"
+          >
+            <ItemScanHistoryPullRefreshIndicator
+              pullDistance={pullRefresh.pullDistance}
+              isArmed={pullRefresh.isArmed}
+              isRefreshing={false}
+            />
 
-            {!isLoadingVisible && errorMessage && (
-              <div className="mx-5 mt-12 rounded-xl border border-rose-300 bg-rose-100 px-4 py-3 text-sm font-semibold text-rose-900">
-                {errorMessage}
-                <button
-                  type="button"
-                  className="ml-2 underline"
-                  onClick={() => {
-                    const { filters: currentFilters } =
-                      useLogisticTasksStore.getState();
-                    void logisticTasksActions.loadTasks(currentFilters);
-                  }}
-                >
-                  Retry
-                </button>
-              </div>
-            )}
+            <div
+              className="transition-transform duration-150"
+              style={{
+                transform: `translateY(${pullRefresh.pullDistance}px)`,
+              }}
+            >
+              {isContentHidden && <LogisticTasksLoadingCards />}
 
-            {!isLoadingVisible && isEmpty && !errorMessage && (
-              <div className="mx-5 mt-20 flex flex-col items-center gap-2 text-center text-slate-500">
-                <p className="text-base font-semibold">No tasks found</p>
-                <p className="text-sm">
-                  {activeFilterCount > 0
-                    ? "Try clearing some filters."
-                    : "All caught up!"}
-                </p>
-              </div>
-            )}
+              {!isContentHidden && errorMessage && (
+                <div className="mx-5 mt-12 rounded-xl border border-rose-300 bg-rose-100 px-4 py-3 text-sm font-semibold text-rose-900">
+                  {errorMessage}
+                  <button
+                    type="button"
+                    className="ml-2 underline"
+                    onClick={() => {
+                      const { filters: currentFilters } =
+                        useLogisticTasksStore.getState();
+                      void logisticTasksActions.loadTasks(currentFilters);
+                    }}
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
 
-            {!isLoadingVisible && !errorMessage && (
-              <LogisticTasksList
-                groups={visibleGroups}
-                cardAction={task_intention_card_action}
-              />
-            )}
+              {!isContentHidden && isEmpty && !errorMessage && (
+                <div className="mx-5 mt-20 flex flex-col items-center gap-2 text-center text-slate-500">
+                  <p className="text-base font-semibold">No tasks found</p>
+                  <p className="text-sm">
+                    {activeFilterCount > 0
+                      ? "Try clearing some filters."
+                      : "All caught up!"}
+                  </p>
+                </div>
+              )}
+
+              {!isContentHidden && !errorMessage && (
+                <LogisticTasksList
+                  groups={visibleGroups}
+                  cardAction={task_intention_card_action}
+                />
+              )}
+            </div>
           </div>
 
           <div
