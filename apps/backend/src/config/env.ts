@@ -20,6 +20,8 @@ const EnvSchema = z.object({
   SHOPIFY_METAFIELD_NAMESPACE: z.string().min(1).default("app"),
   SHOPIFY_METAFIELD_KEY: z.string().min(1).default("item_location"),
   REDIS_URL: z.string().url().default("redis://127.0.0.1:6379"),
+  MANAGER_SYNC_INTERVAL_MS: z.coerce.number().int().positive().default(900000),
+  OUTBOUND_DELIVERY_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
   SHOPIFY_DEBUG_SKIP_HMAC: z.coerce.boolean().default(false),
   SHOPIFY_DEBUG_ORDER_WEBHOOKS: z.coerce.boolean().default(false),
   // Beyo Vintage purchase API — the source of extra item attributes, looked up

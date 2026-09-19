@@ -37,6 +37,7 @@ import {
 } from "./modules/external-api/routes/external-api.routes.js";
 import { outboundWebhookRouter } from "./modules/outbound-webhook/routes/outbound-webhook.routes.js";
 import { stockRouter } from "./modules/stock/routes/stock.routes.js";
+import { enableManagerSignals } from "./modules/outbound-webhook/manager/manager-signals.js";
 
 const app = express();
 app.set("trust proxy", 1);
@@ -155,6 +156,7 @@ app.use(errorMiddleware);
 
 const PORT = Number(env.PORT || 4000);
 await initializeDatabaseRuntime();
+enableManagerSignals();
 
 const httpServer = createServer(app);
 createWsServer(httpServer);

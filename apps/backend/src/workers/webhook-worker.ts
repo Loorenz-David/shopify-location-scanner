@@ -11,6 +11,7 @@ import { createWsBroadcastPublisher } from "../shared/queue/ws-bridge.js";
 import { Worker, type Job } from "bullmq";
 import { webhookIntakeRepository } from "../modules/shopify/repositories/webhook-intake.repository.js";
 import { processShopifyWebhookIntakeJob } from "../modules/shopify/jobs/process-shopify-webhook-intake.job.js";
+import { enableManagerSignals } from "../modules/outbound-webhook/manager/manager-signals.js";
 
 const isTransientError = (error: unknown): boolean => {
   const message =
@@ -45,6 +46,7 @@ const isRetryableError = (error: unknown): boolean => {
 };
 
 await initializeDatabaseRuntime();
+enableManagerSignals();
 
 const wsBroadcastPublisher = createWsBroadcastPublisher();
 
