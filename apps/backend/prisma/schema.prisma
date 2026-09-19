@@ -62,6 +62,22 @@ enum LogisticZoneType {
 
 enum OutboundEventType {
   item_placed
+  stock_demand
+  stock_demand_deleted
+  items_processed
+}
+
+enum OutboundDeliveryStatus {
+  pending
+  delivered
+  rejected
+  failed
+  skipped
+}
+
+enum ManagerStockLedgerState {
+  active
+  deleted
 }
 
 enum StockState {
@@ -87,6 +103,8 @@ model Shop {
   logisticLocations LogisticLocation[]
   scanHistoryLogistics ScanHistoryLogistic[]
   outboundWebhookTargets OutboundWebhookTarget[]
+  outboundWebhookDeliveries OutboundWebhookDelivery[]
+  managerStockLedger ManagerStockLedger[]
   locationStocks LocationStock[]
   stockThresholds StockThresholdsLocation[]
 }
@@ -282,6 +300,49 @@ model OutboundWebhookTarget {
   @@index([shopId, eventType, active])
 }
 
+model OutboundWebhookDelivery {
+  id String @id @default(cuid())
+  shopId String
+  targetId String?
+  eventType OutboundEventType
+  subjectKey String?
+  status OutboundDeliveryStatus
+  attempts Int @default(0)
+  requestBody String
+  responseStatus Int?
+  responseBody String?
+  lastError String?
+  createdAt DateTime @default(now())
+  lastAttemptAt DateTime?
+  completedAt DateTime?
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@index([shopId, eventType, createdAt])
+  @@index([shopId, subjectKey])
+  @@index([status, createdAt])
+}
+
+model ManagerStockLedger {
+  id String @id @default(cuid())
+  shopId String
+  itemCategory String
+  propertiesCanonical String
+  properties Json
+  state ManagerStockLedgerState @default(active)
+  lastSentQuantity Int?
+  lastAppliedQuantity Int?
+  lastOutcome String?
+  lastSentAt DateTime?
+  lastDeliveryId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Cascade)
+
+  @@unique([shopId, itemCategory, propertiesCanonical])
+}
+
 
 model LocationStatsDaily {
   date                   DateTime
@@ -454,7 +515,6 @@ model StockThresholdsLocation {
   @@unique([locationStockId, state])
   @@index([shopId])
 }
-
 
 
 
