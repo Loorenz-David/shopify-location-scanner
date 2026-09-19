@@ -8,21 +8,10 @@ import {
   OUTBOUND_WEBHOOK_QUEUE_PREFIX,
   type OutboundWebhookJobPayload,
 } from "../shared/queue/outbound-webhook-queue.js";
+import { isRetryableError } from "../modules/outbound-webhook/manager/manager-http.js";
 
 const DISPATCH_TIMEOUT_MS = 8_000;
 
-const isRetryableError = (error: unknown): boolean => {
-  const message =
-    error instanceof Error ? error.message : String(error ?? "unknown");
-
-  return (
-    message.includes("fetch failed") ||
-    message.includes("ECONNREFUSED") ||
-    message.includes("ECONNRESET") ||
-    message.includes("TimeoutError") ||
-    message.includes("socket hang up")
-  );
-};
 
 await initializeDatabaseRuntime();
 

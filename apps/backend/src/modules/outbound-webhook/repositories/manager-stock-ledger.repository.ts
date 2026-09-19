@@ -1,0 +1,8 @@
+import { prisma } from "../../../shared/database/prisma-client.js";
+
+export const managerStockLedgerRepository = {
+  active: (shopId: string) => prisma.managerStockLedger.findMany({ where: { shopId, state: "active" }, orderBy: [{ itemCategory: "asc" }, { propertiesCanonical: "asc" }] }),
+  list: (shopId: string, where: Record<string, unknown>) => prisma.managerStockLedger.findMany({ where: { shopId, ...where } as any, orderBy: [{ itemCategory: "asc" }, { propertiesCanonical: "asc" }] }),
+  prewriteDemand: (input: { shopId: string; itemCategory: string; propertiesCanonical: string; properties: object; quantity: number; deliveryId: string }) => prisma.managerStockLedger.upsert({ where: { shopId_itemCategory_propertiesCanonical: { shopId: input.shopId, itemCategory: input.itemCategory, propertiesCanonical: input.propertiesCanonical } }, create: { shopId: input.shopId, itemCategory: input.itemCategory, propertiesCanonical: input.propertiesCanonical, properties: input.properties, state: "active", lastSentQuantity: input.quantity, lastSentAt: new Date(), lastDeliveryId: input.deliveryId }, update: { state: "active", properties: input.properties, lastSentQuantity: input.quantity, lastSentAt: new Date(), lastDeliveryId: input.deliveryId } }),
+  outcome: (id: string, outcome: string, quantity?: number) => prisma.managerStockLedger.update({ where: { id }, data: { state: (["deleted", "not_found", "category_not_found"].includes(outcome) && quantity === undefined ? "deleted" : "active") as any, lastOutcome: outcome, ...(outcome === "applied" && quantity !== undefined ? { lastAppliedQuantity: quantity } : {}) } }),
+};
