@@ -79,6 +79,11 @@ export const validateStockCriteria = (
 
   const normalized = normalizeCriteria(criteria);
 
+  if (Object.prototype.hasOwnProperty.call(normalized, "quantity") &&
+      (normalized.quantity === null || (Array.isArray(normalized.quantity) && normalized.quantity.length > 1))) {
+    throw new ValidationError("A stock definition can use only one set size");
+  }
+
   // Criteria are AND-ed, so a definition holding both a named wood and a wood
   // group can only ever match items in the intersection — usually none. Refused
   // at the door rather than saved as a definition that silently counts nothing.
