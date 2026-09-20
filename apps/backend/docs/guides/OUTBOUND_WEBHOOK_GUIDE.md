@@ -6,9 +6,12 @@ This guide explains the backend outbound webhook system.
 
 Outbound webhooks are HTTP POST requests sent from this backend to external applications when certain internal events happen.
 
-Current supported outbound event:
+Current supported outbound events:
 
 - `item_placed`
+- `stock_demand`, `stock_demand_deleted`, `items_processed` — the Manager stock
+  integration, set up in
+  [MANAGER_STOCK_TARGETS_SETUP.md](./MANAGER_STOCK_TARGETS_SETUP.md)
 
 This means:
 
@@ -86,7 +89,9 @@ Registers or reactivates a target for a given event type.
 - `label`: string, 2 to 80 chars
 - `targetUrl`: valid URL
 - `secret`: minimum 16 chars
-- `eventType`: currently only `item_placed`
+- `eventType`: one of `item_placed`, `stock_demand`, `stock_demand_deleted`,
+  `items_processed`. The three stock events belong to the Manager integration —
+  see [MANAGER_STOCK_TARGETS_SETUP.md](./MANAGER_STOCK_TARGETS_SETUP.md)
 
 ### Success Response
 
