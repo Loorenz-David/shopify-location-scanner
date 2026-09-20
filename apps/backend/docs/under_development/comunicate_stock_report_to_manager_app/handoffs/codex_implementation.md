@@ -165,6 +165,17 @@ Nothing in the intention or the Manager handoff was edited.
   left behind by an interrupted run could decide it. It now asserts on this shop's
   rows while still calling the same shop-wide query.
 
+## Done after the brief, at the owner's request
+
+§12A.11 states that changing the rule editor is not part of this brief, so the
+editor kept offering "Any value" and multi-select for `Set Of` (`quantity`)
+while the server refused both. The owner asked for it, so it was corrected:
+`apps/frontend/src/features/stock/{domain/stock-criteria.domain.ts,ui/StockWizardStep1View.tsx}`
+now offer that one key as a single choice with no wildcard, and a stored rule
+that predates the constraint opens on its first value so it can be fixed in the
+picker instead of failing on submit. Every other key is unchanged. Frontend
+typecheck clean, 242 vitest tests pass.
+
 ## Notes for whoever picks this up
 
 - `verify-manager-signals.ts` ends with an explicit `process.exit`. It loads the
