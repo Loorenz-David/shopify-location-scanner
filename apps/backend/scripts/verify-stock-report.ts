@@ -429,6 +429,9 @@ const main = async (): Promise<void> => {
     const expectedKeys = [
       "itemCategory",
       "location",
+      // Added to the report entry by 80f8a36; this list and the count in
+      // P7.C4(a) were not updated with it.
+      "isLocationPattern",
       "instanceCount",
       "mergeKey",
       "properties",
@@ -531,7 +534,7 @@ const main = async (): Promise<void> => {
       assert(definition !== undefined, `P7.C4(a): fixture ${name} is missing`);
       const entry = entryFor(report, definition);
       assert(entry !== undefined, `P7.C4(a): definition ${name} was omitted`);
-      assert(Object.keys(entry).length === 9, `P7.C4(a): expected nine fields, got ${Object.keys(entry).length}`);
+      assert(Object.keys(entry).length === 10, `P7.C4(a): expected ten fields, got ${Object.keys(entry).length}`);
       assert(typeof entry.instanceCount === "number", `P7.C4(a): ${name} carries no numeric instanceCount`);
     }
   };
