@@ -15,6 +15,22 @@ import {
  */
 let enabled = false;
 
+/**
+ * Signals are fire-and-forget, so `closeManagerSignals` has to wait for the ones
+ * already in flight. Closing the queues underneath a signal that has not reached
+ * its enqueue yet loses the report *and* makes the next enqueue re-open a lazy
+ * connection nothing will close again — the process would then never exit, which
+ * is exactly what §12A.5 requires of `reconcile-active-sold-items`.
+ */
+const inFlight = new Set<Promise<void>>();
+
+const track = (task: Promise<void>): void => {
+  inFlight.add(task);
+  void task.finally(() => {
+    inFlight.delete(task);
+  });
+};
+
 export const enableManagerSignals = (): void => {
   if (enabled) {
     return;
@@ -25,6 +41,11 @@ export const enableManagerSignals = (): void => {
 
 export const closeManagerSignals = async (): Promise<void> => {
   enabled = false;
+  // `enabled` is already false, so no further signal can start; the loop only
+  // has to drain what was in flight when this was called.
+  while (inFlight.size > 0) {
+    await Promise.allSettled([...inFlight]);
+  }
   await closeManagerQueues();
 };
 
@@ -41,12 +62,14 @@ export const signalStockChanged = (shopId: string): void => {
     return;
   }
 
-  void enqueueStockSync(shopId).catch((error: unknown) => {
-    logger.error("Manager stock signal could not be enqueued", {
-      shopId,
-      error: error instanceof Error ? error.message : String(error ?? "unknown"),
-    });
-  });
+  track(
+    enqueueStockSync(shopId).catch((error: unknown) => {
+      logger.error("Manager stock signal could not be enqueued", {
+        shopId,
+        error: error instanceof Error ? error.message : String(error ?? "unknown"),
+      });
+    }),
+  );
 };
 
 /**
@@ -63,62 +86,64 @@ export const signalItemProcessed = (input: {
     return;
   }
 
-  void (async () => {
-    const targets = await outboundWebhookTargetRepository.findActiveByShopAndEvent({
-      shopId: input.shopId,
-      eventType: "items_processed",
-    });
+  track(
+    (async () => {
+      const targets = await outboundWebhookTargetRepository.findActiveByShopAndEvent({
+        shopId: input.shopId,
+        eventType: "items_processed",
+      });
 
-    if (targets.length === 0) {
-      return;
-    }
+      if (targets.length === 0) {
+        return;
+      }
 
-    const barcode = input.itemBarcode;
-    const isBlank = barcode === null || barcode.trim() === "";
+      const barcode = input.itemBarcode;
+      const isBlank = barcode === null || barcode.trim() === "";
 
-    for (const target of targets) {
-      if (isBlank) {
-        await outboundDeliveryRepository.create({
+      for (const target of targets) {
+        if (isBlank) {
+          await outboundDeliveryRepository.create({
+            shopId: input.shopId,
+            targetId: target.id,
+            eventType: "items_processed",
+            subjectKey: null,
+            status: "skipped",
+            requestBody: "[]",
+            lastError: "no_article_number",
+            completedAt: new Date(),
+          });
+          continue;
+        }
+
+        // HC-5: `subjectKey` and the body carry the stored value verbatim — not
+        // trimmed, not reformatted — so M4's byte identity holds.
+        const delivery = await outboundDeliveryRepository.create({
           shopId: input.shopId,
           targetId: target.id,
           eventType: "items_processed",
-          subjectKey: null,
-          status: "skipped",
-          requestBody: "[]",
-          lastError: "no_article_number",
-          completedAt: new Date(),
+          subjectKey: barcode,
+          status: "pending",
+          requestBody: JSON.stringify([{ article_number: barcode }]),
         });
-        continue;
-      }
 
-      // HC-5: `subjectKey` and the body carry the stored value verbatim — not
-      // trimmed, not reformatted — so M4's byte identity holds.
-      const delivery = await outboundDeliveryRepository.create({
+        // The row exists before the enqueue, so a Redis outage here costs nothing:
+        // §12A.7 re-drives a `pending` row that is older than five minutes.
+        try {
+          await enqueueItemsProcessed(delivery.id);
+        } catch (error: unknown) {
+          logger.error("Manager processed report could not be enqueued", {
+            shopId: input.shopId,
+            deliveryId: delivery.id,
+            error: error instanceof Error ? error.message : String(error ?? "unknown"),
+          });
+        }
+      }
+    })().catch((error: unknown) => {
+      logger.error("Manager processed signal failed", {
         shopId: input.shopId,
-        targetId: target.id,
-        eventType: "items_processed",
-        subjectKey: barcode,
-        status: "pending",
-        requestBody: JSON.stringify([{ article_number: barcode }]),
+        scanHistoryId: input.scanHistoryId,
+        error: error instanceof Error ? error.message : String(error ?? "unknown"),
       });
-
-      // The row exists before the enqueue, so a Redis outage here costs nothing:
-      // §12A.7 re-drives a `pending` row that is older than five minutes.
-      try {
-        await enqueueItemsProcessed(delivery.id);
-      } catch (error: unknown) {
-        logger.error("Manager processed report could not be enqueued", {
-          shopId: input.shopId,
-          deliveryId: delivery.id,
-          error: error instanceof Error ? error.message : String(error ?? "unknown"),
-        });
-      }
-    }
-  })().catch((error: unknown) => {
-    logger.error("Manager processed signal failed", {
-      shopId: input.shopId,
-      scanHistoryId: input.scanHistoryId,
-      error: error instanceof Error ? error.message : String(error ?? "unknown"),
-    });
-  });
+    }),
+  );
 };

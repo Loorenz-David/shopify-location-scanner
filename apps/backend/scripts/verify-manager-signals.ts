@@ -171,27 +171,30 @@ const startManagerStub = async (): Promise<ManagerStub> => {
       const responder = queue.length > 1 ? (queue.shift() as StubResponder) : (queue[0] as StubResponder);
       const answer = responder({ path, body });
 
-      const record = (): void => {
-        requests.push({
-          path,
-          apiKey: (request.headers["x-api-key"] as string | undefined) ?? null,
-          contentType: (request.headers["content-type"] as string | undefined) ?? null,
-          body,
-          startedAt,
-          endedAt: Date.now(),
-        });
+      // Recorded on arrival, not when the answer goes out. A check that waits
+      // for "a sync is active" has to see the request while the stub is still
+      // holding it open; recording on answer would only reveal it once the job
+      // was already finishing, and the trigger it then sends would no longer
+      // meet an active job.
+      const record: StubRequest = {
+        path,
+        apiKey: (request.headers["x-api-key"] as string | undefined) ?? null,
+        contentType: (request.headers["content-type"] as string | undefined) ?? null,
+        body,
+        startedAt,
+        endedAt: Date.now(),
       };
+      requests.push(record);
 
       if (answer === "silent") {
         // Never answers: the client's own 8 s timeout must decide.
-        record();
         return;
       }
 
       setTimeout(() => {
         response.writeHead(answer.status, { "Content-Type": "application/json" });
         response.end(answer.body);
-        record();
+        record.endedAt = Date.now();
       }, delayMs);
     });
   });
@@ -246,9 +249,6 @@ const loadModules = async () => {
   const managerQueues = await import("../src/modules/outbound-webhook/manager/manager-queues.js");
   const deliveriesQuery = await import("../src/modules/outbound-webhook/queries/list-deliveries.query.js");
   const managerStockQuery = await import("../src/modules/outbound-webhook/queries/list-manager-stock.query.js");
-  const routes = await import("../src/modules/outbound-webhook/routes/outbound-webhook.routes.js");
-  const httpErrors = await import("../src/shared/errors/http-errors.js");
-
   return {
     prisma,
     ...stockDemand,
@@ -269,17 +269,35 @@ const loadModules = async () => {
     ...managerQueues,
     listDeliveriesQuery: deliveriesQuery.listDeliveriesQuery,
     listManagerStockQuery: managerStockQuery.listManagerStockQuery,
+  };
+};
+
+/**
+ * The Express router is loaded only by the checks that exercise the two read
+ * endpoints. It reaches `authenticate-user.middleware` →
+ * `logistic-notification.service` → `notification-queue`, each of which opens a
+ * Redis connection at import time. A script-context child (check 16) must not
+ * pull those in: a script mounts no routes, and importing them would measure
+ * those pre-existing connections instead of what §12A.5 is about.
+ */
+const loadHttpModules = async () => {
+  const routes = await import("../src/modules/outbound-webhook/routes/outbound-webhook.routes.js");
+  const httpErrors = await import("../src/shared/errors/http-errors.js");
+
+  return {
     outboundWebhookRouter: routes.outboundWebhookRouter,
     ValidationError: httpErrors.ValidationError,
   };
 };
 
-type Modules = Awaited<ReturnType<typeof loadModules>>;
+/** What a script imports: repositories, commands, services — no HTTP layer. */
+type ScriptModules = Awaited<ReturnType<typeof loadModules>>;
+type Modules = ScriptModules & Awaited<ReturnType<typeof loadHttpModules>>;
 
 const THRESHOLD_STATES = ["low_in_stock", "medium_in_stock", "high_in_stock"] as const;
 
 const createStockRow = async (
-  modules: Modules,
+  modules: ScriptModules,
   input: {
     shopId: string;
     location: string;
@@ -322,7 +340,7 @@ const createStockRow = async (
  * values a caller can observe are returned.
  */
 const runObservableStockOperations = async (
-  modules: Modules,
+  modules: ScriptModules,
   input: { shopId: string; suffix: string },
 ): Promise<unknown> => {
   const location = `LCVERIFY18${input.suffix}`;
@@ -530,7 +548,10 @@ const main = async (): Promise<void> => {
     return;
   }
 
-  const modules = await loadModules();
+  const modules: Modules = {
+    ...(await loadModules()),
+    ...(await loadHttpModules()),
+  };
   const stub = await startManagerStub();
   const prisma = modules.prisma;
 
@@ -830,6 +851,23 @@ const main = async (): Promise<void> => {
     stub.reset();
     stub.plan("/stock-demand-deleted", [statusResponder(401, failureBody("unauthorized"))]);
 
+    // §12A.3: "any non-200 … unchanged", so the row must still carry exactly
+    // what the first run's demand answer left on it.
+    const ledgerRowOf = async (): Promise<Record<string, unknown>> => {
+      const row = (await ledger()).find(
+        (candidate) => candidate.propertiesCanonical === modules.canonicalCriteriaString(going),
+      );
+      assert(row !== undefined, "the identity left the ledger");
+      return {
+        state: row.state,
+        lastSentQuantity: row.lastSentQuantity,
+        lastAppliedQuantity: row.lastAppliedQuantity,
+        lastOutcome: row.lastOutcome,
+        lastDeliveryId: row.lastDeliveryId,
+      };
+    };
+    const before = await ledgerRowOf();
+
     await sync();
     equalJson(
       stub.requests.map((request) => request.path),
@@ -837,11 +875,8 @@ const main = async (): Promise<void> => {
       "a final 401 on the delete lets demand proceed in the same run",
     );
 
-    const rows = await ledger();
-    const stale = rows.find((row) => row.propertiesCanonical === modules.canonicalCriteriaString(going));
-    assert(stale !== undefined, "the identity left the ledger");
-    assert(stale.state === "active", `a 401 moved the ledger row to ${stale.state}`);
-    assert(stale.lastOutcome === null, `a 401 wrote outcome ${String(stale.lastOutcome)}`);
+    equalJson(await ledgerRowOf(), before, "a 401 on the delete changed the ledger row");
+    assert(before.state === "active", `the ledger row is ${String(before.state)}, not active`);
 
     stub.reset();
     stub.plan("/stock-demand-deleted", [statusResponder(401, failureBody("unauthorized"))]);
@@ -1607,6 +1642,15 @@ const main = async (): Promise<void> => {
   if (failures > 0) {
     process.exitCode = 1;
   }
+
+  // `loadHttpModules` mounts the Express router, which reaches
+  // `notification-queue` and `logistic-notification.service`; both open a Redis
+  // connection at import time that only the server's own shutdown closes. This
+  // script owns no handle on either, so it ends the process itself rather than
+  // hanging `verify-all`. Nothing is weakened by that: check 16 asserts the
+  // "exits by itself" property in a child that mounts no routes, which is what
+  // §12A.5 is about.
+  process.exit(failures > 0 ? 1 : 0);
 };
 
 void main().catch((error: unknown) => {
@@ -1615,4 +1659,6 @@ void main().catch((error: unknown) => {
   }
   console.log(`FAIL setup: ${error instanceof Error ? error.message : String(error)}`);
   process.exitCode = 1;
+  // Setup may already have mounted the router; see the note at the end of main().
+  process.exit(1);
 });

@@ -11,7 +11,18 @@ type WsConnection = {
 
 const registry = new Map<string, Set<WsConnection>>();
 
-const presenceClient = new Redis(env.REDIS_URL, { maxRetriesPerRequest: 3 });
+/**
+ * Created on first use, not at import time. A module-level connection here made
+ * every process that transitively imports this module (via `ws-broadcaster`,
+ * reached from the scan-history repository) open Redis and never exit on its
+ * own — which §12A.5 requires of scripts that never enable manager signals.
+ */
+let presence: Redis | null = null;
+
+const presenceClient = (): Redis => {
+  presence ??= new Redis(env.REDIS_URL, { maxRetriesPerRequest: 3 });
+  return presence;
+};
 
 const WS_PRESENCE_TTL_SECONDS = 3600;
 
@@ -28,8 +39,8 @@ export const registerConnection = async (
     registry.set(shopId, new Set([{ ws, role, userId }]));
   }
 
-  await presenceClient.sadd(`iss:ws:online:${shopId}`, userId);
-  await presenceClient.expire(
+  await presenceClient().sadd(`iss:ws:online:${shopId}`, userId);
+  await presenceClient().expire(
     `iss:ws:online:${shopId}`,
     WS_PRESENCE_TTL_SECONDS,
   );
@@ -63,7 +74,7 @@ export const removeConnection = async (
       (c) => c.userId === removedUserId,
     );
     if (!stillConnected) {
-      await presenceClient.srem(`iss:ws:online:${shopId}`, removedUserId);
+      await presenceClient().srem(`iss:ws:online:${shopId}`, removedUserId);
     }
   }
 };
@@ -90,7 +101,7 @@ export const isUserConnectedViaWs = async (
   shopId: string,
   userId: string,
 ): Promise<boolean> => {
-  const isMember = await presenceClient.sismember(
+  const isMember = await presenceClient().sismember(
     `iss:ws:online:${shopId}`,
     userId,
   );
