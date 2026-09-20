@@ -4,10 +4,14 @@ import { registerOutboundTargetCommand } from "../commands/register-outbound-tar
 import { removeOutboundTargetCommand } from "../commands/remove-outbound-target.command.js";
 import { setOutboundTargetActiveCommand } from "../commands/set-outbound-target-active.command.js";
 import {
+  DeliveryQuerySchema,
+  ManagerStockQuerySchema,
   OutboundWebhookTargetParamsSchema,
   RegisterOutboundTargetInputSchema,
   SetOutboundTargetActiveInputSchema,
 } from "../contracts/outbound-webhook.contract.js";
+import { listDeliveriesQuery } from "../queries/list-deliveries.query.js";
+import { listManagerStockQuery } from "../queries/list-manager-stock.query.js";
 import { listOutboundTargetsQuery } from "../queries/list-outbound-targets.query.js";
 
 export const outboundWebhookController = {
@@ -32,6 +36,36 @@ export const outboundWebhookController = {
     });
 
     res.status(200).json({ targets });
+  },
+
+  async deliveries(req: Request, res: Response): Promise<void> {
+    const parsed = DeliveryQuerySchema.safeParse(req.query);
+
+    if (!parsed.success) {
+      throw new ValidationError(parsed.error.message);
+    }
+
+    const deliveries = await listDeliveriesQuery({
+      shopId: req.authUser.shopId as string,
+      ...parsed.data,
+    });
+
+    res.status(200).json({ deliveries });
+  },
+
+  async managerStock(req: Request, res: Response): Promise<void> {
+    const parsed = ManagerStockQuerySchema.safeParse(req.query);
+
+    if (!parsed.success) {
+      throw new ValidationError(parsed.error.message);
+    }
+
+    const identities = await listManagerStockQuery({
+      shopId: req.authUser.shopId as string,
+      ...parsed.data,
+    });
+
+    res.status(200).json({ identities });
   },
 
   async toggle(req: Request, res: Response): Promise<void> {

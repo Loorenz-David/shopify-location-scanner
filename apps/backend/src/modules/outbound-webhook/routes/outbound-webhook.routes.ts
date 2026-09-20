@@ -15,6 +15,16 @@ outboundWebhookRouter.use(
 
 outboundWebhookRouter.post("/", asyncHandler(outboundWebhookController.register));
 outboundWebhookRouter.get("/", asyncHandler(outboundWebhookController.list));
+// §12A.9: registered before the `/:id` routes so neither path is shadowed.
+outboundWebhookRouter.get(
+  "/deliveries",
+  asyncHandler(outboundWebhookController.deliveries),
+);
+outboundWebhookRouter.get(
+  "/manager-stock",
+  asyncHandler(outboundWebhookController.managerStock),
+);
+
 outboundWebhookRouter.patch(
   "/:id/active",
   asyncHandler(outboundWebhookController.toggle),

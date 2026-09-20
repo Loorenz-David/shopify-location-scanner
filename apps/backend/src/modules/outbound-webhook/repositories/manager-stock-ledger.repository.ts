@@ -2,7 +2,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "../../../shared/database/prisma-client.js";
 import type {
   ManagerStockLedgerRecord,
-  ManagerStockLedgerState,
+  ManagerStockQuery,
 } from "../contracts/outbound-webhook.contract.js";
 
 const ORDER: Prisma.ManagerStockLedgerOrderByWithRelationInput[] = [
@@ -19,11 +19,7 @@ export const managerStockLedgerRepository = {
     }) as unknown as Promise<ManagerStockLedgerRecord[]>;
   },
 
-  async list(input: {
-    shopId: string;
-    state?: ManagerStockLedgerState;
-    outcome?: string;
-  }): Promise<ManagerStockLedgerRecord[]> {
+  async list(input: { shopId: string } & ManagerStockQuery): Promise<ManagerStockLedgerRecord[]> {
     return prisma.managerStockLedger.findMany({
       where: {
         shopId: input.shopId,
