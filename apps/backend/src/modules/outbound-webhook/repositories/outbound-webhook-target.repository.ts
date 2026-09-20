@@ -49,6 +49,40 @@ export const outboundWebhookTargetRepository = {
     });
   },
 
+  /**
+   * Read at send time so a rotated secret or a deactivated target takes effect
+   * on the next attempt (§5.3), instead of living frozen in Redis job data.
+   */
+  async findActiveById(input: {
+    id: string;
+    shopId: string;
+  }): Promise<{ id: string; targetUrl: string; secret: string } | null> {
+    return prisma.outboundWebhookTarget.findFirst({
+      where: {
+        id: input.id,
+        shopId: input.shopId,
+        active: true,
+      },
+      select: {
+        id: true,
+        targetUrl: true,
+        secret: true,
+      },
+    });
+  },
+
+  /** The shops the periodic tick enqueues a stock sync for (§12A.4). */
+  async listShopIdsWithActiveEvent(eventType: OutboundEventType): Promise<string[]> {
+    const rows = await prisma.outboundWebhookTarget.findMany({
+      where: { eventType, active: true },
+      select: { shopId: true },
+      distinct: ["shopId"],
+      orderBy: { shopId: "asc" },
+    });
+
+    return rows.map((row) => row.shopId);
+  },
+
   async findByShopUrlAndEvent(input: {
     shopId: string;
     targetUrl: string;
