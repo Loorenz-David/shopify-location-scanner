@@ -6,6 +6,7 @@ export const EXPECTED_SCRIPTS = [
   "verify-stock-domain.ts",
   "verify-stock-reconciliation.ts",
   "verify-stock-report.ts",
+  "verify-manager-signals.ts",
 ] as const;
 
 const scriptsDirectory = process.cwd() + "/scripts";
