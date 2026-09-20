@@ -1153,47 +1153,65 @@ const main = async (): Promise<void> => {
     );
 
     // A create that is rolled back after the fact: the row never lands, so the
-    // post-commit hook must never run. A hook inside the callback would.
-    const originalTransaction = prisma.$transaction.bind(prisma);
-    (prisma as unknown as { $transaction: unknown }).$transaction = ((
-      callback: (tx: unknown) => Promise<unknown>,
-      options?: unknown,
-    ) =>
-      (originalTransaction as unknown as (cb: unknown, opts?: unknown) => Promise<unknown>)(
-        async (tx: unknown) => {
-          await callback(tx);
-          throw new Error("verification rollback");
-        },
-        options,
-      )) as unknown;
+    // post-commit hook must never run. A hook inside the callback would. Both
+    // creating functions are exercised — a hook misplaced in either one has to
+    // be caught, and a rollback of only one of them leaves the other untested.
+    const rolledBack = async (label: string, operation: () => Promise<unknown>): Promise<void> => {
+      const originalTransaction = prisma.$transaction.bind(prisma);
+      (prisma as unknown as { $transaction: unknown }).$transaction = ((
+        callback: (tx: unknown) => Promise<unknown>,
+        options?: unknown,
+      ) =>
+        (originalTransaction as unknown as (cb: unknown, opts?: unknown) => Promise<unknown>)(
+          async (tx: unknown) => {
+            await callback(tx);
+            throw new Error("verification rollback");
+          },
+          options,
+        )) as unknown;
 
-    try {
-      const error = await expectRejection(
-        () =>
-          modules.scanHistoryRepository.appendLocationEvent({
-            shopId,
-            username: USERNAME,
-            productId: "verify-15-rollback",
-            itemType: "Sofas",
-            itemTitle: "Verification sofa",
-            itemBarcode: "0000617",
-            location: "LC10",
-          }),
-        "a rolled-back creation",
-      );
-      assert(
-        error instanceof Error && error.message.includes("verification rollback"),
-        `expected the forced rollback, got ${String(error)}`,
-      );
-    } finally {
-      (prisma as unknown as { $transaction: unknown }).$transaction = originalTransaction;
-    }
+      try {
+        const error = await expectRejection(operation, label);
+        assert(
+          error instanceof Error && error.message.includes("verification rollback"),
+          `${label}: expected the forced rollback, got ${String(error)}`,
+        );
+      } finally {
+        (prisma as unknown as { $transaction: unknown }).$transaction = originalTransaction;
+      }
+    };
+
+    await rolledBack("a rolled-back location creation", () =>
+      modules.scanHistoryRepository.appendLocationEvent({
+        shopId,
+        username: USERNAME,
+        productId: "verify-15-rollback",
+        itemType: "Sofas",
+        itemTitle: "Verification sofa",
+        itemBarcode: "0000617",
+        location: "LC10",
+      }),
+    );
+    await rolledBack("a rolled-back sold creation", () =>
+      modules.scanHistoryRepository.appendSoldTerminalEventWithFallback({
+        shopId,
+        username: USERNAME,
+        productId: "verify-15-rollback-sold",
+        itemType: "Sofas",
+        itemTitle: "Verification sofa",
+        itemBarcode: "0000618",
+        unknownLocation: "UNKNOWN",
+        soldLocation: "SOLD",
+      }),
+    );
 
     await wait(1_000);
-    assert(
-      (await prisma.scanHistory.count({ where: { shopId, productId: "verify-15-rollback" } })) === 0,
-      "the rolled-back row was committed after all",
-    );
+    for (const productId of ["verify-15-rollback", "verify-15-rollback-sold"]) {
+      assert(
+        (await prisma.scanHistory.count({ where: { shopId, productId } })) === 0,
+        `the rolled-back row for ${productId} was committed after all`,
+      );
+    }
     assert(
       (await deliveries({ eventType: "items_processed" })).length === 1,
       "a rolled-back creation produced a report",
@@ -1475,7 +1493,12 @@ const main = async (): Promise<void> => {
     await makeDelivery({ status: "delivered", createdAt: new Date(now.getTime() - minute), responseStatus: 200, subjectKey: "0000623" });
     await makeDelivery({ status: "failed", createdAt: new Date(now.getTime() - 8 * day), responseStatus: 500, subjectKey: "0000624" });
 
-    const candidates = await modules.listProcessedRedriveCandidates(now);
+    // §12A.7's selection is deliberately shop-wide: the tick re-drives every
+    // shop. Only this shop's rows are asserted on, so a row left behind by an
+    // interrupted run cannot decide the outcome either way.
+    const candidates = (await modules.listProcessedRedriveCandidates(now)).filter(
+      (candidate) => candidate.shopId === shopId,
+    );
     equalJson(
       candidates.map((candidate) => candidate.subjectKey).sort(),
       ["0000621", "0000622"],
