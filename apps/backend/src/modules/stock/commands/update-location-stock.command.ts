@@ -12,6 +12,7 @@ import {
 } from "../contracts/stock.contract.js";
 import { locationStockRepository } from "../repositories/location-stock.repository.js";
 import { reconcileCategory } from "../services/stock-reconciliation.service.js";
+import { signalStockChanged } from "../../outbound-webhook/manager/manager-signals.js";
 
 type Group = {
   location: string;
@@ -148,5 +149,10 @@ export const updateLocationStockCommand = async (input: {
   if (!result) {
     throw new NotFoundError("Location stock not found");
   }
+
+  // §12A.10: this covers a thresholds-only edit too, which changes the restock
+  // target — and so the demand — without reconciling anything.
+  signalStockChanged(input.shopId);
+
   return result;
 };

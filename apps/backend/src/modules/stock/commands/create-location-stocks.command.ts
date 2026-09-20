@@ -13,6 +13,7 @@ import {
 } from "../contracts/stock.contract.js";
 import { locationStockRepository } from "../repositories/location-stock.repository.js";
 import { reconcileCategory } from "../services/stock-reconciliation.service.js";
+import { signalStockChanged } from "../../outbound-webhook/manager/manager-signals.js";
 
 type Group = {
   location: string;
@@ -179,6 +180,9 @@ export const createLocationStocksCommand = async (input: {
       result.push(current);
     }
   }
+
+  // §12A.10: new rules have new identities, so Manager needs a demand push.
+  signalStockChanged(input.shopId);
 
   return result;
 };

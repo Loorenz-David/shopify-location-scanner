@@ -1,4 +1,5 @@
 import { logger } from "../../../shared/logging/logger.js";
+import { signalStockChanged } from "../../outbound-webhook/manager/manager-signals.js";
 import type {
   GuardedDecrementContext,
   LocationStock,
@@ -259,7 +260,7 @@ const applyIncrement = async (input: {
   }
 };
 
-export const applyItemStockChange = async (
+const runItemStockChange = async (
   input: ApplyItemStockChangeInput,
 ): Promise<{ changed: boolean }> => {
   try {
@@ -368,4 +369,22 @@ export const applyItemStockChange = async (
     });
     return { changed: false };
   }
+};
+
+/**
+ * §12A.10: the stock trigger for all four production callers of this service.
+ * The signal is fire-and-forget and goes out only once the increments have been
+ * committed and something actually changed; it carries `shopId` alone, so the
+ * sync reads the numbers itself when it runs.
+ */
+export const applyItemStockChange = async (
+  input: ApplyItemStockChangeInput,
+): Promise<{ changed: boolean }> => {
+  const result = await runItemStockChange(input);
+
+  if (result.changed) {
+    signalStockChanged(input.shopId);
+  }
+
+  return result;
 };

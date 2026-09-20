@@ -4,6 +4,7 @@ import { logger } from "../../../shared/logging/logger.js";
 import type { SalesChannel } from "../../../shared/sales-channel/classify-sales-channel.js";
 import { startOfUtcDay } from "../../../shared/utils/date.js";
 import { broadcastToShop } from "../../ws/ws-broadcaster.js";
+import { signalItemProcessed } from "../../outbound-webhook/manager/manager-signals.js";
 import type {
   AppendScanLocationHistoryInput,
   ScanHistoryStringFilterColumn,
@@ -14,6 +15,14 @@ import type {
   ScanHistoryRecord,
 } from "../domain/scan-history.js";
 import { Prisma, ScanHistoryEventType } from "@prisma/client";
+
+/**
+ * What §12A.6's post-commit hook needs from a row the transaction created.
+ * It is held in a box rather than a plain `let` because TypeScript's
+ * control-flow analysis does not see assignments made inside the transaction
+ * callback and would narrow a `let` to `null` at the post-commit read.
+ */
+type CreatedScanHistoryBox = { record: { id: string; itemBarcode: string | null } | null };
 
 const normalizePrice = (price?: string | null): string | null => {
   const trimmed = price?.trim();
@@ -506,6 +515,10 @@ export const scanHistoryRepository = {
     const quantity = normalizeQuantity(input.quantity);
     const propertiesForCreate = resolvePropertiesForCreate(input.properties);
     let didAppendLocationEvent = false;
+    // §12A.6: set only on the create branch, inside the transaction. The append
+    // branch never sets it, and a rolled-back transaction never reaches the
+    // post-commit line that reads it.
+    const created: CreatedScanHistoryBox = { record: null };
 
     if (!normalizedLocation) {
       throw new Error("Location is required");
@@ -626,6 +639,7 @@ export const scanHistoryRepository = {
         }
 
         didAppendLocationEvent = true;
+        created.record = createdHistory;
         return createdHistory;
       }
 
@@ -825,6 +839,16 @@ export const scanHistoryRepository = {
       });
     }
 
+    // §12A.6: after the transaction has resolved, never inside it. Fire and
+    // forget — a Manager outage must not affect this scan (HC-4).
+    if (created.record !== null) {
+      signalItemProcessed({
+        shopId: input.shopId,
+        scanHistoryId: created.record.id,
+        itemBarcode: created.record.itemBarcode,
+      });
+    }
+
     return result;
   },
 
@@ -870,6 +894,8 @@ export const scanHistoryRepository = {
     const itemWidth = normalizeDimension(input.itemWidth);
     const itemDepth = normalizeDimension(input.itemDepth);
     const volume = normalizeVolume(input.volume);
+    // §12A.6: same post-commit seam as `appendLocationEvent`.
+    const created: CreatedScanHistoryBox = { record: null };
 
     if (!normalizedUnknownLocation || !normalizedSoldLocation) {
       throw new Error("Sold and fallback locations are required");
@@ -971,7 +997,7 @@ export const scanHistoryRepository = {
           },
         });
 
-        return tx.scanHistory.create({
+        const createdHistory = await tx.scanHistory.create({
           data: {
             shopId: input.shopId,
             userId: input.userId ?? null,
@@ -1049,6 +1075,9 @@ export const scanHistoryRepository = {
             },
           },
         });
+
+        created.record = createdHistory;
+        return createdHistory;
       }
 
       const resolvedItemCategory = resolveCategoryForUpdate(
@@ -1337,6 +1366,15 @@ export const scanHistoryRepository = {
       type: "scan_history_updated",
       productId: result.productId,
     });
+
+    // §12A.6: after the transaction has resolved, never inside it.
+    if (created.record !== null) {
+      signalItemProcessed({
+        shopId: input.shopId,
+        scanHistoryId: created.record.id,
+        itemBarcode: created.record.itemBarcode,
+      });
+    }
 
     return result;
   },
