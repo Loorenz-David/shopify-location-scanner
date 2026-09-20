@@ -236,6 +236,41 @@ describe("StockWizardStep1View (screen 08)", () => {
     expect(draftProperties()).toEqual({});
   });
 
+  it("C3b: Set Of offers no wildcard and holds one value, because the server accepts one", async () => {
+    // Demand is counted in units, so a rule states one set size or none at all
+    // (intention §12A.11). The editor used to offer Any value and multi-select
+    // here, which the API answers with a 400 the user cannot act on.
+    await openWizardFromRootPill();
+    await chooseLocation("LC1");
+    await chooseItemType("Dining Chairs");
+    const draftProperties = () => useStockWizardStore.getState().draft?.properties;
+
+    await userEvent.click(screen.getByRole("button", { name: "Add property" }));
+    await userEvent.click(screen.getByRole("button", { name: "Set Of" }));
+    expect(sheetOptions()).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "12"]);
+
+    // A second pick replaces the first rather than adding to it.
+    await userEvent.click(screen.getByRole("button", { name: "4" }));
+    await userEvent.click(screen.getByRole("button", { name: "6" }));
+    await userEvent.click(screen.getByRole("button", { name: "Done" }));
+    expect(draftProperties()).toEqual({ quantity: ["6"] });
+    const row = propertyRows()[0]!;
+    expect(within(row).getByText("Set Of")).toBeInTheDocument();
+    expect(within(row).getByText("6")).toBeInTheDocument();
+
+    // Re-opening it keeps the choice, and tapping it again clears the selection.
+    await userEvent.click(within(row).getAllByRole("button")[0]!);
+    expect(sheetOptions()).toEqual(["1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "12"]);
+    await userEvent.click(screen.getByRole("button", { name: "6" }));
+    expect(screen.getByRole("button", { name: "Done" })).toBeDisabled();
+
+    // Every other key keeps its wildcard and its multi-select.
+    await closeSheet("Set Of");
+    await userEvent.click(screen.getByRole("button", { name: "Add property" }));
+    await userEvent.click(screen.getByRole("button", { name: "Upholstery" }));
+    expect(sheetOptions()).toContain("Any value");
+  });
+
   it("F1: discarding clears a wizard error so it does not follow the user back to the location screen", async () => {
     // Routed from the P6 handoff. Screens 06/07 render
     // `settingsErrorMessage ?? wizardErrorMessage`, so an error left in the wizard store after a

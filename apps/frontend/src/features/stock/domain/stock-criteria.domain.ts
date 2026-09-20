@@ -13,6 +13,22 @@ export interface CriteriaDraft {
   properties: readonly CriteriaDraftProperty[];
 }
 
+/**
+ * The set size a category is sold in (a set of 6 chairs).
+ *
+ * The server refuses a rule whose `quantity` is `null` ("any set size") or
+ * carries more than one value: demand is counted in units, so a rule has to name
+ * one set size or say nothing about it. The editor therefore offers this key as a
+ * single choice with no wildcard, instead of letting a user build a rule the API
+ * will answer with a 400.
+ */
+export const SET_SIZE_KEY = "quantity";
+
+/** True for a key the server accepts exactly one value for. */
+export function isSingleValueKey(key: string): boolean {
+  return key === SET_SIZE_KEY;
+}
+
 export function buildCriteria(draft: CriteriaDraft): StockPropertiesDto {
   const properties: StockPropertiesDto = {};
 

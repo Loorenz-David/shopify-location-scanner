@@ -9,7 +9,12 @@ import {
   splitLocationCode,
 } from "../../../share/location-codes";
 import { stockActions } from "../actions/stock.actions";
-import { buildCriteria, displayValueFor, propertyKeyLabel } from "../domain/stock-criteria.domain";
+import {
+  buildCriteria,
+  displayValueFor,
+  isSingleValueKey,
+  propertyKeyLabel,
+} from "../domain/stock-criteria.domain";
 import {
   WOOD_GROUP_KEY,
   withoutConflictingWoodKey,
@@ -216,11 +221,17 @@ export function StockWizardStep1View() {
 
   const openValuesFor = (key: string, fromDefinitionList: boolean) => {
     const existing = rows.find((row) => row.key === key);
+    // A single-value key has no wildcard and no second value. A stored rule that
+    // predates that opens on its first value alone, so the user sees what would be
+    // saved and can change it here, rather than meeting the server's 400 on submit.
+    const single = isSingleValueKey(key);
     openSheet({
       kind: "values",
       key,
-      selectedValues: existing ? [...existing.selectedValues] : [],
-      anyValue: existing?.anyValue ?? false,
+      selectedValues: existing
+        ? [...(single ? existing.selectedValues.slice(0, 1) : existing.selectedValues)]
+        : [],
+      anyValue: single ? false : (existing?.anyValue ?? false),
       isExisting: existing !== undefined,
       fromDefinitionList,
     });
@@ -237,6 +248,10 @@ export function StockWizardStep1View() {
       const isSelected = current.selectedValues.some(
         (value) => value.toLowerCase() === id.toLowerCase(),
       );
+      // One set size per rule: picking a value replaces the one before it.
+      if (isSingleValueKey(current.key)) {
+        return { ...current, anyValue: false, selectedValues: isSelected ? [] : [id] };
+      }
       const selectedValues = isSelected
         ? current.selectedValues.filter((value) => value.toLowerCase() !== id.toLowerCase())
         : [...current.selectedValues, id];
@@ -324,12 +339,17 @@ export function StockWizardStep1View() {
         emptyMessage: "This property has no values in the vocabulary.",
         monoLabels: false,
         options: [
-          {
-            id: ANY_VALUE_ID,
-            label: "Any value",
-            isSelected: sheetView.anyValue,
-            isWildcard: true,
-          },
+          // No wildcard for a key the server accepts one value for.
+          ...(isSingleValueKey(sheetView.key)
+            ? []
+            : [
+                {
+                  id: ANY_VALUE_ID,
+                  label: "Any value",
+                  isSelected: sheetView.anyValue,
+                  isWildcard: true,
+                },
+              ]),
           ...(valuesDefinition?.values ?? []).map((value) => {
             // A group name says nothing on its own, so it carries the woods it
             // catches. Every other property's values speak for themselves.
