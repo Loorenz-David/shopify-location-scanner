@@ -21,6 +21,10 @@ import { prisma } from "../src/shared/database/prisma-client.js";
 import { initializeDatabaseRuntime } from "../src/shared/database/sqlite-runtime.js";
 import { scanHistoryRepository } from "../src/modules/scanner/repositories/scan-history.repository.js";
 import {
+  closeManagerSignals,
+  enableManagerSignals,
+} from "../src/modules/outbound-webhook/manager/manager-signals.js";
+import {
   classifyShopifyOrderChannel,
   type SalesChannel,
 } from "../src/shared/sales-channel/classify-sales-channel.js";
@@ -410,6 +414,11 @@ const fetchPaidOrdersMatchingProducts = async (input: {
 const main = async (): Promise<void> => {
   await initializeDatabaseRuntime();
 
+  // §12A.5: this script re-creates ScanHistory rows for sales Scanner genuinely
+  // missed, so those items are reported. `restore-scan-history` and
+  // `rebuild-location-stock` deliberately do not enable signals (Card 7).
+  enableManagerSignals();
+
   const shop = await resolveShop();
   log("Starting active/sold reconciliation", {
     shopId: shop.id,
@@ -579,5 +588,8 @@ main()
     process.exitCode = 1;
   })
   .finally(async () => {
+    // §12A.5: without this the lazily created Redis connection keeps the script
+    // alive after its work is done.
+    await closeManagerSignals();
     await prisma.$disconnect();
   });
