@@ -52,10 +52,10 @@ export const closeManagerSignals = async (): Promise<void> => {
 export const managerSignalsEnabled = (): boolean => enabled;
 
 /**
- * §12A.10. Carries only `shopId` — never numbers and never identities; everything
- * is read when the sync runs (handoff v2 §6.3). Never throws and is never awaited
- * by the caller, so a Redis outage cannot break a scan, an order webhook or a
- * stock edit (HC-4).
+ * §12A.10. Carries only `shopId` — never numbers and never identities; the delta
+ * job re-reads and re-groups current state before comparing it to Manager's last
+ * confirmed values. Never throws and is never awaited by the caller, so a Redis
+ * outage cannot break a scan, an order webhook or a stock edit (HC-4).
  */
 export const signalStockChanged = (shopId: string): void => {
   if (!enabled) {
@@ -63,7 +63,7 @@ export const signalStockChanged = (shopId: string): void => {
   }
 
   track(
-    enqueueStockSync(shopId).catch((error: unknown) => {
+    enqueueStockSync(shopId, "delta").catch((error: unknown) => {
       logger.error("Manager stock signal could not be enqueued", {
         shopId,
         error: error instanceof Error ? error.message : String(error ?? "unknown"),

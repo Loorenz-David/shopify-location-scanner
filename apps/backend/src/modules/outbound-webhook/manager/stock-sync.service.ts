@@ -24,6 +24,7 @@ import {
   type PostJson,
   type ManagerResult,
 } from "./manager-http.js";
+import type { StockSyncMode } from "./manager-queues.js";
 
 export type StockSyncDeps = {
   post: PostJson;
@@ -51,6 +52,9 @@ export class StockSyncRetryError extends Error {
 
 const ledgerIdentityKey = (row: ManagerStockLedgerRecord): string =>
   identityKeyOf(row.itemCategory, row.propertiesCanonical);
+
+const demandEntryIdentityKey = (entry: DemandEntry): string =>
+  identityKeyOf(entry.itemCategory, canonicalCriteriaString(entry.properties));
 
 const writeSkipped = async (input: {
   shopId: string;
@@ -83,6 +87,7 @@ const sendStockRequest = async (input: {
   target: Target;
   body: string;
   entryCount: number;
+  mode: StockSyncMode;
   deps: StockSyncDeps;
   beforeSend?: (deliveryId: string, sentAt: Date) => Promise<void>;
 }): Promise<{ results: ManagerResult[]; deliveryId: string; sentAt: Date } | null> => {
@@ -113,6 +118,7 @@ const sendStockRequest = async (input: {
     deliveryId: delivery.id,
     targetId: input.target.id,
     eventType: input.eventType,
+    mode: input.mode,
   };
   const attemptAt = input.deps.now();
 
@@ -197,11 +203,14 @@ const sendStockRequest = async (input: {
 
 /**
  * §12A.4, one run. Everything is read here, when the job runs — never at enqueue
- * time (handoff v2 §6.3, "required").
+ * time (handoff v2 §6.3, "required"). A delta still computes every local group:
+ * that is what makes a group spanning several locations authoritative, while the
+ * HTTP body contains only groups Manager has not confirmed at that quantity.
  */
 export const runStockSync = async (
   shopId: string,
   deps: StockSyncDeps = defaultStockSyncDeps,
+  mode: StockSyncMode = "full",
 ): Promise<void> => {
   // 1. Targets (§12A.3).
   const [demandTargets, deleteTargets] = await Promise.all([
@@ -245,19 +254,12 @@ export const runStockSync = async (
   const entries = computeStockDemand(rows);
   const present = new Set(rows.map((row) => identityKey(row)));
 
-  for (const entry of entries) {
-    if (hasAmbiguousSetSize(entry.properties)) {
-      logger.warn("Stock rule states no single set size; counting one unit per item", {
-        shopId,
-        itemCategory: entry.itemCategory,
-        properties: entry.properties,
-      });
-    }
-  }
-
   // 3. Deletes = ledger `active` minus present. Derived from the same read, so
   //    handoff v2 §4A.2's send-time re-check is inherent.
   const ledgerActive = await managerStockLedgerRepository.listActive(shopId);
+  const ledgerByIdentity = new Map(
+    ledgerActive.map((row) => [ledgerIdentityKey(row), row]),
+  );
   const deletes = ledgerActive
     .filter((row) => !present.has(ledgerIdentityKey(row)))
     .sort((left, right) => {
@@ -292,6 +294,7 @@ export const runStockSync = async (
         target: deleteTarget,
         body: deleteBody,
         entryCount: deletes.length,
+        mode,
         deps,
       });
 
@@ -320,13 +323,36 @@ export const runStockSync = async (
   }
 
   // 5. Then demand — reached even after a final, non-retryable delete answer
-  //    (§12A.4 step 7); the next sync re-derives the delete.
-  if (entries.length === 0) {
+  //    (§12A.4 step 7); the next sync re-derives the delete. A full run is the
+  //    scheduled/startup reconciliation. A delta contains only identities whose
+  //    last *applied* Manager quantity differs; unconfirmed rows stay eligible so
+  //    a timeout or rejected response cannot be silently treated as delivered.
+  const demandEntries =
+    mode === "full"
+      ? entries
+      : entries.filter(
+          (entry) =>
+            ledgerByIdentity.get(demandEntryIdentityKey(entry))?.lastAppliedQuantity !==
+            entry.quantityRequested,
+        );
+
+  if (demandEntries.length === 0) {
     return;
   }
 
-  const demandBody = JSON.stringify(entries);
-  const canonicalByEntry = entries.map((entry: DemandEntry) =>
+  for (const entry of demandEntries) {
+    if (hasAmbiguousSetSize(entry.properties)) {
+      logger.warn("Stock rule states no single set size; counting one unit per item", {
+        shopId,
+        mode,
+        itemCategory: entry.itemCategory,
+        properties: entry.properties,
+      });
+    }
+  }
+
+  const demandBody = JSON.stringify(demandEntries);
+  const canonicalByEntry = demandEntries.map((entry: DemandEntry) =>
     canonicalCriteriaString(entry.properties),
   );
   const ledgerIds: string[] = [];
@@ -337,10 +363,11 @@ export const runStockSync = async (
     eventType: "stock_demand",
     target: demandTarget,
     body: demandBody,
-    entryCount: entries.length,
+    entryCount: demandEntries.length,
+    mode,
     deps,
     beforeSend: async (deliveryId, sentAt) => {
-      for (const [index, entry] of entries.entries()) {
+      for (const [index, entry] of demandEntries.entries()) {
         const written = await managerStockLedgerRepository.prewriteDemand({
           shopId,
           itemCategory: entry.itemCategory,
@@ -359,7 +386,7 @@ export const runStockSync = async (
     return;
   }
 
-  for (const [index, entry] of entries.entries()) {
+  for (const [index, entry] of demandEntries.entries()) {
     const outcome = sent.results[index]?.outcome;
     const ledgerId = ledgerIds[index];
     if (!outcome || !ledgerId) {

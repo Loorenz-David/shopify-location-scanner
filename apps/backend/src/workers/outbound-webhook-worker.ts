@@ -20,6 +20,10 @@ import {
   type StockSyncJobData,
 } from "../modules/outbound-webhook/manager/manager-queues.js";
 import {
+  managerFullSyncSlotKey,
+  parseManagerFullSyncTimes,
+} from "../modules/outbound-webhook/manager/stock-sync-schedule.js";
+import {
   closeManagerSignals,
   enableManagerSignals,
 } from "../modules/outbound-webhook/manager/manager-signals.js";
@@ -33,6 +37,12 @@ import { outboundWebhookTargetRepository } from "../modules/outbound-webhook/rep
 
 const DISPATCH_TIMEOUT_MS = 8_000;
 const DAY_MS = 24 * 60 * 60 * 1_000;
+const FULL_SYNC_SCHEDULE_POLL_MS = 30_000;
+
+const managerFullSyncSchedule = {
+  timeZone: env.MANAGER_FULL_SYNC_TIME_ZONE,
+  times: parseManagerFullSyncTimes(env.MANAGER_FULL_SYNC_TIMES),
+};
 
 await initializeDatabaseRuntime();
 
@@ -131,7 +141,8 @@ logger.info("Outbound webhook worker started", {
   prefix: OUTBOUND_WEBHOOK_QUEUE_PREFIX,
   concurrency: 5,
   managerQueues: [MANAGER_STOCK_SYNC_QUEUE, MANAGER_ITEMS_PROCESSED_QUEUE],
-  managerSyncIntervalMs: env.MANAGER_SYNC_INTERVAL_MS,
+  managerFullSyncSchedule,
+  managerMaintenanceIntervalMs: env.MANAGER_MAINTENANCE_INTERVAL_MS,
 });
 
 /**
@@ -142,7 +153,9 @@ logger.info("Outbound webhook worker started", {
 const managerStockSyncWorker = new Worker<StockSyncJobData>(
   MANAGER_STOCK_SYNC_QUEUE,
   async (job: Job<StockSyncJobData>) => {
-    await runStockSync(job.data.shopId);
+    // Jobs created before the mode field was introduced remain a safe full
+    // reconciliation if Redis retained them across deployment.
+    await runStockSync(job.data.shopId, undefined, job.data.mode ?? "full");
   },
   {
     connection: redisConnection,
@@ -187,16 +200,11 @@ managerItemsProcessedWorker.on("failed", (job, error) => {
 });
 
 /**
- * §12A.4 (periodic + start), §12A.7 (re-drive) and §12A.9 (retention) share one
- * tick. A plain `setInterval` in this single worker process, not a BullMQ job
- * scheduler.
+ * Processed-report re-drive and delivery retention are deliberately independent
+ * of the full stock schedule: they remain lightweight 15-minute maintenance and
+ * never cause an all-groups stock-demand request.
  */
-const managerTick = async (): Promise<void> => {
-  const shopIds = await outboundWebhookTargetRepository.listShopIdsWithActiveEvent("stock_demand");
-  for (const shopId of shopIds) {
-    await enqueueStockSync(shopId);
-  }
-
+const managerMaintenanceTick = async (): Promise<void> => {
   const redriveCandidates = await listProcessedRedriveCandidates(new Date());
   for (const delivery of redriveCandidates) {
     await enqueueItemsProcessed(delivery.id);
@@ -206,27 +214,72 @@ const managerTick = async (): Promise<void> => {
     new Date(Date.now() - env.OUTBOUND_DELIVERY_RETENTION_DAYS * DAY_MS),
   );
 
-  logger.info("Manager signal tick complete", {
-    shopsSynced: shopIds.length,
+  logger.info("Manager maintenance tick complete", {
     reportsRedriven: redriveCandidates.length,
     deliveriesPruned: pruned,
   });
 };
 
-const runManagerTick = (): void => {
-  void managerTick().catch((error: unknown) => {
-    logger.error("Manager signal tick failed", {
+const enqueueFullStockSyncs = async (reason: "startup" | "scheduled"): Promise<void> => {
+  const shopIds = await outboundWebhookTargetRepository.listShopIdsWithActiveEvent("stock_demand");
+  for (const shopId of shopIds) {
+    await enqueueStockSync(shopId, "full");
+  }
+
+  logger.info("Manager full stock syncs queued", {
+    reason,
+    shopsSynced: shopIds.length,
+    ...(reason === "scheduled" ? { schedule: managerFullSyncSchedule } : {}),
+  });
+};
+
+const runManagerMaintenanceTick = (): void => {
+  void managerMaintenanceTick().catch((error: unknown) => {
+    logger.error("Manager maintenance tick failed", {
       error: error instanceof Error ? error.message : String(error ?? "unknown"),
     });
   });
 };
 
-runManagerTick();
-const managerTickTimer = setInterval(runManagerTick, env.MANAGER_SYNC_INTERVAL_MS);
+let lastScheduledFullSyncSlot = managerFullSyncSlotKey(new Date(), managerFullSyncSchedule);
+
+const runScheduledFullStockSync = (): void => {
+  const slot = managerFullSyncSlotKey(new Date(), managerFullSyncSchedule);
+  if (slot === null || slot === lastScheduledFullSyncSlot) {
+    return;
+  }
+  lastScheduledFullSyncSlot = slot;
+
+  void enqueueFullStockSyncs("scheduled").catch((error: unknown) => {
+    logger.error("Manager scheduled full stock sync could not be queued", {
+      slot,
+      error: error instanceof Error ? error.message : String(error ?? "unknown"),
+    });
+  });
+};
+
+// A restart is an explicit recovery point. Marking the current schedule slot as
+// seen avoids a duplicate full report when the worker happens to start during a
+// configured minute.
+await enqueueFullStockSyncs("startup").catch((error: unknown) => {
+  logger.error("Manager startup full stock sync could not be queued", {
+    error: error instanceof Error ? error.message : String(error ?? "unknown"),
+  });
+});
+runManagerMaintenanceTick();
+const managerMaintenanceTimer = setInterval(
+  runManagerMaintenanceTick,
+  env.MANAGER_MAINTENANCE_INTERVAL_MS,
+);
+const managerFullSyncScheduleTimer = setInterval(
+  runScheduledFullStockSync,
+  FULL_SYNC_SCHEDULE_POLL_MS,
+);
 
 const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
   logger.warn("Outbound webhook worker shutdown signal received", { signal });
-  clearInterval(managerTickTimer);
+  clearInterval(managerMaintenanceTimer);
+  clearInterval(managerFullSyncScheduleTimer);
   await outboundWebhookWorker.close();
   await managerStockSyncWorker.close();
   await managerItemsProcessedWorker.close();

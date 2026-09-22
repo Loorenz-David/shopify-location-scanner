@@ -247,6 +247,7 @@ const loadModules = async () => {
   const managerHttp = await import("../src/modules/outbound-webhook/manager/manager-http.js");
   const managerSignals = await import("../src/modules/outbound-webhook/manager/manager-signals.js");
   const managerQueues = await import("../src/modules/outbound-webhook/manager/manager-queues.js");
+  const stockSchedule = await import("../src/modules/outbound-webhook/manager/stock-sync-schedule.js");
   const deliveriesQuery = await import("../src/modules/outbound-webhook/queries/list-deliveries.query.js");
   const managerStockQuery = await import("../src/modules/outbound-webhook/queries/list-manager-stock.query.js");
   return {
@@ -267,6 +268,7 @@ const loadModules = async () => {
     ...managerHttp,
     ...managerSignals,
     ...managerQueues,
+    ...stockSchedule,
     listDeliveriesQuery: deliveriesQuery.listDeliveriesQuery,
     listManagerStockQuery: managerStockQuery.listManagerStockQuery,
   };
@@ -601,7 +603,11 @@ const main = async (): Promise<void> => {
   };
 
   const sync = async (): Promise<void> => {
-    await modules.runStockSync(shopId, { post: modules.postJson, now: () => new Date() });
+    await modules.runStockSync(shopId, { post: modules.postJson, now: () => new Date() }, "full");
+  };
+
+  const syncDelta = async (): Promise<void> => {
+    await modules.runStockSync(shopId, { post: modules.postJson, now: () => new Date() }, "delta");
   };
 
   const requestsOn = (path: string): StubRequest[] =>
@@ -962,11 +968,11 @@ const main = async (): Promise<void> => {
     connection.on("error", () => undefined);
     const worker = new Worker(
       modules.MANAGER_STOCK_SYNC_QUEUE,
-      async (job: { data: { shopId: string } }) => {
+      async (job: { data: { shopId: string; mode?: "delta" | "full" } }) => {
         await modules.runStockSync(job.data.shopId, {
           post: modules.postJson,
           now: () => new Date(),
-        });
+        }, job.data.mode ?? "full");
       },
       { connection, prefix: modules.MANAGER_QUEUE_PREFIX, concurrency: 1 },
     );
@@ -989,11 +995,11 @@ const main = async (): Promise<void> => {
 
     await withStockSyncWorker(async () => {
       stub.delay(1_200);
-      await modules.enqueueStockSync(shopId);
+      await modules.enqueueStockSync(shopId, "full");
       await waitFor("the first sync to become active", () => requestsOn("/stock-demand").length >= 1, 20_000);
 
       for (let trigger = 0; trigger < 5; trigger += 1) {
-        await modules.enqueueStockSync(shopId);
+        await modules.enqueueStockSync(shopId, "full");
       }
 
       await waitFor("the coalesced sync to run", () => requestsOn("/stock-demand").length >= 2, 30_000);
@@ -1026,7 +1032,7 @@ const main = async (): Promise<void> => {
     let state = "";
 
     await withStockSyncWorker(async () => {
-      await modules.enqueueStockSync(shopId);
+      await modules.enqueueStockSync(shopId, "full");
       await waitFor(
         "the silent target's job to be retried",
         async () => {
@@ -1593,6 +1599,149 @@ const main = async (): Promise<void> => {
     assert(anyExtension.length === 1, "extension_quantity 'any value' was refused");
   };
 
+  const check23 = async (): Promise<void> => {
+    await resetState();
+    const shared = chairs({ quantity: ["4"], upholstery: ["down"], wood_group: ["teak"] });
+    const other = chairs({ wood_group: ["light"] });
+    const first = await createStockRow(modules, {
+      shopId,
+      location: "LCV23A",
+      itemCategory: "Dining Chairs",
+      properties: shared,
+      thresholds: [5],
+      instanceCount: 1,
+    });
+    await createStockRow(modules, {
+      shopId,
+      location: "LCV23B",
+      itemCategory: "Dining Chairs",
+      properties: shared,
+      thresholds: [3],
+      instanceCount: 1,
+    });
+    await createStockRow(modules, {
+      shopId,
+      location: "LCV23C",
+      itemCategory: "Armchairs",
+      properties: other,
+      thresholds: [2],
+      instanceCount: 0,
+    });
+    await sync();
+
+    await prisma.locationStock.update({ where: { id: first.id }, data: { instanceCount: 2 } });
+    stub.reset();
+    await syncDelta();
+    equalJson(
+      bodyOf(requestsOn("/stock-demand")[0] as StubRequest),
+      [{ itemCategory: "Dining Chairs", properties: shared, quantityRequested: 20 }],
+      "a delta sends only the changed aggregate group",
+    );
+    assert(requestsOn("/stock-demand").length === 1, "one changed group sent more than one request");
+
+    stub.reset();
+    await syncDelta();
+    assert(stub.requests.length === 0, "an unchanged delta sent a request");
+
+    await prisma.locationStock.update({ where: { id: first.id }, data: { instanceCount: 5 } });
+    await prisma.locationStock.updateMany({
+      where: { shopId, location: "LCV23B" },
+      data: { instanceCount: 3 },
+    });
+    stub.reset();
+    await syncDelta();
+    equalJson(
+      bodyOf(requestsOn("/stock-demand")[0] as StubRequest),
+      [{ itemCategory: "Dining Chairs", properties: shared, quantityRequested: 0 }],
+      "an existing group that reaches zero remains a demand upsert",
+    );
+  };
+
+  const check24 = async (): Promise<void> => {
+    await resetState();
+    const doomedProperties = chairs({ wood_group: ["teak"] });
+    const stableProperties = chairs({ wood_group: ["light"] });
+    const doomed = await createStockRow(modules, {
+      shopId,
+      location: "LCV24A",
+      itemCategory: "Sofas",
+      properties: doomedProperties,
+      thresholds: [2],
+      instanceCount: 0,
+    });
+    await createStockRow(modules, {
+      shopId,
+      location: "LCV24B",
+      itemCategory: "Sofas",
+      properties: stableProperties,
+      thresholds: [2],
+      instanceCount: 0,
+    });
+    await sync();
+
+    await prisma.locationStock.delete({ where: { id: doomed.id } });
+    stub.reset();
+    await syncDelta();
+    equalJson(
+      stub.requests.map((request) => request.path),
+      ["/stock-demand-deleted"],
+      "a vanished identity sends only its targeted delete",
+    );
+    equalJson(
+      bodyOf(requestsOn("/stock-demand-deleted")[0] as StubRequest),
+      [{ itemCategory: "Sofas", properties: doomedProperties }],
+      "the targeted delete identity",
+    );
+  };
+
+  const check25 = async (): Promise<void> => {
+    await resetState();
+    const properties = chairs({ wood_group: ["teak"] });
+    await createStockRow(modules, {
+      shopId,
+      location: "LCV25",
+      itemCategory: "Sofas",
+      properties,
+      thresholds: [2],
+      instanceCount: 0,
+    });
+    stub.plan("/stock-demand", [statusResponder(401, failureBody("unauthorized"))]);
+    await syncDelta();
+    const firstDelivery = (await deliveries({ eventType: "stock_demand" }))[0];
+    assert(firstDelivery?.status === "rejected", "the planned 401 did not reject the delta");
+
+    stub.reset();
+    await syncDelta();
+    assert(
+      requestsOn("/stock-demand").length === 1,
+      "an unconfirmed demand group was not retried by a later delta",
+    );
+    const finalDelivery = (await deliveries({ eventType: "stock_demand" }))[1];
+    assert(finalDelivery?.status === "delivered", "the retry did not deliver the group");
+  };
+
+  const check26 = async (): Promise<void> => {
+    const schedule = {
+      timeZone: "Europe/Stockholm",
+      times: modules.parseManagerFullSyncTimes("17:00,07:00,12:00"),
+    };
+    equalJson(schedule.times, ["07:00", "12:00", "17:00"], "schedule time ordering");
+    assert(
+      modules.managerFullSyncSlotKey(new Date("2026-01-15T06:00:00.000Z"), schedule)
+        ?.includes("T07:00") === true,
+      "winter Stockholm schedule did not match 07:00",
+    );
+    assert(
+      modules.managerFullSyncSlotKey(new Date("2026-07-15T05:00:00.000Z"), schedule)
+        ?.includes("T07:00") === true,
+      "summer Stockholm schedule did not match 07:00",
+    );
+    assert(
+      modules.managerFullSyncSlotKey(new Date("2026-01-15T06:01:00.000Z"), schedule) === null,
+      "a non-scheduled minute matched a full-sync slot",
+    );
+  };
+
   const cases: Array<{ id: string; run: () => Promise<void> }> = [
     { id: "1 (M1) worked fixture and one restock-target source", run: check1 },
     { id: "2 (M1) unitsPerItem", run: check2 },
@@ -1616,6 +1765,10 @@ const main = async (): Promise<void> => {
     { id: "20 (M7) no active target is silent", run: check20 },
     { id: "21 (M4) bounded processed re-drive", run: check21 },
     { id: "22 (M1) one set size per rule", run: check22 },
+    { id: "23 (M1) targeted aggregate deltas and zero demand", run: check23 },
+    { id: "24 (M2) targeted deletion without unchanged demand", run: check24 },
+    { id: "25 (M3) unconfirmed delta remains retryable", run: check25 },
+    { id: "26 (M3) Stockholm full-sync schedule", run: check26 },
   ];
 
   let failures = 0;

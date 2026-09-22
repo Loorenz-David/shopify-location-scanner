@@ -83,7 +83,7 @@ Each returns `201` with `{"id":"cm…"}`.
 
 | `eventType` | Sent when | Consequence of leaving it out |
 |---|---|---|
-| `stock_demand` | a stock rule changes, an item moves, and every 15 minutes | **Nothing is sent at all.** With no demand target the whole sync is a deliberate no-op — silent, by design |
+| `stock_demand` | a stock rule changes (targeted delta), worker startup, and full snapshots at 07:00, 12:00 and 17:00 Stockholm time | **Nothing is sent at all.** With no demand target the whole sync is a deliberate no-op — silent, by design |
 | `stock_demand_deleted` | a rule is gone and its identity has to be withdrawn | Demand still flows, but each sync writes a `skipped` row with `no_delete_target` and Manager keeps asking for stock you no longer track |
 | `items_processed` | a ScanHistory record is created (an article was handled) | Manager is never told an item was processed |
 
@@ -99,7 +99,8 @@ deliberate stop, not a crash, because Scanner cannot know which one is right.
 # The three targets, active. `secret` is never returned.
 curl -s "$BASE/api/outbound-webhooks" -H "Authorization: Bearer $TOKEN"
 
-# What actually went out. Within 15 minutes there should be delivered rows.
+# What actually went out. A stock edit sends a targeted delta immediately; full
+# recovery snapshots run at the configured Stockholm-time schedule.
 curl -s "$BASE/api/outbound-webhooks/deliveries?limit=20" \
   -H "Authorization: Bearer $TOKEN"
 

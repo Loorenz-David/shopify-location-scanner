@@ -20,7 +20,13 @@ const EnvSchema = z.object({
   SHOPIFY_METAFIELD_NAMESPACE: z.string().min(1).default("app"),
   SHOPIFY_METAFIELD_KEY: z.string().min(1).default("item_location"),
   REDIS_URL: z.string().url().default("redis://127.0.0.1:6379"),
-  MANAGER_SYNC_INTERVAL_MS: z.coerce.number().int().positive().default(900000),
+  // Full Manager stock reconciliation is wall-clock scheduled so it remains
+  // predictable after worker restarts and across Stockholm daylight saving time.
+  MANAGER_FULL_SYNC_TIMES: z.string().default("07:00,12:00,17:00"),
+  MANAGER_FULL_SYNC_TIME_ZONE: z.string().default("Europe/Stockholm"),
+  // Processed-report re-drives and delivery retention remain lightweight
+  // maintenance work; this interval no longer sends stock-demand snapshots.
+  MANAGER_MAINTENANCE_INTERVAL_MS: z.coerce.number().int().positive().default(900000),
   OUTBOUND_DELIVERY_RETENTION_DAYS: z.coerce.number().int().positive().default(30),
   SHOPIFY_DEBUG_SKIP_HMAC: z.coerce.boolean().default(false),
   SHOPIFY_DEBUG_ORDER_WEBHOOKS: z.coerce.boolean().default(false),

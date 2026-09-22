@@ -6,7 +6,9 @@ export const MANAGER_QUEUE_PREFIX = "iss";
 export const MANAGER_STOCK_SYNC_QUEUE = "manager-stock-sync";
 export const MANAGER_ITEMS_PROCESSED_QUEUE = "manager-items-processed";
 
-export type StockSyncJobData = { shopId: string };
+export const STOCK_SYNC_MODES = ["delta", "full"] as const;
+export type StockSyncMode = (typeof STOCK_SYNC_MODES)[number];
+export type StockSyncJobData = { shopId: string; mode: StockSyncMode };
 export type ItemsProcessedJobData = { deliveryId: string };
 
 let connection: Redis | null = null;
@@ -78,8 +80,9 @@ export const managerItemsProcessedQueue = (): Queue<ItemsProcessedJobData> => {
 };
 
 /**
- * §12A.4, exactly these options for every enqueue — trigger, worker start and
- * periodic alike.
+ * §12A.4, exactly these options for every enqueue. Delta and full jobs have
+ * separate deduplication lanes: a scheduled recovery snapshot can never be
+ * swallowed by an already-waiting mutation delta.
  *
  * `deduplication` with `keepLastIfActive` and no ttl gives the lane its ordering:
  * a trigger arriving while a sync is waiting or delayed is ignored (that job has
@@ -90,12 +93,15 @@ export const managerItemsProcessedQueue = (): Queue<ItemsProcessedJobData> => {
  * A fixed `jobId` must not be used here: it would collide with retained
  * completed jobs (`removeOnComplete: 100`) and silently drop later triggers.
  */
-export const enqueueStockSync = async (shopId: string): Promise<void> => {
+export const enqueueStockSync = async (
+  shopId: string,
+  mode: StockSyncMode = "delta",
+): Promise<void> => {
   await managerStockSyncQueue().add(
     "stock-sync",
-    { shopId },
+    { shopId, mode },
     {
-      deduplication: { id: `stock-sync:${shopId}`, keepLastIfActive: true },
+      deduplication: { id: `stock-sync:${shopId}:${mode}`, keepLastIfActive: true },
       attempts: 4,
       backoff: { type: "exponential", delay: 5_000 },
       removeOnComplete: 100,
