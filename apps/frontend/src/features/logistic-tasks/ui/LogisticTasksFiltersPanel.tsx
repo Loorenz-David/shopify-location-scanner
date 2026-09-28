@@ -13,6 +13,7 @@ import type {
   LogisticZoneType,
 } from "../types/logistic-tasks.types";
 import { CloseIcon } from "../../../assets/icons";
+import { homeShellActions } from "../../home/actions/home-shell.actions";
 
 interface LogisticTasksFiltersPanelProps {
   onClose: () => void;
@@ -22,6 +23,7 @@ const EVENT_TYPE_OPTIONS: { value: LogisticEventType; label: string }[] = [
   { value: "marked_intention", label: "Pending" },
   { value: "placed", label: "Placed" },
   { value: "fulfilled", label: "Completed" },
+  { value: "dismissed", label: "Cleared" },
 ];
 
 const ZONE_TYPE_OPTIONS: { value: LogisticZoneType; label: string }[] = [
@@ -33,7 +35,7 @@ const ZONE_TYPE_OPTIONS: { value: LogisticZoneType; label: string }[] = [
 export function LogisticTasksFiltersPanel({
   onClose,
 }: LogisticTasksFiltersPanelProps) {
-  const { task_page_allowed_filters } = useRoleCapabilities();
+  const { task_page_allowed_filters, can_clear_logistic_tasks } = useRoleCapabilities();
   const filters = useLogisticTasksStore((state) => state.filters);
   const activeCount = countActiveLogisticTaskFilters(filters);
 
@@ -161,7 +163,7 @@ export function LogisticTasksFiltersPanel({
               Last Event
             </p>
             <div className="flex flex-wrap gap-2">
-              {EVENT_TYPE_OPTIONS.map(({ value, label }) => (
+                {EVENT_TYPE_OPTIONS.filter(({ value }) => value !== "dismissed" || can_clear_logistic_tasks).map(({ value, label }) => (
                 <button
                   key={value}
                   type="button"
@@ -244,6 +246,12 @@ export function LogisticTasksFiltersPanel({
       </div>
 
       <div className="shrink-0 border-t border-slate-900/10 px-5 py-4">
+        {can_clear_logistic_tasks && (
+          <div className="mb-3 grid grid-cols-2 gap-2">
+            <button type="button" className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900" onClick={() => homeShellActions.openOverlayPage("logistic-tasks-clear", "Clear pending tasks")}>Clear pending</button>
+            <button type="button" className="rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700" onClick={() => homeShellActions.openOverlayPage("logistic-tasks-clear-history", "Cleared tasks")}>Cleared history</button>
+          </div>
+        )}
         <button
           type="button"
           className="w-full rounded-xl border border-slate-900/15 bg-white px-4 py-2 text-sm font-semibold text-slate-700 disabled:opacity-40"

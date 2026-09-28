@@ -45,7 +45,7 @@ export const logisticEventRepository = {
     orderId: string | null;
     logisticLocationId: string | null;
     username: string;
-    eventType: "marked_intention" | "placed" | "fulfilled";
+    eventType: "marked_intention" | "placed" | "fulfilled" | "dismissed";
     completedAt?: Date;
     description?: string;
   }): Promise<LogisticEvent> {
@@ -67,6 +67,7 @@ export const logisticEventRepository = {
         where: { id: input.scanHistoryId },
         data: {
           lastLogisticEventType: input.eventType as any,
+          currentClearBatchId: null,
           logisticLocationId: input.logisticLocationId,
           ...(input.completedAt
             ? { logisticsCompletedAt: input.completedAt }

@@ -4,6 +4,7 @@ import { useWsEvent } from "../../../core/ws-client/use-ws-event";
 import type { WsInboundEvent } from "../../../core/ws-client/ws-events";
 import { logisticTasksActions } from "../actions/logistic-tasks.actions";
 import { useLogisticTasksStore } from "../stores/logistic-tasks.store";
+import { refreshTaskQueue } from "./refresh-task-queue";
 
 const WS_REFRESH_DEDUPE_MS = 750;
 const BATCH_NOTIFICATION_AUTO_DISMISS_MS = 8000;
@@ -68,9 +69,14 @@ export function useLogisticTasksRealtimeFlow(): void {
     [],
   );
 
+  const handleQueueChanged = useCallback(() => {
+    void refreshTaskQueue();
+  }, []);
+
   useWsEvent("logistic_intention_set", handleIntentionSet);
   useWsEvent("logistic_item_placed", handleItemPlaced);
   useWsEvent("logistic_item_fulfilled", handleItemFulfilled);
   useWsEvent("logistic_items_updated", handleItemsUpdated);
   useWsEvent("logistic_batch_notification", handleBatchNotification);
+  useWsEvent("logistic_task_queue_changed", handleQueueChanged);
 }

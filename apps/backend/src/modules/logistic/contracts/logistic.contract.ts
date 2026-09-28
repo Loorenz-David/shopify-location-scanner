@@ -11,6 +11,7 @@ export const LogisticEventTypeSchema = z.enum([
   "marked_intention",
   "placed",
   "fulfilled",
+  "dismissed",
 ]);
 
 export const LogisticZoneTypeSchema = z.enum([
@@ -38,6 +39,12 @@ export const MarkIntentionInputSchema = z.object({
 export const MarkPlacementInputSchema = z.object({
   scanHistoryId: z.string().min(1),
   logisticLocationId: z.string().min(1),
+});
+
+export const ClearPendingTasksInputSchema = z.object({
+  asOf: z.string().datetime().transform((value) => new Date(value)),
+  expectedCount: z.number().int().nonnegative(),
+  note: z.string().trim().max(500).optional(),
 });
 
 export const FulfilItemInputSchema = z.object({

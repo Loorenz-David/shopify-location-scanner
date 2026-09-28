@@ -23,7 +23,7 @@ export interface ItemScanHistoryPriceHistoryDto {
 
 export interface ItemScanHistoryLogisticEventDto {
   username: string;
-  eventType: "marked_intention" | "placed" | "fulfilled";
+  eventType: "marked_intention" | "placed" | "fulfilled" | "dismissed";
   description?: string | null;
   location: string | null;
   zoneType?: "for_delivery" | "for_pickup" | "for_fixing" | null;

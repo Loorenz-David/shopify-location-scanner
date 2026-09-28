@@ -10,7 +10,7 @@ export type ScanHistoryPriceTerminalType =
   | "price_update";
 
 export type SalesChannel = "webshop" | "physical" | "imported" | "unknown";
-export type LogisticEventType = "marked_intention" | "placed" | "fulfilled";
+export type LogisticEventType = "marked_intention" | "placed" | "fulfilled" | "dismissed";
 export type LogisticZoneType = "for_delivery" | "for_pickup" | "for_fixing";
 
 export type ScanHistoryEvent = {

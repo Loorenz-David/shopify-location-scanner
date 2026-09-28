@@ -47,11 +47,11 @@ export const markLogisticPlacementCommand = async (input: {
     where: {
       id: input.payload.scanHistoryId,
       shopId: input.shopId,
-      isSold: true,
       // intention is no longer required — it is auto-derived from zoneType when null
     },
     select: {
       id: true,
+      isSold: true,
       orderId: true,
       itemSku: true,
       fixItem: true,
@@ -62,7 +62,13 @@ export const markLogisticPlacementCommand = async (input: {
   });
 
   if (!scanHistory) {
-    throw new NotFoundError("Sold item not found for this shop");
+    throw new NotFoundError("Item not found for this shop");
+  }
+
+  if (!scanHistory.isSold) {
+    throw new ValidationError(
+      "This item has not been sold and cannot be placed in a logistic location",
+    );
   }
 
   if (scanHistory.logisticsCompletedAt) {
@@ -129,7 +135,7 @@ export const markLogisticPlacementCommand = async (input: {
           orderId: scanHistory.orderId ?? null,
           logisticLocationId: input.payload.logisticLocationId,
         },
-        ["seller", "worker"],
+        ["seller", "worker", "manager"],
       );
     }
   } else if (input.callerRole === "manager") {
@@ -141,7 +147,7 @@ export const markLogisticPlacementCommand = async (input: {
         orderId: scanHistory.orderId ?? null,
         logisticLocationId: input.payload.logisticLocationId,
       },
-      ["seller"],
+      ["seller", "worker", "manager"],
     );
   }
 

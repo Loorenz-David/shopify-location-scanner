@@ -1,4 +1,5 @@
 import { normalizeLogisticTasksPage } from "../domain/logistic-tasks.domain";
+import { getLogisticIntentionCountsApi } from "../api/get-logistic-intention-counts.api";
 import { getLogisticTasksApi } from "../api/get-logistic-tasks.api";
 import { useLogisticTasksStore } from "../stores/logistic-tasks.store";
 import { useTaskCountStore } from "../stores/task-count.store";
@@ -17,10 +18,13 @@ export async function loadLogisticTasksController(
     filters,
     hasMore: false,
     nextCursor: null,
+    intentionCounts: {},
   });
 
+  const { query } = useLogisticTasksStore.getState();
+  void refreshLogisticIntentionCountsController(filters, query);
+
   try {
-    const { query } = useLogisticTasksStore.getState();
     const response = await getLogisticTasksApi(filters, undefined, undefined, query);
     const currentRequestId = useLogisticTasksStore.getState().activeRequestId;
 
@@ -36,6 +40,21 @@ export async function loadLogisticTasksController(
     useLogisticTasksStore
       .getState()
       .finishWithError("Unable to load logistic tasks.");
+  }
+}
+
+export async function refreshLogisticIntentionCountsController(
+  filters: LogisticTaskFilters,
+  query: string,
+): Promise<void> {
+  const requestId = useLogisticTasksStore.getState().incrementCountsRequestId();
+  try {
+    const { counts } = await getLogisticIntentionCountsApi(filters, query);
+    if (requestId === useLogisticTasksStore.getState().activeCountsRequestId) {
+      useLogisticTasksStore.getState().setIntentionCounts(counts);
+    }
+  } catch {
+    // Leave existing totals in place; the next reload or task event retries.
   }
 }
 
@@ -61,6 +80,8 @@ export async function refreshLogisticTasksByIdsController(
   ids: string[],
   currentFilters: LogisticTaskFilters,
 ): Promise<void> {
+  const { query } = useLogisticTasksStore.getState();
+  void refreshLogisticIntentionCountsController(currentFilters, query);
   try {
     const response = await getLogisticTasksApi(currentFilters, ids);
     const { items: returnedItems } = normalizeLogisticTasksPage(response);

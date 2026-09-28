@@ -91,6 +91,7 @@ export const logisticTasksActions = {
         fixNotes,
         scheduledDate,
       });
+      void logisticTasksActions.refreshByIds([scanHistoryId]);
     } catch {
       if (prev) {
         useLogisticTasksStore.getState().upsertItem(prev);
@@ -175,6 +176,7 @@ export const logisticTasksActions = {
 
     try {
       await markPlacementApi({ scanHistoryId, logisticLocationId: locationId });
+      void logisticTasksActions.refreshByIds([scanHistoryId]);
     } catch {
       if (prev) {
         useLogisticTasksStore.getState().upsertItem(prev);
@@ -199,6 +201,7 @@ export const logisticTasksActions = {
 
     try {
       await markItemFixedApi({ scanHistoryId });
+      void logisticTasksActions.refreshByIds([scanHistoryId]);
     } catch {
       if (existing) {
         useLogisticTasksStore.getState().upsertItem(existing);
@@ -236,6 +239,7 @@ export const logisticTasksActions = {
       } else {
         await markHistoryItemUncompletedApi({ scanHistoryId });
       }
+      void logisticTasksActions.refreshByIds([scanHistoryId]);
     } catch {
       if (existing) {
         useLogisticTasksStore.getState().upsertItem(existing);
@@ -288,6 +292,7 @@ export const logisticTasksActions = {
         scanHistoryId,
         logisticLocationId: pendingPlacementMatch.id,
       });
+      void logisticTasksActions.refreshByIds([scanHistoryId]);
     } catch {
       if (prev) {
         useLogisticTasksStore.getState().upsertItem(prev);

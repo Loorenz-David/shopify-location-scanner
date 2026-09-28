@@ -27,7 +27,7 @@ export interface ItemScanHistoryPriceHistory {
 
 export interface ItemScanHistoryLogisticEvent {
   id: string;
-  eventType: "marked_intention" | "placed" | "fulfilled";
+  eventType: "marked_intention" | "placed" | "fulfilled" | "dismissed";
   description: string | null;
   location: string | null;
   happenedAt: string;

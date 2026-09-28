@@ -74,6 +74,8 @@ function formatLogisticEventLabel(
       return "Placed";
     case "fulfilled":
       return "Fulfilled";
+    case "dismissed":
+      return "Cleared pending task";
     default:
       return eventType;
   }

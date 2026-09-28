@@ -1,10 +1,6 @@
 import { create } from "zustand";
 
-import {
-  buildOrderGroups,
-  countByIntention,
-  groupByIntention,
-} from "../domain/logistic-tasks.domain";
+import { buildOrderGroups, groupByIntention } from "../domain/logistic-tasks.domain";
 import { serializeFiltersForRequestKey } from "../domain/logistic-tasks-filters.domain";
 import type {
   LogisticIntention,
@@ -27,6 +23,7 @@ function readStoredActiveTab(): LogisticIntention | null {
 
 interface LogisticTasksStoreState {
   items: LogisticTaskItem[];
+  intentionCounts: Partial<Record<LogisticIntention, number>>;
   filters: LogisticTaskFilters;
   query: string;
   activeIntentionTab: LogisticIntention | null;
@@ -38,6 +35,7 @@ interface LogisticTasksStoreState {
   nextCursor: string | null;
   errorMessage: string | null;
   activeRequestId: number;
+  activeCountsRequestId: number;
   hydrate: (items: LogisticTaskItem[]) => void;
   hydrateAndFinish: (
     items: LogisticTaskItem[],
@@ -57,11 +55,14 @@ interface LogisticTasksStoreState {
   setActiveIntentionTab: (tab: LogisticIntention | null) => void;
   setBatchNotification: (n: { count: number; message: string } | null) => void;
   incrementRequestId: () => number;
+  incrementCountsRequestId: () => number;
+  setIntentionCounts: (counts: Partial<Record<LogisticIntention, number>>) => void;
   reset: () => void;
 }
 
 const initialState = {
   items: [] as LogisticTaskItem[],
+  intentionCounts: {} as Partial<Record<LogisticIntention, number>>,
   filters: {} as LogisticTaskFilters,
   query: "",
   activeIntentionTab: readStoredActiveTab(),
@@ -73,6 +74,7 @@ const initialState = {
   nextCursor: null as string | null,
   errorMessage: null as string | null,
   activeRequestId: 0,
+  activeCountsRequestId: 0,
 };
 
 export const useLogisticTasksStore = create<LogisticTasksStoreState>(
@@ -110,8 +112,17 @@ export const useLogisticTasksStore = create<LogisticTasksStoreState>(
     removeItem: (id) =>
       set((state) => ({ items: state.items.filter((i) => i.id !== id) })),
     setFilters: (partial) =>
-      set((state) => ({ filters: { ...state.filters, ...partial } })),
-    setQuery: (query) => set({ query }),
+      set((state) => ({
+        filters: { ...state.filters, ...partial },
+        intentionCounts: {},
+        activeCountsRequestId: state.activeCountsRequestId + 1,
+      })),
+    setQuery: (query) =>
+      set((state) => ({
+        query,
+        intentionCounts: {},
+        activeCountsRequestId: state.activeCountsRequestId + 1,
+      })),
     setActiveIntentionTab: (tab) => {
       localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, JSON.stringify(tab));
       set({ activeIntentionTab: tab });
@@ -122,6 +133,12 @@ export const useLogisticTasksStore = create<LogisticTasksStoreState>(
       set({ activeRequestId: next });
       return next;
     },
+    incrementCountsRequestId: () => {
+      const next = get().activeCountsRequestId + 1;
+      set({ activeCountsRequestId: next });
+      return next;
+    },
+    setIntentionCounts: (intentionCounts) => set({ intentionCounts }),
     reset: () => set(initialState),
   }),
 );
@@ -139,7 +156,7 @@ export const selectLogisticTasksIntentionMap = (
 
 export const selectLogisticTasksIntentionCounts = (
   state: LogisticTasksStoreState,
-) => countByIntention(state.items);
+) => state.intentionCounts;
 
 export const selectLogisticTasksIsLoading = (state: LogisticTasksStoreState) =>
   state.isLoading;

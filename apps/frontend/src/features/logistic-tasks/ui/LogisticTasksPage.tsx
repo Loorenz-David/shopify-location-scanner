@@ -14,12 +14,12 @@ import {
   selectLogisticTasksErrorMessage,
   selectLogisticTasksHasLoaded,
   selectLogisticTasksIsLoading,
+  selectLogisticTasksIntentionCounts,
   selectLogisticTasksItems,
   useLogisticTasksStore,
 } from "../stores/logistic-tasks.store";
 import {
   buildOrderGroups,
-  countByIntention,
 } from "../domain/logistic-tasks.domain";
 import { LogisticTasksBatchNotificationBanner } from "./LogisticTasksBatchNotificationBanner";
 import { LogisticTasksHeader } from "./LogisticTasksHeader";
@@ -39,7 +39,7 @@ export function LogisticTasksPage() {
   const errorMessage = useLogisticTasksStore(selectLogisticTasksErrorMessage);
   const items = useLogisticTasksStore(selectLogisticTasksItems);
   const allGroups = useMemo(() => buildOrderGroups(items), [items]);
-  const intentionCounts = useMemo(() => countByIntention(items), [items]);
+  const intentionCounts = useLogisticTasksStore(selectLogisticTasksIntentionCounts);
   const batchNotification = useLogisticTasksStore(
     (state) => state.batchNotification,
   );

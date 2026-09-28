@@ -3,6 +3,8 @@ import { homeShellActions } from "../home/actions/home-shell.actions";
 import { FixItemDetailOverlay } from "./ui/FixItemDetailOverlay";
 import { LogisticTasksFiltersPanel } from "./ui/LogisticTasksFiltersPanel";
 import { MarkIntentionOverlay } from "./ui/MarkIntentionOverlay";
+import { LogisticTasksClearOverlay } from "./ui/LogisticTasksClearOverlay";
+import { LogisticTasksClearHistoryOverlay } from "./ui/LogisticTasksClearHistoryOverlay";
 
 interface LogisticTasksOverlayHostProps {
   onClose: () => void;
@@ -15,6 +17,14 @@ export function LogisticTasksOverlayHost({
 
   if (overlayPageId === "logistic-tasks-filters") {
     return <LogisticTasksFiltersPanel onClose={onClose} />;
+  }
+
+  if (overlayPageId === "logistic-tasks-clear") {
+    return <LogisticTasksClearOverlay onClose={onClose} />;
+  }
+
+  if (overlayPageId === "logistic-tasks-clear-history") {
+    return <LogisticTasksClearHistoryOverlay onClose={onClose} />;
   }
 
   if (overlayPageId?.startsWith("logistic-tasks-options:")) {

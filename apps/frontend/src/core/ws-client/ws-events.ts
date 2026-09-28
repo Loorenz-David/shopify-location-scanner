@@ -29,6 +29,7 @@ export type WsInboundEvent =
       itemIds: string[];
       message: string;
     }
+  | { type: "logistic_task_queue_changed"; batchId: string }
   | { type: "session_invalidated" };
 
 export type WsOutboundMessage = { type: "auth"; token: string };

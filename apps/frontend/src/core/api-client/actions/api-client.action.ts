@@ -161,12 +161,15 @@ async function executeRequest<TResponse, TPayload = unknown>(
   const responseData = await parseResponseBody(response);
 
   if (!response.ok) {
-    throw new ApiClientError("API request failed", {
-      status: response.status,
-      endpoint,
-      method,
-      data: responseData,
-    });
+    throw new ApiClientError(
+      resolveApiErrorMessage(responseData) ?? "API request failed",
+      {
+        status: response.status,
+        endpoint,
+        method,
+        data: responseData,
+      },
+    );
   }
 
   return responseData as TResponse;
@@ -216,4 +219,22 @@ async function parseResponseBody(response: Response): Promise<unknown> {
   }
 
   return response.text();
+}
+
+function resolveApiErrorMessage(responseData: unknown): string | null {
+  if (typeof responseData !== "object" || responseData === null) {
+    return null;
+  }
+
+  const error = (responseData as Record<string, unknown>).error;
+  if (typeof error !== "object" || error === null) {
+    return null;
+  }
+
+  const message = (error as Record<string, unknown>).message;
+  if (typeof message !== "string" || !message.trim()) {
+    return null;
+  }
+
+  return message.trim();
 }

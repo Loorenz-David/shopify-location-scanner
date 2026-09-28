@@ -31,7 +31,18 @@ logisticRouter.get(
   "/items/active-task-ids",
   asyncHandler(logisticController.getActiveTaskIds),
 );
+logisticRouter.get(
+  "/items/intention-counts",
+  asyncHandler(logisticController.getIntentionCounts),
+);
 logisticRouter.get("/items", asyncHandler(logisticController.getItems));
+
+logisticRouter.get("/task-clears/preview", asyncHandler(logisticController.previewPendingTaskClear));
+logisticRouter.post("/task-clears", asyncHandler(logisticController.clearPendingTasks));
+logisticRouter.get("/task-clears", asyncHandler(logisticController.listTaskClearBatches));
+logisticRouter.get("/task-clears/:batchId", asyncHandler(logisticController.getTaskClearBatchItems));
+logisticRouter.post("/task-clears/:batchId/restore", asyncHandler(logisticController.restoreTaskClearBatch));
+logisticRouter.post("/task-clears/:batchId/items/:scanHistoryId/restore", asyncHandler(logisticController.restoreTaskClearItem));
 
 // Actions
 logisticRouter.post(

@@ -58,6 +58,7 @@ export const markAsUncompleted = async (input: {
       select: {
         eventType: true,
         logisticLocationId: true,
+        clearBatchId: true,
       },
     });
 
@@ -66,6 +67,7 @@ export const markAsUncompleted = async (input: {
       data: {
         logisticsCompletedAt: null,
         lastLogisticEventType: previousEvent?.eventType ?? null,
+        currentClearBatchId: previousEvent?.eventType === "dismissed" ? previousEvent.clearBatchId : null,
         logisticLocationId: previousEvent?.logisticLocationId ?? null,
       },
     });

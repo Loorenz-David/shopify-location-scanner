@@ -4,7 +4,7 @@ export type LogisticIntentionDto =
   | "local_delivery"
   | "international_shipping";
 
-export type LogisticEventTypeDto = "marked_intention" | "placed" | "fulfilled";
+export type LogisticEventTypeDto = "marked_intention" | "placed" | "fulfilled" | "dismissed";
 export type LogisticZoneTypeDto = "for_delivery" | "for_pickup" | "for_fixing";
 
 export interface LogisticTaskItemDto {

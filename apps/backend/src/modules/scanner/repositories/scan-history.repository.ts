@@ -729,6 +729,7 @@ export const scanHistoryRepository = {
                 fixNotes: null,
                 scheduledDate: null,
                 lastLogisticEventType: null,
+                currentClearBatchId: null,
                 logisticLocationId: null,
                 logisticsCompletedAt: null,
                 restockedAt: happenedAt,

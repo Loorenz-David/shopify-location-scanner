@@ -64,6 +64,7 @@ export const markLogisticIntentionCommand = async (input: {
       where: { id: scanHistory.id },
       data: {
         lastLogisticEventType: "marked_intention" as any,
+        currentClearBatchId: null,
         logisticLocationId: null,
       },
     });
@@ -95,7 +96,7 @@ export const markLogisticIntentionCommand = async (input: {
       orderId: scanHistory.orderId ?? null,
       intention: input.payload.intention,
     },
-    ["worker"],
+    ["worker", "manager"],
   );
 
   await scheduleRoleNotification(input.shopId, "worker");

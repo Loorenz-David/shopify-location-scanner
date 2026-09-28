@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import {
   CreateLogisticLocationInputSchema,
+  ClearPendingTasksInputSchema,
   DeletePushSubscriptionInputSchema,
   FulfilItemInputSchema,
   MarkAsCompletedInputSchema,
@@ -25,12 +26,33 @@ import { markItemFixedService } from "../services/mark-item-fixed.service.js";
 import { updateFixNotesService } from "../services/update-fix-notes.service.js";
 import { getActiveTaskIdsQuery } from "../queries/get-active-task-ids.query.js";
 import { getLogisticItemsQuery } from "../queries/get-logistic-items.query.js";
+import { getLogisticIntentionCountsQuery } from "../queries/get-logistic-intention-counts.query.js";
+import {
+  clearPendingTasks,
+  getTaskClearBatchItems,
+  listTaskClearBatches,
+  previewPendingTaskClear,
+  restoreClearedTasks,
+} from "../services/clear-pending-tasks.service.js";
 import { logger } from "../../../shared/logging/logger.js";
 import {
+  ForbiddenError,
   NotFoundError,
   ValidationError,
 } from "../../../shared/errors/http-errors.js";
 import type { UserRole } from "@prisma/client";
+
+function requireTaskClearRole(req: Request): void {
+  if (req.authUser.role !== "manager" && req.authUser.role !== "admin") {
+    throw new ForbiddenError("Manager or admin role is required");
+  }
+}
+
+function requiredParam(req: Request, name: string): string {
+  const value = req.params[name];
+  if (typeof value !== "string" || !value) throw new ValidationError(`${name} param is required`);
+  return value;
+}
 
 export const logisticController = {
   listLocations: async (req: Request, res: Response): Promise<void> => {
@@ -129,6 +151,7 @@ export const logisticController = {
       limit: req.query.limit,
       cursor: req.query.cursor,
     });
+    if (filters.lastLogisticEventType === "dismissed") requireTaskClearRole(req);
 
     const page = await getLogisticItemsQuery({
       shopId: req.authUser.shopId as string,
@@ -136,6 +159,76 @@ export const logisticController = {
     });
 
     res.status(200).json(page);
+  },
+
+  getIntentionCounts: async (req: Request, res: Response): Promise<void> => {
+    const filters = GetLogisticItemsQuerySchema.parse({
+      q: req.query.q,
+      fixItem: req.query.fixItem,
+      isItemFixed: req.query.isItemFixed,
+      lastLogisticEventType: req.query.lastLogisticEventType,
+      zoneType: req.query.zoneType,
+      intention: req.query.intention,
+      orderId: req.query.orderId,
+      noIntention: req.query.noIntention,
+    });
+    if (filters.lastLogisticEventType === "dismissed") requireTaskClearRole(req);
+    const counts = await getLogisticIntentionCountsQuery({
+      shopId: req.authUser.shopId as string,
+      filters,
+    });
+    res.status(200).json({ counts });
+  },
+
+  previewPendingTaskClear: async (req: Request, res: Response): Promise<void> => {
+    requireTaskClearRole(req);
+    res.status(200).json(await previewPendingTaskClear(req.authUser.shopId as string));
+  },
+
+  clearPendingTasks: async (req: Request, res: Response): Promise<void> => {
+    requireTaskClearRole(req);
+    const input = ClearPendingTasksInputSchema.parse(req.body);
+    res.status(200).json(await clearPendingTasks({
+      shopId: req.authUser.shopId as string,
+      actorUserId: req.authUser.userId,
+      actorName: req.authUser.username,
+      ...input,
+    }));
+  },
+
+  listTaskClearBatches: async (req: Request, res: Response): Promise<void> => {
+    requireTaskClearRole(req);
+    const cursor = typeof req.query.cursor === "string" ? req.query.cursor : undefined;
+    res.status(200).json(await listTaskClearBatches(req.authUser.shopId as string, cursor));
+  },
+
+  getTaskClearBatchItems: async (req: Request, res: Response): Promise<void> => {
+    requireTaskClearRole(req);
+    const cursor = typeof req.query.cursor === "string" ? req.query.cursor : undefined;
+    res.status(200).json(await getTaskClearBatchItems(
+      req.authUser.shopId as string,
+      requiredParam(req, "batchId"),
+      cursor,
+    ));
+  },
+
+  restoreTaskClearBatch: async (req: Request, res: Response): Promise<void> => {
+    requireTaskClearRole(req);
+    res.status(200).json(await restoreClearedTasks({
+      shopId: req.authUser.shopId as string,
+      batchId: requiredParam(req, "batchId"),
+      username: req.authUser.username,
+    }));
+  },
+
+  restoreTaskClearItem: async (req: Request, res: Response): Promise<void> => {
+    requireTaskClearRole(req);
+    res.status(200).json(await restoreClearedTasks({
+      shopId: req.authUser.shopId as string,
+      batchId: requiredParam(req, "batchId"),
+      scanHistoryId: requiredParam(req, "scanHistoryId"),
+      username: req.authUser.username,
+    }));
   },
 
   markIntention: async (req: Request, res: Response): Promise<void> => {

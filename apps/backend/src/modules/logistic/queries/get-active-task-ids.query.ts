@@ -13,12 +13,7 @@ function buildRoleWhere(
 
   switch (role) {
     case "manager":
-      return {
-        ...withIntention,
-        lastLogisticEventType: "placed",
-        fixItem: true,
-        isItemFixed: false,
-      };
+      return { ...withIntention, lastLogisticEventType: "marked_intention" };
     case "seller":
       return { ...base, intention: null };
     case "worker":

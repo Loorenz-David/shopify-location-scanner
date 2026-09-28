@@ -52,6 +52,7 @@ enum LogisticEventType {
   marked_intention
   placed
   fulfilled
+  dismissed
 }
 
 enum LogisticZoneType {
@@ -102,6 +103,7 @@ model Shop {
   webhookIntakeRecords WebhookIntakeRecord[]
   logisticLocations LogisticLocation[]
   scanHistoryLogistics ScanHistoryLogistic[]
+  logisticTaskClearBatches LogisticTaskClearBatch[]
   outboundWebhookTargets OutboundWebhookTarget[]
   outboundWebhookDeliveries OutboundWebhookDelivery[]
   managerStockLedger ManagerStockLedger[]
@@ -168,6 +170,7 @@ model ScanHistory {
   scheduledDate        DateTime?
   lastLogisticEventType LogisticEventType?
   logisticLocationId   String?
+  currentClearBatchId String?
   logisticsCompletedAt DateTime?
   restockedAt          DateTime?
   properties       Json?
@@ -181,6 +184,7 @@ model ScanHistory {
   user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
   logisticLocation LogisticLocation? @relation("ScanHistoryCurrentLocation", fields: [logisticLocationId], references: [id], onDelete: SetNull)
   logisticEvents   ScanHistoryLogistic[]
+  currentClearBatch LogisticTaskClearBatch? @relation("CurrentClearBatch", fields: [currentClearBatchId], references: [id], onDelete: SetNull)
 
   @@unique([shopId, productId])
   @@index([shopId, lastModifiedAt])
@@ -197,6 +201,7 @@ model ScanHistory {
   @@index([shopId, intention])
   @@index([shopId, lastLogisticEventType])
   @@index([shopId, logisticsCompletedAt])
+  @@index([shopId, currentClearBatchId])
   @@index([shopId, fixItem])
   @@index([shopId, isItemFixed])
   @@index([shopId, orderId])
@@ -444,6 +449,7 @@ model ScanHistoryLogistic {
   shopId             String
   orderId            String?
   logisticLocationId String?
+  clearBatchId       String?
   username           String
   description        String?
   eventType          LogisticEventType
@@ -453,11 +459,29 @@ model ScanHistoryLogistic {
   scanHistory      ScanHistory       @relation(fields: [scanHistoryId], references: [id], onDelete: Cascade)
   shop             Shop              @relation(fields: [shopId], references: [id], onDelete: Cascade)
   logisticLocation LogisticLocation? @relation(fields: [logisticLocationId], references: [id], onDelete: SetNull)
+  clearBatch LogisticTaskClearBatch? @relation(fields: [clearBatchId], references: [id], onDelete: SetNull)
 
   @@index([scanHistoryId, happenedAt])
   @@index([scanHistoryId, eventType])
   @@index([shopId, eventType, happenedAt])
   @@index([orderId, happenedAt])
+  @@index([clearBatchId, id])
+}
+
+model LogisticTaskClearBatch {
+  id           String   @id @default(cuid())
+  shopId       String
+  actorUserId  String
+  actorName    String
+  note         String?
+  clearedCount Int
+  createdAt    DateTime @default(now())
+
+  shop Shop @relation(fields: [shopId], references: [id], onDelete: Restrict)
+  events ScanHistoryLogistic[]
+  currentlyClearedItems ScanHistory[] @relation("CurrentClearBatch")
+
+  @@index([shopId, createdAt, id])
 }
 
 model PushSubscription {
@@ -515,6 +539,5 @@ model StockThresholdsLocation {
   @@unique([locationStockId, state])
   @@index([shopId])
 }
-
 
 
