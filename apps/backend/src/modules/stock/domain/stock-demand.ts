@@ -20,40 +20,13 @@ export const identityKey = (row: Pick<LocationStock, "itemCategory" | "propertie
   identityKeyOf(row.itemCategory, canonicalCriteriaString(row.properties));
 
 /**
- * §12A.2: the rule's set size, when it states exactly one. "Any value" and
- * several values can no longer be saved (§12A.11); the fallback to 1 stays as a
- * defence against rows written outside the API.
- */
-export const unitsPerItem = (properties: StockCriteria): number => {
-  const quantity = properties.quantity;
-  if (!Array.isArray(quantity) || quantity.length !== 1) {
-    return 1;
-  }
-  const value = quantity[0] ?? "";
-  return /^[1-9][0-9]*$/.test(value) ? Number(value) : 1;
-};
-
-/**
- * True when a row states a set size that §12A.11 no longer allows to be saved
- * ("any value", or several values) and `unitsPerItem` therefore fell back to 1.
- * A single legitimate `["1"]` is not ambiguous. Worth one warn per sync.
- */
-export const hasAmbiguousSetSize = (properties: StockCriteria): boolean => {
-  if (!Object.prototype.hasOwnProperty.call(properties, "quantity")) {
-    return false;
-  }
-  const quantity = properties.quantity;
-  if (!Array.isArray(quantity) || quantity.length !== 1) {
-    return true;
-  }
-  return !/^[1-9][0-9]*$/.test(quantity[0] ?? "");
-};
-
-/**
  * §12A.2: one entry per identity, summing each row's own gap. A surplus at one
  * location never fills a gap at another, so this is not
- * "sum of targets − sum of counts". Entries come out sorted by identity key, so
- * two runs on the same state send byte-identical bodies.
+ * "sum of targets − sum of counts". The gap is counted in items, the same
+ * currency as the thresholds: a set of 6 chairs is 1, and the set size travels
+ * only in `properties.quantity` (Manager handoff v3 §2.1). Entries come out
+ * sorted by identity key, so two runs on the same state send byte-identical
+ * bodies.
  */
 export const computeStockDemand = (rows: readonly LocationStock[]): DemandEntry[] => {
   const grouped = new Map<string, DemandEntry>();
@@ -65,7 +38,7 @@ export const computeStockDemand = (rows: readonly LocationStock[]): DemandEntry[
       properties: row.properties,
       quantityRequested: 0,
     };
-    entry.quantityRequested += missingItems(row) * unitsPerItem(row.properties);
+    entry.quantityRequested += missingItems(row);
     grouped.set(key, entry);
   }
 

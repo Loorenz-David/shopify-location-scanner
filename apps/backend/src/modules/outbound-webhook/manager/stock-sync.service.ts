@@ -2,7 +2,6 @@ import { logger } from "../../../shared/logging/logger.js";
 import { canonicalCriteriaString } from "../../stock/domain/property-criteria.js";
 import {
   computeStockDemand,
-  hasAmbiguousSetSize,
   identityKey,
   identityKeyOf,
   type DemandEntry,
@@ -338,17 +337,6 @@ export const runStockSync = async (
 
   if (demandEntries.length === 0) {
     return;
-  }
-
-  for (const entry of demandEntries) {
-    if (hasAmbiguousSetSize(entry.properties)) {
-      logger.warn("Stock rule states no single set size; counting one unit per item", {
-        shopId,
-        mode,
-        itemCategory: entry.itemCategory,
-        properties: entry.properties,
-      });
-    }
   }
 
   const demandBody = JSON.stringify(demandEntries);

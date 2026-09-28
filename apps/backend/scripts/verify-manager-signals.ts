@@ -658,7 +658,7 @@ const main = async (): Promise<void> => {
     const entries = modules.computeStockDemand(rows);
     equalJson(
       entries,
-      [{ itemCategory: "Dining Chairs", properties, quantityRequested: 8 }],
+      [{ itemCategory: "Dining Chairs", properties, quantityRequested: 2 }],
       "worked fixture",
     );
 
@@ -674,21 +674,17 @@ const main = async (): Promise<void> => {
   };
 
   const check2 = async (): Promise<void> => {
-    const cases: Array<[Record<string, string[] | null>, number]> = [
-      [{ quantity: ["4"] }, 4],
-      [{}, 1],
-      [{ quantity: null }, 1],
-      [{ quantity: ["4", "6"] }, 1],
-      [{ quantity: ["0"] }, 1],
-      [{ quantity: ["04"] }, 1],
-    ];
-    for (const [properties, expected] of cases) {
-      const actual = modules.unitsPerItem(properties);
-      assert(
-        actual === expected,
-        `unitsPerItem(${JSON.stringify(properties)}) = ${actual}, expected ${expected}`,
-      );
-    }
+    // Handoff v3: demand is counted in items, like the thresholds. A set of 4
+    // missing twice is 2, and the set size travels unchanged in properties.
+    await resetState();
+    const properties = chairs({ quantity: ["4"] });
+    await createStockRow(modules, { shopId, location: "LC10", itemCategory: "Dining Chairs", properties, thresholds: [3], instanceCount: 1 });
+    await sync();
+    equalJson(
+      bodyOf(requestsOn("/stock-demand")[0] as StubRequest),
+      [{ itemCategory: "Dining Chairs", properties: { quantity: ["4"] }, quantityRequested: 2 }],
+      "a set of 4 missing twice is sent as 2",
+    );
   };
 
   const check3 = async (): Promise<void> => {
@@ -1634,7 +1630,7 @@ const main = async (): Promise<void> => {
     await syncDelta();
     equalJson(
       bodyOf(requestsOn("/stock-demand")[0] as StubRequest),
-      [{ itemCategory: "Dining Chairs", properties: shared, quantityRequested: 20 }],
+      [{ itemCategory: "Dining Chairs", properties: shared, quantityRequested: 5 }],
       "a delta sends only the changed aggregate group",
     );
     assert(requestsOn("/stock-demand").length === 1, "one changed group sent more than one request");
@@ -1744,7 +1740,7 @@ const main = async (): Promise<void> => {
 
   const cases: Array<{ id: string; run: () => Promise<void> }> = [
     { id: "1 (M1) worked fixture and one restock-target source", run: check1 },
-    { id: "2 (M1) unitsPerItem", run: check2 },
+    { id: "2 (M1) set size is not a multiplier", run: check2 },
     { id: "3 (M1) one entry per identity, sorted, no duplicate", run: check3 },
     { id: "4 (M1) a satisfied rule is sent as 0", run: check4 },
     { id: "5 (M2) no delete while another location holds the identity", run: check5 },
