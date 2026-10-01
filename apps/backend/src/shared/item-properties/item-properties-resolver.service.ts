@@ -8,6 +8,7 @@ import {
   fetchPurchaseApiItemAttributes,
   isPurchaseApiConfigured,
 } from "./purchase-api.integration.js";
+import { WOOD_TYPE_KEY } from "./wood-groups.js";
 
 /**
  * The single producer of a write-ready `ScanHistory.properties` value.
@@ -117,6 +118,26 @@ const dropExcludedAttributes = (attributes: ItemProperties): ItemProperties => {
   return kept;
 };
 
+/** Purchase attribute spellings that fill a missing matcher key. Mirrors
+ * Manager's ITEM_KEY_ALIASES; the original attribute remains available. */
+const PURCHASE_ATTRIBUTE_KEY_ALIASES: ReadonlyArray<readonly [string, readonly string[]]> = [
+  [WOOD_TYPE_KEY, ["material_type"]],
+];
+
+const aliasAttributeKeys = (attributes: ItemProperties): ItemProperties => {
+  const aliased: ItemProperties = { ...attributes };
+  for (const [key, aliases] of PURCHASE_ATTRIBUTE_KEY_ALIASES) {
+    if (key in aliased) {
+      continue;
+    }
+    const alias = aliases.find((candidate) => candidate in aliased);
+    if (alias !== undefined) {
+      aliased[key] = aliased[alias] as string;
+    }
+  }
+  return aliased;
+};
+
 export const itemPropertiesResolver = {
   /**
    * Builds the complete properties bag for a resolved Shopify product.
@@ -151,7 +172,7 @@ export const itemPropertiesResolver = {
       return capProperties(input.metafieldProperties);
     }
 
-    const keptAttributes = dropExcludedAttributes(attributes);
+    const keptAttributes = aliasAttributeKeys(dropExcludedAttributes(attributes));
 
     // Shopify wins collisions: the shop's own edit beats the upstream
     // catalogue. In practice these are common — `wood_type`, `shape` and
