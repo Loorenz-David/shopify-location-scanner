@@ -57,7 +57,7 @@ export const userRepository = {
   async create(input: {
     username: string;
     passwordHash: string;
-    role: "admin" | "worker";
+    role: AuthUser["role"];
     shopId?: string | null;
   }): Promise<AuthUser> {
     const record = await prisma.user.create({

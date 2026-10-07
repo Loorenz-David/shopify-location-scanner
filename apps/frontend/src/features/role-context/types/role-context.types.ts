@@ -17,6 +17,9 @@ export interface LogisticTaskDefaultFilter {
 export type LogisticTaskCardAction = "markItemIntention" | "markItemPlacement";
 
 export interface RoleCapabilities {
+  can_create_users: boolean;
+  creatable_user_roles: UserRole[];
+  can_change_user_roles: boolean;
   can_display_main_stats: boolean;
   can_manage_logistic_locations: boolean;
   can_mark_scan_history_completion: boolean;

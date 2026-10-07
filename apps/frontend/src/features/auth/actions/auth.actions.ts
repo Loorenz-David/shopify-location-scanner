@@ -8,24 +8,17 @@ import {
   hydrateAuthSessionController,
   loginController,
   logoutController,
-  registerController,
   appEnterController,
   appLeaveController,
 } from "../controllers/auth.controller";
 import type {
   AuthUserDto,
   LoginRequestDto,
-  RegisterRequestDto,
 } from "../types/auth.dto";
 
 export const authActions = {
   async login(payload: LoginRequestDto): Promise<AuthUserDto> {
     const user = await loginController(payload);
-    connectWsClient(() => tokenAuthController.getAccessToken());
-    return user;
-  },
-  async register(payload: RegisterRequestDto): Promise<AuthUserDto> {
-    const user = await registerController(payload);
     connectWsClient(() => tokenAuthController.getAccessToken());
     return user;
   },

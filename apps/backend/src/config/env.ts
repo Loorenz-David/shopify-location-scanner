@@ -9,7 +9,6 @@ const EnvSchema = z.object({
   FRONTEND_URLS: z.string().optional(),
   DATABASE_URL: z.string().min(1),
   JWT_SECRET: z.string().min(32),
-  ADMIN_KEY: z.string().min(1).optional(),
   SHOPIFY_API_KEY: z.string().min(1),
   SHOPIFY_API_SECRET: z.string().min(1),
   SHOPIFY_SCOPES: z.string().min(1),

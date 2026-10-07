@@ -25,6 +25,9 @@ export function buildRoleCapabilities(role: UserRole): RoleCapabilities {
   switch (role) {
     case "manager":
       return {
+        can_create_users: true,
+        creatable_user_roles: ["worker", "seller"],
+        can_change_user_roles: false,
         can_display_main_stats: true,
         can_manage_logistic_locations: true,
         can_mark_scan_history_completion: true,
@@ -39,6 +42,9 @@ export function buildRoleCapabilities(role: UserRole): RoleCapabilities {
 
     case "seller":
       return {
+        can_create_users: false,
+        creatable_user_roles: [],
+        can_change_user_roles: false,
         can_display_main_stats: true,
         can_manage_logistic_locations: false,
         can_mark_scan_history_completion: true,
@@ -51,6 +57,9 @@ export function buildRoleCapabilities(role: UserRole): RoleCapabilities {
 
     case "worker":
       return {
+        can_create_users: false,
+        creatable_user_roles: [],
+        can_change_user_roles: false,
         can_display_main_stats: false,
         can_manage_logistic_locations: false,
         can_mark_scan_history_completion: false,
@@ -66,6 +75,10 @@ export function buildRoleCapabilities(role: UserRole): RoleCapabilities {
     case "admin":
     default:
       return {
+        can_create_users: role === "admin",
+        creatable_user_roles:
+          role === "admin" ? ["admin", "manager", "worker", "seller"] : [],
+        can_change_user_roles: role === "admin",
         can_display_main_stats: true,
         can_manage_logistic_locations: true,
         can_mark_scan_history_completion: true,

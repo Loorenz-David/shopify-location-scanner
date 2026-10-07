@@ -4,12 +4,10 @@ import { appLeaveApi } from "../api/app-presence.api";
 import { getCurrentUserApi } from "../api/get-current-user.api";
 import { loginApi } from "../api/login.api";
 import { logoutApi } from "../api/logout.api";
-import { registerApi } from "../api/register.api";
 import { pwaActions } from "../../pwa/actions/pwa.actions";
 import type {
   AuthUserDto,
   LoginRequestDto,
-  RegisterRequestDto,
 } from "../types/auth.dto";
 
 const AUTH_USER_STORAGE_KEY = "authUser";
@@ -26,15 +24,6 @@ export async function loginController(
   payload: LoginRequestDto,
 ): Promise<AuthUserDto> {
   const session = await loginApi(payload);
-  tokenAuthController.setTokens(session.tokens);
-  setStoredAuthUser(session.user);
-  return session.user;
-}
-
-export async function registerController(
-  payload: RegisterRequestDto,
-): Promise<AuthUserDto> {
-  const session = await registerApi(payload);
   tokenAuthController.setTokens(session.tokens);
   setStoredAuthUser(session.user);
   return session.user;

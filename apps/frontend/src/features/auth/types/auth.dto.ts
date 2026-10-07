@@ -15,12 +15,6 @@ export interface AuthSessionDto {
   tokens: AuthTokensDto;
 }
 
-export interface RegisterRequestDto {
-  username: string;
-  password: string;
-  key?: string;
-}
-
 export interface LoginRequestDto {
   username: string;
   password: string;

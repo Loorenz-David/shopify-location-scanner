@@ -1,5 +1,12 @@
 import { z } from "zod";
 
+export const CreateUserInputSchema = z.object({
+  username: z.string().trim().min(3).max(50),
+  password: z.string().min(8).max(128),
+  role: z.enum(["admin", "manager", "worker", "seller"]),
+});
+export type CreateUserInput = z.infer<typeof CreateUserInputSchema>;
+
 export const ChangeUserRoleInputSchema = z.object({
   targetUserId: z.string().min(1),
   role: z.enum(["admin", "manager", "worker", "seller"]),

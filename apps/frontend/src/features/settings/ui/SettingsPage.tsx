@@ -1,3 +1,4 @@
+import { useRoleCapabilities } from "../../role-context/hooks/use-role-capabilities";
 import {
   formatBootstrapSyncLabel,
   settingsOptionSubscriptions,
@@ -7,6 +8,7 @@ import { SettingsOptionRow } from "./SettingsOptionRow";
 import { SettingsProfileCard } from "./SettingsProfileCard";
 
 export function SettingsPage() {
+  const { can_create_users } = useRoleCapabilities();
   const {
     profile,
     isProfileLoading,
@@ -48,13 +50,17 @@ export function SettingsPage() {
       )}
 
       <div className="mt-2 flex flex-col gap-3">
-        {settingsOptionSubscriptions.map((option) => (
-          <SettingsOptionRow
-            key={option.id}
-            label={option.label}
-            onPress={() => openOption(option.id)}
-          />
-        ))}
+        {settingsOptionSubscriptions
+          .filter(
+            (option) => option.id !== "settings-users" || can_create_users,
+          )
+          .map((option) => (
+            <SettingsOptionRow
+              key={option.id}
+              label={option.label}
+              onPress={() => openOption(option.id)}
+            />
+          ))}
       </div>
 
       <div className="rounded-xl border border-slate-900/10 bg-white/85 p-3 shadow-[0_10px_22px_rgba(15,23,42,0.06)]">

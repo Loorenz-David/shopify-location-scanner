@@ -23,7 +23,9 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
-    "prisma:studio": "prisma studio"
+    "prisma:studio": "prisma studio",
+    "setup:admin": "tsx scripts/setup-admin.ts",
+    "test:users": "node --import tsx --test src/modules/users/commands/create-user.command.test.ts"
   },
   "keywords": [],
   "author": "",

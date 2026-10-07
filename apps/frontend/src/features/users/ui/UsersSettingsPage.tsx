@@ -1,3 +1,5 @@
+import { useRoleCapabilities } from "../../role-context/hooks/use-role-capabilities";
+import { CreateUserPanel } from "./CreateUserPanel";
 import { useRef, useState } from "react";
 
 import { BackArrowIcon } from "../../../assets/icons";
@@ -10,15 +12,19 @@ import { UserCard } from "./UserCard";
 import { UserRolePanel } from "./UserRolePanel";
 
 export function UsersSettingsPage() {
+  const { can_create_users, can_change_user_roles, creatable_user_roles } =
+    useRoleCapabilities();
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const createButtonRef = useRef<HTMLButtonElement>(null);
   const { users, isLoading, hasLoaded, errorMessage } = useUsersFlow();
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
 
   const selectedUser = users.find((u) => u.id === selectedUserId) ?? null;
 
-  // Freeze the last known user so the exit animation renders with its data
-  const panelUserRef = useRef<User | null>(null);
-  if (selectedUser !== null) panelUserRef.current = selectedUser;
-  const panelUser = panelUserRef.current;
+  // Keep the selected card data available during the panel's exit animation.
+  const [lastSelectedUser, setLastSelectedUser] = useState<User | null>(null);
+  const panelUser = selectedUser ?? lastSelectedUser;
 
   function handleChangeRole(role: UserRole) {
     if (!selectedUserId) return;
@@ -41,7 +47,31 @@ export function UsersSettingsPage() {
             <BackArrowIcon className="h-5 w-5" aria-hidden="true" />
           </button>
           <h1 className="text-xl font-bold text-slate-900">Users</h1>
+          {can_create_users && (
+            <button
+              ref={createButtonRef}
+              type="button"
+              aria-haspopup="dialog"
+              aria-expanded={isCreateOpen}
+              className="ml-auto min-h-10 rounded-xl bg-slate-900 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-slate-800"
+              onClick={() => {
+                setSelectedUserId(null);
+                setSuccessMessage(null);
+                setIsCreateOpen(true);
+              }}
+            >
+              <span aria-hidden="true">+ </span>Create user
+            </button>
+          )}
         </header>
+        {successMessage && (
+          <p
+            role="status"
+            className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800"
+          >
+            {successMessage}
+          </p>
+        )}
 
         {showSkeleton && (
           <ul
@@ -90,7 +120,12 @@ export function UsersSettingsPage() {
               <li key={user.id}>
                 <UserCard
                   user={user}
-                  onClick={() => setSelectedUserId(user.id)}
+                  canChangeRole={can_change_user_roles}
+                  onClick={() => {
+                    if (!can_change_user_roles) return;
+                    setLastSelectedUser(user);
+                    setSelectedUserId(user.id);
+                  }}
                 />
               </li>
             ))}
@@ -99,7 +134,23 @@ export function UsersSettingsPage() {
       </section>
 
       <SlidingOverlayContainer
-        isOpen={selectedUser !== null}
+        isOpen={isCreateOpen && can_create_users}
+        title="Create user"
+        zIndexClassName="z-[70]"
+      >
+        <CreateUserPanel
+          onClose={() => setIsCreateOpen(false)}
+          onCreated={() => {
+            setSuccessMessage("User created successfully.");
+            setIsCreateOpen(false);
+          }}
+          allowedRoles={creatable_user_roles}
+          returnFocusRef={createButtonRef}
+        />
+      </SlidingOverlayContainer>
+
+      <SlidingOverlayContainer
+        isOpen={selectedUser !== null && can_change_user_roles}
         title="Change Role"
         zIndexClassName="z-[70]"
       >

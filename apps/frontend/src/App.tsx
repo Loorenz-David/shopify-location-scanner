@@ -89,28 +89,6 @@ function App() {
     }
   };
 
-  const handleRegister = async (payload: {
-    username: string;
-    password: string;
-    key?: string;
-  }) => {
-    setIsAuthSubmitPending(true);
-    setAuthErrorMessage(null);
-
-    try {
-      // Backend register returns the same authenticated session payload as login.
-      const user = await authActions.register(payload);
-      setAuthenticatedUser(user);
-    } catch {
-      setAuthErrorMessage(
-        "Registration failed. Review the form and try again.",
-      );
-      authActions.clearSession();
-    } finally {
-      setIsAuthSubmitPending(false);
-    }
-  };
-
   const handleLogout = () => {
     setAuthenticatedUser(null);
     setAuthErrorMessage(null);
@@ -157,7 +135,6 @@ function App() {
           isLoading={isAuthSubmitPending}
           errorMessage={authErrorMessage}
           onLogin={handleLogin}
-          onRegister={handleRegister}
         />
         <PwaUpdatePrompt
           isVisible={isPwaUpdateVisible}

@@ -3,9 +3,7 @@ import {
   LoginInputSchema,
   LogoutInputSchema,
   RefreshInputSchema,
-  RegisterInputSchema,
 } from "../contracts/auth.contract.js";
-import { registerCommand } from "../commands/register.command.js";
 import { loginCommand } from "../commands/login.command.js";
 import { refreshAccessTokenCommand } from "../commands/refresh-access-token.command.js";
 import { logoutCommand } from "../commands/logout.command.js";
@@ -14,12 +12,6 @@ import { appLeaveCommand } from "../commands/app-leave.command.js";
 import { getCurrentUserQuery } from "../queries/get-current-user.query.js";
 
 export const authController = {
-  register: async (req: Request, res: Response): Promise<void> => {
-    const input = RegisterInputSchema.parse(req.body);
-    const result = await registerCommand(input);
-    res.status(201).json(result);
-  },
-
   login: async (req: Request, res: Response): Promise<void> => {
     const input = LoginInputSchema.parse(req.body);
     const result = await loginCommand(input);

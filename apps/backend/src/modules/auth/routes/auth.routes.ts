@@ -11,11 +11,6 @@ import { authenticateUserMiddleware } from "../middleware/authenticate-user.midd
 export const authRouter = Router();
 
 authRouter.post(
-  "/register",
-  authCredentialRateLimitMiddleware,
-  asyncHandler(authController.register),
-);
-authRouter.post(
   "/login",
   authCredentialRateLimitMiddleware,
   asyncHandler(authController.login),

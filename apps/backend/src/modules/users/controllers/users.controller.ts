@@ -1,9 +1,32 @@
+import { ForbiddenError } from "../../../shared/errors/http-errors.js";
 import type { Request, Response } from "express";
-import { ChangeUserRoleInputSchema } from "../contracts/users.contract.js";
+import {
+  ChangeUserRoleInputSchema,
+  CreateUserInputSchema,
+} from "../contracts/users.contract.js";
 import { getUsersQuery } from "../queries/get-users.query.js";
 import { changeUserRoleCommand } from "../commands/change-user-role.command.js";
 
+import { createUserCommand } from "../commands/create-user.command.js";
+
 export const usersController = {
+  create: async (req: Request, res: Response): Promise<void> => {
+    const payload = CreateUserInputSchema.parse(req.body);
+    if (
+      req.authUser.role === "manager" &&
+      payload.role !== "worker" &&
+      payload.role !== "seller"
+    ) {
+      throw new ForbiddenError(
+        "Managers can create Worker and Seller accounts only",
+      );
+    }
+    const user = await createUserCommand(
+      req.authUser.shopId as string,
+      payload,
+    );
+    res.status(201).json({ user });
+  },
   getUsers: async (req: Request, res: Response): Promise<void> => {
     const users = await getUsersQuery(req.authUser.shopId as string);
     res.status(200).json({ users });

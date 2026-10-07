@@ -1,6 +1,8 @@
+import { createUserApi } from "../api/create-user.api";
+import type { CreateUserRequestDto } from "../types/users.dto";
 import { changeUserRoleApi } from "../api/change-user-role.api";
 import { getUsersApi } from "../api/get-users.api";
-import { normalizeUsers } from "../domain/users.domain";
+import { normalizeUser, normalizeUsers } from "../domain/users.domain";
 import { useUsersStore } from "../stores/users.store";
 import type { UserRole } from "../types/users.types";
 
@@ -40,4 +42,11 @@ export async function changeUserRoleController(
     }
     throw new Error("Failed to update user role. Please try again.");
   }
+}
+
+export async function createUserController(
+  payload: CreateUserRequestDto,
+): Promise<void> {
+  const response = await createUserApi(payload);
+  useUsersStore.getState().addUser(normalizeUser(response.user));
 }

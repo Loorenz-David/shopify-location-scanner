@@ -16,3 +16,13 @@ export interface ChangeUserRoleRequestDto {
   targetUserId: string;
   role: UserRole;
 }
+
+export interface CreateUserRequestDto {
+  username: string;
+  password: string;
+  role: UserRole;
+}
+
+export interface CreateUserResponseDto {
+  user: UserDto;
+}

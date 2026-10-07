@@ -12,6 +12,7 @@ interface UsersStoreState {
   hydrateAndFinish: (users: User[]) => void;
   finishWithError: (message: string) => void;
   updateUserRole: (id: string, role: UserRole) => void;
+  addUser: (user: User) => void;
   reset: () => void;
 }
 
@@ -36,6 +37,14 @@ export const useUsersStore = create<UsersStoreState>((set) => ({
   updateUserRole(id, role) {
     set((state) => ({
       users: state.users.map((u) => (u.id === id ? { ...u, role } : u)),
+    }));
+  },
+
+  addUser(user) {
+    set((state) => ({
+      users: [...state.users.filter((item) => item.id !== user.id), user],
+      hasLoaded: true,
+      errorMessage: null,
     }));
   },
 
